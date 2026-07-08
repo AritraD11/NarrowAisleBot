@@ -6,13 +6,14 @@
 # ║  Tested on: Raspberry Pi 5, Ubuntu 24.04 LTS                        ║
 # ║  Installs : ROS2 Jazzy + Nav2 + SLAM + all nodes + system config    ║
 # ║                                                                      ║
-# ║  Run on a FRESH Pi with ONE command:                                 ║
+# ║  Run on a FRESH Pi with ONE command (repo must be public — see        ║
+# ║  README.md "Fresh Pi" note; this repo is normally private):          ║
 # ║    bash <(curl -sSL https://raw.githubusercontent.com/              ║
-# ║           YOUR_GITHUB_USERNAME/aislebot/main/install.sh)            ║
+# ║           AritraD11/NarrowAisleBot/main/install.sh)                  ║
 # ║                                                                      ║
-# ║  Or after cloning:                                                   ║
-# ║    git clone https://github.com/YOUR_USERNAME/aislebot               ║
-# ║    cd aislebot && bash install.sh                                    ║
+# ║  Or after cloning (works while private, given a token/SSH key):      ║
+# ║    git clone https://github.com/AritraD11/NarrowAisleBot             ║
+# ║    cd NarrowAisleBot && bash install.sh                              ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 set -e
@@ -21,7 +22,7 @@ set -e
 #  !! EDIT THIS BEFORE PUSHING TO GITHUB !!
 # ════════════════════════════════════════════════════════════════════════
 GITHUB_USER="AritraD11"
-GITHUB_REPO="Aislebot"
+GITHUB_REPO="NarrowAisleBot"
 GITHUB_BRANCH="main"
 
 # ════════════════════════════════════════════════════════════════════════

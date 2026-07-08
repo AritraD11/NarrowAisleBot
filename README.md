@@ -3,7 +3,7 @@
 Asymmetric Mecanum Omnidirectional Robot for Narrow-Aisle Warehouse Navigation
 **Aritra Das (25D0074) | IIT Bombay, Dept. of Biosciences & Bioengineering | Prof. Ambarish Kunwar**
 
-*(GitHub repo name stays `Aislebot` for continuity with existing links — "NarrowAisleBot" is the project's display name, per the Research Journal.)*
+*(Repo was renamed from `Aislebot` to `NarrowAisleBot` and made private — see the install note below for what that means for fresh-Pi setup.)*
 
 ---
 
@@ -22,10 +22,12 @@ Asymmetric Mecanum Omnidirectional Robot for Narrow-Aisle Warehouse Navigation
 ## Fresh Pi — one command
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/AritraD11/Aislebot/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/main/install.sh)
 ```
 
 Installs ROS2 Jazzy, Nav2, SLAM, the YDLIDAR SDK + ROS2 driver, all Python packages, builds the workspace, and configures udev, systemd, and `.bashrc`. Takes ~25–30 minutes on a fresh Pi 5.
+
+> **Repo is private.** `raw.githubusercontent.com` can't serve private-repo content anonymously, so this one-liner (and any plain `git clone`) only works while the repo is temporarily switched to public. Workflow: [make it public](https://github.com/AritraD11/NarrowAisleBot/settings) → run the install → set it back to private. There's no token embedded in the command above on purpose — don't paste a Personal Access Token into a URL you might screenshot or paste into chat.
 
 ---
 

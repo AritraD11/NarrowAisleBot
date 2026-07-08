@@ -25,7 +25,7 @@ On a brand-new Raspberry Pi 5 with Ubuntu 24.04 LTS installed, open a terminal a
 |                                                                                         |
 |-----------------------------------------------------------------------------------------|
 | **ONE-CLICK INSTALL COMMAND**                                                           |
-| bash \<(curl -sSL https://raw.githubusercontent.com/AritraD11/Aislebot/main/install.sh) |
+| bash \<(curl -sSL https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/main/install.sh) |
 
 This command downloads and runs the install script directly from GitHub. It will:
 
@@ -417,7 +417,7 @@ The Pi's phone_dashboard saves this to ~/aislebot_logs/run_YYYYMMDD_HHMMSS.csv w
 |                                                                                         |
 |-----------------------------------------------------------------------------------------|
 | **FRESH PI RESTORE — ONE COMMAND**                                                      |
-| bash \<(curl -sSL https://raw.githubusercontent.com/AritraD11/Aislebot/main/install.sh) |
+| bash \<(curl -sSL https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/main/install.sh) |
 
 |                                                          |
 |----------------------------------------------------------|

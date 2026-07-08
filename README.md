@@ -3,7 +3,7 @@
 Asymmetric Mecanum Omnidirectional Robot for Narrow-Aisle Warehouse Navigation
 **Aritra Das (25D0074) | IIT Bombay, Dept. of Biosciences & Bioengineering | Prof. Ambarish Kunwar**
 
-*(Repo was renamed from `Aislebot` to `NarrowAisleBot` and made private — see the install note below for what that means for fresh-Pi setup.)*
+A Raspberry Pi 5 / ROS 2 Jazzy robot whose defining feature is a non-collinear, **asymmetric** mecanum wheelbase — the outer wheels (FR, RL) sit farther from centre than the inner wheels (FL, RR), roughly halving chassis width so it fits aisles a conventional mecanum platform can't. Real-time motor control runs on an ESP32 (hardware-PCNT PID at 50 Hz); planning, teleop, and SLAM run on the Pi.
 
 ---
 
@@ -152,3 +152,13 @@ Committed at the repo root (not stored separately):
 |---|---|---|
 | `aislebot_esp32.ino` | ESP32-WROOM-32 | 921600 |
 | `aislebot_arm.ino` | Arduino Mega 2560 (arm + UV lighting, v8) | 115200 |
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE) © 2026 Aritra Das.
+
+## Acknowledgements
+
+Developed at the Indian Institute of Technology Bombay, Department of Biosciences and Bioengineering, under the supervision of Prof. Ambarish Kunwar. The asymmetric wheelbase kinematics build on *An Omnidirectional Asymmetric Mobile Robot for Narrow-Aisle Spaces* (see `docs/Research_Journal.md`, Appendix A, for the full reference list).

@@ -5,35 +5,38 @@ aislebot_full.launch.py — bring up the entire AisleBot stack.
 Nodes started:
     joy_node               (USB gamepad → /joy)
     joy_to_aislebot        (/joy → /cmd_vel, /arm/cmd_vel, /arm/command)
-    teleop_asym            (/cmd_vel → /wheel_speeds)
-    esp32_bridge           (/wheel_speeds → ESP32 serial)   /dev/esp32 CP2102
-    odom_pub               (encoder feedback → /odom)
-    arm_bridge             (arm topics → Arduino Mega)      /dev/mega  CH340
+    teleop_asym            (/cmd_vel → /wheel_speeds)              [from existing pkg]
+    esp32_bridge           (/wheel_speeds → ESP32 serial)          [from existing pkg]
+    arm_bridge             (arm topics → Arduino Mega serial)
     phone_dashboard        (HTTP + WebSocket → ROS2 publishers)
-    lcd_display            (16x2 I2C LCD status at 0x27)
 
 Usage:
     ros2 launch mecanum_robot aislebot_full.launch.py
     ros2 launch mecanum_robot aislebot_full.launch.py use_phone:=false
-    ros2 launch mecanum_robot aislebot_full.launch.py use_joystick:=false
+    ros2 launch mecanum_robot aislebot_full.launch.py \\
+        esp32_port:=/dev/ttyUSB0  arm_port:=/dev/ttyACM0
+
+Find your ports first:
+    ls -l /dev/serial/by-id/
+    udevadm info /dev/ttyUSB0 | grep MODEL
 """
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.substitutions import LaunchConfiguration
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
 
     args = [
-        DeclareLaunchArgument('esp32_port',   default_value='/dev/esp32',
-                              description='ESP32 drive controller (CP2102)'),
-        DeclareLaunchArgument('esp32_baud',   default_value='921600'),
-        DeclareLaunchArgument('arm_port',     default_value='/dev/mega',
-                              description='Arduino Mega arm controller (CH340)'),
-        DeclareLaunchArgument('arm_baud',     default_value='115200'),
+        DeclareLaunchArgument('esp32_port',  default_value='/dev/ttyUSB0',
+                              description='Serial port for ESP32 drive controller'),
+        DeclareLaunchArgument('esp32_baud',  default_value='921600'),
+        DeclareLaunchArgument('arm_port',    default_value='/dev/ttyACM0',
+                              description='Serial port for Arduino Mega arm controller'),
+        DeclareLaunchArgument('arm_baud',    default_value='115200'),
         DeclareLaunchArgument('use_joystick', default_value='true',
                               description='Start joy_node + joy_to_aislebot'),
         DeclareLaunchArgument('use_phone',    default_value='true',
@@ -47,19 +50,19 @@ def generate_launch_description():
     use_phone = LaunchConfiguration('use_phone')
 
     banner = LogInfo(msg=[
-        '\n══════════════════════════════════════════════════════════\n',
-        '  AisleBot Full Stack\n',
-        '  ESP32  (drive): ', LaunchConfiguration('esp32_port'),
+        '\n══════════════════════════════════════════════════════════════════\n',
+        '  AisleBot Unified Stack\n',
+        '  ESP32 (drive): ', LaunchConfiguration('esp32_port'),
         ' @ ', LaunchConfiguration('esp32_baud'), ' baud\n',
-        '  Mega   (arm)  : ', LaunchConfiguration('arm_port'),
+        '  Mega  (arm)  : ', LaunchConfiguration('arm_port'),
         ' @ ', LaunchConfiguration('arm_baud'), ' baud\n',
-        '  Joystick : ', use_joy, '\n',
-        '  Phone    : ', use_phone,
-        ' (port ', LaunchConfiguration('http_port'), ')\n',
-        '══════════════════════════════════════════════════════════\n',
+        '  USB joystick : ', use_joy, '\n',
+        '  Phone server : ', use_phone,
+        '  (port ', LaunchConfiguration('http_port'), ')\n',
+        '══════════════════════════════════════════════════════════════════\n',
     ])
 
-    # ── INPUT ────────────────────────────────────────────────────
+    # ────────── INPUT NODES ───────────────────────────────────────
     joy_node = Node(
         package='joy', executable='joy_node', name='joy_node',
         parameters=[{'device_id': 0, 'deadzone': 0.05, 'autorepeat_rate': 25.0}],
@@ -90,18 +93,10 @@ def generate_launch_description():
         output='screen',
     )
 
-    # ── DRIVE PIPELINE ───────────────────────────────────────────
+    # ────────── DRIVE PIPELINE ────────────────────────────────────
     teleop = Node(
         package='mecanum_robot', executable='teleop_asym',
         name='teleop_asym',
-        parameters=[{
-            'wheel_radius': 0.0762,
-            'l1':           0.403,
-            'l2':           0.333,
-            'd':            0.15769,
-            'max_linear':   LaunchConfiguration('max_linear'),
-            'max_angular':  LaunchConfiguration('max_angular'),
-        }],
         output='screen',
     )
 
@@ -109,43 +104,24 @@ def generate_launch_description():
         package='mecanum_robot', executable='esp32_bridge',
         name='esp32_bridge',
         parameters=[{
-            'serial_port':     LaunchConfiguration('esp32_port'),
-            'baud_rate':       921600,
-            'max_wheel_speed': 6.28,
+            'serial_port': LaunchConfiguration('esp32_port'),
+            'baud_rate':   LaunchConfiguration('esp32_baud'),
         }],
         output='screen',
     )
 
-    odom_pub = Node(
-        package='mecanum_robot', executable='odom_pub',
-        name='odometry_publisher',
-        parameters=[{
-            'wheel_radius': 0.0762,
-            'l1':           0.403,
-            'l2':           0.333,
-            'd':            0.15769,
-            'publish_tf':   True,
-        }],
-        output='screen',
-    )
-
-    # ── ARM PIPELINE ─────────────────────────────────────────────
+    # ────────── ARM PIPELINE ──────────────────────────────────────
     arm_bridge = Node(
         package='mecanum_robot', executable='arm_bridge',
         name='arm_bridge',
         parameters=[{
-            'serial_port':                 LaunchConfiguration('arm_port'),
-            'baud_rate':                   115200,
+            'serial_port': LaunchConfiguration('arm_port'),
+            'baud_rate':   LaunchConfiguration('arm_baud'),
+            # Auto-disable bench joystick once Pi takes over.
+            # Auto-enable is OFF by default — explicit ENABLE keeps you safer.
             'disable_joystick_on_connect': True,
-            'auto_enable_on_connect':      True,
+            'auto_enable_on_connect': False,
         }],
-        output='screen',
-    )
-
-    # ── STATUS ───────────────────────────────────────────────────
-    lcd = Node(
-        package='mecanum_robot', executable='lcd_display',
-        name='lcd_display',
         output='screen',
     )
 
@@ -153,7 +129,6 @@ def generate_launch_description():
         *args,
         banner,
         joy_node, joy_translator, phone,
-        teleop, esp32_bridge, odom_pub,
+        teleop, esp32_bridge,
         arm_bridge,
-        lcd,
     ])

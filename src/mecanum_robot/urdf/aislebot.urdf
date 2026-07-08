@@ -220,7 +220,7 @@
 
   <!-- Simulated LiDAR sensor -->
   <gazebo reference="laser_frame">
-    <sensor type="ray" name="rplidar">
+    <sensor type="ray" name="ydlidar">
       <pose>0 0 0 0 0 0</pose>
       <visualize>true</visualize>
       <update_rate>10</update_rate>

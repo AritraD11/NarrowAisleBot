@@ -20,7 +20,7 @@ set -e
 # ════════════════════════════════════════════════════════════════════════
 #  !! EDIT THIS BEFORE PUSHING TO GITHUB !!
 # ════════════════════════════════════════════════════════════════════════
-GITHUB_USER="AritrD11"
+GITHUB_USER="AritraD11"
 GITHUB_REPO="Aislebot"
 GITHUB_BRANCH="main"
 
@@ -86,7 +86,7 @@ ok "GitHub: ${GITHUB_USER}/${GITHUB_REPO}"
 # ════════════════════════════════════════════════════════════════════════
 #  STEP 1 — SYSTEM PACKAGES
 # ════════════════════════════════════════════════════════════════════════
-step "1 / 7  —  System update & base tools"
+step "1 / 8  —  System update & base tools"
 
 sudo apt-get update -q >> "$INSTALL_LOG" 2>&1
 ok "apt update"
@@ -106,7 +106,7 @@ ok "Locale set"
 # ════════════════════════════════════════════════════════════════════════
 #  STEP 2 — ROS2 JAZZY
 # ════════════════════════════════════════════════════════════════════════
-step "2 / 7  —  ROS2 Jazzy (longest step ~15 min)"
+step "2 / 8  —  ROS2 Jazzy (longest step ~15 min)"
 
 if command -v ros2 &>/dev/null; then
     ok "ROS2 already installed — skipping"
@@ -141,7 +141,6 @@ sudo apt-get install -y -q \
     ros-jazzy-slam-toolbox \
     ros-jazzy-robot-localization \
     ros-jazzy-joy \
-    ros-jazzy-rplidar-ros \
     ros-jazzy-rmw-cyclonedds-cpp \
     ros-jazzy-teleop-twist-keyboard \
     ros-jazzy-ros-gz-sim \
@@ -161,7 +160,7 @@ source /opt/ros/${ROS_DISTRO}/setup.bash
 # ════════════════════════════════════════════════════════════════════════
 #  STEP 3 — PYTHON PACKAGES
 # ════════════════════════════════════════════════════════════════════════
-step "3 / 7  —  Python packages"
+step "3 / 8  —  Python packages"
 
 pip3 install --break-system-packages --quiet \
     "fastapi==0.136.1" \
@@ -177,16 +176,54 @@ ok "fastapi · uvicorn · pyserial · RPLCD · pandas · numpy · openpyxl"
 # ════════════════════════════════════════════════════════════════════════
 #  STEP 4 — CLONE REPO
 # ════════════════════════════════════════════════════════════════════════
-step "4 / 7  —  Cloning AisleBot repo"
+step "4 / 8  —  Cloning AisleBot repo"
 
 rm -rf "$CLONE_DIR"
 git clone --branch "$GITHUB_BRANCH" "$REPO_URL" "$CLONE_DIR" >> "$INSTALL_LOG" 2>&1
 ok "Cloned: ${REPO_URL}"
 
 # ════════════════════════════════════════════════════════════════════════
-#  STEP 5 — BUILD WORKSPACE
+#  STEP 5 — YDLIDAR SDK + ROS2 DRIVER
 # ════════════════════════════════════════════════════════════════════════
-step "5 / 7  —  Building ROS2 workspace"
+step "5 / 8  —  YDLidar SDK + ROS2 driver (YDLIDAR X4 Pro)"
+warn "Cloning from the public YDLIDAR org repos — verify these match the"
+warn "remotes actually checked out on the Pi (ssh in and check"
+warn "'git -C ~/YDLidar-SDK remote get-url origin' etc.) before trusting this blindly."
+
+if [ ! -d "$HOME/YDLidar-SDK" ]; then
+    git clone https://github.com/YDLIDAR/YDLidar-SDK.git "$HOME/YDLidar-SDK" >> "$INSTALL_LOG" 2>&1
+    mkdir -p "$HOME/YDLidar-SDK/build"
+    (
+        cd "$HOME/YDLidar-SDK/build"
+        cmake .. >> "$INSTALL_LOG" 2>&1
+        make -j"$(nproc)" >> "$INSTALL_LOG" 2>&1
+        sudo make install >> "$INSTALL_LOG" 2>&1
+    )
+    ok "YDLidar-SDK built and installed"
+else
+    ok "YDLidar-SDK already present — skipping"
+fi
+
+mkdir -p "${ROS_WS}/src"
+if [ ! -d "${ROS_WS}/src/ydlidar_ros2_driver" ]; then
+    git clone -b humble https://github.com/YDLIDAR/ydlidar_ros2_driver.git \
+        "${ROS_WS}/src/ydlidar_ros2_driver" >> "$INSTALL_LOG" 2>&1
+    ok "ydlidar_ros2_driver cloned (humble branch — builds fine under Jazzy)"
+else
+    ok "ydlidar_ros2_driver already present — skipping"
+fi
+
+mkdir -p "${ROS_WS}/src/ydlidar_ros2_driver/params"
+cp "${CLONE_DIR}/system/ydlidar_params.yaml" \
+   "${ROS_WS}/src/ydlidar_ros2_driver/params/ydlidar.yaml"
+ok "ydlidar.yaml params installed (confirmed X4 Pro values)"
+# scan_relay.py ships in this repo's own src/, so it's picked up by the
+# generic package-staging loop in STEP 6 below — no separate copy needed.
+
+# ════════════════════════════════════════════════════════════════════════
+#  STEP 6 — BUILD WORKSPACE
+# ════════════════════════════════════════════════════════════════════════
+step "6 / 8  —  Building ROS2 workspace"
 
 mkdir -p "${ROS_WS}/src"
 
@@ -207,9 +244,9 @@ ok "colcon build complete"
 source "${ROS_WS}/install/setup.bash"
 
 # ════════════════════════════════════════════════════════════════════════
-#  STEP 6 — SYSTEM FILES
+#  STEP 7 — SYSTEM FILES
 # ════════════════════════════════════════════════════════════════════════
-step "6 / 7  —  System configuration"
+step "7 / 8  —  System configuration"
 
 SYS="${CLONE_DIR}/system"
 
@@ -218,7 +255,7 @@ if [ -f "${SYS}/99-aislebot.rules" ]; then
     sudo cp "${SYS}/99-aislebot.rules" /etc/udev/rules.d/
     sudo udevadm control --reload-rules
     sudo udevadm trigger
-    ok "udev: /dev/esp32 (CP2102 10c4:ea60) · /dev/mega (CH340 1a86:7523)"
+    ok "udev: /dev/esp32 · /dev/ydlidar (port-pinned, both CP2102 10c4:ea60) · /dev/mega (CH340 1a86:7523)"
 else
     warn "99-aislebot.rules not found in repo/system/ — add it!"
 fi
@@ -262,9 +299,9 @@ if ! groups | grep -q i2c; then
 fi
 
 # ════════════════════════════════════════════════════════════════════════
-#  STEP 7 — .bashrc
+#  STEP 8 — .bashrc
 # ════════════════════════════════════════════════════════════════════════
-step "7 / 7  —  Shell environment"
+step "8 / 8  —  Shell environment"
 
 add_line ""
 add_line "# ── AisleBot ROS2 Environment ───────────────────────────────"
@@ -272,7 +309,7 @@ add_line "source /opt/ros/${ROS_DISTRO}/setup.bash"
 add_line "source ${ROS_WS}/install/setup.bash"
 add_line "export ROS_DOMAIN_ID=42"
 add_line "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp"
-add_line "export CYCLONEDDS_URI='<CycloneDDS><Domain><General><NetworkInterfaceAddress>lo</NetworkInterfaceAddress><AllowMulticast>false</AllowMulticast></General></Domain></CycloneDDS>'"
+add_line "export CYCLONEDDS_URI='<CycloneDDS><Domain><General><Interfaces><NetworkInterface name=\"lo\" priority=\"default\" multicast=\"false\"/></Interfaces></General></Domain></CycloneDDS>'"
 add_line ""
 add_line "# ── AisleBot Aliases ────────────────────────────────────────"
 add_line "alias ab='ros2 launch mecanum_robot aislebot_full.launch.py'"
@@ -281,7 +318,7 @@ add_line "alias ab-log='tail -f ~/aislebot_boot.log'"
 add_line "alias ab-status='sudo systemctl status aislebot'"
 add_line "alias ab-start='sudo systemctl start aislebot'"
 add_line "alias ab-stop='sudo systemctl stop aislebot'"
-add_line "alias ab-ports='ls -la /dev/esp32 /dev/mega 2>/dev/null || echo \"no devices found\"'"
+add_line "alias ab-ports='ls -la /dev/esp32 /dev/mega /dev/ydlidar 2>/dev/null || echo \"no devices found\"'"
 
 ok ".bashrc updated with ROS2 env + aliases"
 
@@ -307,13 +344,14 @@ echo ""
 echo "  1. Open a NEW terminal  (or: source ~/.bashrc)"
 echo ""
 echo "  2. Plug in hardware:"
-echo "     ESP32 (CP2102) FIRST  →  /dev/esp32"
-echo "     Mega  (CH340)  SECOND →  /dev/mega"
-echo "     Verify: ab-ports"
+echo "     ESP32 (CP2102)          →  /dev/esp32"
+echo "     Mega  (CH340)           →  /dev/mega"
+echo "     YDLIDAR X4 Pro (CP2102) →  /dev/ydlidar"
+echo "     Verify: ab-ports  (and: ls -l /dev/ydlidar)"
 echo ""
 echo "  3. Flash firmware (from Windows laptop):"
-echo "     aislebot_esp32_v2.ino  →  ESP32 @ 921600 baud"
-echo "     aislebot_arm_v7.ino    →  Mega  @ 115200 baud"
+echo "     aislebot_esp32.ino  →  ESP32 @ 921600 baud"
+echo "     aislebot_arm.ino    →  Mega  @ 115200 baud"
 echo ""
 echo "  4. Launch:"
 echo "     ab"

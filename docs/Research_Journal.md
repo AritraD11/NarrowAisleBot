@@ -1,4 +1,4 @@
-> Converted from `AisleBot_Research_Journal.docx` (last updated 9 June 2026 per the document's own revision log). Original file preserved at `docs/originals/AisleBot_Research_Journal.docx`. This is the project's primary living document — edit it going forward and keep the revision log current.
+> Originally converted from `AisleBot_Research_Journal.docx` (the pre-8-July source is preserved at `docs/originals/AisleBot_Research_Journal.docx`). Since v2.0 (8 July 2026) this Markdown file is the primary living document and the source of record — edit it here going forward and keep the revision log current. The `.docx` original is now a historical snapshot, not the live copy.
 
 **NarrowAisleBot**
 
@@ -21,7 +21,7 @@ Indian Institute of Technology Bombay
 ***Project Instructor: Prof. Ambarish Kunwar  
 ***
 
-Last Updated: 9 June 2026
+Last Updated: 8 July 2026
 
 # About this journal
 
@@ -41,7 +41,7 @@ Unlike a final report, this journal keeps the path travelled. Dead ends are in h
 
 ## How this is organised
 
-Eleven parts plus appendices. Parts I–III build the conceptual and physical foundation: what this robot is, why it exists in this form, and what it's made of. Parts IV–V cover electrical and software architecture. Part VI is the narrative heart — the control-system journey in rough chronological order. Part VII catalogues every meaningful hurdle and how it got resolved. Parts VIII–IX synthesise the principles and document the current state. Part X is the autonomy roadmap. Part XI is a quick-reference section for tables, pins, and protocols. Part XII is a firmware deep-dive added in v1.2.
+Fifteen parts plus appendices. Parts I–III build the conceptual and physical foundation: what this robot is, why it exists in this form, and what it's made of. Parts IV–V cover electrical and software architecture. Part VI is the narrative heart — the control-system journey in rough chronological order. Part VII catalogues every meaningful hurdle and how it got resolved. Parts VIII–IX synthesise the principles and document the (historical) current state. Part X is the autonomy roadmap. Part XI is a quick-reference section for tables, pins, and protocols. Part XII is the ESP32 firmware deep-dive added in v1.2. Part XIII (added v2.0) is the LiDAR + SLAM bringup that opened Phase 3. Part XIV (added v2.0) covers the desktop dashboard, the self-hosted network, and the repository consolidation. Part XV (added v2.0) is the current status snapshot — the most up-to-date single view of the system, superseding the older snapshot in Part IX.
 
 ## Revision discipline
 
@@ -1114,17 +1114,19 @@ Expected outcome: heading drift reduced by approximately 88% per Galati's result
 
 ## Phase 3 — Perception and mapping (SLAM)
 
+Status (8 July 2026): **in progress — LiDAR live, first occupancy grid achievable.** See Part XIII for the full bringup narrative. The planned-implementation notes below have been overtaken by the as-built system; they are kept struck-through in spirit for the record and superseded by Part XIII.
+
 The robot needs a map it builds in real time and updates as the environment changes.
 
-Planned implementation:
+As built (supersedes the original plan):
 
-- LiDAR: RPLiDAR A1 (or A2 for finer angular resolution). USB to Pi. Driver via rplidar_ros.
+- LiDAR: **YDLIDAR X4 Pro** (single-channel, on `/dev/ydlidar` @ 128000 baud), not the originally-planned RPLiDAR A1/A2. Driver is `ydlidar_ros2_driver` built from the YDLIDAR SDK, not `rplidar_ros`. Confirmed healthy at Sample Rate 5.00K, ~1258 points/scan at ~11.5 Hz (verified 26 June 2026).
 
-- slam_toolbox in online-asynchronous mode — produces /map continuously updated as the robot drives around.
+- slam_toolbox in online-asynchronous mode, **scan-matching only, no external odometry** (config `slam_nodom.yaml`), consuming `/scan_reliable` — a QoS relay bridges the driver's best-effort `/scan` to a reliable topic (Part XIII §13.4). rf2o laser odometry was trialled and dropped.
 
-- Map persistence: ab_save_map alias dumps the latest map to ~/ros2_ws/src/mecanum_navigation/maps/.
+- Map persistence: `nav2_map_server map_saver_cli` dumps the occupancy grid on demand.
 
-Expected outcome: an occupancy grid suitable for use as the global costmap input to Phase 4.
+Expected outcome: an occupancy grid suitable for use as the global costmap input to Phase 4. Nav2 itself remains blocked on Phase 2 — a scan-matched map builds fine without odometry, but robust localisation for navigation needs the fused wheel-odometry + IMU estimate first (Part XIII §13.7).
 
 ## Phase 4 — Autonomous navigation
 
@@ -1492,9 +1494,181 @@ Telemetry broadcast roughly every 100 ms. JSON format:
 
 - Cytron MDD20A Channel 2 failure (Q4 low-side MOSFET, June 2026) — replacement decision pending. If BTS7960 IBT-2 modules are adopted, the firmware DIR convention may need an extra inversion per motor. Recheck §12.4 after hardware swap.
 
+# Part XIII — Phase 3 Kickoff: LiDAR Integration and SLAM Bringup
+
+Added in v2.0. This part documents the first working perception layer — a YDLIDAR X4 Pro producing a live scan, a slam_toolbox pipeline building an occupancy grid from it, and the two non-obvious problems (device naming and QoS) that stood between "the LiDAR spins" and "the map builds." Verified working on 26 June 2026. In the theory-first convention of this journal: the decisions and the dead ends are recorded, not just the final recipe.
+
+## 13.1 Sensor choice — YDLIDAR X4 Pro, not RPLiDAR
+
+The roadmap (Part X, Phase 3) had planned for an RPLiDAR A1/A2. The unit actually procured and integrated is a **YDLIDAR X4 Pro**. Everything downstream — driver, parameters, udev naming — follows from that part, so the roadmap text has been corrected rather than left aspirational.
+
+| **Parameter** | **Value** |
+|---------------|-----------|
+| Model | YDLIDAR X4 Pro (single-channel) |
+| Device | `/dev/ydlidar` |
+| Baud rate | 128000 |
+| Sample rate | 5 (healthy: "Sample Rate 5.00K") |
+| Scan frequency | ~10 Hz nominal, ~11.5 Hz observed |
+| Points per scan | ~1258 when healthy |
+| `isSingleChannel` | true |
+| `intensity` | false |
+
+These parameters live in `~/ros2_ws/src/ydlidar_ros2_driver/params/ydlidar.yaml` and are mirrored into the repo at `system/ydlidar_params.yaml`. They were read off the hardware, not copied from a forum.
+
+> *Single-channel means the X4 Pro only streams; it ignores device-info and health queries. The log line `Fail to get baseplate device information` is therefore expected and harmless. Running it as two-way (`isSingleChannel: false`) makes it die with `Fail to start the lidar` and health code −2. This is a configuration fact worth not re-discovering.*
+
+## 13.2 The adapter has two USB ports
+
+The X4 Pro adapter board exposes two USB connectors with different jobs: **USB-B is power** (fed from the 5 V buck), **USB-C is data** (to the Pi). Both plugged at once is correct. Because the motor runs off the buck through the power port, the disc spins even with the data cable unplugged — which is a useful sanity check but also a trap, because a spinning disc does not by itself mean the Pi is receiving clean data.
+
+## 13.3 The device-naming problem — identical CP2102 chips
+
+This was the gnarly part, and it is a genuinely new hardware learning that reshaped the udev rules.
+
+The ESP32's USB-UART bridge and the YDLIDAR X4 Pro's data adapter are **both CP2102 chips with the same VID:PID (`10c4:ea60`) and the same factory serial string (`0001`).** Serial number cannot tell them apart. The original udev rule (Part V §5.4) matched the ESP32 purely on `10c4:ea60` — which now matches the LiDAR equally well, a collision that did not exist when the ESP32 was the only CP2102 device on the robot.
+
+The fix is to pin each device by its **physical USB port** (`KERNELS==` in udev) rather than by chip identity:
+
+| **Device** | **Chip** | **Physical port** | **Symlink** |
+|------------|----------|-------------------|-------------|
+| Arduino Mega | CH340 (`1a86:7523`) | — (unique VID:PID) | `/dev/mega` (ttyUSB0) |
+| ESP32 | CP2102 (`10c4:ea60`) | `4-1` | `/dev/esp32` (ttyUSB1) |
+| YDLIDAR X4 Pro | CP2102 (`10c4:ea60`) | `2-2` | `/dev/ydlidar` (ttyUSB2) |
+
+> *Operational consequence: the LiDAR and ESP32 cables must stay in their assigned USB sockets. Move one to a different port and its symlink vanishes until it is moved back. The port numbers (`4-1`, `2-2`) were read from `udevadm info` on the live devices, and are baked into `system/99-aislebot.rules`. This is the price of two indistinguishable chips on one hub, and it is cheaper than the alternative (relabelling the chips' EEPROM serials).*
+
+## 13.4 The QoS problem — why a relay node exists
+
+With the LiDAR streaming, the first attempt to feed it into SLAM failed silently. `ros2 topic echo /scan` and `ros2 topic hz /scan` both worked perfectly, yet slam_toolbox sat forever printing "Waiting for laser_scans."
+
+The cause is a QoS mismatch. The `ydlidar_ros2_driver` publishes `/scan` as **best-effort**. slam_toolbox (and rf2o) subscribe as **reliable** by default. Best-effort publisher and reliable subscriber are incompatible endpoints in DDS — they never form a connection. `topic echo`/`hz` work only because those CLI tools negotiate a compatible QoS on the fly; the SLAM node does not.
+
+The fix is a small dedicated node, `scan_relay.py` (vendored at `src/scan_relay/scan_relay.py`): subscribe to `/scan` best-effort, re-publish the identical message on `/scan_reliable` with reliable QoS. Everything downstream reads `/scan_reliable`. It is a plain `python3` script — no colcon build needed.
+
+> *Lesson, generalised: in ROS 2, "the topic is clearly alive" (echo/hz work) is not evidence that your node will receive it. QoS compatibility is a separate gate from topic liveness, and the CLI tools hide the gate by adapting to it. When a node "waits forever" for a topic that `hz` says is publishing, suspect QoS before suspecting the data.*
+
+## 13.5 rf2o dropped — a recorded dead end
+
+Laser odometry via `rf2o_laser_odometry` was trialled as a way to give SLAM a motion prior without wheel odometry. It kept failing on Jazzy even through the QoS relay, and was more trouble than it was worth. **Decision: rf2o is dropped.** The first map is built with slam_toolbox alone, scan-matching only, no external odometry (`slam_nodom.yaml`). The relay still matters, because slam_toolbox hits the identical QoS wall rf2o did.
+
+## 13.6 Bringup sequence
+
+The pipeline is deliberately manual for now — one long-running node per terminal, each confirmed healthy before the next — so a failure is obvious at the stage it occurs. It collapses into one launch file later.
+
+1. **LiDAR:** `ros2 launch ydlidar_ros2_driver ydlidar_launch.py`. Wait for `Lidar has started!` and confirm `Sample Rate: 5.00K`. This launch also publishes the `base_link → laser_frame` static transform, so the TF link is handled here.
+2. **QoS relay:** `python3 ~/ros2_ws/src/scan_relay/scan_relay.py`. Verify with `ros2 topic hz /scan_reliable` (~11 Hz).
+3. **slam_toolbox:** `ros2 launch slam_toolbox online_async_launch.py slam_params_file:=/home/aritra/ros2_ws/slam_nodom.yaml`.
+4. **Save the map:** `ros2 run nav2_map_server map_saver_cli -f ~/aislebot_first_map`.
+
+> *Two traps worth flagging. (a) The `slam_params_file` path must be absolute — a `~` there is not expanded by the launch system, slam silently falls back to its defaults (wrong topic, expects odom), and the map never builds. `slam_nodom.yaml` lives in the workspace root (`~/ros2_ws/`), not inside any package's `config/`, precisely because it is passed by absolute path. (b) A healthy launch reads Sample Rate 5.00K; if it instead reads ~2.59K with a flood of `Checksum error` lines, that is real data corruption — almost always a USB-C not fully seated or the buck sagging and starving the LiDAR motor. Fix the power/seating before building a map on garbage scans.*
+
+## 13.7 Where this sits — and why Nav2 is not next
+
+Done as of 26 June 2026: LiDAR live, TF link up, relay solving QoS, slam config ready, a first occupancy grid you can save.
+
+Not next, and deliberately so: **Nav2 needs trustworthy localisation, which needs real odometry.** Mecanum wheel odometry drifts hard from roller slip (the Galati numbers in Part X, Phase 2), so the path to navigation runs through the ESP32 encoder-odometry bridge plus a BNO055 IMU and EKF fusion — i.e. Phase 2 — before Nav2 with an MPPI controller makes sense. Building a scan-matched map without odometry is fine; navigating on it is not. This keeps Phase 3's deliverable (a map) decoupled from Phase 2's blocker (fused localisation).
+
+## 13.8 Viewing the map headless
+
+The Pi runs CycloneDDS on loopback only (Part V), college WiFi blocks DDS multicast, and a Windows laptop on a different RMW won't discover topics anyway — so RViz-on-laptop cannot see `/scan` or `/map` over the network as-is. The headless-friendly route is **Foxglove Bridge**: a websocket on the Pi that Foxglove Studio on the laptop connects to over plain TCP. Not yet set up; it is the natural next piece once the map builds clean.
+
+## 13.9 Install-time provenance
+
+`install.sh` now builds the YDLidar SDK from source and clones `ydlidar_ros2_driver` (branch `humble`, which builds fine under Jazzy). The origin URLs (`github.com/YDLIDAR/YDLidar-SDK.git` and `github.com/YDLIDAR/ydlidar_ros2_driver.git`) were confirmed against the live Pi checkout, not guessed. The abandoned `ros-jazzy-rplidar-ros` apt line was removed. The driver package is **not** vendored in this repo — it is a third-party dependency cloned fresh at install time; only its `ydlidar.yaml` params and the project's own `scan_relay.py` / `slam_nodom.yaml` are version-controlled here.
+
+# Part XIV — Desktop Dashboard, Self-Hosted Network, and Repository Consolidation
+
+Added in v2.0. Three infrastructure changes that don't touch the control loop but materially change how the robot is operated and how the project is preserved.
+
+## 14.1 Phone dashboard v2.1 → v2.2 — desktop control
+
+The phone dashboard was touchscreen-only. v2.2 adds full desktop operation without removing anything that worked on the phone:
+
+- **Mouse:** the drive joystick, the yaw slider, and every button now respond to mouse click-and-drag, using a `'mouse'` sentinel touch-id so the existing touch code paths are reused unchanged. Document-level `mousemove`/`mouseup` handlers mean a drag that leaves the control's bounds still tracks (normal with a mouse, impossible with touch).
+- **Hidden keyboard scheme, not shown in the UI:** `W`/`A`/`S`/`D` drive the joystick, `Q`/`E` yaw (Q = CCW, E = CW), `R` toggles record. Keyboard input yields to an active mouse/touch drag on the same control rather than fighting it, and a window blur clears all held keys so nothing sticks.
+
+The motivation is practical: driving and logging telemetry from the same laptop that is SSH'd into the Pi, with no touchscreen in reach. The firmware, the ROS 2 topics, and the phone experience are all unchanged — this is purely an added input surface on the existing FastAPI dashboard.
+
+## 14.2 Self-hosted Pi network (AisleBot-Pi AP)
+
+Historically the Pi joined college WiFi (eduroam / 10.53.x.x, an address that changed session to session and forced IP-hunting each time). The Pi can instead **host its own network** via NetworkManager shared mode:
+
+| **Setting** | **Value** |
+|-------------|-----------|
+| SSID | `AisleBot-Pi` |
+| Password | `aislebotpi5` |
+| Pi address (fixed) | `10.42.0.1` |
+| Dashboard | `http://10.42.0.1:8080` |
+| SSH | `ssh aritra@10.42.0.1` |
+
+`10.42.0.1` never changes — NetworkManager's shared mode always places the AP host there, so dashboard and SSH targets are stable every session. Phone and PC can both join simultaneously (drive from the phone, watch logs over SSH from the PC).
+
+Two honest caveats recorded for the record: (a) the AP does **not** yet start automatically on boot — autoconnect is off, so after a reboot the Pi returns to eduroam and the AP must be raised by hand (`sudo nmcli con up aislebot-ap`); making it the permanent default means writing it into netplan config, which is the next step. (b) The Pi has one radio, so hosting the AP means no internet; to go online, switch back to eduroam (`sudo nmcli con up eduroam`), which drops the current SSH session by design. The ESP32's own AP (`AisleBot-Control` @ `192.168.4.1`) remains the independent escape hatch for when the Pi itself is down — the PID lives on the ESP32, so the robot can still be driven or stopped with the Pi gone. Full detail in `docs/Network_SelfHosted_AP.md`.
+
+## 14.3 A real config bug fixed in passing — CycloneDDS on Jazzy
+
+The headless CycloneDDS loopback binding in `start_aislebot.sh` and `install.sh` used the deprecated `<NetworkInterfaceAddress>lo</NetworkInterfaceAddress>` form, which **ROS 2 Jazzy silently ignores** — no error, it just doesn't take. Replaced with the modern form:
+
+> `<Interfaces><NetworkInterface name="lo" priority="default" multicast="false"/></Interfaces>`
+
+This is a functional fix, not cosmetic: the intent (bind DDS discovery to loopback on a headless Pi) only actually holds with the new syntax. In practice the system worked anyway because loopback is the default binding when discovery finds no usable multicast interface, but relying on that accident is exactly the kind of silent-no-op this journal exists to flag.
+
+## 14.4 Repository consolidation and rename
+
+The GitHub backup was reorganised into a professional, disaster-recoverable state and renamed from `Aislebot` to **`NarrowAisleBot`** (display name; the ROS 2 package names are unchanged). The consolidation, done as a single reviewed pull request:
+
+- **Documentation** moved into `docs/` as Markdown (this journal, the Master Reference, the LiDAR/SLAM bringup, the network doc, the setup manual), with the original `.docx`/`.pdf` preserved in `docs/originals/` as source of record.
+- **LiDAR/SLAM** vendored: `system/ydlidar_params.yaml`, `system/slam_nodom.yaml`, `src/scan_relay/scan_relay.py`, plus the `install.sh` SDK/driver build.
+- **Verification discipline:** every code and config file was cross-checked by SHA-256 against the live Pi. Where an uploaded copy disagreed with the Pi, the Pi won. This caught two stale files that would otherwise have been committed as "current": the dashboard (an older v2.1 without the desktop controls) and the full-stack launch file (a variant that had dropped `odom_pub` and `lcd_display`).
+- **Housekeeping:** added an MIT `LICENSE` (matching the declaration already in every `package.xml`), a `.gitattributes`, and deleted the deprecated `hardware.launch.py`.
+- **Visibility:** the repo was set private. Consequence to remember: the one-command `curl | install.sh` fresh-Pi installer cannot fetch from a private repo anonymously, so a fresh install requires flipping the repo public for the duration of the install, then back.
+
+> *Principle reinforced here, and worth stating as its own rule: the robot's Pi is the single source of truth. The GitHub repo is a backup of the Pi, never the other way round. Any time the two disagree, the Pi is right and the repo is corrected to match — verified by checksum, not by assumption. A backup you have not verified against the source is a hope, not a backup.*
+
+# Part XV — Current Status Snapshot (8 July 2026)
+
+This supersedes the 16 May 2026 snapshot in Part IX. Same purpose: a single honest view of what works, what's in flight, and what's queued.
+
+## 15.1 What works
+
+- **Drive:** closed-loop PID + feedforward on the ESP32, validated in air (14 May 2026). All four encoders read correctly through the level shifters.
+- **Teleop:** Xbox path (joy → teleop_asym → esp32_bridge), WiFi phone joystick (ESP32 AP), and the phone/desktop dashboard (v2.2, mouse + hidden keyboard) all functional.
+- **Arm + UV:** Mega firmware v8 — arm motion plus 3-tube staged UV-C lighting, staircased on-Mega (t=0 / +5s / +10s), non-blocking, ESTOP-latched. Deployed and live (22 June 2026).
+- **Perception (new):** YDLIDAR X4 Pro live on `/dev/ydlidar`; slam_toolbox builds a savable occupancy grid via the `scan_relay` QoS bridge, scan-matching only (26 June 2026).
+- **Infrastructure:** self-hosted `AisleBot-Pi` AP at a fixed `10.42.0.1`; port-pinned udev naming for the two identical CP2102 devices; systemd autostart of the full drive/arm stack; modern CycloneDDS loopback binding.
+- **Backup:** the `NarrowAisleBot` repo is a checksum-verified mirror of the Pi, with full Markdown documentation and an MIT license.
+
+## 15.2 What is in flight / next
+
+- **Ground-truth Kff recalibration** — still the top control task; air values are 4–14% under-calibrated (Part VI §6.11), ground values expected 10–30% higher again.
+- **Foxglove Bridge** for headless map/scan viewing (Part XIII §13.8).
+- **Phase 2 (the real unlock):** BNO055 IMU + wheel odometry + `robot_localization` EKF. This is the gate for Nav2 — Phase 3's map exists, but navigating on it needs fused localisation first.
+- **Fold the manual LiDAR/SLAM bringup into a single launch file** once the pipeline is trusted.
+
+## 15.3 Active firmware and key files (current)
+
+| **Item** | **Current name / location** | **Notes** |
+|----------|-----------------------------|-----------|
+| ESP32 drive firmware | `aislebot_esp32.ino` (repo root) | v2.0 banner; renamed from `aislebot_esp32_v2.ino`. PCNT PID 50 Hz, Kp=50/Ki=30/Kd=3, per-motor Kff, latching E-STOP. |
+| Mega arm firmware | `aislebot_arm.ino` (repo root) | v8: arm + staged UV lighting. Full-travel limits opened; homing/ESTOP unchanged. |
+| LiDAR params | `system/ydlidar_params.yaml` | Mirrors `~/ros2_ws/src/ydlidar_ros2_driver/params/ydlidar.yaml`. |
+| SLAM config (in use) | `system/slam_nodom.yaml` → `~/ros2_ws/slam_nodom.yaml` | Scan-matching only; absolute-path launch. |
+| QoS relay | `src/scan_relay/scan_relay.py` | Plain script; `/scan` → `/scan_reliable`. |
+| Full-stack launch | `src/mecanum_robot/launch/aislebot_full.launch.py` | Includes `odom_pub` and `lcd_display`; `/dev/esp32` + `/dev/mega`. |
+
+## 15.4 Consolidated outstanding items (superseding older TODO lists)
+
+- **Hardware (UV):** install the 10 kΩ pull-ups (or opto-rail separation) so the tubes don't all strike while the Mega is unpowered (Part IX, UV §6); confirm the shared LiFePO₄ pack's Ah/BMS rating against combined load; single-ballast burn-in on the modified-sine inverter; add a UV-on warning beacon.
+- **Deploy the two pending config fixes to the Pi:** the port-pinned `99-aislebot.rules` and the modern-CycloneDDS `start_aislebot.sh` are corrected in the repo but not yet copied onto the running Pi (the robot runs fine without them today; they matter for a clean rebuild and for adding the LiDAR to boot autostart).
+- **Control:** ground-load Kff recalibration; stress-test the ROS 2 → ESP32 serial path under sustained PID throughput on battery.
+- **Cytron MDD20A Channel 2 failure** (Q4 low-side MOSFET, June 2026) — replacement decision pending; if BTS7960 IBT-2 modules are adopted, recheck the per-motor DIR convention (§12.4).
+- **Autonomy:** procure/mount IMU (Phase 2); make the `AisleBot-Pi` AP the netplan default so it survives reboot; set up Foxglove Bridge.
+
 # Appendix A — Document Catalogue
 
 Every supporting document, organised by category. Update this as new artefacts are produced.
+
+> *Repository note (v2.0): the project's own authored documents now live as Markdown under `docs/` in the `NarrowAisleBot` GitHub repo, with the original `.docx`/`.pdf` in `docs/originals/`. The catalogue below predates that consolidation and lists documents by their original working titles; several are now the `docs/*.md` files. The repo is the current home of record.*
 
 ## A.1 Foundational papers
 
@@ -1566,15 +1740,25 @@ Every supporting document, organised by category. Update this as new artefacts a
 
 - aislebot_full.launch.py (active) — primary launch file.
 
-- hardware_launch.py (deprecated) — should be deleted.
+- ~~hardware_launch.py (deprecated)~~ — deleted in v2.0, as flagged.
+
+- scan_relay.py (new, v2.0) — QoS bridge, best-effort `/scan` → reliable `/scan_reliable` (src/scan_relay/).
 
 - setup.py — console_scripts entries.
 
 ## A.5 Firmware (ESP32 / Mega)
 
-- aislebot_esp32_v2.ino — active ESP32 firmware.
+- aislebot_esp32.ino — active ESP32 firmware (renamed from aislebot_esp32_v2.ino in v2.0; v2.0 banner, content unchanged).
 
-- aislebot_arm_v7.ino — active Mega firmware (UV arm).
+- aislebot_arm.ino — active Mega firmware, v8 (arm + staged UV-C lighting). Supersedes aislebot_arm_v7.ino.
+
+## A.6 LiDAR / SLAM configs (new, v2.0)
+
+- system/ydlidar_params.yaml — confirmed YDLIDAR X4 Pro driver parameters.
+
+- system/slam_nodom.yaml — the working slam_toolbox config (scan-matching only); deployed at ~/ros2_ws/slam_nodom.yaml.
+
+- ydlidar_ros2_driver — third-party, cloned by install.sh (branch humble), not vendored.
 
 # Appendix B — Open Questions and TODOs
 
@@ -1626,5 +1810,7 @@ Every supporting document, organised by category. Update this as new artefacts a
 |--------------|-------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 16 May 2026  | v1.0        | Initial release. Covers project from inception through the 14 May 2026 PID validation run. Catalogues hardware, software, the v3 open-loop era, the migration to ESP32, the PID + FF design, all known debugging episodes (Parts VI–VII), 11 principles, current status, autonomy roadmap, appendices.                                                                                     |
 | 09 June 2026 | v1.2        | Firmware audit pass against aislebot_esp32_v2.ino. Table 17 corrected (was Mega-era D-pin numbers; now ESP32 GPIO map). Added Part XII (ESP32 Firmware Deep Dive). Three explicit reconciliations: D14-D21 vs ESP32 GPIOs, 921600 vs 115200 baud, physical wire swap vs software sign arrays. Note: v1.1 was an interim file with no content delta from v1.0 (file-name renumbering only). |
+| 22 June 2026 | v1.3        | Added the UV-C tube lighting subsystem section (embedded in Part IX): hardware inventory from bench photos, the continuously-powered-inverter / 240 V-side staged-relay architecture, the cross-inverter safety rule, the aislebot_arm_v7 → v8 firmware changes (staged `<U1>`/`<U0>`/`<U?>`), the arm_bridge.py / phone_dashboard.py integration, the 22 June deployment, and the open items (floating-pin strike on unpowered Mega, pack BMS rating, burn-in, warning beacon). (Logged retroactively.) |
+| 08 July 2026 | v2.0        | Major update — Phase 3 opened. Added Part XIII (LiDAR + SLAM bringup: YDLIDAR X4 Pro, the identical-CP2102 udev port-pinning, the best-effort/reliable QoS relay, rf2o dropped, the scan-matching-only slam_nodom pipeline, verified 26 June). Added Part XIV (dashboard v2.2 desktop mouse+keyboard, self-hosted AisleBot-Pi AP, CycloneDDS Jazzy syntax fix, repository consolidation + rename to NarrowAisleBot, MIT license, checksum-verified-against-Pi discipline). Added Part XV (current status snapshot, superseding Part IX). Updated Part X Phase 3 from planned-RPLiDAR to as-built YDLIDAR. Updated Appendix A firmware/file names (esp32_v2→esp32, arm_v7→arm v8, +scan_relay, +A.6 LiDAR configs). |
 
 Future revisions append rows here. When in doubt about whether something deserves an entry, err toward writing it — the value of this document is the path travelled.

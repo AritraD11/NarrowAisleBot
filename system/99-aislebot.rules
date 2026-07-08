@@ -1,5 +1,13 @@
 # ESP32 (CP2102) → /dev/esp32
-SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SYMLINK+="esp32", MODE="0666"
+# Pinned by physical USB port: the YDLIDAR X4 Pro's USB-C data adapter uses
+# an identical CP2102 chip with the same idVendor/idProduct AND the same
+# factory serial (0001), so VID:PID alone can no longer tell them apart.
+# Do not move this cable to a different USB socket or the symlink breaks.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", KERNELS=="4-1", SYMLINK+="esp32", MODE="0666"
+
+# YDLIDAR X4 Pro data port (CP2102) → /dev/ydlidar
+# Same VID:PID as the ESP32 above — port-pinned for the same reason.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", KERNELS=="2-2", SYMLINK+="ydlidar", MODE="0666"
 
 # Arduino Mega (CH340) → /dev/mega
 SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="mega", MODE="0666"

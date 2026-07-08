@@ -17,6 +17,13 @@
 ║    • Auto-ENABLE arm on WebSocket connect                        ║
 ║    • ESTOP CLEAR also re-enables arm                            ║
 ║                                                                  ║
+║  NEW in v2.2 — desktop/PC support (no touchscreen needed):       ║
+║    • All controls also bound to mouse (click + drag)             ║
+║    • Hidden keyboard control, not shown anywhere in the UI:      ║
+║        W/A/S/D  -> drive joystick                                 ║
+║        Q/E      -> yaw (Q = CCW, E = CW)                          ║
+║        R        -> toggle record run                              ║
+║                                                                  ║
 ║  ROS2 Topics:                                                    ║
 ║    Publishes  /cmd_vel          geometry_msgs/Twist  (drive)    ║
 ║    Publishes  /arm/command      std_msgs/String       (arm)     ║
@@ -108,12 +115,12 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
 .joy-area{flex:1;position:relative;display:flex;align-items:center;
           justify-content:center;background:#0a0e17;overflow:hidden}
 .joy-ring{width:min(58vw,260px);height:min(58vw,260px);border-radius:50%;
-          border:2px solid #1e3a5f;position:relative;flex-shrink:0}
+          border:2px solid #1e3a5f;position:relative;flex-shrink:0;cursor:grab}
 .joy-thumb{width:64px;height:64px;border-radius:50%;position:absolute;
            top:50%;left:50%;transform:translate(-50%,-50%);
            background:radial-gradient(circle at 35% 35%,#38bdf8,#0369a1);
            box-shadow:0 0 16px rgba(56,189,248,.3);transition:box-shadow .1s}
-.joy-thumb.active{box-shadow:0 0 28px rgba(56,189,248,.7)}
+.joy-thumb.active{box-shadow:0 0 28px rgba(56,189,248,.7);cursor:grabbing}
 .jlbl{position:absolute;font-size:8px;color:#1e3a5f;font-weight:700;letter-spacing:1px}
 .jlbl.t{top:6%;left:50%;transform:translateX(-50%)}
 .jlbl.b{bottom:6%;left:50%;transform:translateX(-50%)}
@@ -334,13 +341,18 @@ function setSpeed(idx) {
   document.getElementById('spdValue').textContent = SPD_LABELS[idx];
 }
 
-// Attach touchstart (not onclick) to speed buttons
+// Attach touchstart (not onclick) to speed buttons — phone behavior unchanged
 [0, 1, 2].forEach(i => {
-  document.getElementById('spd' + i).addEventListener('touchstart', e => {
+  const btn = document.getElementById('spd' + i);
+  btn.addEventListener('touchstart', e => {
     e.preventDefault();
     e.stopPropagation();
     setSpeed(i);
   }, { passive: false });
+  // Desktop: plain click. Browsers suppress the synthetic click that would
+  // follow a touchstart once preventDefault() has fired, so this never
+  // double-fires on the phone — it only fires for real mouse clicks.
+  btn.addEventListener('click', () => setSpeed(i));
 });
 
 // ── JOYSTICK ──────────────────────────────────────────────────────
@@ -393,6 +405,19 @@ joyArea.addEventListener('touchend', e => {
   }
 }, { passive: false });
 
+// Desktop: mousedown starts the drag. 'mouse' is a sentinel id that can
+// never collide with a real touch.identifier (always numeric), so we can
+// safely reuse joyActive/joyTouchId from the touch code above unchanged.
+joyArea.addEventListener('mousedown', e => {
+  if (joyActive) return;
+  joyTouchId = 'mouse';
+  joyActive  = true;
+  joyThumb.classList.add('active');
+  const p = getJoyOffset(e);
+  joyX = p.nx; joyY = p.ny;
+  joyThumb.style.transform = `translate(calc(-50% + ${p.dx}px), calc(-50% + ${p.dy}px))`;
+});
+
 // ── YAW SLIDER ────────────────────────────────────────────────────
 const yawTrack = document.getElementById('yawTrack');
 const yawThumb = document.getElementById('yawThumb');
@@ -421,6 +446,43 @@ yawTrack.addEventListener('touchend', e => {
   }
 }, { passive: false });
 
+// Desktop: mousedown starts the drag (same 'mouse' sentinel pattern as joystick)
+yawTrack.addEventListener('mousedown', e => {
+  if (yawActive) return;
+  yawActive  = true;
+  yawTouchId = 'mouse';
+  updateYaw(e);
+});
+
+// ── MOUSE DRAG (desktop) — shared move/release for joystick + yaw ───
+// Bound on document, not the element, so dragging past the edge of the
+// joystick ring or yaw track (very normal with a mouse) still tracks.
+document.addEventListener('mousemove', e => {
+  if (joyTouchId === 'mouse' && joyActive) {
+    const p = getJoyOffset(e);
+    joyX = p.nx; joyY = p.ny;
+    joyThumb.style.transform = `translate(calc(-50% + ${p.dx}px), calc(-50% + ${p.dy}px))`;
+  }
+  if (yawTouchId === 'mouse' && yawActive) {
+    updateYaw(e);
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  if (joyTouchId === 'mouse') {
+    joyActive = false; joyTouchId = null;
+    joyX = 0; joyY = 0;
+    joyThumb.classList.remove('active');
+    joyThumb.style.transform = 'translate(-50%, -50%)';
+    sendDrive();
+  }
+  if (yawTouchId === 'mouse') {
+    yawActive = false; yawTouchId = null; yawVal = 0;
+    yawThumb.style.top = '50%';
+    sendDrive();
+  }
+});
+
 function updateYaw(touch) {
   const r   = yawTrack.getBoundingClientRect();
   const pct = Math.max(0, Math.min(1, (touch.clientY - r.top) / r.height));
@@ -440,7 +502,7 @@ function sendDrive() {
 }
 
 setInterval(() => {
-  if ((joyActive || yawActive) && !estopped) sendDrive();
+  if ((joyActive || yawActive || kbDriveActive || kbYawActive) && !estopped) sendDrive();
 }, 50);
 
 // ── ARM BUTTONS (hold to move, release stops) ─────────────────────
@@ -454,20 +516,30 @@ function armRelease() {
 
 function bindHold(id, cmd) {
   const btn = document.getElementById(id);
-  btn.addEventListener('touchstart', e => {
-    e.preventDefault();
+
+  const start = () => {
     btn.classList.add('held');
     armHold(cmd);
+    if (armInterval) clearInterval(armInterval);
     armInterval = setInterval(() => armHold(cmd), 200);
-  }, { passive: false });
-
+  };
   const stop = () => {
     btn.classList.remove('held');
     if (armInterval) { clearInterval(armInterval); armInterval = null; }
     armRelease();
   };
+
+  btn.addEventListener('touchstart', e => { e.preventDefault(); start(); }, { passive: false });
   btn.addEventListener('touchend',    stop, { passive: false });
   btn.addEventListener('touchcancel', stop, { passive: false });
+
+  // Desktop: mousedown/mouseup do the same hold-while-pressed job.
+  // mouseleave covers dragging the cursor off the button while still held
+  // down, which has no touch equivalent (touchcancel handles that case
+  // on phones) but is a real thing with a mouse.
+  btn.addEventListener('mousedown', start);
+  btn.addEventListener('mouseup',   stop);
+  btn.addEventListener('mouseleave', stop);
 }
 
 bindHold('btnOpen',  'OPEN');
@@ -476,8 +548,7 @@ bindHold('btnUp',    'LIFT');
 bindHold('btnDown',  'LOWER');
 
 // ── RECORD RUN ────────────────────────────────────────────────────
-document.getElementById('recBtn').addEventListener('touchstart', e => {
-  e.preventDefault();
+function toggleRecording() {
   if (estopped) return;
   recording = !recording;
   const btn   = document.getElementById('recBtn');
@@ -497,7 +568,11 @@ document.getElementById('recBtn').addEventListener('touchstart', e => {
     label.textContent = 'RECORD RUN';
     badge.classList.remove('show');
   }
-}, { passive: false });
+}
+
+const recBtnEl = document.getElementById('recBtn');
+recBtnEl.addEventListener('touchstart', e => { e.preventDefault(); toggleRecording(); }, { passive: false });
+recBtnEl.addEventListener('click', toggleRecording);
 
 // ── UV LIGHTS (staged on the Mega: T1, +5s T2, +10s T3) ──────────
 let uvOn = false;
@@ -513,8 +588,7 @@ function uvReset() {
   uvLabel('UV LIGHTS');
 }
 
-document.getElementById('uvBtn').addEventListener('touchstart', e => {
-  e.preventDefault();
+function toggleUv() {
   if (estopped) return;                       // no UV while latched
   uvOn = !uvOn;
   if (uvOn) {
@@ -528,7 +602,11 @@ document.getElementById('uvBtn').addEventListener('touchstart', e => {
     send({ type: 'uv', cmd: 'off' });
     uvReset();
   }
-}, { passive: false });
+}
+
+const uvBtnEl = document.getElementById('uvBtn');
+uvBtnEl.addEventListener('touchstart', e => { e.preventDefault(); toggleUv(); }, { passive: false });
+uvBtnEl.addEventListener('click', toggleUv);
 
 // ── E-STOP ────────────────────────────────────────────────────────
 const estopBtn    = document.getElementById('estopBtn');
@@ -536,9 +614,7 @@ const estopCircle = document.getElementById('estopCircle');
 const estopLbl    = document.getElementById('estopLbl');
 const flash       = document.getElementById('flash');
 
-estopBtn.addEventListener('touchstart', e => {
-  e.preventDefault();
-  e.stopPropagation();
+function toggleEstop() {
   if (!estopped) {
     estopped = true;
     send({ type: 'estop' });
@@ -562,7 +638,86 @@ estopBtn.addEventListener('touchstart', e => {
     // FIX: Re-enable arm after clear (ESP32 ESTOP latches, <E1> un-latches)
     send({ type: 'arm', cmd: 'ENABLE' });
   }
+}
+
+estopBtn.addEventListener('touchstart', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  toggleEstop();
 }, { passive: false });
+estopBtn.addEventListener('click', toggleEstop);
+
+// ── KEYBOARD (desktop) ───────────────────────────────────────────
+// Not shown anywhere in the UI on purpose. W/A/S/D drive the joystick,
+// Q/E are yaw, R toggles record. Keyboard yields to an active mouse/touch
+// drag on the same control rather than fighting it. UV lights stay
+// click/tap-only — no keyboard shortcut for that on purpose.
+const keysDown = new Set();
+let kbDriveActive = false, kbYawActive = false;
+
+function kbApplyDrive() {
+  let kx = 0, ky = 0;
+  if (keysDown.has('w')) ky += 1;
+  if (keysDown.has('s')) ky -= 1;
+  if (keysDown.has('a')) kx -= 1;
+  if (keysDown.has('d')) kx += 1;
+  const mag = Math.hypot(kx, ky);
+  if (mag > 1) { kx /= mag; ky /= mag; }
+  kbDriveActive = (kx !== 0 || ky !== 0);
+  if (joyActive) return;          // a real drag on the joystick wins
+  joyX = kx; joyY = ky;
+  const r   = joyRing.getBoundingClientRect();
+  const max = r.width / 2 - 32;
+  joyThumb.style.transform = kbDriveActive
+    ? `translate(calc(-50% + ${kx * max}px), calc(-50% + ${-ky * max}px))`
+    : 'translate(-50%, -50%)';
+  joyThumb.classList.toggle('active', kbDriveActive);
+}
+
+function kbApplyYaw() {
+  let kz = 0;
+  if (keysDown.has('q')) kz += 1;   // CCW
+  if (keysDown.has('e')) kz -= 1;   // CW
+  kbYawActive = (kz !== 0);
+  if (yawActive) return;            // a real drag on the slider wins
+  yawVal = kz;
+  yawThumb.style.top = (50 - kz * 50) + '%';
+}
+
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === 'r') {
+    if (!e.repeat) toggleRecording();
+    e.preventDefault();
+    return;
+  }
+  if (!'wasdqe'.includes(k)) return;
+  e.preventDefault();
+  keysDown.add(k);
+  kbApplyDrive();
+  kbApplyYaw();
+  sendDrive();
+});
+
+window.addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  if (!'wasdqe'.includes(k)) return;
+  keysDown.delete(k);
+  kbApplyDrive();
+  kbApplyYaw();
+  sendDrive();
+});
+
+// Don't leave a key "stuck" if the window loses focus mid-press
+window.addEventListener('blur', () => {
+  if (keysDown.size === 0) return;
+  keysDown.clear();
+  kbApplyDrive();
+  kbApplyYaw();
+  sendDrive();
+});
 </script>
 </body>
 </html>

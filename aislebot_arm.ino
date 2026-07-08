@@ -7,6 +7,14 @@
 //  Author: Aritra Das (Roll 25D0074) | IIT Bombay BSBE | June 2026
 //  Compatible with the unified ROS2 stack (arm_bridge.py)
 //
+//  CHANGE IN THIS BUILD — full travel:
+//    LIFT_MAX / LIFT_MIN / ARM_MAX are opened far beyond any real screw
+//    or arm range, so the firmware no longer stops motion early. The lift
+//    now rises to the top of the lead screw and the arms open fully;
+//    travel ends at the physical mechanical stop, not a soft cap. The
+//    previous build capped the lift at 32000 steps, which is why it
+//    stopped partway up. Nothing else changed.
+//
 //  NEW IN v8 — UV tube staged switching:
 //    Three relay-channel pins drive the UV tubes through two 4-channel
 //    active-LOW relay boards whose IN1/IN2/IN3 are ganged (both inverter
@@ -79,9 +87,16 @@ const float ARM_ACC    = 600.0;
 const float LIFT_ACC   = 500.0;
 
 // ── Soft limits ──────────────────────────────────────────────────
-const long ARM_MAX  = 500000L;    // tune after physical measurement
-const long LIFT_MAX = 32000L;     // ~20 revs up from boot
-const long LIFT_MIN = -32000L;    // ~20 revs below boot
+// Opened to full mechanical travel. These are set far beyond any real
+// screw or arm range so the firmware never caps motion early — the lift
+// runs to the top of the lead screw and the arms open fully, with travel
+// ending at the physical hard stop. There is no limit switch here, so as
+// the carriage or arm nears its mechanical end, ease off the command
+// rather than holding it hard against the stop (the stepper will stall
+// against a hard stop, which is fine occasionally but not as a habit).
+const long ARM_MAX  = 2000000000L;    // effectively unlimited (full open)
+const long LIFT_MAX = 2000000000L;    // effectively unlimited (full up)
+const long LIFT_MIN = -2000000000L;   // effectively unlimited (full down)
 
 // Set this nonzero (e.g. 1600) AFTER assembly to enforce safety interlock:
 // arms will refuse to OPEN unless lift position >= MIN_LIFT_FOR_ARM.

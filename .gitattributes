@@ -1,0 +1,13 @@
+# Normalize line endings for text; auto-detect the rest.
+* text=auto
+
+# Firmware and scripts are LF regardless of contributor platform.
+*.ino   text eol=lf
+*.py    text eol=lf
+*.sh    text eol=lf
+*.yaml  text eol=lf
+*.rules text eol=lf
+
+# Binary source-of-record documents — never diff or line-normalize these.
+*.docx  binary
+*.pdf   binary

@@ -28,10 +28,10 @@ export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
 # Fix: CycloneDDS fails to find multicast interface on headless
 # Pi with no LAN connected. Force loopback so all nodes on this
-# machine can talk to each other.
+# machine can talk to each other. Uses the modern <Interfaces> form —
+# the old <NetworkInterfaceAddress> form is silently ignored on Jazzy.
 export CYCLONEDDS_URI='<CycloneDDS><Domain><General>
-  <NetworkInterfaceAddress>lo</NetworkInterfaceAddress>
-  <AllowMulticast>false</AllowMulticast>
+  <Interfaces><NetworkInterface name="lo" priority="default" multicast="false"/></Interfaces>
 </General></Domain></CycloneDDS>'
 
 echo "[$(date +%H:%M:%S)] ROS2 environment ready"

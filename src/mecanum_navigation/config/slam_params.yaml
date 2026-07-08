@@ -1,6 +1,12 @@
 # ==============================================================
 # AisleBot SLAM Toolbox Configuration
 # Optimized for narrow-aisle indoor warehouse environments
+#
+# NOTE: this config assumes odom_frame is being fed real odometry (Phase 2,
+# not yet done — see docs/Research_Journal.md Part X). The actual working
+# LiDAR SLAM bringup (docs/LiDAR_SLAM_Bringup.md) instead uses
+# system/slam_nodom.yaml (scan-matching only, no external odometry,
+# verified against the Pi 8 July 2026) — that's the one that's live today.
 # ==============================================================
 
 slam_toolbox:
@@ -14,7 +20,7 @@ slam_toolbox:
 
     # --- Map parameters ---
     resolution: 0.05                # 5cm resolution (good for narrow aisles)
-    max_laser_range: 12.0           # RPLiDAR A1 max range
+    max_laser_range: 12.0           # was set for the previously-planned RPLiDAR A1; not yet re-verified against the YDLIDAR X4 Pro that's actually mounted
     minimum_time_interval: 0.5
     transform_timeout: 0.2
     tf_buffer_duration: 30.0

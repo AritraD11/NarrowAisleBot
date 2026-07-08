@@ -1,11 +1,11 @@
 /*
  * ╔══════════════════════════════════════════════════════════════════╗
- * ║            AisleBot ESP32 Motor Controller v2.0                 ║
+ * ║            AisleBot ESP32 Motor Controller                       ║
  * ║                                                                  ║
- * ║  PID + Feedforward | Hardware PCNT | 3-Speed Gear System        ║
- * ║  Asymmetric Mecanum IK | Dual-Core FreeRTOS                     ║
+ * ║  PID + Feedforward | Hardware PCNT | 3-Speed Gear System         ║
+ * ║  Asymmetric Mecanum IK | Dual-Core FreeRTOS                      ║
  * ║                                                                  ║
- * ║  Aritra Das (25D0074) — IIT Bombay — Prof. Ambarish Kunwar      ║
+ * ║  Aritra Das (25D0074) — IIT Bombay — Prof. Ambarish Kunwar       ║
  * ╚══════════════════════════════════════════════════════════════════╝
  *
  * ARCHITECTURE:
@@ -1182,7 +1182,7 @@ void setup() {
     Serial.print("  Motor pins    ... ");
     setupMotorPins();
     Serial.println("OK");
-
+  
     Serial.print("  PCNT encoders ... ");
     for (int i = 0; i < NUM_MOTORS; i++) setupPCNT(i);
     Serial.println("OK  (full quad, 93132 CPR)");

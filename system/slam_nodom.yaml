@@ -1,0 +1,44 @@
+# Verified working slam_toolbox config for the current (no external
+# odometry, scan-matching only) LiDAR mapping bringup — pulled directly
+# from the Pi on 8 July 2026. Confirmed exact match with the copy at
+# ~/ros2_ws/slam_nodom.yaml.
+#
+# Lives directly in the ROS2 workspace ROOT on the Pi (NOT inside any
+# package's config/ folder), and is launched with an absolute path:
+#   ros2 launch slam_toolbox online_async_launch.py \
+#     slam_params_file:=/home/aritra/ros2_ws/slam_nodom.yaml
+# (a `~` there silently fails — see docs/LiDAR_SLAM_Bringup.md)
+#
+# This is a different, simpler file from
+# src/mecanum_navigation/config/slam_params.yaml, which targets the
+# future Phase 4 EKF-fused-odometry setup and is not what's actually
+# running today.
+slam_toolbox:
+  ros__parameters:
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan_reliable
+    mode: mapping
+
+    use_scan_matching: true
+    use_scan_barycenter: true
+    minimum_travel_distance: 0.2
+    minimum_travel_heading: 0.2
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+    minimum_time_interval: 0.5
+    transform_timeout: 0.2
+    tf_buffer_duration: 30.0
+    resolution: 0.05
+    max_laser_range: 12.0
+    transform_publish_period: 0.02
+    map_update_interval: 1.0
+    enable_interactive_mode: true

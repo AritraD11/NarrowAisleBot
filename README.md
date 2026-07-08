@@ -64,7 +64,8 @@ aislebot/
 │   ├── 99-aislebot.rules               ← /etc/udev/rules.d/  — port-pinned esp32/ydlidar/mega
 │   ├── aislebot.service                ← /etc/systemd/system/
 │   ├── start_aislebot.sh               ← ~/start_aislebot.sh
-│   └── ydlidar_params.yaml             ← confirmed YDLIDAR X4 Pro driver params
+│   ├── ydlidar_params.yaml             ← confirmed YDLIDAR X4 Pro driver params
+│   └── slam_nodom.yaml                 ← ~/ros2_ws/slam_nodom.yaml — the SLAM config actually in use
 │
 └── src/                                ← ROS2 workspace src/, as run on the Pi
     ├── scan_relay/

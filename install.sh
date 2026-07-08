@@ -186,9 +186,10 @@ ok "Cloned: ${REPO_URL}"
 #  STEP 5 — YDLIDAR SDK + ROS2 DRIVER
 # ════════════════════════════════════════════════════════════════════════
 step "5 / 8  —  YDLidar SDK + ROS2 driver (YDLIDAR X4 Pro)"
-warn "Cloning from the public YDLIDAR org repos — verify these match the"
-warn "remotes actually checked out on the Pi (ssh in and check"
-warn "'git -C ~/YDLidar-SDK remote get-url origin' etc.) before trusting this blindly."
+# Origin URLs confirmed against the live Pi checkout (8 July 2026):
+#   git -C ~/ros2_ws/src/ydlidar_ros2_driver remote get-url origin
+#   git -C ~/YDLidar-SDK remote get-url origin
+# Both matched the public YDLIDAR org repos below exactly.
 
 if [ ! -d "$HOME/YDLidar-SDK" ]; then
     git clone https://github.com/YDLIDAR/YDLidar-SDK.git "$HOME/YDLidar-SDK" >> "$INSTALL_LOG" 2>&1
@@ -219,6 +220,11 @@ cp "${CLONE_DIR}/system/ydlidar_params.yaml" \
 ok "ydlidar.yaml params installed (confirmed X4 Pro values)"
 # scan_relay.py ships in this repo's own src/, so it's picked up by the
 # generic package-staging loop in STEP 6 below — no separate copy needed.
+
+# slam_nodom.yaml lives in the workspace ROOT, not inside any package —
+# see docs/LiDAR_SLAM_Bringup.md for why (absolute path required at launch).
+cp "${CLONE_DIR}/system/slam_nodom.yaml" "${ROS_WS}/slam_nodom.yaml"
+ok "slam_nodom.yaml installed → ${ROS_WS}/slam_nodom.yaml"
 
 # ════════════════════════════════════════════════════════════════════════
 #  STEP 6 — BUILD WORKSPACE

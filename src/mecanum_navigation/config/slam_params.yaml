@@ -4,9 +4,9 @@
 #
 # NOTE: this config assumes odom_frame is being fed real odometry (Phase 2,
 # not yet done — see docs/Research_Journal.md Part X). The actual working
-# LiDAR SLAM bringup as of June 2026 (docs/LiDAR_SLAM_Bringup.md) uses a
-# separate, un-vendored file (slam_nodom.yaml, scan-matching only, no
-# external odometry) that lives directly on the Pi and is not this file.
+# LiDAR SLAM bringup (docs/LiDAR_SLAM_Bringup.md) instead uses
+# system/slam_nodom.yaml (scan-matching only, no external odometry,
+# verified against the Pi 8 July 2026) — that's the one that's live today.
 # ==============================================================
 
 slam_toolbox:

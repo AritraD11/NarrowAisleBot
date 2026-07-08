@@ -4,6 +4,11 @@ Everything below was verified working on **26 June 2026**. The hardware integrat
 SDK, ROS driver, and configs are all permanent and survive reboots. A fresh session
 only needs to *launch* things, not rebuild them.
 
+> `scan_relay.py` and `slam_nodom.yaml`, referenced throughout below, are now vendored
+> in this repo at `src/scan_relay/scan_relay.py` and `system/slam_nodom.yaml`
+> respectively — both cross-checked against the live Pi copies on 8 July 2026 and
+> confirmed identical. `install.sh` places them at the paths used below automatically.
+
 Stack: Pi 5, Ubuntu 24.04, ROS2 Jazzy, YDLIDAR X4 Pro on `/dev/ydlidar`.
 
 ---

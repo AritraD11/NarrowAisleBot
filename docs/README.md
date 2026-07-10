@@ -11,3 +11,12 @@ Markdown is the source of truth here (diffs cleanly, renders on GitHub, greppabl
 | [`Setup_Manual.md`](Setup_Manual.md) | Narrative fresh-Pi setup manual. Largely superseded by the root `install.sh` one-liner — kept as historical reference. | Superseded, historical |
 
 Where documents disagree on a fact, prefer the one with the later date — the Research Journal is generally authoritative for current project state.
+
+## Interactive tools
+
+Two standalone HTML tools — double-click to open, no server or internet needed. See [`tools/README.md`](tools/README.md) for details.
+
+| Tool | What it's for |
+|---|---|
+| [`tools/telemetry_analyzer.html`](tools/telemetry_analyzer.html) | Load a telemetry CSV → per-motor tracking plots, error/PWM analysis, saturation and diagonal-mismatch diagnostics, multi-run comparison. |
+| [`tools/mecanum_physics_guide.html`](tools/mecanum_physics_guide.html) | Interactive field guide to mecanum wheels and omnidirectional motion — live physics, inverse kinematics, wheel comparison, research-grounded limitations. |

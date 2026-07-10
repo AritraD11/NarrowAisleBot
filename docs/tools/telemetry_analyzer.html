@@ -1,0 +1,1733 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AisleBot Telemetry Analyzer</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --panel-2: #f9fbfd;
+      --ink: #1b2533;
+      --muted: #627084;
+      --line: #d9e0ea;
+      --line-2: #e8edf4;
+      --blue: #2563eb;
+      --green: #059669;
+      --amber: #d97706;
+      --red: #dc2626;
+      --teal: #0d9488;
+      --purple: #7c3aed;
+      --shadow: 0 14px 32px rgba(25, 35, 52, 0.08);
+      --radius: 8px;
+      font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(180deg, #fbfcff 0%, #f1f5f9 100%);
+    }
+
+    button, input, select {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 6px;
+      min-height: 36px;
+      padding: 0 12px;
+      cursor: pointer;
+    }
+
+    button:hover { border-color: #b7c3d4; background: #fbfdff; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+
+    .primary {
+      color: white;
+      background: var(--blue);
+      border-color: var(--blue);
+    }
+
+    .primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+
+    .topbar {
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 0 22px;
+      background: rgba(255, 255, 255, .92);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(10px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+      font-weight: 760;
+      white-space: nowrap;
+    }
+
+    .run-count {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 296px minmax(0, 1fr);
+      min-height: calc(100vh - 64px);
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--line);
+      background: #fbfcff;
+      padding: 16px;
+      overflow: auto;
+    }
+
+    .main {
+      min-width: 0;
+      padding: 18px;
+      overflow: auto;
+    }
+
+    .dropzone {
+      min-height: 128px;
+      border: 1.5px dashed #aebbd0;
+      background: #ffffff;
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 8px;
+      padding: 16px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .dropzone strong {
+      color: var(--ink);
+      font-size: 15px;
+    }
+
+    .dropzone.is-over {
+      border-color: var(--blue);
+      background: #eff6ff;
+    }
+
+    .side-block {
+      margin-top: 16px;
+      border-top: 1px solid var(--line-2);
+      padding-top: 16px;
+    }
+
+    .side-title {
+      font-size: 12px;
+      font-weight: 780;
+      color: var(--muted);
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .file-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .file-item {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: var(--radius);
+      padding: 10px;
+      text-align: left;
+      display: grid;
+      gap: 4px;
+    }
+
+    .file-item.active {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, .12);
+    }
+
+    .file-name {
+      font-size: 13px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-meta {
+      display: flex;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+
+    .range-row {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .range-row label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--blue);
+    }
+
+    .threshold-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .field {
+      display: grid;
+      gap: 4px;
+    }
+
+    .field span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .field input {
+      width: 100%;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 8px;
+      background: white;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .tab {
+      min-height: 34px;
+      color: var(--muted);
+    }
+
+    .tab.active {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: white;
+    }
+
+    .empty {
+      min-height: 420px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      box-shadow: var(--shadow);
+      padding: 32px;
+    }
+
+    .empty-inner {
+      max-width: 540px;
+      display: grid;
+      gap: 12px;
+      justify-items: center;
+    }
+
+    .empty h2 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .empty p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .metric-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      min-height: 86px;
+      box-shadow: 0 4px 18px rgba(25, 35, 52, .04);
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .metric-value {
+      font-size: 23px;
+      font-weight: 780;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .metric-note {
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .health-ok { color: var(--green); }
+    .health-warn { color: var(--amber); }
+    .health-bad { color: var(--red); }
+
+    .panel {
+      display: none;
+    }
+
+    .panel.active {
+      display: grid;
+      gap: 14px;
+    }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .chart-tile {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      min-width: 0;
+      box-shadow: 0 4px 18px rgba(25, 35, 52, .04);
+    }
+
+    .chart-head {
+      height: 42px;
+      border-bottom: 1px solid var(--line-2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 0 12px;
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .chart-note {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .canvas-wrap {
+      height: 238px;
+      padding: 10px 12px 12px;
+    }
+
+    .canvas-wrap.tall {
+      height: 360px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .motor-picker {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .motor-chip {
+      min-width: 48px;
+      min-height: 32px;
+      padding: 0 10px;
+      color: var(--muted);
+    }
+
+    .motor-chip.active {
+      color: white;
+      border-color: var(--ink);
+      background: var(--ink);
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr);
+      gap: 12px;
+    }
+
+    .table-wrap {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: auto;
+      box-shadow: 0 4px 18px rgba(25, 35, 52, .04);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line-2);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      background: #fbfcff;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .findings {
+      display: grid;
+      gap: 8px;
+    }
+
+    .finding {
+      border: 1px solid var(--line);
+      border-left-width: 5px;
+      background: var(--panel);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      display: grid;
+      gap: 4px;
+    }
+
+    .finding .title {
+      font-weight: 760;
+      font-size: 13px;
+    }
+
+    .finding .body {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.38;
+    }
+
+    .finding.ok { border-left-color: var(--green); }
+    .finding.warn { border-left-color: var(--amber); }
+    .finding.bad { border-left-color: var(--red); }
+    .finding.info { border-left-color: var(--blue); }
+
+    .schema {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 0 8px;
+      background: #eef2f7;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 0 12px 10px;
+    }
+
+    .key {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .swatch {
+      width: 18px;
+      height: 3px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+
+    @media (max-width: 1100px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        display: grid;
+        grid-template-columns: minmax(220px, .8fr) minmax(0, 1fr);
+        gap: 16px;
+      }
+      .side-block { margin-top: 0; padding-top: 0; border-top: 0; }
+      .status-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .split { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 760px) {
+      .topbar {
+        height: auto;
+        min-height: 64px;
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 12px;
+      }
+      .brand { flex-direction: column; gap: 2px; }
+      .top-actions { justify-content: flex-start; }
+      .main, .sidebar { padding: 12px; }
+      .sidebar { grid-template-columns: 1fr; }
+      .status-strip, .chart-grid { grid-template-columns: 1fr; }
+      .canvas-wrap { height: 230px; }
+      th, td { padding: 8px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>AisleBot Telemetry Analyzer</h1>
+      <span class="run-count" id="runCount">No runs loaded</span>
+    </div>
+    <div class="top-actions">
+      <input id="fileInput" type="file" accept=".csv,text/csv" multiple hidden>
+      <button class="primary" id="openBtn" type="button">Open CSV</button>
+      <button id="exportJsonBtn" type="button" disabled>Export JSON</button>
+      <button id="exportCsvBtn" type="button" disabled>Export CSV</button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <div>
+        <div class="dropzone" id="dropzone">
+          <strong>Drop telemetry CSV files</strong>
+          <span>13-column AisleBot logs</span>
+        </div>
+
+        <div class="side-block">
+          <div class="side-title">Runs</div>
+          <div class="file-list" id="fileList"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="side-block">
+          <div class="side-title">Window</div>
+          <div class="range-row">
+            <label for="startRange">
+              <span>Start</span>
+              <strong id="startLabel">0.0 s</strong>
+            </label>
+            <input type="range" id="startRange" min="0" max="1" step="0.1" value="0" disabled>
+          </div>
+          <div class="range-row">
+            <label for="endRange">
+              <span>End</span>
+              <strong id="endLabel">0.0 s</strong>
+            </label>
+            <input type="range" id="endRange" min="0" max="1" step="0.1" value="1" disabled>
+          </div>
+          <button id="resetWindowBtn" type="button" disabled>Full Window</button>
+        </div>
+
+        <div class="side-block">
+          <div class="side-title">Thresholds</div>
+          <div class="threshold-grid">
+            <label class="field">
+              <span>PWM sat</span>
+              <input id="pwmSatInput" type="number" value="230" min="1" max="255">
+            </label>
+            <label class="field">
+              <span>Settle band</span>
+              <input id="settleBandInput" type="number" value="5" min="1" max="50">
+            </label>
+          </div>
+        </div>
+
+        <div class="side-block">
+          <div class="side-title">Expected CSV</div>
+          <div class="schema">
+            pi_time_s, FR_target_rads, FR_actual_rads, FR_pwm, FL_target_rads,
+            FL_actual_rads, FL_pwm, RR_target_rads, RR_actual_rads, RR_pwm,
+            RL_target_rads, RL_actual_rads, RL_pwm
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="empty" id="emptyState">
+        <div class="empty-inner">
+          <h2>Load a telemetry CSV</h2>
+          <p>Analyze motor tracking, PWM saturation, encoder feedback health, diagonal mismatch, step settling, and run-to-run differences.</p>
+          <button class="primary" id="emptyOpenBtn" type="button">Open CSV</button>
+        </div>
+      </div>
+
+      <div id="dashboard" hidden>
+        <div class="tabs" role="tablist" aria-label="Analysis views">
+          <button class="tab active" data-tab="overview" type="button">Overview</button>
+          <button class="tab" data-tab="tracking" type="button">Tracking</button>
+          <button class="tab" data-tab="errorpwm" type="button">Error + PWM</button>
+          <button class="tab" data-tab="diagnostics" type="button">Diagnostics</button>
+          <button class="tab" data-tab="compare" type="button">Compare</button>
+        </div>
+
+        <section class="status-strip" id="metricCards"></section>
+
+        <section class="panel active" id="panel-overview">
+          <div class="split">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Motor</th>
+                    <th>RMS error</th>
+                    <th>MAE</th>
+                    <th>PWM sat</th>
+                    <th>Target rows</th>
+                    <th>Feedback rows</th>
+                    <th>Max PWM</th>
+                  </tr>
+                </thead>
+                <tbody id="motorTable"></tbody>
+              </table>
+            </div>
+            <div class="findings" id="findings"></div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-tracking">
+          <div class="chart-grid">
+            <div class="chart-tile">
+              <div class="chart-head"><span>FR tracking</span><span class="chart-note" id="noteTrackFR"></span></div>
+              <div class="canvas-wrap"><canvas id="trackFR"></canvas></div>
+              <div class="legend"><span class="key" style="color:#2563eb"><span class="swatch"></span>Actual</span><span class="key" style="color:#94a3b8"><span class="swatch"></span>Target</span></div>
+            </div>
+            <div class="chart-tile">
+              <div class="chart-head"><span>FL tracking</span><span class="chart-note" id="noteTrackFL"></span></div>
+              <div class="canvas-wrap"><canvas id="trackFL"></canvas></div>
+              <div class="legend"><span class="key" style="color:#059669"><span class="swatch"></span>Actual</span><span class="key" style="color:#94a3b8"><span class="swatch"></span>Target</span></div>
+            </div>
+            <div class="chart-tile">
+              <div class="chart-head"><span>RR tracking</span><span class="chart-note" id="noteTrackRR"></span></div>
+              <div class="canvas-wrap"><canvas id="trackRR"></canvas></div>
+              <div class="legend"><span class="key" style="color:#d97706"><span class="swatch"></span>Actual</span><span class="key" style="color:#94a3b8"><span class="swatch"></span>Target</span></div>
+            </div>
+            <div class="chart-tile">
+              <div class="chart-head"><span>RL tracking</span><span class="chart-note" id="noteTrackRL"></span></div>
+              <div class="canvas-wrap"><canvas id="trackRL"></canvas></div>
+              <div class="legend"><span class="key" style="color:#dc2626"><span class="swatch"></span>Actual</span><span class="key" style="color:#94a3b8"><span class="swatch"></span>Target</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-errorpwm">
+          <div class="chart-tile wide">
+            <div class="chart-head">
+              <span>Error and PWM</span>
+              <div class="motor-picker" id="motorPicker"></div>
+            </div>
+            <div class="canvas-wrap tall"><canvas id="errorPwmCanvas"></canvas></div>
+            <div class="legend">
+              <span class="key" style="color:#2563eb"><span class="swatch"></span>Error</span>
+              <span class="key" style="color:#6b7280"><span class="swatch"></span>PWM</span>
+              <span class="key" style="color:#dc2626"><span class="swatch"></span>Saturation</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-diagnostics">
+          <div class="chart-grid">
+            <div class="chart-tile">
+              <div class="chart-head"><span>RMS error by motor</span><span class="chart-note" id="rmsNote"></span></div>
+              <div class="canvas-wrap"><canvas id="rmsCanvas"></canvas></div>
+            </div>
+            <div class="chart-tile">
+              <div class="chart-head"><span>PWM saturation by motor</span><span class="chart-note" id="satNote"></span></div>
+              <div class="canvas-wrap"><canvas id="satCanvas"></canvas></div>
+            </div>
+            <div class="chart-tile wide">
+              <div class="chart-head"><span>Diagonal mismatch</span><span class="chart-note" id="diagNote"></span></div>
+              <div class="canvas-wrap tall"><canvas id="diagCanvas"></canvas></div>
+              <div class="legend">
+                <span class="key" style="color:#2563eb"><span class="swatch"></span>FR - RL</span>
+                <span class="key" style="color:#059669"><span class="swatch"></span>FL - RR</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-compare">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Run</th>
+                  <th>Duration</th>
+                  <th>Samples</th>
+                  <th>Sample rate</th>
+                  <th>Command rows</th>
+                  <th>Feedback rows</th>
+                  <th>Worst motor</th>
+                  <th>Worst RMS</th>
+                  <th>Max saturation</th>
+                  <th>Health</th>
+                </tr>
+              </thead>
+              <tbody id="compareTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const MOTORS = ["FR", "FL", "RR", "RL"];
+    const COLORS = {
+      FR: "#2563eb",
+      FL: "#059669",
+      RR: "#d97706",
+      RL: "#dc2626",
+      target: "#94a3b8",
+      pwm: "#6b7280",
+      grid: "#e3e8f0",
+      axis: "#9aa7b8",
+      ink: "#1b2533",
+      muted: "#627084",
+      red: "#dc2626",
+      amber: "#d97706",
+      green: "#059669",
+      blue: "#2563eb"
+    };
+    const REQUIRED_COLUMNS = [
+      "pi_time_s",
+      "FR_target_rads", "FR_actual_rads", "FR_pwm",
+      "FL_target_rads", "FL_actual_rads", "FL_pwm",
+      "RR_target_rads", "RR_actual_rads", "RR_pwm",
+      "RL_target_rads", "RL_actual_rads", "RL_pwm"
+    ];
+
+    const state = {
+      runs: [],
+      selectedRunId: null,
+      activeTab: "overview",
+      selectedMotor: "FR",
+      start: 0,
+      end: 0,
+      pwmSat: 230,
+      settleBand: 0.05
+    };
+
+    function parseCsv(text) {
+      const rows = [];
+      let row = [];
+      let cell = "";
+      let inQuotes = false;
+      const src = String(text || "").replace(/^\uFEFF/, "");
+      for (let i = 0; i < src.length; i++) {
+        const ch = src[i];
+        const next = src[i + 1];
+        if (ch === '"') {
+          if (inQuotes && next === '"') {
+            cell += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (ch === "," && !inQuotes) {
+          row.push(cell.trim());
+          cell = "";
+        } else if ((ch === "\n" || ch === "\r") && !inQuotes) {
+          if (ch === "\r" && next === "\n") i++;
+          row.push(cell.trim());
+          if (row.some(v => v !== "")) rows.push(row);
+          row = [];
+          cell = "";
+        } else {
+          cell += ch;
+        }
+      }
+      row.push(cell.trim());
+      if (row.some(v => v !== "")) rows.push(row);
+      return rows;
+    }
+
+    function toNumber(value) {
+      if (value === null || value === undefined) return NaN;
+      const s = String(value).trim();
+      if (!s || s === "-" || s.toLowerCase() === "nan") return NaN;
+      const n = Number(s);
+      return Number.isFinite(n) ? n : NaN;
+    }
+
+    function loadTelemetryFromText(text, name) {
+      const table = parseCsv(text);
+      if (table.length < 2) throw new Error("CSV has no data rows.");
+      const header = table[0].map(h => h.trim());
+      const missing = REQUIRED_COLUMNS.filter(col => !header.includes(col));
+      if (missing.length) throw new Error("Missing columns: " + missing.join(", "));
+      const index = Object.fromEntries(header.map((h, i) => [h, i]));
+      const rows = [];
+      let invalidCells = 0;
+      for (let r = 1; r < table.length; r++) {
+        const src = table[r];
+        const item = {};
+        for (const col of REQUIRED_COLUMNS) {
+          const val = toNumber(src[index[col]]);
+          item[col] = val;
+          if (!Number.isFinite(val)) invalidCells++;
+        }
+        rows.push(item);
+      }
+      const validTimes = rows.filter(r => Number.isFinite(r.pi_time_s));
+      if (!validTimes.length) throw new Error("No valid pi_time_s values.");
+      const t0 = validTimes[0].pi_time_s;
+      const normalized = rows
+        .filter(r => Number.isFinite(r.pi_time_s))
+        .map((r, i) => {
+          const out = { index: i, time: r.pi_time_s - t0 };
+          for (const col of REQUIRED_COLUMNS) out[col] = r[col];
+          for (const m of MOTORS) out[m + "_error"] = out[m + "_actual_rads"] - out[m + "_target_rads"];
+          return out;
+        })
+        .filter(r => Number.isFinite(r.time))
+        .sort((a, b) => a.time - b.time);
+      if (normalized.length < 2) throw new Error("Need at least two valid telemetry rows.");
+      const duration = normalized[normalized.length - 1].time - normalized[0].time;
+      return {
+        id: "run_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7),
+        name,
+        rows: normalized,
+        invalidCells,
+        loadedAt: new Date().toISOString(),
+        duration: Math.max(0, duration)
+      };
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function finite(values) {
+      return values.filter(Number.isFinite);
+    }
+
+    function mean(values) {
+      const v = finite(values);
+      if (!v.length) return NaN;
+      return v.reduce((a, b) => a + b, 0) / v.length;
+    }
+
+    function rms(values) {
+      const v = finite(values);
+      if (!v.length) return NaN;
+      return Math.sqrt(v.reduce((a, b) => a + b * b, 0) / v.length);
+    }
+
+    function mae(values) {
+      const v = finite(values).map(Math.abs);
+      if (!v.length) return NaN;
+      return v.reduce((a, b) => a + b, 0) / v.length;
+    }
+
+    function maxAbs(values) {
+      const v = finite(values).map(Math.abs);
+      return v.length ? Math.max(...v) : NaN;
+    }
+
+    function median(values) {
+      const v = finite(values).sort((a, b) => a - b);
+      if (!v.length) return NaN;
+      const mid = Math.floor(v.length / 2);
+      return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+    }
+
+    function detectSettlingTimes(rows, motor, band, minStep = 0.1, holdSamples = 10) {
+      const clean = rows.filter(r =>
+        Number.isFinite(r.time) &&
+        Number.isFinite(r[motor + "_target_rads"]) &&
+        Number.isFinite(r[motor + "_actual_rads"])
+      );
+      const results = [];
+      for (let i = 0; i < clean.length - holdSamples - 1; i++) {
+        const prev = clean[i][motor + "_target_rads"];
+        const next = clean[i + 1][motor + "_target_rads"];
+        if (Math.abs(next - prev) <= minStep || Math.abs(next) < minStep) continue;
+        const tol = Math.max(Math.abs(next) * band, 0.02);
+        let settledIndex = null;
+        for (let k = i + 1; k < clean.length - holdSamples; k++) {
+          let ok = true;
+          for (let h = 0; h < holdSamples; h++) {
+            const actual = clean[k + h][motor + "_actual_rads"];
+            if (Math.abs(actual - next) > tol) {
+              ok = false;
+              break;
+            }
+          }
+          if (ok) {
+            settledIndex = k;
+            break;
+          }
+        }
+        results.push(settledIndex === null ? null : clean[settledIndex].time - clean[i + 1].time);
+      }
+      return results;
+    }
+
+    function computeMetrics(run, start = 0, end = Infinity, thresholds = {}) {
+      const pwmSat = thresholds.pwmSat ?? state.pwmSat;
+      const settleBand = thresholds.settleBand ?? state.settleBand;
+      const rows = run.rows.filter(r => r.time >= start && r.time <= end);
+      const times = rows.map(r => r.time);
+      const dts = [];
+      for (let i = 1; i < times.length; i++) dts.push(times[i] - times[i - 1]);
+      const duration = times.length > 1 ? times[times.length - 1] - times[0] : 0;
+      const sampleRate = duration > 0 ? rows.length / duration : NaN;
+      const medianDt = median(dts);
+      const maxGap = dts.length ? Math.max(...dts) : NaN;
+      let commandRows = 0;
+      let feedbackRows = 0;
+      for (const r of rows) {
+        const commanded = MOTORS.some(m =>
+          Math.abs(r[m + "_target_rads"]) > 0.01 || Math.abs(r[m + "_pwm"]) > 0.5
+        );
+        const feedback = MOTORS.some(m => Math.abs(r[m + "_actual_rads"]) > 0.01);
+        if (commanded) commandRows++;
+        if (feedback) feedbackRows++;
+      }
+      const byMotor = {};
+      for (const m of MOTORS) {
+        const target = rows.map(r => r[m + "_target_rads"]);
+        const actual = rows.map(r => r[m + "_actual_rads"]);
+        const pwm = rows.map(r => r[m + "_pwm"]);
+        const err = rows.map(r => r[m + "_error"]);
+        const targetRows = rows.filter(r => Math.abs(r[m + "_target_rads"]) > 0.01).length;
+        const pwmRows = rows.filter(r => Math.abs(r[m + "_pwm"]) > 0.5).length;
+        const actualRows = rows.filter(r => Math.abs(r[m + "_actual_rads"]) > 0.01).length;
+        const satRows = rows.filter(r => Math.abs(r[m + "_pwm"]) >= pwmSat).length;
+        const settleTimes = detectSettlingTimes(rows, m, settleBand);
+        const settled = settleTimes.filter(v => v !== null && Number.isFinite(v));
+        byMotor[m] = {
+          rmsError: rms(err),
+          maeError: mae(err),
+          maxAbsError: maxAbs(err),
+          meanTarget: mean(target),
+          meanActual: mean(actual),
+          maxAbsTarget: maxAbs(target),
+          maxAbsActual: maxAbs(actual),
+          maxAbsPwm: maxAbs(pwm),
+          targetRows,
+          pwmRows,
+          actualRows,
+          satRows,
+          satPct: rows.length ? satRows / rows.length * 100 : 0,
+          settleCount: settleTimes.length,
+          settledCount: settled.length,
+          meanSettleTime: settled.length ? mean(settled) : NaN,
+          deadFeedback: (targetRows > 5 || pwmRows > 5) && actualRows === 0
+        };
+      }
+      const frRl = rows.map(r => r.FR_actual_rads - r.RL_actual_rads);
+      const flRr = rows.map(r => r.FL_actual_rads - r.RR_actual_rads);
+      const worstMotor = MOTORS.reduce((best, m) => {
+        const current = byMotor[m].rmsError;
+        const prev = best ? byMotor[best].rmsError : -Infinity;
+        return current > prev ? m : best;
+      }, null);
+      const maxSatMotor = MOTORS.reduce((best, m) => {
+        const current = byMotor[m].satPct;
+        const prev = best ? byMotor[best].satPct : -Infinity;
+        return current > prev ? m : best;
+      }, null);
+      const allFeedbackDead = commandRows > 5 && feedbackRows === 0;
+      const someFeedbackDead = MOTORS.some(m => byMotor[m].deadFeedback);
+      const highSaturation = MOTORS.some(m => byMotor[m].satPct > 20);
+      const health = allFeedbackDead ? "bad" : (someFeedbackDead || highSaturation ? "warn" : "ok");
+      return {
+        rows,
+        duration,
+        samples: rows.length,
+        sampleRate,
+        medianDt,
+        maxGap,
+        commandRows,
+        feedbackRows,
+        byMotor,
+        frRlRms: rms(frRl),
+        flRrRms: rms(flRr),
+        worstMotor,
+        maxSatMotor,
+        health,
+        allFeedbackDead,
+        someFeedbackDead,
+        highSaturation
+      };
+    }
+
+    function buildFindings(run, metrics) {
+      const out = [];
+      if (metrics.allFeedbackDead) {
+        out.push({
+          level: "bad",
+          title: "No encoder feedback while commanded",
+          body: `${metrics.commandRows} rows have target/PWM activity, but no motor reports nonzero actual velocity. This points to the common encoder/PCNT feedback path.`
+        });
+      }
+      for (const m of MOTORS) {
+        const mm = metrics.byMotor[m];
+        if (mm.deadFeedback) {
+          out.push({
+            level: "bad",
+            title: `${m} feedback is stuck at zero`,
+            body: `${m} has ${mm.targetRows} target rows and ${mm.pwmRows} PWM rows, but ${mm.actualRows} feedback rows.`
+          });
+        }
+      }
+      const saturated = MOTORS.filter(m => metrics.byMotor[m].satPct > 20);
+      if (saturated.length) {
+        out.push({
+          level: "warn",
+          title: "PWM saturation is high",
+          body: saturated.map(m => `${m}: ${fmt(metrics.byMotor[m].satPct, 1)}%`).join(", ") + ". High saturation can hide tuning problems and cause windup."
+        });
+      }
+      if (Number.isFinite(metrics.maxGap) && Number.isFinite(metrics.medianDt) && metrics.maxGap > metrics.medianDt * 5) {
+        out.push({
+          level: "warn",
+          title: "Telemetry gap detected",
+          body: `Largest sample gap is ${fmt(metrics.maxGap, 3)} s; median gap is ${fmt(metrics.medianDt, 3)} s.`
+        });
+      }
+      if (metrics.frRlRms > 0.3 || metrics.flRrRms > 0.3) {
+        out.push({
+          level: "warn",
+          title: "Diagonal mismatch is visible",
+          body: `FR-RL RMS is ${fmt(metrics.frRlRms, 3)} rad/s and FL-RR RMS is ${fmt(metrics.flRrRms, 3)} rad/s.`
+        });
+      }
+      if (run.invalidCells > 0) {
+        out.push({
+          level: "info",
+          title: "Invalid numeric cells were ignored",
+          body: `${run.invalidCells} cells were parsed as blank/invalid values.`
+        });
+      }
+      if (!out.length) {
+        out.push({
+          level: "ok",
+          title: "No major telemetry fault detected",
+          body: "The selected window has command activity and measurable feedback without severe saturation flags."
+        });
+      }
+      return out;
+    }
+
+    function fmt(value, digits = 2) {
+      if (!Number.isFinite(value)) return "N/A";
+      return Number(value).toFixed(digits);
+    }
+
+    function fmtInt(value) {
+      if (!Number.isFinite(value)) return "0";
+      return String(Math.round(value));
+    }
+
+    function selectedRun() {
+      return state.runs.find(r => r.id === state.selectedRunId) || null;
+    }
+
+    function currentMetrics() {
+      const run = selectedRun();
+      if (!run) return null;
+      return computeMetrics(run, state.start, state.end, {
+        pwmSat: state.pwmSat,
+        settleBand: state.settleBand
+      });
+    }
+
+    function setupCanvas(canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.max(320, Math.floor(rect.width));
+      const height = Math.max(180, Math.floor(rect.height));
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+      return { ctx, width, height };
+    }
+
+    function niceRange(values, fallback = [-1, 1], padRatio = 0.12) {
+      const v = finite(values);
+      if (!v.length) return fallback;
+      let min = Math.min(...v);
+      let max = Math.max(...v);
+      if (min === max) {
+        const pad = Math.max(Math.abs(min) * 0.25, 0.5);
+        min -= pad;
+        max += pad;
+      } else {
+        const pad = (max - min) * padRatio;
+        min -= pad;
+        max += pad;
+      }
+      if (min > 0) min = 0;
+      if (max < 0) max = 0;
+      return [min, max];
+    }
+
+    function chartScales(rows, yValues, width, height) {
+      const margin = { left: 54, right: 18, top: 14, bottom: 34 };
+      const xMin = rows.length ? rows[0].time : 0;
+      const xMax = rows.length ? rows[rows.length - 1].time : 1;
+      const [yMin, yMax] = niceRange(yValues);
+      const plotW = width - margin.left - margin.right;
+      const plotH = height - margin.top - margin.bottom;
+      const x = t => margin.left + ((t - xMin) / Math.max(1e-9, xMax - xMin)) * plotW;
+      const y = v => margin.top + (1 - (v - yMin) / Math.max(1e-9, yMax - yMin)) * plotH;
+      return { margin, xMin, xMax, yMin, yMax, plotW, plotH, x, y };
+    }
+
+    function drawAxes(ctx, width, height, scales, yLabel) {
+      const { margin, xMin, xMax, yMin, yMax, plotW, plotH, x, y } = scales;
+      ctx.save();
+      ctx.strokeStyle = COLORS.grid;
+      ctx.lineWidth = 1;
+      ctx.font = "11px Segoe UI, Arial";
+      ctx.fillStyle = COLORS.muted;
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      for (let i = 0; i <= 4; i++) {
+        const val = yMin + (yMax - yMin) * i / 4;
+        const yy = y(val);
+        ctx.beginPath();
+        ctx.moveTo(margin.left, yy);
+        ctx.lineTo(margin.left + plotW, yy);
+        ctx.stroke();
+        ctx.fillText(fmt(val, 2), margin.left - 8, yy);
+      }
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      for (let i = 0; i <= 5; i++) {
+        const val = xMin + (xMax - xMin) * i / 5;
+        const xx = x(val);
+        ctx.beginPath();
+        ctx.moveTo(xx, margin.top);
+        ctx.lineTo(xx, margin.top + plotH);
+        ctx.stroke();
+        ctx.fillText(fmt(val, 1), xx, margin.top + plotH + 8);
+      }
+      ctx.strokeStyle = COLORS.axis;
+      ctx.beginPath();
+      ctx.rect(margin.left, margin.top, plotW, plotH);
+      ctx.stroke();
+      if (yMin < 0 && yMax > 0) {
+        ctx.strokeStyle = "#a8b2c1";
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(margin.left, y(0));
+        ctx.lineTo(margin.left + plotW, y(0));
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.fillStyle = COLORS.muted;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText("Time (s)", margin.left, height - 18);
+      ctx.save();
+      ctx.translate(14, margin.top + plotH / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = "center";
+      ctx.fillText(yLabel, 0, 0);
+      ctx.restore();
+      ctx.restore();
+    }
+
+    function drawLine(ctx, rows, accessor, scales, color, options = {}) {
+      const { x, y } = scales;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = options.width || 1.6;
+      ctx.globalAlpha = options.alpha ?? 1;
+      if (options.dash) ctx.setLineDash(options.dash);
+      let started = false;
+      ctx.beginPath();
+      for (const r of rows) {
+        const v = accessor(r);
+        if (!Number.isFinite(v)) {
+          started = false;
+          continue;
+        }
+        const xx = x(r.time);
+        const yy = y(v);
+        if (!started) {
+          ctx.moveTo(xx, yy);
+          started = true;
+        } else {
+          ctx.lineTo(xx, yy);
+        }
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawTracking(canvas, run, metrics, motor) {
+      const { ctx, width, height } = setupCanvas(canvas);
+      const rows = metrics.rows;
+      const yValues = rows.flatMap(r => [r[motor + "_target_rads"], r[motor + "_actual_rads"]]);
+      const scales = chartScales(rows, yValues, width, height);
+      drawAxes(ctx, width, height, scales, "rad/s");
+      drawLine(ctx, rows, r => r[motor + "_target_rads"], scales, COLORS.target, { dash: [7, 5], width: 1.3, alpha: .9 });
+      drawLine(ctx, rows, r => r[motor + "_actual_rads"], scales, COLORS[motor], { width: 1.8 });
+    }
+
+    function drawErrorPwm(canvas, metrics, motor) {
+      const { ctx, width, height } = setupCanvas(canvas);
+      const rows = metrics.rows;
+      const errValues = rows.map(r => r[motor + "_error"]);
+      const scales = chartScales(rows, errValues, width, height);
+      const { margin, plotW, plotH, x } = scales;
+      drawAxes(ctx, width, height, scales, "error rad/s");
+      ctx.save();
+      ctx.fillStyle = "rgba(220, 38, 38, .10)";
+      for (const r of rows) {
+        if (Math.abs(r[motor + "_pwm"]) >= state.pwmSat) {
+          const xx = x(r.time);
+          ctx.fillRect(xx - 1, margin.top, 2, plotH);
+        }
+      }
+      ctx.restore();
+      drawLine(ctx, rows, r => r[motor + "_error"], scales, COLORS[motor], { width: 1.8 });
+      const pwmScale = {
+        ...scales,
+        yMin: -255,
+        yMax: 255,
+        y: v => margin.top + (1 - (v + 255) / 510) * plotH
+      };
+      drawLine(ctx, rows, r => r[motor + "_pwm"], pwmScale, COLORS.pwm, { width: 1.2, alpha: .58 });
+      ctx.save();
+      ctx.strokeStyle = COLORS.red;
+      ctx.setLineDash([6, 5]);
+      for (const val of [state.pwmSat, -state.pwmSat]) {
+        const yy = pwmScale.y(val);
+        ctx.beginPath();
+        ctx.moveTo(margin.left, yy);
+        ctx.lineTo(margin.left + plotW, yy);
+        ctx.stroke();
+      }
+      ctx.fillStyle = COLORS.muted;
+      ctx.font = "11px Segoe UI, Arial";
+      ctx.textAlign = "left";
+      ctx.fillText("PWM scale: -255 to 255", margin.left + 8, margin.top + 8);
+      ctx.restore();
+    }
+
+    function drawBarChart(canvas, labels, values, colors, suffix = "") {
+      const { ctx, width, height } = setupCanvas(canvas);
+      const margin = { left: 52, right: 18, top: 16, bottom: 36 };
+      const plotW = width - margin.left - margin.right;
+      const plotH = height - margin.top - margin.bottom;
+      const maxVal = Math.max(0.001, ...values.filter(Number.isFinite)) * 1.2;
+      ctx.save();
+      ctx.strokeStyle = COLORS.grid;
+      ctx.fillStyle = COLORS.muted;
+      ctx.font = "11px Segoe UI, Arial";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      for (let i = 0; i <= 4; i++) {
+        const val = maxVal * i / 4;
+        const yy = margin.top + plotH - (val / maxVal) * plotH;
+        ctx.beginPath();
+        ctx.moveTo(margin.left, yy);
+        ctx.lineTo(margin.left + plotW, yy);
+        ctx.stroke();
+        ctx.fillText(fmt(val, suffix === "%" ? 0 : 2), margin.left - 8, yy);
+      }
+      const gap = 18;
+      const barW = (plotW - gap * (labels.length + 1)) / labels.length;
+      labels.forEach((label, i) => {
+        const val = Number.isFinite(values[i]) ? Math.max(0, values[i]) : 0;
+        const x = margin.left + gap + i * (barW + gap);
+        const h = (val / maxVal) * plotH;
+        const y = margin.top + plotH - h;
+        ctx.fillStyle = colors[i];
+        ctx.fillRect(x, y, barW, h);
+        ctx.fillStyle = COLORS.ink;
+        ctx.font = "12px Segoe UI, Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(fmt(val, suffix === "%" ? 1 : 2) + suffix, x + barW / 2, y - 4);
+        ctx.fillStyle = COLORS.muted;
+        ctx.textBaseline = "top";
+        ctx.fillText(label, x + barW / 2, margin.top + plotH + 10);
+      });
+      ctx.strokeStyle = COLORS.axis;
+      ctx.strokeRect(margin.left, margin.top, plotW, plotH);
+      ctx.restore();
+    }
+
+    function drawDiagonal(canvas, metrics) {
+      const { ctx, width, height } = setupCanvas(canvas);
+      const rows = metrics.rows;
+      const yValues = rows.flatMap(r => [r.FR_actual_rads - r.RL_actual_rads, r.FL_actual_rads - r.RR_actual_rads]);
+      const scales = chartScales(rows, yValues, width, height);
+      drawAxes(ctx, width, height, scales, "rad/s diff");
+      drawLine(ctx, rows, r => r.FR_actual_rads - r.RL_actual_rads, scales, COLORS.FR, { width: 1.6 });
+      drawLine(ctx, rows, r => r.FL_actual_rads - r.RR_actual_rads, scales, COLORS.FL, { width: 1.6 });
+    }
+
+    function renderAll() {
+      const run = selectedRun();
+      const hasRun = !!run;
+      document.getElementById("emptyState").style.display = hasRun ? "none" : "flex";
+      document.getElementById("dashboard").hidden = !hasRun;
+      document.getElementById("exportJsonBtn").disabled = !hasRun;
+      document.getElementById("exportCsvBtn").disabled = !hasRun;
+      document.getElementById("resetWindowBtn").disabled = !hasRun;
+      document.getElementById("startRange").disabled = !hasRun;
+      document.getElementById("endRange").disabled = !hasRun;
+      document.getElementById("runCount").textContent = state.runs.length === 0 ? "No runs loaded" : `${state.runs.length} run${state.runs.length === 1 ? "" : "s"} loaded`;
+      renderFileList();
+      if (!hasRun) return;
+      const metrics = currentMetrics();
+      renderWindowControls(run);
+      renderMetricCards(run, metrics);
+      renderTabs();
+      renderOverview(run, metrics);
+      renderTracking(run, metrics);
+      renderErrorPwm(metrics);
+      renderDiagnostics(metrics);
+      renderCompare();
+    }
+
+    function renderFileList() {
+      const el = document.getElementById("fileList");
+      if (!state.runs.length) {
+        el.innerHTML = `<div class="schema">No runs loaded.</div>`;
+        return;
+      }
+      el.innerHTML = "";
+      for (const run of state.runs) {
+        const full = computeMetrics(run, 0, run.duration, { pwmSat: state.pwmSat, settleBand: state.settleBand });
+        const btn = document.createElement("button");
+        btn.className = "file-item" + (run.id === state.selectedRunId ? " active" : "");
+        btn.type = "button";
+        btn.innerHTML = `
+          <span class="file-name">${escapeHtml(run.name)}</span>
+          <span class="file-meta">
+            <span>${fmt(run.duration, 1)} s</span>
+            <span>${run.rows.length} rows</span>
+            <span class="${full.health === "bad" ? "health-bad" : full.health === "warn" ? "health-warn" : "health-ok"}">${full.health.toUpperCase()}</span>
+          </span>
+        `;
+        btn.addEventListener("click", () => {
+          state.selectedRunId = run.id;
+          state.start = 0;
+          state.end = run.duration;
+          renderAll();
+        });
+        el.appendChild(btn);
+      }
+    }
+
+    function renderWindowControls(run) {
+      const start = document.getElementById("startRange");
+      const end = document.getElementById("endRange");
+      const max = Math.max(0.1, run.duration);
+      start.max = String(max);
+      end.max = String(max);
+      start.step = max > 60 ? "0.5" : "0.1";
+      end.step = start.step;
+      start.value = String(clamp(state.start, 0, max));
+      end.value = String(clamp(state.end || max, 0, max));
+      document.getElementById("startLabel").textContent = fmt(state.start, 1) + " s";
+      document.getElementById("endLabel").textContent = fmt(state.end, 1) + " s";
+    }
+
+    function renderMetricCards(run, metrics) {
+      const healthText = metrics.health === "bad" ? "Critical" : metrics.health === "warn" ? "Review" : "Good";
+      const healthClass = metrics.health === "bad" ? "health-bad" : metrics.health === "warn" ? "health-warn" : "health-ok";
+      const worst = metrics.worstMotor ? metrics.byMotor[metrics.worstMotor] : null;
+      const sat = metrics.maxSatMotor ? metrics.byMotor[metrics.maxSatMotor] : null;
+      const cards = [
+        ["Feedback health", healthText, metrics.allFeedbackDead ? "No actual velocity in commanded rows" : `${metrics.feedbackRows}/${metrics.commandRows || 0} command rows with feedback`, healthClass],
+        ["Capture", fmt(metrics.duration, 1) + " s", `${metrics.samples} samples at ${fmt(metrics.sampleRate, 1)} Hz`, ""],
+        ["Worst tracking", metrics.worstMotor || "N/A", worst ? `${fmt(worst.rmsError, 3)} rad/s RMS` : "N/A", ""],
+        ["Max saturation", metrics.maxSatMotor || "N/A", sat ? `${fmt(sat.satPct, 1)}% at |PWM| >= ${state.pwmSat}` : "N/A", ""]
+      ];
+      document.getElementById("metricCards").innerHTML = cards.map(([label, value, note, cls]) => `
+        <article class="metric-card">
+          <div class="metric-label">${label}</div>
+          <div class="metric-value ${cls}">${escapeHtml(value)}</div>
+          <div class="metric-note">${escapeHtml(note)}</div>
+        </article>
+      `).join("");
+    }
+
+    function renderTabs() {
+      document.querySelectorAll(".tab").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.tab === state.activeTab);
+      });
+      document.querySelectorAll(".panel").forEach(panel => {
+        panel.classList.toggle("active", panel.id === "panel-" + state.activeTab);
+      });
+    }
+
+    function renderOverview(run, metrics) {
+      document.getElementById("motorTable").innerHTML = MOTORS.map(m => {
+        const mm = metrics.byMotor[m];
+        const satClass = mm.satPct > 20 ? "health-warn" : "";
+        const fbClass = mm.deadFeedback ? "health-bad" : "";
+        return `
+          <tr>
+            <td><span class="pill" style="color:${COLORS[m]}">${m}</span></td>
+            <td>${fmt(mm.rmsError, 3)}</td>
+            <td>${fmt(mm.maeError, 3)}</td>
+            <td class="${satClass}">${fmt(mm.satPct, 1)}%</td>
+            <td>${mm.targetRows}</td>
+            <td class="${fbClass}">${mm.actualRows}</td>
+            <td>${fmt(mm.maxAbsPwm, 0)}</td>
+          </tr>
+        `;
+      }).join("");
+      const findings = buildFindings(run, metrics);
+      document.getElementById("findings").innerHTML = findings.map(f => `
+        <article class="finding ${f.level}">
+          <div class="title">${escapeHtml(f.title)}</div>
+          <div class="body">${escapeHtml(f.body)}</div>
+        </article>
+      `).join("");
+    }
+
+    function renderTracking(run, metrics) {
+      for (const m of MOTORS) {
+        drawTracking(document.getElementById("track" + m), run, metrics, m);
+        const mm = metrics.byMotor[m];
+        document.getElementById("noteTrack" + m).textContent = `RMS ${fmt(mm.rmsError, 3)} rad/s`;
+      }
+    }
+
+    function renderErrorPwm(metrics) {
+      const picker = document.getElementById("motorPicker");
+      picker.innerHTML = "";
+      for (const m of MOTORS) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "motor-chip" + (m === state.selectedMotor ? " active" : "");
+        btn.textContent = m;
+        btn.style.borderColor = m === state.selectedMotor ? COLORS[m] : "";
+        btn.addEventListener("click", () => {
+          state.selectedMotor = m;
+          renderAll();
+        });
+        picker.appendChild(btn);
+      }
+      drawErrorPwm(document.getElementById("errorPwmCanvas"), metrics, state.selectedMotor);
+    }
+
+    function renderDiagnostics(metrics) {
+      const rmsVals = MOTORS.map(m => metrics.byMotor[m].rmsError);
+      const satVals = MOTORS.map(m => metrics.byMotor[m].satPct);
+      drawBarChart(document.getElementById("rmsCanvas"), MOTORS, rmsVals, MOTORS.map(m => COLORS[m]), "");
+      drawBarChart(document.getElementById("satCanvas"), MOTORS, satVals, MOTORS.map(m => COLORS[m]), "%");
+      drawDiagonal(document.getElementById("diagCanvas"), metrics);
+      document.getElementById("rmsNote").textContent = `Worst ${metrics.worstMotor || "N/A"}`;
+      document.getElementById("satNote").textContent = `Threshold ${state.pwmSat}`;
+      document.getElementById("diagNote").textContent = `FR-RL ${fmt(metrics.frRlRms, 3)}, FL-RR ${fmt(metrics.flRrRms, 3)} rad/s`;
+    }
+
+    function renderCompare() {
+      const body = document.getElementById("compareTable");
+      body.innerHTML = state.runs.map(run => {
+        const metrics = computeMetrics(run, 0, run.duration, { pwmSat: state.pwmSat, settleBand: state.settleBand });
+        const worst = metrics.worstMotor ? metrics.byMotor[metrics.worstMotor] : null;
+        const sat = metrics.maxSatMotor ? metrics.byMotor[metrics.maxSatMotor] : null;
+        const cls = metrics.health === "bad" ? "health-bad" : metrics.health === "warn" ? "health-warn" : "health-ok";
+        return `
+          <tr>
+            <td>${escapeHtml(run.name)}</td>
+            <td>${fmt(metrics.duration, 1)} s</td>
+            <td>${metrics.samples}</td>
+            <td>${fmt(metrics.sampleRate, 1)} Hz</td>
+            <td>${metrics.commandRows}</td>
+            <td>${metrics.feedbackRows}</td>
+            <td>${metrics.worstMotor || "N/A"}</td>
+            <td>${worst ? fmt(worst.rmsError, 3) : "N/A"}</td>
+            <td>${sat ? fmt(sat.satPct, 1) + "%" : "N/A"}</td>
+            <td class="${cls}">${metrics.health.toUpperCase()}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    async function handleFiles(fileList) {
+      const files = Array.from(fileList || []).filter(file => /\.csv$/i.test(file.name) || file.type.includes("csv") || file.type === "text/plain");
+      if (!files.length) return;
+      const loaded = [];
+      const errors = [];
+      for (const file of files) {
+        try {
+          const text = await file.text();
+          loaded.push(loadTelemetryFromText(text, file.name));
+        } catch (err) {
+          errors.push(`${file.name}: ${err.message}`);
+        }
+      }
+      if (loaded.length) {
+        state.runs.push(...loaded);
+        state.selectedRunId = loaded[loaded.length - 1].id;
+        state.start = 0;
+        state.end = selectedRun().duration;
+      }
+      if (errors.length) alert(errors.join("\n"));
+      renderAll();
+    }
+
+    function exportJson() {
+      const payload = {
+        generatedAt: new Date().toISOString(),
+        thresholds: { pwmSat: state.pwmSat, settleBand: state.settleBand },
+        runs: state.runs.map(run => {
+          const metrics = computeMetrics(run, 0, run.duration, { pwmSat: state.pwmSat, settleBand: state.settleBand });
+          return {
+            name: run.name,
+            loadedAt: run.loadedAt,
+            invalidCells: run.invalidCells,
+            duration: metrics.duration,
+            samples: metrics.samples,
+            sampleRate: metrics.sampleRate,
+            commandRows: metrics.commandRows,
+            feedbackRows: metrics.feedbackRows,
+            health: metrics.health,
+            frRlRms: metrics.frRlRms,
+            flRrRms: metrics.flRrRms,
+            byMotor: metrics.byMotor,
+            findings: buildFindings(run, metrics)
+          };
+        })
+      };
+      downloadBlob("aislebot_telemetry_report.json", JSON.stringify(payload, null, 2), "application/json");
+    }
+
+    function exportCsv() {
+      const rows = [["run", "motor", "duration_s", "samples", "sample_rate_hz", "health", "rms_error", "mae_error", "max_abs_error", "pwm_sat_pct", "target_rows", "actual_rows", "max_abs_pwm", "mean_settle_s"]];
+      for (const run of state.runs) {
+        const metrics = computeMetrics(run, 0, run.duration, { pwmSat: state.pwmSat, settleBand: state.settleBand });
+        for (const m of MOTORS) {
+          const mm = metrics.byMotor[m];
+          rows.push([
+            run.name,
+            m,
+            fmt(metrics.duration, 3),
+            metrics.samples,
+            fmt(metrics.sampleRate, 3),
+            metrics.health,
+            fmt(mm.rmsError, 6),
+            fmt(mm.maeError, 6),
+            fmt(mm.maxAbsError, 6),
+            fmt(mm.satPct, 3),
+            mm.targetRows,
+            mm.actualRows,
+            fmt(mm.maxAbsPwm, 0),
+            fmt(mm.meanSettleTime, 6)
+          ]);
+        }
+      }
+      const csv = rows.map(row => row.map(csvCell).join(",")).join("\n");
+      downloadBlob("aislebot_telemetry_metrics.csv", csv, "text/csv");
+    }
+
+    function csvCell(value) {
+      const s = String(value ?? "");
+      return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+
+    function downloadBlob(name, content, type) {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function initApp() {
+      const fileInput = document.getElementById("fileInput");
+      const open = () => fileInput.click();
+      document.getElementById("openBtn").addEventListener("click", open);
+      document.getElementById("emptyOpenBtn").addEventListener("click", open);
+      fileInput.addEventListener("change", e => handleFiles(e.target.files));
+
+      const dropzone = document.getElementById("dropzone");
+      dropzone.addEventListener("click", open);
+      dropzone.addEventListener("dragover", e => {
+        e.preventDefault();
+        dropzone.classList.add("is-over");
+      });
+      dropzone.addEventListener("dragleave", () => dropzone.classList.remove("is-over"));
+      dropzone.addEventListener("drop", e => {
+        e.preventDefault();
+        dropzone.classList.remove("is-over");
+        handleFiles(e.dataTransfer.files);
+      });
+
+      document.getElementById("startRange").addEventListener("input", e => {
+        const run = selectedRun();
+        if (!run) return;
+        state.start = clamp(Number(e.target.value), 0, Math.max(0, state.end - 0.1));
+        renderAll();
+      });
+      document.getElementById("endRange").addEventListener("input", e => {
+        const run = selectedRun();
+        if (!run) return;
+        state.end = clamp(Number(e.target.value), Math.min(run.duration, state.start + 0.1), run.duration);
+        renderAll();
+      });
+      document.getElementById("resetWindowBtn").addEventListener("click", () => {
+        const run = selectedRun();
+        if (!run) return;
+        state.start = 0;
+        state.end = run.duration;
+        renderAll();
+      });
+      document.getElementById("pwmSatInput").addEventListener("change", e => {
+        state.pwmSat = clamp(Number(e.target.value) || 230, 1, 255);
+        e.target.value = state.pwmSat;
+        renderAll();
+      });
+      document.getElementById("settleBandInput").addEventListener("change", e => {
+        const pct = clamp(Number(e.target.value) || 5, 1, 50);
+        state.settleBand = pct / 100;
+        e.target.value = pct;
+        renderAll();
+      });
+      document.getElementById("exportJsonBtn").addEventListener("click", exportJson);
+      document.getElementById("exportCsvBtn").addEventListener("click", exportCsv);
+      document.querySelectorAll(".tab").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.activeTab = btn.dataset.tab;
+          renderAll();
+        });
+      });
+      window.addEventListener("resize", () => {
+        if (selectedRun()) renderAll();
+      });
+      renderAll();
+    }
+
+    if (typeof window !== "undefined") {
+      window.AisleBotAnalyzerCore = {
+        parseCsv,
+        loadTelemetryFromText,
+        computeMetrics,
+        buildFindings
+      };
+    }
+    if (typeof document !== "undefined") {
+      document.addEventListener("DOMContentLoaded", initApp);
+    }
+  </script>
+</body>
+</html>

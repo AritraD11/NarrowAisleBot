@@ -1,0 +1,1053 @@
+<title>Mecanum & Omnidirectional Motion — Interactive Field Guide</title>
+<style>
+:root{
+  --bg:#0d1216; --surface:#131b22; --surface-2:#18232c; --raise:#1e2b35;
+  --ink:#e9eef2; --ink-soft:#a2b2be; --ink-faint:#66788280; --ink-faint-solid:#647680;
+  --line:#24313b; --line-strong:#384a55;
+  --accent:#f0a839; --accent-2:#f7c368; --on-accent:#1a1206;
+  --accent-soft:rgba(240,168,57,.13);
+  --vec-drive:#f0a839; --vec-roll:#40c0d0; --vec-result:#f0678a; --vec-normal:#8aa0ad;
+  --grid:rgba(120,155,175,.10); --grid-strong:rgba(120,155,175,.20);
+  --good:#4ecf90; --warn:#f0a839; --bad:#f0678a;
+  --font-sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+  --wrap:1180px;
+  --r:14px;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#e7edf0; --surface:#f4f7f8; --surface-2:#ffffff; --raise:#ffffff;
+    --ink:#132029; --ink-soft:#485a66; --ink-faint:#8598a3; --ink-faint-solid:#7f929d;
+    --line:#d2dde3; --line-strong:#b6c6ce;
+    --accent:#bf7412; --accent-2:#d68a1f; --on-accent:#fff8ec;
+    --accent-soft:rgba(191,116,18,.12);
+    --vec-drive:#bf7412; --vec-roll:#1391a2; --vec-result:#d23f66; --vec-normal:#63767f;
+    --grid:rgba(40,80,100,.08); --grid-strong:rgba(40,80,100,.16);
+    --good:#129b64; --warn:#bf7412; --bad:#d23f66;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1216; --surface:#131b22; --surface-2:#18232c; --raise:#1e2b35;
+  --ink:#e9eef2; --ink-soft:#a2b2be; --ink-faint:#66788280; --ink-faint-solid:#647680;
+  --line:#24313b; --line-strong:#384a55;
+  --accent:#f0a839; --accent-2:#f7c368; --on-accent:#1a1206; --accent-soft:rgba(240,168,57,.13);
+  --vec-drive:#f0a839; --vec-roll:#40c0d0; --vec-result:#f0678a; --vec-normal:#8aa0ad;
+  --grid:rgba(120,155,175,.10); --grid-strong:rgba(120,155,175,.20);
+  --good:#4ecf90; --warn:#f0a839; --bad:#f0678a;
+}
+:root[data-theme="light"]{
+  --bg:#e7edf0; --surface:#f4f7f8; --surface-2:#ffffff; --raise:#ffffff;
+  --ink:#132029; --ink-soft:#485a66; --ink-faint:#8598a3; --ink-faint-solid:#7f929d;
+  --line:#d2dde3; --line-strong:#b6c6ce;
+  --accent:#bf7412; --accent-2:#d68a1f; --on-accent:#fff8ec; --accent-soft:rgba(191,116,18,.12);
+  --vec-drive:#bf7412; --vec-roll:#1391a2; --vec-result:#d23f66; --vec-normal:#63767f;
+  --grid:rgba(40,80,100,.08); --grid-strong:rgba(40,80,100,.16);
+  --good:#129b64; --warn:#bf7412; --bad:#d23f66;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-sans);
+  line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+
+/* ---- typographic system ---- */
+.eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--accent);font-weight:600}
+h1,h2,h3{text-wrap:balance;line-height:1.08;letter-spacing:-.02em;font-weight:800;margin:0}
+h1{font-size:clamp(2.3rem,6vw,4.4rem)}
+h2{font-size:clamp(1.7rem,3.6vw,2.7rem)}
+h3{font-size:clamp(1.15rem,2vw,1.4rem);letter-spacing:-.01em;font-weight:700}
+p{margin:0 0 1rem;color:var(--ink-soft);max-width:64ch}
+strong{color:var(--ink);font-weight:650}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.mono{font-family:var(--font-mono)}
+.lead{font-size:1.15rem;color:var(--ink-soft);max-width:60ch}
+
+/* ---- layout ---- */
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 24px}
+section{padding:clamp(56px,9vh,110px) 0;border-top:1px solid var(--line)}
+section:first-of-type{border-top:none}
+.station-head{display:flex;align-items:baseline;gap:16px;margin-bottom:28px;flex-wrap:wrap}
+.station-no{font-family:var(--font-mono);font-size:.8rem;color:var(--ink-faint-solid);
+  border:1px solid var(--line-strong);border-radius:100px;padding:3px 11px;letter-spacing:.1em}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
+@media(max-width:860px){.grid2{grid-template-columns:1fr;gap:28px}}
+
+/* ---- nav ---- */
+.nav{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 82%,transparent);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav-inner{max-width:var(--wrap);margin:0 auto;padding:11px 24px;display:flex;
+  align-items:center;gap:18px}
+.brand{font-family:var(--font-mono);font-weight:700;font-size:.9rem;letter-spacing:.04em;
+  color:var(--ink);white-space:nowrap;display:flex;align-items:center;gap:9px}
+.brand .dot{width:10px;height:10px;border-radius:2px;background:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft)}
+.nav-links{display:flex;gap:2px;margin-left:auto;overflow-x:auto;scrollbar-width:none}
+.nav-links::-webkit-scrollbar{display:none}
+.nav-links a{font-family:var(--font-mono);font-size:.74rem;color:var(--ink-soft);
+  padding:6px 10px;border-radius:8px;white-space:nowrap;letter-spacing:.03em}
+.nav-links a:hover{background:var(--surface-2);color:var(--ink);text-decoration:none}
+.theme-btn{margin-left:6px;flex-shrink:0;background:var(--surface-2);border:1px solid var(--line);
+  color:var(--ink-soft);width:34px;height:34px;border-radius:9px;cursor:pointer;
+  font-size:1rem;display:grid;place-items:center;transition:.15s}
+.theme-btn:hover{color:var(--ink);border-color:var(--line-strong)}
+
+/* ---- hero ---- */
+.hero{padding-top:clamp(40px,7vh,80px)}
+.hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center}
+@media(max-width:900px){.hero-grid{grid-template-columns:1fr;gap:32px}}
+.hero h1{margin:18px 0 20px}
+.hero h1 .hl{color:var(--accent)}
+.tagbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:26px}
+.tag{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-soft);
+  border:1px solid var(--line);border-radius:100px;padding:5px 12px;background:var(--surface)}
+
+/* ---- canvas card ---- */
+.viz{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  overflow:hidden;position:relative}
+.viz-canvas-wrap{position:relative;width:100%}
+canvas{display:block;width:100%;touch-action:none}
+.viz-cap{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:10px 14px;border-top:1px solid var(--line);background:var(--surface-2);
+  font-family:var(--font-mono);font-size:.73rem;color:var(--ink-faint-solid);flex-wrap:wrap}
+.viz-cap .k{color:var(--ink-soft)}
+
+/* ---- controls ---- */
+.controls{display:flex;flex-direction:column;gap:14px;padding:16px}
+.ctrl-row{display:flex;align-items:center;gap:12px}
+.ctrl-row label{font-family:var(--font-mono);font-size:.76rem;color:var(--ink-soft);
+  min-width:66px;letter-spacing:.02em}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:5px;border-radius:5px;
+  background:var(--line-strong);outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;
+  border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid var(--surface);
+  box-shadow:0 0 0 1px var(--accent)}
+input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--accent);
+  cursor:pointer;border:2px solid var(--surface)}
+.val{font-family:var(--font-mono);font-size:.78rem;color:var(--ink);min-width:58px;
+  text-align:right;font-variant-numeric:tabular-nums}
+.btn-row{display:flex;flex-wrap:wrap;gap:7px}
+.btn{font-family:var(--font-mono);font-size:.75rem;letter-spacing:.02em;color:var(--ink-soft);
+  background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:7px 12px;
+  cursor:pointer;transition:.13s;white-space:nowrap}
+.btn:hover{border-color:var(--line-strong);color:var(--ink)}
+.btn.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:600}
+.btn-sm{padding:5px 9px;font-size:.72rem}
+
+/* ---- legend ---- */
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--font-mono);font-size:.72rem;
+  color:var(--ink-soft)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.swatch{width:15px;height:3px;border-radius:2px;display:inline-block}
+.swatch.dot{width:9px;height:9px;border-radius:50%}
+
+/* ---- readouts ---- */
+.readout{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.readout .cell{background:var(--surface);padding:11px 12px}
+.readout .cell .lbl{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-faint-solid)}
+.readout .cell .num{font-family:var(--font-mono);font-size:1.32rem;font-weight:600;
+  color:var(--ink);font-variant-numeric:tabular-nums;margin-top:2px}
+.readout .cell .num.accent{color:var(--accent)}
+
+/* ---- equations ---- */
+.eq{font-family:var(--font-mono);background:var(--surface);border:1px solid var(--line);
+  border-left:3px solid var(--accent);border-radius:8px;padding:14px 16px;overflow-x:auto;
+  font-size:.86rem;color:var(--ink);line-height:1.9;font-variant-numeric:tabular-nums}
+.eq .c{color:var(--ink-faint-solid)}
+.eq .v{color:var(--vec-result)}
+.eq .w{color:var(--accent)}
+
+/* ---- wheel-speed bars ---- */
+.wbars{display:flex;flex-direction:column;gap:9px}
+.wbar{display:grid;grid-template-columns:38px 1fr 62px;align-items:center;gap:10px;
+  font-family:var(--font-mono);font-size:.76rem}
+.wbar .name{color:var(--ink-soft)}
+.wbar .track{height:8px;background:var(--line);border-radius:5px;position:relative;overflow:hidden}
+.wbar .track .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--line-strong)}
+.wbar .fill{position:absolute;top:0;bottom:0;left:50%;background:var(--accent);border-radius:5px}
+.wbar .num{text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* ---- cards ---- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card canvas{border-radius:9px;border:1px solid var(--line);background:var(--surface-2);
+  width:100%;max-width:100%;min-width:0}
+.card h3{display:flex;align-items:center;gap:9px}
+.dof{font-family:var(--font-mono);font-size:.68rem;padding:3px 8px;border-radius:100px;
+  border:1px solid var(--line-strong);color:var(--ink-faint-solid);white-space:nowrap}
+.card ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.card li{font-size:.86rem;color:var(--ink-soft);display:flex;gap:8px;align-items:flex-start}
+.card li::before{content:"";width:6px;height:6px;border-radius:50%;margin-top:8px;flex-shrink:0}
+.card li.pro::before{background:var(--good)}
+.card li.con::before{background:var(--bad)}
+
+/* ---- limitation / frontier rows ---- */
+.rows{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:var(--r);
+  overflow:hidden}
+.row{display:grid;grid-template-columns:150px 1fr;gap:22px;padding:20px;border-top:1px solid var(--line);
+  background:var(--surface)}
+.row:first-child{border-top:none}
+@media(max-width:720px){.row{grid-template-columns:1fr;gap:8px}}
+.row .rlabel{font-family:var(--font-mono);font-size:.82rem;color:var(--ink);font-weight:600;
+  display:flex;flex-direction:column;gap:8px}
+.sev{font-family:var(--font-mono);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 8px;border-radius:100px;width:max-content}
+.sev.hi{background:color-mix(in srgb,var(--bad) 20%,transparent);color:var(--bad)}
+.sev.md{background:color-mix(in srgb,var(--warn) 22%,transparent);color:var(--warn)}
+.sev.lo{background:color-mix(in srgb,var(--good) 20%,transparent);color:var(--good)}
+.row p{margin:0;font-size:.92rem}
+.ref{font-family:var(--font-mono);font-size:.7rem;vertical-align:super;color:var(--accent);
+  text-decoration:none;padding:0 1px}
+.ref:hover{text-decoration:underline}
+
+/* ---- aside ---- */
+.aside{background:linear-gradient(180deg,var(--accent-soft),transparent);
+  border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r);
+  padding:22px 24px;margin-top:8px}
+.aside .eyebrow{color:var(--accent)}
+.aside h3{margin:8px 0 8px}
+.aside p{margin-bottom:0}
+
+/* ---- refs ---- */
+.reflist{display:flex;flex-direction:column;gap:2px;counter-reset:r}
+.reflist .item{display:grid;grid-template-columns:30px 1fr;gap:12px;padding:12px 0;
+  border-top:1px solid var(--line);font-size:.86rem}
+.reflist .item:first-child{border-top:none}
+.reflist .n{font-family:var(--font-mono);color:var(--accent);font-size:.8rem}
+.reflist .item p{margin:0;color:var(--ink-soft)}
+.reflist .item .t{color:var(--ink)}
+
+footer{border-top:1px solid var(--line);padding:40px 0 60px;color:var(--ink-faint-solid);
+  font-family:var(--font-mono);font-size:.78rem}
+.hr-note{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-faint-solid);
+  margin-top:14px;letter-spacing:.02em}
+.kbd{font-family:var(--font-mono);font-size:.72rem;background:var(--surface-2);
+  border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink)}
+::selection{background:var(--accent);color:var(--on-accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <span class="brand"><span class="dot"></span>MECANUM&nbsp;·&nbsp;FIELD&nbsp;GUIDE</span>
+    <div class="nav-links">
+      <a href="#idea">01 Idea</a>
+      <a href="#force">02 Forces</a>
+      <a href="#machine">03 Machine</a>
+      <a href="#ik">04 Kinematics</a>
+      <a href="#geometry">05 Geometry</a>
+      <a href="#zoo">06 Wheel Zoo</a>
+      <a href="#limits">07 Why Rare</a>
+      <a href="#frontier">08 Frontier</a>
+    </div>
+    <button class="theme-btn" id="themeBtn" aria-label="Toggle light and dark theme" title="Toggle theme">◑</button>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<header class="wrap hero">
+  <div class="hero-grid">
+    <div>
+      <span class="eyebrow">Omnidirectional locomotion · interactive</span>
+      <h1>The wheel that drives <span class="hl">sideways</span>.</h1>
+      <p class="lead">A mecanum wheel spins like any other — yet a robot on four of them can slide left, crab diagonally, and spin in place without ever turning a wheel to face where it's going. The trick is a ring of rollers set at 45°, and a little vector arithmetic. This guide takes you from that single idea to the working machine, the equations, and the hard reasons it still isn't on your car.</p>
+      <div class="tagbar">
+        <span class="tag">force decomposition</span>
+        <span class="tag">inverse kinematics</span>
+        <span class="tag">roller geometry</span>
+        <span class="tag">wheel taxonomy</span>
+        <span class="tag">open research</span>
+      </div>
+      <p class="hr-note">Drag inside any diagram. Every station stands alone — record one as a slide.</p>
+    </div>
+    <div class="viz">
+      <div class="viz-canvas-wrap"><canvas id="cHero" height="420"></canvas></div>
+      <div class="viz-cap">
+        <span><span class="k">single wheel</span> · drag to spin</span>
+        <span id="heroReadout">resultant 45°</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ 01 THE IDEA ============ -->
+<section id="idea">
+  <div class="wrap">
+    <div class="station-head"><span class="station-no">STATION 01</span><span class="eyebrow">The 45° trick</span></div>
+    <div class="grid2">
+      <div>
+        <h2>A normal wheel can only push one way.</h2>
+        <p>Roll a normal wheel forward and the ground pushes the robot forward. Try to shove that robot sideways and the wheel refuses — it grips. That grip is <strong>static friction</strong>, and for a normal wheel it can point in almost any direction to resist sliding. Useful for not skidding; useless for <em>choosing</em> to go sideways.</p>
+        <p>A mecanum wheel breaks the grip in exactly one direction. Around its rim sit <strong>free-spinning rollers</strong>, each tilted 45°. The rollers happily roll along their own axis, so the wheel <em>cannot</em> push the ground in that 45° direction — it just slides. What's left is a single hard direction, perpendicular to the rollers, where the wheel still grips and pushes.</p>
+        <p>So when the wheel is driven, the ground reaction it produces doesn't point forward. It points at <strong>45°</strong>. Spin the wheel the other way and the 45° force flips to the opposite diagonal. That diagonal force is the whole game.</p>
+        <div class="legend" style="margin-top:18px">
+          <span><span class="swatch" style="background:var(--vec-drive)"></span>drive force (grips here)</span>
+          <span><span class="swatch" style="background:var(--vec-roll)"></span>roller free-roll (slides here)</span>
+        </div>
+      </div>
+      <div class="viz">
+        <div class="viz-canvas-wrap"><canvas id="cDecomp" height="380"></canvas></div>
+        <div class="controls" style="padding-top:14px">
+          <div class="ctrl-row">
+            <label for="sSpin">Wheel spin</label>
+            <input type="range" id="sSpin" min="-100" max="100" value="70">
+            <span class="val" id="vSpin">+0.70</span>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-sm" data-hand="R" id="handR">roller "╱" (right)</button>
+            <button class="btn btn-sm" data-hand="L" id="handL">roller "╲" (left)</button>
+          </div>
+        </div>
+        <div class="viz-cap"><span class="k">one wheel, top view</span><span id="decompRead">force → 45°</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 FORCES ============ -->
+<section id="force">
+  <div class="wrap">
+    <div class="station-head"><span class="station-no">STATION 02</span><span class="eyebrow">Where the force actually comes from</span></div>
+    <div class="grid2">
+      <div class="viz">
+        <div class="viz-canvas-wrap"><canvas id="cForce" height="400"></canvas></div>
+        <div class="viz-cap"><span class="k">contact patch</span><span>friction, constrained to one axis</span></div>
+      </div>
+      <div>
+        <h2>Yes — it's friction. But a leashed friction.</h2>
+        <p>You had the right instinct: the propelling force is <strong>friction at the contact patch</strong>, same as any wheel. Nothing magnetic, nothing exotic. The motor applies a torque, the rim tries to shear the ground, and friction pushes back on the robot.</p>
+        <p>The mecanum twist is what the roller does to that friction. A free roller can only be dragged along its own rolling direction with almost no resistance. So any friction component <em>along</em> the roller simply spins the roller and vanishes — no force delivered. Only the component <strong>perpendicular</strong> to the roller survives as a real push.</p>
+        <p>That's why the net force is pinned to the 45° line: the roller acts as a one-way valve for friction. Drive hard, and the useful force is the driven force times <span class="mono">cos 45° ≈ 0.71</span> — the rest is spent sliding the rollers. This 0.71 "diagonal tax" quietly shows up again in Station 07 as an efficiency cost.</p>
+        <div class="readout" style="margin-top:18px">
+          <div class="cell"><div class="lbl">Motor</div><div class="num accent">torque</div></div>
+          <div class="cell"><div class="lbl">Contact</div><div class="num">friction</div></div>
+          <div class="cell"><div class="lbl">Delivered</div><div class="num">45° · ×0.71</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 THE MACHINE ============ -->
+<section id="machine">
+  <div class="wrap">
+    <div class="station-head"><span class="station-no">STATION 03</span><span class="eyebrow">Four wheels, and the cancelling that makes it move</span></div>
+    <h2 style="max-width:20ch;margin-bottom:10px">Four diagonal forces, added like arrows.</h2>
+    <p style="max-width:66ch;margin-bottom:26px">Put four mecanum wheels on a chassis in a mirror pattern — the rollers form an <strong>X</strong> seen from above. Each wheel still only makes a 45° force. But four 45° arrows, pointed by the roller handedness and scaled by each wheel's speed, <strong>add and cancel</strong>. Pick the four speeds right and the sideways parts survive while the forward parts cancel — pure strafe. Choose a preset and watch the four force arrows resolve into one motion of the whole body.</p>
+    <div class="grid2" style="align-items:stretch">
+      <div class="viz">
+        <div class="viz-canvas-wrap"><canvas id="cRobot" height="440"></canvas></div>
+        <div class="viz-cap">
+          <span class="legend" style="font-size:.68rem">
+            <span><span class="swatch" style="background:var(--vec-drive)"></span>wheel force</span>
+            <span><span class="swatch" style="background:var(--vec-result)"></span>body motion</span>
+          </span>
+          <span id="robotMode">FORWARD</span>
+        </div>
+      </div>
+      <div class="controls" style="justify-content:space-between">
+        <div>
+          <h3 style="margin-bottom:12px">Command a motion</h3>
+          <div class="btn-row" id="presetRow">
+            <button class="btn on" data-p="fwd">▲ Forward</button>
+            <button class="btn" data-p="back">▼ Reverse</button>
+            <button class="btn" data-p="left">◀ Strafe L</button>
+            <button class="btn" data-p="right">▶ Strafe R</button>
+            <button class="btn" data-p="diagFR">◤ Diagonal</button>
+            <button class="btn" data-p="cw">↻ Spin CW</button>
+            <button class="btn" data-p="ccw">↺ Spin CCW</button>
+          </div>
+        </div>
+        <div>
+          <div class="eyebrow" style="margin-bottom:8px">Wheel commands (rad/s, signed)</div>
+          <div class="wbars" id="wbars"></div>
+        </div>
+        <p class="hr-note" style="margin:0">Notice: in a pure strafe the front wheels spin <em>opposite</em> ways. Nothing points sideways — the sideways motion is emergent.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 04 KINEMATICS ============ -->
+<section id="ik">
+  <div class="wrap">
+    <div class="station-head"><span class="station-no">STATION 04</span><span class="eyebrow">The equations that run every mecanum robot</span></div>
+    <div class="grid2">
+      <div>
+        <h2>Inverse kinematics: motion in, four speeds out.</h2>
+        <p>A controller thinks in body motion — forward <span class="mono v">vₓ</span>, sideways <span class="mono v">v_y</span>, and turn rate <span class="mono w">ωz</span>. The wheels only understand their own spin. <strong>Inverse kinematics</strong> is the dictionary between them. For a standard mecanum layout with wheel radius <span class="mono">r</span> and a chassis of half-length <span class="mono">lₓ</span> and half-width <span class="mono">l_y</span>:</p>
+        <div class="eq">
+ω<span class="c">_FL</span> = (1/r)·( <span class="v">vₓ − v_y</span> − (lₓ+l_y)·<span class="w">ωz</span> )<br>
+ω<span class="c">_FR</span> = (1/r)·( <span class="v">vₓ + v_y</span> + (lₓ+l_y)·<span class="w">ωz</span> )<br>
+ω<span class="c">_RL</span> = (1/r)·( <span class="v">vₓ + v_y</span> − (lₓ+l_y)·<span class="w">ωz</span> )<br>
+ω<span class="c">_RR</span> = (1/r)·( <span class="v">vₓ − v_y</span> + (lₓ+l_y)·<span class="w">ωz</span> )
+        </div>
+        <p style="margin-top:16px">Read one line and the whole scheme falls out: <span class="mono v">+v_y</span> (strafe) adds to the right wheels and subtracts from the left; <span class="mono w">ωz</span> (turn) adds to one side and subtracts from the other. Drive the sliders and watch the four wheels — and the little robot — respond in real time.</p>
+        <div class="aside">
+          <span class="eyebrow">This project · the asymmetric case</span>
+          <h3>When the wheels aren't in a rectangle</h3>
+          <p>The textbook form above assumes all four wheels sit at the corners of a rectangle, so a single lever arm <span class="mono">(lₓ+l_y)</span> serves every wheel. The <strong>NarrowAisleBot</strong> in this repo deliberately breaks that — its outer pair sits farther out than its inner pair — so it needs <em>two</em> different lever arms, <span class="mono">K_outer</span> and <span class="mono">K_inner</span>, one per diagonal. Same physics, one term per wheel instead of one shared term. Half the historical bugs on that robot came from a control path quietly using a single symmetric <span class="mono">K</span> and erasing the geometry.</p>
+        </div>
+      </div>
+      <div>
+        <div class="viz">
+          <div class="viz-canvas-wrap"><canvas id="cMini" height="300"></canvas></div>
+          <div class="viz-cap"><span class="k">live body → wheels</span><span id="miniRead">holonomic</span></div>
+        </div>
+        <div class="controls">
+          <div class="ctrl-row"><label for="sVx">vₓ&nbsp;fwd</label><input type="range" id="sVx" min="-100" max="100" value="60"><span class="val" id="vVx">+0.60</span></div>
+          <div class="ctrl-row"><label for="sVy">v_y&nbsp;strafe</label><input type="range" id="sVy" min="-100" max="100" value="0"><span class="val" id="vVy">+0.00</span></div>
+          <div class="ctrl-row"><label for="sW">ωz&nbsp;turn</label><input type="range" id="sW" min="-100" max="100" value="0"><span class="val" id="vW">+0.00</span></div>
+          <div class="btn-row"><button class="btn btn-sm" id="ikReset">reset</button></div>
+        </div>
+        <div class="wbars" style="margin-top:16px" id="ikbars"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 05 GEOMETRY ============ -->
+<section id="geometry">
+  <div class="wrap">
+    <div class="station-head"><span class="station-no">STATION 05</span><span class="eyebrow">Rollers, radius, and the ride you feel</span></div>
+    <div class="grid2">
+      <div class="viz">
+        <div class="viz-canvas-wrap"><canvas id="cGeom" height="380"></canvas></div>
+        <div class="viz-cap"><span class="k">rim profile</span><span id="geomRead">ripple —</span></div>
+      </div>
+      <div>
+        <h2>Why the count of rollers changes the ride.</h2>
+        <p>A mecanum wheel never rolls on a smooth circle. At any instant only <strong>one or two rollers</strong> touch the ground, and each roller is a short barrel, not an arc of the full rim. So the effective rolling radius rises and falls as rollers hand off — the wheel centre bobs up and down a little on every rotation. That bob is real: it's a measurable <strong>vertical vibration</strong> that grows with speed and load.<a class="ref" href="#r6">6</a><a class="ref" href="#r7">7</a></p>
+        <p>More rollers means shorter hand-offs and a smaller bob — a smoother ride — but more parts, more bearings, more cost, and more places for grit to jam. Fewer rollers is cheaper and tougher but rougher. Barrel-shaped rollers are profiled precisely to keep the contact radius as constant as they can; it's a manufacturing art, not a given.</p>
+        <p>The slider shows the trade directly: watch the contact-radius <strong>ripple</strong> shrink as you add rollers, and grow as you drop them.</p>
+        <div class="controls" style="padding:0;margin-top:6px">
+          <div class="ctrl-row"><label for="sRollers">Rollers</label><input type="range" id="sRollers" min="4" max="16" value="9" step="1"><span class="val" id="vRollers">9</span></div>
+          <div class="ctrl-row"><label for="sAngle">Roller ∠</label><input type="range" id="sAngle" min="20" max="70" value="45" step="1"><span class="val" id="vAngle">45°</span></div>
+        </div>
+        <p class="hr-note">Roller angle away from 45° skews the force off the diagonal — the chassis then strafes and creeps forward at once. 45° is the sweet spot that keeps the axes independent.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 06 ZOO ============ -->
+<section id="zoo">
+  <div class="wrap">
+    <div class="station-head"><span class="station-no">STATION 06</span><span class="eyebrow">The wheel is one answer among several</span></div>
+    <h2 style="max-width:22ch;margin-bottom:10px">Five ways to get out of a three-point turn.</h2>
+    <p style="max-width:66ch;margin-bottom:26px">Mecanum is the famous one, but omnidirectional motion is a family. Each trades differently between how freely it moves (<strong>degrees of freedom</strong>), how it rides, and how much it costs. The small squares show each design's <em>motion signature</em> — the directions the body can command directly.</p>
+    <div class="cards" id="zooGrid"></div>
+  </div>
+</section>
+
+<!-- ============ 07 WHY RARE ============ -->
+<section id="limits">
+  <div class="wrap">
+    <div class="station-head"><span class="station-no">STATION 07</span><span class="eyebrow">The reasons it isn't on your car</span></div>
+    <div class="grid2" style="align-items:start;margin-bottom:30px">
+      <div>
+        <h2>Brilliant in a warehouse aisle. Absent on the road.</h2>
+        <p>Mecanum thrives exactly where it was born — tight, flat, indoor spaces where sideways beats a three-point turn: warehouse AGVs, factory floors, wheelchairs, camera dollies, forklifts in narrow racking. Step outside those conditions and a stack of real penalties appears. None is fatal alone; together they keep mecanum a specialist tool, not a general one.</p>
+      </div>
+      <div>
+        <p style="margin-top:6px">Each penalty below is an active drag on adoption — and, flipped around, an open invitation for the research in Station 08. Severity is relative to a plain differential-drive robot on the same job.</p>
+      </div>
+    </div>
+    <div class="rows">
+      <div class="row">
+        <div class="rlabel">Slip &amp; dead reckoning<span class="sev hi">high</span></div>
+        <p>Those free rollers are always partly sliding — that's the point — so wheel-encoder odometry drifts fast. Estimated position wanders metres over a run unless corrected by an IMU, LiDAR, or fused filter.<a class="ref" href="#r1">1</a><a class="ref" href="#r2">2</a> Getting reliable position is a whole sub-field: sensor fusion,<a class="ref" href="#r3">3</a> explicit slip models,<a class="ref" href="#r4">4</a> and online slip estimation and compensation.<a class="ref" href="#r5">5</a></p>
+      </div>
+      <div class="row">
+        <div class="rlabel">Vibration &amp; noise<span class="sev md">medium</span></div>
+        <p>The roller hand-off makes the hub bob every revolution — vertical vibration that worsens with speed and load, jars payloads, and radiates noise. Reducing it drives real design work on roller count, profile, and equivalent stiffness.<a class="ref" href="#r6">6</a><a class="ref" href="#r7">7</a></p>
+      </div>
+      <div class="row">
+        <div class="rlabel">Load &amp; ground contact<span class="sev hi">high</span></div>
+        <p>Only one roller per wheel carries the load at a time, on a tiny patch, so contact force swings wildly through a rotation<a class="ref" href="#r8">8</a> and all four wheels must stay planted. On uneven ground a wheel lifts, the force balance breaks, and motion smears — which is why "omni on rough terrain" is its own research thread.<a class="ref" href="#r11">11</a><a class="ref" href="#r12">12</a></p>
+      </div>
+      <div class="row">
+        <div class="rlabel">Efficiency tax<span class="sev md">medium</span></div>
+        <p>The 45° diagonal means a chunk of every motor's effort is spent sliding rollers, not moving the robot — the <span class="mono">cos 45°</span> tax from Station 02. Strafing can draw far more current than driving straight for the same speed, shortening range on battery platforms.</p>
+      </div>
+      <div class="row">
+        <div class="rlabel">Wear, cost &amp; debris<span class="sev md">medium</span></div>
+        <p>Dozens of small rollers and bearings per robot are dozens of wear points. They're intolerant of grit, water, and rough or soft floors — a pebble in a roller is a dead axis. More parts, more maintenance, higher cost than a plain wheel.</p>
+      </div>
+      <div class="row">
+        <div class="rlabel">Payload ceiling<span class="sev lo">context</span></div>
+        <p>Small point contacts limit how much weight the rollers take before deforming or stalling — which is why heavy-duty omnidirectional platforms are a deliberate design specialty, not an off-the-shelf scale-up.<a class="ref" href="#r9">9</a><a class="ref" href="#r10">10</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 08 FRONTIER ============ -->
+<section id="frontier">
+  <div class="wrap">
+    <div class="station-head"><span class="station-no">STATION 08</span><span class="eyebrow">What engineers are actively trying to fix</span></div>
+    <h2 style="max-width:24ch;margin-bottom:22px">Turn every limitation above into a research programme.</h2>
+    <div class="rows">
+      <div class="row">
+        <div class="rlabel">Beat the slip<span class="sev lo">active</span></div>
+        <p>Fuse wheel odometry with IMUs, LiDAR, and vision through Kalman/EKF filters;<a class="ref" href="#r3">3</a> build explicit friction-and-slip dynamics into the controller instead of pretending contact is perfect;<a class="ref" href="#r4">4</a> and estimate slip online to compensate it live.<a class="ref" href="#r5">5</a> The goal: trust the robot's own sense of where it is.</p>
+      </div>
+      <div class="row">
+        <div class="rlabel">Kill the vibration<span class="sev lo">active</span></div>
+        <p>Optimise roller geometry and hub stiffness so the contact radius barely ripples — modelling the wheel as an equivalent spring and tuning roller count, overlap, and profile to flatten the bob.<a class="ref" href="#r6">6</a><a class="ref" href="#r7">7</a></p>
+      </div>
+      <div class="row">
+        <div class="rlabel">Adapt to terrain<span class="sev lo">active</span></div>
+        <p>Suspension and compliance that keep all wheels loaded on bumps, plus kinematic models built for uneven ground rather than a perfect plane,<a class="ref" href="#r11">11</a><a class="ref" href="#r12">12</a> aim to let omni platforms leave the polished factory floor.</p>
+      </div>
+      <div class="row">
+        <div class="rlabel">Carry real weight<span class="sev lo">active</span></div>
+        <p>Adaptive and variable-geometry omni wheels, and coupled-drive layouts, push the payload ceiling so omnidirectional motion survives heavy industrial loads.<a class="ref" href="#r9">9</a><a class="ref" href="#r10">10</a></p>
+      </div>
+      <div class="row">
+        <div class="rlabel">Hold a heading<span class="sev lo">active</span></div>
+        <p>Because open-loop heading drifts several degrees over ten metres, closed-loop heading correction — measuring yaw and feeding a bias back into the mix — is a documented fix for heavy-duty omni robots,<a class="ref" href="#r13">13</a> and the direct motivation for the IMU-fusion phase on this project.</p>
+      </div>
+      <div class="row">
+        <div class="rlabel">Rethink the wheel<span class="sev lo">active</span></div>
+        <p>Alternatives sidestep mecanum's weaknesses entirely: spherical/ball drives for gapless omni-motion, active-caster and swerve modules that stay efficient by physically steering, and under-actuated coupled designs that get more directions from fewer motors.<a class="ref" href="#r14">14</a> The "best" omni wheel is still an open question.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ REFERENCES ============ -->
+<section id="refs">
+  <div class="wrap">
+    <div class="station-head"><span class="eyebrow">Peer-reviewed sources</span></div>
+    <h2 style="margin-bottom:22px">References</h2>
+    <div class="reflist">
+      <div class="item" id="r1"><span class="n">1</span><p><span class="t">Wheel slip and odometry error on wheeled mobile robots — a review.</span> <em>IJRA</em> 5(1), 6–16. <a href="https://doi.org/10.11591/ijra.v5i1.pp6-16">10.11591/ijra.v5i1.pp6-16</a></p></div>
+      <div class="item" id="r2"><span class="n">2</span><p><span class="t">Odometry aspects of an omni-directional mobile robot with modified mecanum wheels.</span> <em>Applied Mechanics and Materials</em> 658, 587. <a href="https://doi.org/10.4028/www.scientific.net/amm.658.587">10.4028/www.scientific.net/amm.658.587</a></p></div>
+      <div class="item" id="r3"><span class="n">3</span><p><span class="t">Kalman filter sensor fusion for mecanum-wheeled AGV localization.</span> <em>J. Sensors</em> (Hindawi), 2015. <a href="https://doi.org/10.1155/2015/347379">10.1155/2015/347379</a></p></div>
+      <div class="item" id="r4"><span class="n">4</span><p><span class="t">Trajectory tracking for an omnidirectional mecanum robot with longitudinal slipping.</span> <em>MATEC Web Conf.</em> 256, 02003. <a href="https://doi.org/10.1051/matecconf/201925602003">10.1051/matecconf/201925602003</a></p></div>
+      <div class="item" id="r5"><span class="n">5</span><p><span class="t">Slip estimation and compensation control of an omnidirectional wheeled AGV.</span> <em>Electronics</em> 10(7), 840. <a href="https://doi.org/10.3390/electronics10070840">10.3390/electronics10070840</a></p></div>
+      <div class="item" id="r6"><span class="n">6</span><p><span class="t">Design optimization of a mecanum wheel to reduce vertical vibrations via equivalent stiffness.</span> <em>Shock and Vibration</em> (Hindawi), 2016. <a href="https://doi.org/10.1155/2016/5892784">10.1155/2016/5892784</a></p></div>
+      <div class="item" id="r7"><span class="n">7</span><p><span class="t">Vibration-reducing modelling of a mecanum wheel based on equivalent stiffness and strength.</span> <em>Proc. IMechE Part C</em>, 2023. <a href="https://doi.org/10.1177/09544089231212594">10.1177/09544089231212594</a></p></div>
+      <div class="item" id="r8"><span class="n">8</span><p><span class="t">Theoretical and experimental investigation of variable contact forces on the rollers of a mecanum-wheeled robot.</span> <em>Int. J. Robotics Research</em>, 2024. <a href="https://doi.org/10.1177/02783649241228607">10.1177/02783649241228607</a></p></div>
+      <div class="item" id="r9"><span class="n">9</span><p><span class="t">Research on a new omnidirectional mobile platform with heavy loading and flexible motion.</span> <em>Adv. Mech. Eng.</em> 9(9). <a href="https://doi.org/10.1177/1687814017726683">10.1177/1687814017726683</a></p></div>
+      <div class="item" id="r10"><span class="n">10</span><p><span class="t">Design and performance analysis of an adaptive omnidirectional wheel for heavy-payload robots.</span> <em>Industrial Robot</em>, 2022. <a href="https://doi.org/10.1108/ir-01-2022-0024">10.1108/ir-01-2022-0024</a></p></div>
+      <div class="item" id="r11"><span class="n">11</span><p><span class="t">General model of an omnidirectional mobile robot suitable for uneven ground.</span> <em>DEStech Trans. (ECAR 2018)</em>. <a href="https://doi.org/10.12783/dtetr/ecar2018/26313">10.12783/dtetr/ecar2018/26313</a></p></div>
+      <div class="item" id="r12"><span class="n">12</span><p><span class="t">Analysis, design, and control of an omnidirectional mobile robot in rough terrain.</span> <em>J. Mech. Design</em> 132(12). <a href="https://doi.org/10.1115/1.4000214">10.1115/1.4000214</a></p></div>
+      <div class="item" id="r13"><span class="n">13</span><p><span class="t">Adaptive heading correction for an industrial heavy-duty omnidirectional robot.</span> <em>Scientific Reports</em> 12, 24270. <a href="https://doi.org/10.1038/s41598-022-24270-x">10.1038/s41598-022-24270-x</a></p></div>
+      <div class="item" id="r14"><span class="n">14</span><p><span class="t">A new-style under-actuated omnidirectional mobile robot based on a special coupling drive system.</span> <em>IEEE Access</em> 7. <a href="https://doi.org/10.1109/access.2019.2948378">10.1109/access.2019.2948378</a></p></div>
+    </div>
+    <p class="hr-note" style="margin-top:20px">The mecanum wheel is credited to Bengt Ilon at Mecanum AB, Sweden (1972; US patent 3,876,255). Numbers in the interactive stations are illustrative — tuned for clarity of the physics, not any specific hardware datasheet.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Interactive field guide to mecanum wheels &amp; omnidirectional locomotion · built for the NarrowAisleBot project ·
+    theory, live physics, and open-research grounding in one page.
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var SQRT2 = Math.SQRT1_2; // 1/sqrt(2)
+  var staticDraws = []; // draw-once canvases that must recolor on theme change
+
+  /* ---------- theme ---------- */
+  var root = document.documentElement, tb = document.getElementById("themeBtn");
+  function curTheme(){
+    var a = root.getAttribute("data-theme");
+    if(a) return a;
+    return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  tb.addEventListener("click", function(){
+    var next = curTheme()==="dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    css.flush();
+    requestAnimationFrame(function(){ staticDraws.forEach(function(f){f();}); });
+  });
+
+  /* ---------- resolved-color cache (canvas can't read CSS vars directly at full speed) ---------- */
+  var css = (function(){
+    var c = {};
+    function read(){
+      var s = getComputedStyle(root);
+      ["--ink","--ink-soft","--ink-faint-solid","--line","--line-strong","--surface",
+       "--surface-2","--accent","--vec-drive","--vec-roll","--vec-result","--vec-normal",
+       "--grid","--grid-strong","--good","--bad","--raise"].forEach(function(k){
+        c[k]=s.getPropertyValue(k).trim();
+      });
+    }
+    read();
+    return { get:function(k){return c[k];}, flush:read };
+  })();
+
+  /* ---------- canvas helpers ---------- */
+  function setup(cv){
+    var wrap = cv.parentElement;
+    function resize(){
+      var w = wrap.clientWidth || cv.clientWidth;
+      var h = parseInt(cv.getAttribute("height"),10);
+      var dpr = Math.min(window.devicePixelRatio||1, 2);
+      cv.width = w*dpr; cv.height = h*dpr;
+      cv.style.height = h+"px";
+      var ctx = cv.getContext("2d");
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      cv._w = w; cv._h = h;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+    return cv.getContext("2d");
+  }
+  function grid(ctx,w,h,step){
+    ctx.save();
+    ctx.strokeStyle = css.get("--grid"); ctx.lineWidth = 1;
+    for(var x=step;x<w;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+    for(var y=step;y<h;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+    ctx.restore();
+  }
+  function arrow(ctx,x0,y0,x1,y1,color,wd,head){
+    head = head||10;
+    var ang = Math.atan2(y1-y0,x1-x0);
+    var len = Math.hypot(x1-x0,y1-y0);
+    if(len<1) return;
+    ctx.save();
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=wd; ctx.lineCap="round";
+    ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1-Math.cos(ang)*head*0.6,y1-Math.sin(ang)*head*0.6);ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    ctx.lineTo(x1-Math.cos(ang-0.42)*head, y1-Math.sin(ang-0.42)*head);
+    ctx.lineTo(x1-Math.cos(ang+0.42)*head, y1-Math.sin(ang+0.42)*head);
+    ctx.closePath();ctx.fill();
+    ctx.restore();
+  }
+  function label(ctx,txt,x,y,color,size,align){
+    ctx.save();
+    ctx.fillStyle=color; ctx.font="600 "+(size||12)+"px ui-monospace,Menlo,monospace";
+    ctx.textAlign=align||"left"; ctx.textBaseline="middle";
+    ctx.fillText(txt,x,y); ctx.restore();
+  }
+  function dashCircle(ctx,cx,cy,r,color){
+    ctx.save();ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.setLineDash([4,5]);
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();ctx.restore();
+  }
+
+  /* draw a mecanum wheel (top view) at (cx,cy), radius R.
+     forceDir: unit body-vector the wheel pushes when spun +; spin animates roller stripes.
+     handSign chooses stripe diagonal. */
+  function drawWheel(ctx,cx,cy,R,forceAng,spinPhase,speed){
+    ctx.save();
+    // hub
+    ctx.fillStyle=css.get("--surface-2");
+    ctx.strokeStyle=css.get("--line-strong"); ctx.lineWidth=2;
+    ctx.beginPath();ctx.roundRect(cx-R*0.62,cy-R,R*1.24,R*2,7);ctx.fill();ctx.stroke();
+    // roller stripes run perpendicular to the force direction (free-roll axis)
+    var stripeAng = forceAng + Math.PI/2;
+    ctx.save();
+    ctx.beginPath();ctx.roundRect(cx-R*0.62,cy-R,R*1.24,R*2,7);ctx.clip();
+    ctx.strokeStyle=css.get("--vec-roll"); ctx.lineWidth=3; ctx.lineCap="round";
+    var dx=Math.cos(stripeAng), dy=Math.sin(stripeAng);
+    var off=(spinPhase%1)*16;
+    for(var i=-3;i<=3;i++){
+      var p = i*16 + off - 8;
+      var mx=cx+Math.cos(forceAng)*p, my=cy+Math.sin(forceAng)*p;
+      ctx.globalAlpha=0.85;
+      ctx.beginPath();ctx.moveTo(mx-dx*R*0.9,my-dy*R*0.9);ctx.lineTo(mx+dx*R*0.9,my+dy*R*0.9);ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha=1;
+    ctx.restore();
+  }
+
+  /* ======================================================= HERO */
+  (function(){
+    var cv=document.getElementById("cHero"); if(!cv)return;
+    var ctx=setup(cv);
+    var spin=0.7, phase=0, drag=false;
+    var read=document.getElementById("heroReadout");
+    function pointer(e){
+      var r=cv.getBoundingClientRect();
+      var y=(e.touches?e.touches[0].clientY:e.clientY)-r.top;
+      spin = Math.max(-1,Math.min(1,(cv._h/2 - y)/(cv._h*0.4)));
+    }
+    cv.addEventListener("pointerdown",function(e){drag=true;pointer(e);});
+    window.addEventListener("pointermove",function(e){if(drag)pointer(e);});
+    window.addEventListener("pointerup",function(){drag=false;});
+    function frame(){
+      var w=cv._w,h=cv._h; ctx.clearRect(0,0,w,h);
+      grid(ctx,w,h,26);
+      var cx=w*0.42, cy=h*0.5, R=Math.min(h*0.34,86);
+      var forceAng = -Math.PI/4; // up-right 45° in screen coords (up = -y)
+      if(spin<0) forceAng = Math.PI - Math.PI/4; // flips to down-left
+      var mag=Math.abs(spin);
+      phase += spin*0.06*(reduce?0:1);
+      drawWheel(ctx,cx,cy,R,(spin>=0?-Math.PI/4:(Math.PI*3/4)),phase*4,spin);
+      // force vector
+      var L=mag*R*1.7+8;
+      var fx=cx+Math.cos(forceAng)*L, fy=cy+Math.sin(forceAng)*L;
+      arrow(ctx,cx,cy,fx,fy,css.get("--vec-drive"),4.5,13);
+      label(ctx,"45° force",fx+8,fy-4,css.get("--vec-drive"),12.5);
+      // free-roll indicator
+      var rAng=forceAng+Math.PI/2;
+      arrow(ctx,cx,cy,cx+Math.cos(rAng)*R*1.1,cy+Math.sin(rAng)*R*1.1,css.get("--vec-roll"),2,9);
+      arrow(ctx,cx,cy,cx-Math.cos(rAng)*R*1.1,cy-Math.sin(rAng)*R*1.1,css.get("--vec-roll"),2,9);
+      label(ctx,"rollers slide",cx-Math.cos(rAng)*R*1.1-6,cy-Math.sin(rAng)*R*1.1+16,css.get("--vec-roll"),11,"center");
+      // spin arrow
+      ctx.save();ctx.strokeStyle=css.get("--ink-soft");ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(cx,cy,R*0.42,spin>=0?-1.2:1.9,spin>=0?1.2:4.4);ctx.stroke();ctx.restore();
+      label(ctx,(spin>=0?"spin +":"spin −"),cx,cy+R+22,css.get("--ink-faint-solid"),11,"center");
+      read.textContent = "resultant "+(spin>=0?"↗ 45°":"↙ 225°")+"  ·  |F| "+mag.toFixed(2);
+      requestAnimationFrame(frame);
+    }
+    frame();
+  })();
+
+  /* ======================================================= 01 DECOMP */
+  (function(){
+    var cv=document.getElementById("cDecomp"); if(!cv)return;
+    var ctx=setup(cv);
+    var spin=0.7, hand="R", phase=0;
+    var s=document.getElementById("sSpin"), v=document.getElementById("vSpin");
+    var read=document.getElementById("decompRead");
+    var bR=document.getElementById("handR"), bL=document.getElementById("handL");
+    s.addEventListener("input",function(){spin=+s.value/100;v.textContent=(spin>=0?"+":"")+spin.toFixed(2);});
+    function setHand(h){hand=h;bR.classList.toggle("on",h==="R");bL.classList.toggle("on",h==="L");}
+    bR.addEventListener("click",function(){setHand("R");});
+    bL.addEventListener("click",function(){setHand("L");});
+    setHand("R");
+    function frame(){
+      var w=cv._w,h=cv._h;ctx.clearRect(0,0,w,h);grid(ctx,w,h,26);
+      var cx=w*0.5,cy=h*0.52,R=Math.min(h*0.3,74);
+      // base force angle: R-hand rollers push up-right; L-hand up-left
+      var base = hand==="R" ? -Math.PI/4 : (-Math.PI*3/4);
+      var forceAng = spin>=0 ? base : base+Math.PI;
+      phase+=spin*0.05*(reduce?0:1);
+      drawWheel(ctx,cx,cy,R,(hand==="R"?-Math.PI/4:(-Math.PI*3/4)),phase*4,spin);
+      var mag=Math.abs(spin);
+      // driven wheel-surface velocity (vertical, along wheel roll) — dashed
+      var vv=mag*R*1.5+6;
+      ctx.save();ctx.setLineDash([5,5]);
+      arrow(ctx,cx,cy,cx,cy-(spin>=0?vv:-vv),css.get("--ink-faint-solid"),2,9);
+      ctx.restore();
+      label(ctx,"wheel roll",cx+8,cy-(spin>=0?vv:-vv)+ (spin>=0?6:-6),css.get("--ink-faint-solid"),11);
+      // resultant 45° force
+      var L=mag*R*1.6+8;
+      var fx=cx+Math.cos(forceAng)*L,fy=cy+Math.sin(forceAng)*L;
+      arrow(ctx,cx,cy,fx,fy,css.get("--vec-drive"),4.5,13);
+      label(ctx,"F 45°",fx+ (Math.cos(forceAng)>0?8:-40),fy,css.get("--vec-drive"),12.5);
+      // free roll axis
+      var rAng=forceAng+Math.PI/2;
+      ctx.save();ctx.globalAlpha=.9;
+      arrow(ctx,cx,cy,cx+Math.cos(rAng)*R*1.0,cy+Math.sin(rAng)*R*1.0,css.get("--vec-roll"),2,8);
+      arrow(ctx,cx,cy,cx-Math.cos(rAng)*R*1.0,cy-Math.sin(rAng)*R*1.0,css.get("--vec-roll"),2,8);
+      ctx.restore();
+      var deg = ((Math.atan2(-Math.sin(forceAng),Math.cos(forceAng))*180/Math.PI)+360)%360;
+      read.textContent="force → "+deg.toFixed(0)+"°";
+      requestAnimationFrame(frame);
+    }
+    frame();
+  })();
+
+  /* ======================================================= 02 FORCE */
+  (function(){
+    var cv=document.getElementById("cForce"); if(!cv)return;
+    var ctx=setup(cv);
+    function frame(){
+      var w=cv._w,h=cv._h;ctx.clearRect(0,0,w,h);grid(ctx,w,h,26);
+      var cx=w*0.5,cy=h*0.5,R=Math.min(h*0.26,72);
+      // ground patch
+      ctx.save();ctx.fillStyle=css.get("--raise");ctx.strokeStyle=css.get("--line-strong");
+      ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(cx,cy,R*1.9,R*0.7,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.restore();
+      label(ctx,"CONTACT PATCH",cx,cy+R*0.7+18,css.get("--ink-faint-solid"),10.5,"center");
+      // roller cylinder
+      var ra=-Math.PI/4;
+      ctx.save();ctx.translate(cx,cy);ctx.rotate(ra);
+      ctx.fillStyle=css.get("--surface-2");ctx.strokeStyle=css.get("--vec-roll");ctx.lineWidth=2.5;
+      ctx.beginPath();ctx.roundRect(-R*1.15,-R*0.34,R*2.3,R*0.68,R*0.34);ctx.fill();ctx.stroke();
+      ctx.restore();
+      // total friction (before roller) — grey, vertical
+      arrow(ctx,cx,cy,cx,cy-R*1.5,css.get("--ink-faint-solid"),2.5,11);
+      label(ctx,"friction available",cx+8,cy-R*1.5+6,css.get("--ink-faint-solid"),11);
+      // component along roller (lost) — cyan dashed
+      var lostAng=ra; var lx=Math.cos(lostAng),ly=Math.sin(lostAng);
+      var proj = ( (0)*lx + (-R*1.5)*ly ); // component of (0,-1.5R) onto roller axis
+      ctx.save();ctx.setLineDash([5,5]);
+      arrow(ctx,cx,cy,cx+lx*proj,cy+ly*proj,css.get("--vec-roll"),2,9);
+      ctx.restore();
+      label(ctx,"spins roller — lost",cx+lx*proj-4,cy+ly*proj-14,css.get("--vec-roll"),11,"center");
+      // surviving perpendicular component — amber (the delivered push)
+      var pAng=ra+Math.PI/2; var px=Math.cos(pAng),py=Math.sin(pAng);
+      var proj2=((0)*px+(-R*1.5)*py);
+      arrow(ctx,cx,cy,cx+px*proj2,cy+py*proj2,css.get("--vec-drive"),4.5,13);
+      label(ctx,"delivered push",cx+px*proj2+8,cy+py*proj2,css.get("--vec-drive"),12);
+      requestAnimationFrame(frame);
+    }
+    if(reduce){frame();}else frame();
+  })();
+
+  /* ======================================================= 03 ROBOT + 04 IK shared model */
+  // wheel push unit dirs, body frame x=fwd(up), y=left(left). [x,y]
+  var WH = [
+    {name:"FL", pos:[ 1, 1], dir:[1,-1]},
+    {name:"FR", pos:[ 1,-1], dir:[1, 1]},
+    {name:"RL", pos:[-1, 1], dir:[1, 1]},
+    {name:"RR", pos:[-1,-1], dir:[1,-1]}
+  ];
+  function ik(vx,vy,w){ // returns speeds FL,FR,RL,RR (unit r=1,(lx+ly)=1)
+    return [ vx - vy - w, vx + vy + w, vx + vy - w, vx - vy + w ];
+  }
+  // body->screen: up=+x_body, left=+y_body
+  function b2s(cx,cy,scale,bx,by){ return [cx - by*scale, cy - bx*scale]; }
+
+  function drawRobot(ctx,w,h,speeds,vx,vy,wz,phase){
+    ctx.clearRect(0,0,w,h);grid(ctx,w,h,26);
+    var cx=w*0.5,cy=h*0.5;
+    var halfL=Math.min(h*0.3,90), halfW=Math.min(w*0.22,86), R=Math.min(halfW*0.55,34);
+    // chassis
+    ctx.save();
+    ctx.fillStyle=css.get("--surface"); ctx.strokeStyle=css.get("--line-strong");ctx.lineWidth=2;
+    ctx.beginPath();ctx.roundRect(cx-halfW,cy-halfL,halfW*2,halfL*2,12);ctx.fill();ctx.stroke();
+    ctx.restore();
+    // front marker
+    label(ctx,"▲ FRONT",cx,cy-halfL-14,css.get("--ink-faint-solid"),10.5,"center");
+    var maxSp=Math.max(0.001,Math.max.apply(null,speeds.map(Math.abs)));
+    WH.forEach(function(wh,i){
+      var wx=cx - wh.pos[1]*halfW, wy=cy - wh.pos[0]*halfL;
+      var forceAng = Math.atan2(-wh.dir[0], -wh.dir[1]); // screen angle of push dir (up=-y)
+      // roller stripe orientation fixed by handedness; force dir sign by speed
+      var stripeBase = Math.atan2(-wh.dir[0], -wh.dir[1]);
+      drawWheel(ctx,wx,wy,R,stripeBase,phase*4*Math.sign(speeds[i]||1)+i, speeds[i]);
+      // per-wheel force arrow, scaled
+      var s=speeds[i]/maxSp;
+      var mag=Math.abs(s)*R*1.5;
+      var ang = s>=0 ? forceAng : forceAng+Math.PI;
+      if(Math.abs(speeds[i])>0.02)
+        arrow(ctx,wx,wy,wx+Math.cos(ang)*mag,wy+Math.sin(ang)*mag,css.get("--vec-drive"),3,10);
+      // spin sense tick
+      label(ctx,(speeds[i]>0.02?"+":(speeds[i]<-0.02?"−":"0")),wx,wy+R+13,css.get("--ink-faint-solid"),11,"center");
+    });
+    // resultant body motion arrow from centre
+    var scale=52;
+    var ex=cx - vy*scale, ey=cy - vx*scale;
+    if(Math.hypot(vx,vy)>0.02)
+      arrow(ctx,cx,cy,ex,ey,css.get("--vec-result"),5,15);
+    // rotation arc
+    if(Math.abs(wz)>0.02){
+      ctx.save();ctx.strokeStyle=css.get("--vec-result");ctx.lineWidth=4;ctx.lineCap="round";
+      var a0=-Math.PI/2, a1=a0+ (wz>0? 2.3 : -2.3);
+      ctx.beginPath();ctx.arc(cx,cy,R*1.05,Math.min(a0,a1),Math.max(a0,a1));ctx.stroke();
+      var tip=a1; var tx=cx+Math.cos(tip)*R*1.05, ty=cy+Math.sin(tip)*R*1.05;
+      var perp=tip+(wz>0?Math.PI/2:-Math.PI/2);
+      arrow(ctx,tx-Math.cos(perp)*0.1,ty-Math.sin(perp)*0.1,tx,ty,css.get("--vec-result"),1,11);
+      ctx.restore();
+    }
+    if(Math.hypot(vx,vy)<=0.02 && Math.abs(wz)<=0.02)
+      label(ctx,"— stopped —",cx,cy,css.get("--ink-faint-solid"),12,"center");
+  }
+
+  (function(){
+    var cv=document.getElementById("cRobot"); if(!cv)return;
+    var ctx=setup(cv);
+    var presets={
+      fwd:[1,0,0], back:[-1,0,0], left:[0,1,0], right:[0,-1,0],
+      diagFR:[0.8,-0.8,0], cw:[0,0,-1], ccw:[0,0,1]
+    };
+    var names={fwd:"FORWARD",back:"REVERSE",left:"STRAFE LEFT",right:"STRAFE RIGHT",
+      diagFR:"DIAGONAL ◤",cw:"SPIN CW",ccw:"SPIN CCW"};
+    var cur="fwd", phase=0;
+    var modeEl=document.getElementById("robotMode");
+    var barsEl=document.getElementById("wbars");
+    WH.forEach(function(wh){
+      var d=document.createElement("div");d.className="wbar";
+      d.innerHTML='<span class="name">'+wh.name+'</span><span class="track"><span class="mid"></span><span class="fill"></span></span><span class="num">0.00</span>';
+      barsEl.appendChild(d);
+    });
+    var fills=barsEl.querySelectorAll(".fill"), nums=barsEl.querySelectorAll(".num");
+    function setPreset(p){
+      cur=p; modeEl.textContent=names[p];
+      document.querySelectorAll("#presetRow .btn").forEach(function(b){b.classList.toggle("on",b.dataset.p===p);});
+    }
+    document.querySelectorAll("#presetRow .btn").forEach(function(b){
+      b.addEventListener("click",function(){setPreset(b.dataset.p);});
+    });
+    function frame(){
+      var w=cv._w,h=cv._h;
+      var cmd=presets[cur]; var sp=ik(cmd[0],cmd[1],cmd[2]);
+      var mx=Math.max.apply(null,sp.map(Math.abs))||1;
+      phase+=0.04*(reduce?0:1);
+      drawRobot(ctx,w,h,sp,cmd[0],cmd[1],cmd[2],phase);
+      sp.forEach(function(v,i){
+        fills[i].style.width=(Math.abs(v)/mx*50)+"%";
+        fills[i].style.left = v>=0? "50%":"auto";
+        fills[i].style.right = v<0? "50%":"auto";
+        fills[i].style.background = v>=0?"var(--accent)":"var(--vec-result)";
+        nums[i].textContent=(v>=0?"+":"")+v.toFixed(2);
+      });
+      requestAnimationFrame(frame);
+    }
+    frame();
+  })();
+
+  /* ======================================================= 04 IK mini */
+  (function(){
+    var cv=document.getElementById("cMini"); if(!cv)return;
+    var ctx=setup(cv);
+    var sVx=document.getElementById("sVx"),sVy=document.getElementById("sVy"),sW=document.getElementById("sW");
+    var vVx=document.getElementById("vVx"),vVy=document.getElementById("vVy"),vW=document.getElementById("vW");
+    var read=document.getElementById("miniRead");
+    var barsEl=document.getElementById("ikbars");
+    WH.forEach(function(wh){
+      var d=document.createElement("div");d.className="wbar";
+      d.innerHTML='<span class="name">ω '+wh.name+'</span><span class="track"><span class="mid"></span><span class="fill"></span></span><span class="num">0.00</span>';
+      barsEl.appendChild(d);
+    });
+    var fills=barsEl.querySelectorAll(".fill"), nums=barsEl.querySelectorAll(".num");
+    var phase=0;
+    function vals(){return [ +sVx.value/100, +sVy.value/100, +sW.value/100 ];}
+    function upd(){
+      var vv=vals();
+      vVx.textContent=(vv[0]>=0?"+":"")+vv[0].toFixed(2);
+      vVy.textContent=(vv[1]>=0?"+":"")+vv[1].toFixed(2);
+      vW.textContent=(vv[2]>=0?"+":"")+vv[2].toFixed(2);
+    }
+    [sVx,sVy,sW].forEach(function(s){s.addEventListener("input",upd);});
+    document.getElementById("ikReset").addEventListener("click",function(){
+      sVx.value=60;sVy.value=0;sW.value=0;upd();
+    });
+    upd();
+    function frame(){
+      var w=cv._w,h=cv._h;var vv=vals();
+      var sp=ik(vv[0],vv[1],vv[2]);
+      var mx=Math.max.apply(null,sp.map(Math.abs))||1;
+      phase+=0.04*(reduce?0:1);
+      drawRobot(ctx,w,h,sp,vv[0],vv[1],vv[2],phase);
+      sp.forEach(function(v,i){
+        fills[i].style.width=(Math.abs(v)/(Math.max(mx,0.5))*50)+"%";
+        fills[i].style.left=v>=0?"50%":"auto";fills[i].style.right=v<0?"50%":"auto";
+        fills[i].style.background=v>=0?"var(--accent)":"var(--vec-result)";
+        nums[i].textContent=(v>=0?"+":"")+v.toFixed(2);
+      });
+      var moving=Math.hypot(vv[0],vv[1])>0.02, turning=Math.abs(vv[2])>0.02;
+      read.textContent = (moving&&turning)?"translate + rotate":moving?"pure translation":turning?"pure rotation":"holonomic · idle";
+      requestAnimationFrame(frame);
+    }
+    frame();
+  })();
+
+  /* ======================================================= 05 GEOMETRY */
+  (function(){
+    var cv=document.getElementById("cGeom"); if(!cv)return;
+    var ctx=setup(cv);
+    var sR=document.getElementById("sRollers"),vR=document.getElementById("vRollers");
+    var sA=document.getElementById("sAngle"),vA=document.getElementById("vAngle");
+    var read=document.getElementById("geomRead");
+    var n=9,ang=45,phase=0;
+    sR.addEventListener("input",function(){n=+sR.value;vR.textContent=n;});
+    sA.addEventListener("input",function(){ang=+sA.value;vA.textContent=ang+"°";});
+    function frame(){
+      var w=cv._w,h=cv._h;ctx.clearRect(0,0,w,h);grid(ctx,w,h,26);
+      var cx=w*0.34,cy=h*0.5,R=Math.min(h*0.32,84);
+      phase+=0.012*(reduce?0:1);
+      // rim
+      dashCircle(ctx,cx,cy,R,css.get("--line-strong"));
+      // rollers as short barrels around rim, tilted by ang
+      var tilt=(ang-90)*Math.PI/180;
+      for(var i=0;i<n;i++){
+        var a=phase+i/n*Math.PI*2;
+        var rx=cx+Math.cos(a)*R, ry=cy+Math.sin(a)*R;
+        ctx.save();ctx.translate(rx,ry);ctx.rotate(a+Math.PI/2+tilt);
+        var bl=Math.PI*R/n*0.95;
+        ctx.fillStyle=css.get("--surface-2");ctx.strokeStyle=css.get("--vec-roll");ctx.lineWidth=2;
+        ctx.beginPath();ctx.roundRect(-bl/2,-4.5,bl,9,4.5);ctx.fill();ctx.stroke();
+        ctx.restore();
+      }
+      // contact point (bottom)
+      var cpx=cx,cpy=cy+R;
+      ctx.save();ctx.fillStyle=css.get("--vec-drive");ctx.beginPath();ctx.arc(cpx,cpy,4,0,7);ctx.fill();ctx.restore();
+      label(ctx,"contact",cpx,cpy+16,css.get("--ink-faint-solid"),10.5,"center");
+      // ripple plot on the right: effective radius vs angle
+      var px=w*0.62, pw=w*0.32, py=h*0.2, ph=h*0.6;
+      ctx.save();ctx.strokeStyle=css.get("--line");ctx.lineWidth=1;
+      ctx.strokeRect(px,py,pw,ph);ctx.restore();
+      label(ctx,"contact radius over one turn",px,py-10,css.get("--ink-faint-solid"),10.5);
+      // ripple amplitude ~ 1/n^2 shape, exaggerated
+      var amp = 1/(n*n)*4.0;
+      ctx.save();ctx.strokeStyle=css.get("--vec-drive");ctx.lineWidth=2.5;ctx.beginPath();
+      for(var t=0;t<=pw;t++){
+        var frac=t/pw; var seg=Math.abs(((frac*n)%1)-0.5)*2; // 0..1 triangle per roller
+        var val = 1 - amp*(1-seg*seg);
+        var yy = py+ph*(1-(val-(1-amp))/(amp*1.6+0.0001))*0.8-ph*0.1;
+        if(t===0)ctx.moveTo(px+t,yy);else ctx.lineTo(px+t,yy);
+      }
+      ctx.stroke();ctx.restore();
+      var pct=(amp*100);
+      read.textContent="ripple ≈ "+pct.toFixed(pct<1?2:1)+"%  ·  "+n+" rollers";
+      requestAnimationFrame(frame);
+    }
+    frame();
+  })();
+
+  /* ======================================================= 06 ZOO */
+  (function(){
+    var host=document.getElementById("zooGrid"); if(!host)return;
+    var kinds=[
+      {name:"Standard wheel",dof:"2 DOF",sig:"fwd",
+       pros:["Simple, cheap, tough","Efficient, high payload","Great on any terrain"],
+       cons:["Cannot strafe — non-holonomic","Needs turning room / 3-point turns"]},
+      {name:"Omni wheel",dof:"3 DOF",sig:"omni",
+       pros:["Rollers at 90° → true holonomic","Simpler force model than mecanum","Common in 3-wheel robots"],
+       cons:["Small rollers → bumpy, low payload","Poor on debris / soft ground","Usually needs 3–4 for full control"]},
+      {name:"Mecanum wheel",dof:"3 DOF",sig:"mec",
+       pros:["45° rollers → strafe with 4 wheels","Rectangular chassis, high density","Simple gearless drive"],
+       cons:["Heavy slip → bad odometry","Vibration + efficiency tax","Wear, cost, hates grit"]},
+      {name:"Ball / spherical",dof:"3 DOF",sig:"ball",
+       pros:["Gapless, smooth omni-motion","No roller hand-off ripple","Elegant single-contact drive"],
+       cons:["Hard to drive & keep clean","Low load, complex mechanics","Mostly research / novelty"]},
+      {name:"Swerve / caster",dof:"3 DOF",sig:"swerve",
+       pros:["Steers wheel → no roller losses","High efficiency & traction","Best for outdoor / heavy"],
+       cons:["2 motors per wheel — complex","Costly, needs steering control","Brief re-orient lag"]}
+    ];
+    kinds.forEach(function(k){
+      var card=document.createElement("div");card.className="card";
+      card.innerHTML='<canvas height="120"></canvas>'+
+        '<h3>'+k.name+' <span class="dof">'+k.dof+'</span></h3>'+
+        '<ul>'+k.pros.map(function(p){return '<li class="pro">'+p+'</li>';}).join("")+
+        k.cons.map(function(c){return '<li class="con">'+c+'</li>';}).join("")+'</ul>';
+      host.appendChild(card);
+      var cv=card.querySelector("canvas"); var ctx=setup(cv);
+      function draw(){
+        var w=cv._w,h=cv._h;ctx.clearRect(0,0,w,h);grid(ctx,w,h,20);
+        var cx=w*0.5,cy=h*0.5;
+        ctx.save();
+        var dirs;
+        if(k.sig==="fwd")dirs=[[0,-1],[0,1]];
+        else if(k.sig==="mec")dirs=[[0,-1],[0,1],[-1,0],[1,0],[0.7,-0.7],[-0.7,0.7]];
+        else dirs=[[0,-1],[0,1],[-1,0],[1,0]];
+        var col= k.sig==="mec"?css.get("--vec-drive"):(k.sig==="fwd"?css.get("--ink-soft"):css.get("--vec-roll"));
+        dirs.forEach(function(d){
+          arrow(ctx,cx,cy,cx+d[0]*w*0.16,cy+d[1]*h*0.28,col,2.5,8);
+        });
+        if(k.sig!=="fwd"){ // rotation ring for holonomic
+          ctx.strokeStyle=css.get("--vec-result");ctx.lineWidth=2;ctx.setLineDash([3,4]);
+          ctx.beginPath();ctx.arc(cx,cy,Math.min(w,h)*0.13,0,7);ctx.stroke();ctx.setLineDash([]);
+        }
+        // hub
+        ctx.fillStyle=css.get("--surface");ctx.strokeStyle=css.get("--line-strong");ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.arc(cx,cy,7,0,7);ctx.fill();ctx.stroke();
+        ctx.restore();
+      }
+      draw();
+      staticDraws.push(draw);
+    });
+  })();
+
+})();
+</script>

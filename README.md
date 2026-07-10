@@ -40,6 +40,7 @@ The full write-up lives in [`docs/`](docs/) — start at [`docs/README.md`](docs
 - [`docs/LiDAR_SLAM_Bringup.md`](docs/LiDAR_SLAM_Bringup.md) — YDLIDAR X4 Pro + slam_toolbox bringup.
 - [`docs/Network_SelfHosted_AP.md`](docs/Network_SelfHosted_AP.md) — the Pi's self-hosted WiFi AP setup.
 - [`docs/originals/`](docs/originals/) — the source-of-record `.docx`/`.pdf` files the Markdown above was converted from.
+- [`docs/tools/`](docs/tools/) — standalone interactive HTML tools (telemetry analyzer, mecanum physics guide) — download and double-click to open, no server needed.
 
 ---
 

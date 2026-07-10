@@ -555,6 +555,8 @@ During PID development, a telemetry-logging pipeline was built into phone_dashbo
 
 > *Two metrics in the analysis notebook are unreliable — ignore them. The 'Cross-Motor Diagonal Deviation' metric subtracts across the whole run, which only makes sense in pure forward/backward motion. And the 'Interpretation flags' text hardcodes phrases like 'RL weakest' even when the plot data clearly disagrees. Trust the per-motor plots and the PWM-saturation bar (Plot 3C). Ignore the auto-summary prose.*
 
+**Browser-based alternative (added v2.0):** `docs/tools/telemetry_analyzer.html` reads the same 13-column CSV directly in the browser — no Python environment needed. It correctly separates diagonal mismatch per-motor rather than deviation-only, and its findings panel is data-driven (flags dead encoder feedback, saturation, and telemetry gaps from the actual numbers) rather than the hardcoded phrases the notebook has. Verified against a synthetic run with an injected feedback dropout and saturation window before being added to the repo — it caught both correctly. Prefer it for a quick look; keep the notebook for anything needing further numeric post-processing in Python.
+
 ## 6.13 Current debugging focus
 
 Work currently in progress focuses on the motor-controller firmware, with commands sent over the serial monitor before changes are migrated to the ROS 2 bridge. Reported symptoms guiding this iteration: motors stopping unexpectedly, audible vibration, and command non-compliance in particular scenarios. The plan is to iterate on the firmware in isolation — serial monitor in, motor response out — until the behaviour is clean across all manoeuvres, then promote the change to the ROS 2 path.

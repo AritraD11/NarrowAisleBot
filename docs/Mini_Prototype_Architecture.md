@@ -15,10 +15,10 @@ Aritra Das (25D0074) · IIT Bombay, Dept. of Biosciences & Bioengineering · Pro
 | **Same Raspberry Pi for both robots?** | **Yes — ideal.** The ROS 2 kinematics node is already parameterized (`l1, l2, d, r, max_*`). The prototype is just a **robot profile** (a params YAML + launch), not a code fork. Your SLAM config carries over unchanged. Physically you move the one Pi between robots (the NAB is down anyway), or clone the microSD if you want both alive. |
 | **Same ESP32 for both?** | **Use a *dedicated* ESP32 for the prototype (~₹400 / \$5).** Same firmware codebase, different constants selected by one `#define`. Reusing the NAB's ESP32 works (its encoders are dead), but a second one means you never reflash/rewire on a swap and both robots stay intact. |
 | **Same LiDAR?** | **Yes — reuse the YDLIDAR X4 Pro.** Your `slam_nodom.yaml` is already tuned to its scan characteristics, so Phase 3 params transfer directly. Its 0.12–12 m range is more than enough for a small robot in tight spaces. |
-| **Motor driver?** | **2× Cytron MDD10A** (dual 10 A, 5–30 V, PWM+DIR, accepts 3.3 V logic). Mirrors the NAB's two-driver layout exactly → identical firmware pin map. |
-| **Wheel diameter?** | **80 mm mecanum wheels (r = 0.040 m).** Gives ~1.10 m/s hardware top speed; software-capped ~0.45 m/s for clean SLAM. (60 mm if you want it slower/torquier, 100 mm if faster.) |
+| **Motor driver?** | **2× SmartElex 13D** (the Robu board you linked) — dual-channel, 6.5–30 V, **13 A continuous / 30 A peak**, PWM+DIR, **3.3 V logic accepted**. It's a drop-in for the Cytron MDD10A I first named — *same* PWM+DIR interface, more headroom → **zero firmware changes**. Two boards = 4 motors. See §12. |
+| **Wheel diameter?** | **80–100 mm is ideal for SLAM.** The **152 mm EasyMech set you already own will work** (just set `WHEEL_RADIUS = 0.0762`), but 152 mm + bush rollers coarsen odometry and raise the CG. Buy **100 mm (bearing rollers)** only if you want the cleaner build. Full reasoning in §12. |
 | **IMU?** | **BNO055** — the sensor the NAB always planned for. On-board fusion → calibrated absolute yaw straight into `robot_localization`. I2C, 3.3 V, ~12 mA. |
-| **Rated power?** | ~90 W continuous design point (motors light-load + Pi), >150 W transient. Battery **3S Li-ion ~5 Ah (55 Wh)** or **4S LiFePO₄ ~4 Ah** for exact-12 V fidelity; 5 V rail from a **5 V / ≥6 A** buck (the Pi 5 alone can pull 5 A). |
+| **Rated power?** | ~90 W continuous design point (motors light-load + Pi), >150 W transient. Battery **3S Li-ion ~5 Ah (55 Wh)**. The **PDB-XT60** you linked is great for *distribution* + the light 5 V loads, but its 5 V BEC is only **2 A** — **the Pi 5 still needs its own dedicated 5 V / ≥5 A buck.** See §12. |
 
 ---
 
@@ -155,35 +155,39 @@ Direction/sign conventions are identical to the NAB — reuse the same `MOTOR_DI
 | 1 | Compute | **Raspberry Pi 5, 8 GB** (from NAB) | 1 | 5 V / 5 A | Ubuntu 24.04, ROS 2 Jazzy |
 | 2 | Real-time MCU | **ESP32-WROOM-32** (38-pin) | 1 | 5 V (VIN) / 3.3 V | dedicated to prototype |
 | 3 | Motors | **Pro-Range PG36M555-19.2K + ME-37** | 4 | 12 V | 262 RPM, 0.45 N·m, 537.6 CPR |
-| 4 | Motor drivers | **Cytron MDD10A** (dual 10 A) | 2 | 12 V | PWM+DIR, 3.3 V logic OK |
-| 5 | Wheels | **80 mm mecanum** (LH + RH pairs) | 4 | — | 2× left-handed, 2× right-handed |
+| 4 | Motor drivers | **SmartElex 13D** (dual 13 A) — or Cytron MDD10A | 2 | 12 V | PWM+DIR, 3.3 V logic, 30 A peak |
+| 5 | Wheels | **100 mm mecanum** (buy) **or 152 mm EasyMech** (own) | 4 | — | 2× LH + 2× RH; see §12 |
 | 6 | LiDAR | **YDLIDAR X4 Pro** (from NAB) | 1 | 5 V / 0.4 A | `/dev/ydlidar` @ 128000 |
 | 7 | IMU | **BNO055** breakout | 1 | 3.3 V / 12 mA | I2C, on-board fusion |
-| 8 | Battery | **3S Li-ion ~5 Ah** (or 4S LiFePO₄ ~4 Ah) | 1 | — | ≥20 A BMS |
-| 9 | 5 V regulator | **5 V / ≥6 A buck (UBEC)** | 1 | 12 V→5 V | feeds Pi + Lidar + ESP32 |
-| 10 | Main switch / E-stop | Rocker/SSR + **15–20 A blade fuse** | 1 | 12 V | latching E-stop mirrors NAB |
-| 11 | (Optional) level shifter | TXS0108E | 0–1 | — | only if you power encoders at 5 V |
+| 8 | Battery | **3S Li-ion ~5 Ah** (or 4S LiFePO₄ ~4 Ah) | 1 | — | ≥20 A BMS; XT60 lead |
+| 9 | Power distribution | **Matek PDB-XT60** (yours) | 1 | batt / 5 V | XT60 in → 2 drivers; 5 V/2 A BEC → ESP32+Lidar+IMU |
+| 10 | **Pi 5 regulator** | **dedicated 5 V / ≥5 A buck** | 1 | 12 V→5 V | Pi 5 **only** — PDB's 2 A BEC is too weak |
+| 11 | Main switch / E-stop | Rocker/SSR + **15–20 A blade fuse** | 1 | 12 V | latching E-stop mirrors NAB |
+| 12 | (Optional) level shifter | TXS0108E | 0–1 | — | only if you power encoders at 5 V |
 
-**Not needed vs the NAB:** the 24 V boost converter (motors are natively 12 V), and — if you power the Hall encoders at 3.3 V — the level shifters.
+**Not needed vs the NAB:** the 24 V boost converter (motors are natively 12 V), and — if you power the Hall encoders at 3.3 V — the level shifters. **Note the two 5 V sources:** the PDB's 5 V BEC feeds only the light loads (ESP32 + Lidar + IMU ≈ 0.7 A); the Pi 5 gets its *own* buck (§6, §12).
 
 ---
 
 ## 6. Power architecture
 
 ```
-Battery 3S Li-ion (11.1 V nom / 12.6 V full)   ← or 4S LiFePO₄ 12.8 V
-  │   [main switch / SSR  +  15–20 A fuse]
-  │
-  ├── 12 V MOTOR RAIL ────────► MDD10A Driver 1 (VMOT)  ──► FR, FL motors
-  │                       └───► MDD10A Driver 2 (VMOT)  ──► RR, RL motors
-  │
-  └── 5 V / ≥6 A BUCK ─────────┬─► Raspberry Pi 5   (5 V, up to 5 A)
-                               ├─► YDLIDAR X4 Pro   (5 V, ~0.4 A)
-                               └─► ESP32 VIN        (5 V → onboard 3.3 V)
-                                        │
-                                        └─3.3 V─┬─► BNO055 (I2C)
-                                                └─► 4× ME-37 encoder VCC + A/B
-COMMON GROUND BUS: battery−, both drivers, buck, ESP32, Pi (via USB), encoders, IMU.
+Battery 3S Li-ion (11.1 V) ── XT60 ──► PDB-XT60
+  [inline 15–20 A fuse + main switch on the battery lead]
+        │
+        ├─ PDB ESC pads (25 A×4) ─► SmartElex 13D #1 (VMOT) ─► FR, FL motors
+        │                        └► SmartElex 13D #2 (VMOT) ─► RR, RL motors
+        │
+        ├─ PDB 5 V BEC (2 A) ─┬─► YDLIDAR X4 Pro       (~0.40 A)
+        │                     ├─► ESP32 VIN            (~0.25 A) ─3.3 V─┬─► BNO055 (I2C)
+        │                     │                                        └─► 4× ME-37 enc A/B
+        │                     └─ (≈0.7 A total — well within 2 A)
+        │
+        └─ PDB VBAT pad ─► DEDICATED 5 V / ≥5 A BUCK ─► Raspberry Pi 5  (ONLY)
+                           (the PDB's 2 A BEC cannot feed a Pi 5)
+COMMON GROUND: the PDB already ties battery−, both driver grounds and the BEC
+ground together — land the Pi-buck ground and the ESP32/encoder grounds on that
+same PDB ground plane. (The PDB's 12 V linear BEC, 500 mA, is unused here.)
 ```
 
 ### 6.1 Power budget
@@ -307,6 +311,76 @@ Launch the same stack with `--params-file ros2/mini_robot.yaml`. SLAM (`slam_nod
 - **`sim/wokwi/`** — a Wokwi project (paste into [wokwi.com](https://wokwi.com)) that runs the **asymmetric IK live**: three pots = vx / vy / wz, four "motor" LEDs show |ω| as brightness with direction LEDs, and the serial monitor prints the 4 wheel speeds plus a forward-kinematics round-trip. Verifies the math and pin logic before you touch hardware.
 - **`docs/tools/mini_prototype_architecture.html`** — a standalone interactive architecture explorer (block diagram, BOM, live kinematics calculator, power budget, pin map). Double-click to open; no server needed.
 - For the analog H-bridge / power side, [falstad.com/circuit](https://www.falstad.com/circuit/) is the better sandbox; Wokwi is for the ESP32 firmware logic.
+
+---
+
+---
+
+## 12. Parts on hand — component decisions
+
+Decisions on the specific parts you already have or linked, checked against their datasheets.
+
+### 12.1 Motor driver — SmartElex 13D Dual Channel ✅ *better than my first pick*
+
+From the manual you linked ([robu / SmartElex 13D](https://robu-prod-media.s3.ap-south-1.amazonaws.com/uploads/2018/01/FInal-manual-PDF.pdf)):
+
+| Spec | Value | Why it matters here |
+|---|---|---|
+| Channels | **2 (dual)** | 2 boards = 4 motors — same two-driver layout as the NAB |
+| Motor voltage | **6.5–30 V** | 12 V motors sit comfortably in range |
+| Continuous current | **13 A** (no heatsink) | vs ~5.5 A motor stall → big headroom (more than the MDD10A's 10 A) |
+| Peak current | **30 A / 10 s**, current-limited at 30 A | survives stall transients |
+| Interface | **PWM + DIR** (also single-pin 50 %-duty mode) | *identical* to the firmware's `setMotorOutput()` — no code change |
+| Logic level | **3.3 V and 5 V** (VIOH 3–5.5 V) | ESP32's 3.3 V drives it directly, no level shifter |
+| PWM frequency | up to **20 kHz** | keep the firmware's 5 kHz, or raise to ~18 kHz for silence |
+| Protection | thermal shutdown + under-voltage lockout | nice safety margin |
+
+**Verdict: use it — it's a drop-in upgrade.** The SmartElex 13D is functionally the same class as the Cytron MDD10A/MDD13A (sign-magnitude PWM+DIR, wide-Vin, 3.3 V-tolerant), with *more* current headroom. Wire **Board 1 → FR, FL** and **Board 2 → RR, RL** exactly as in the §7 pin map. Tie each board's **logic GND to ESP32 GND** (common-ground rule). The firmware needs **no changes** — it already speaks PWM+DIR. Get **2 boards**.
+
+### 12.2 Wheels — 152 mm EasyMech (own) vs 100 mm (buy)
+
+Your [EasyMech 152 mm aluminium mecanum set](https://robu.in) is the **same 6-inch size as the full-size NAB** (r = 0.0762 m). It will physically work — but for a *SLAM* prototype it's not the best choice, for concrete reasons tied to your coarse encoder:
+
+| | **80 mm** | **100 mm** *(recommended buy)* | **152 mm** *(you own)* |
+|---|---|---|---|
+| radius r | 0.040 m | 0.050 m | **0.0762 m** |
+| hardware v_max | 1.10 m/s | 1.37 m/s | **2.08 m/s** |
+| **odometry: distance / encoder count** | 0.47 mm | 0.58 mm | **0.89 mm** |
+| **velocity quant / count @ 50 Hz** | 0.023 m/s | 0.029 m/s | **0.045 m/s** |
+| traction force / wheel (0.45 N·m) | 11.3 N | 9.0 N | **5.9 N** |
+| rollers | bearing | bearing | **bush** |
+
+**Why size matters here:** the encoder is *already* coarse (537.6 CPR, §2.1). Bigger wheels **multiply** the metres-per-count, so 152 mm gives ~**2× coarser odometry and velocity resolution** than 80 mm — the two coarse effects stack, and odometry quality is exactly what Phase 2/3 (EKF + SLAM) depend on. **Bush rollers** also rumble/vibrate more than bearing rollers, adding noise to both odometry and the IMU. And a 152 mm wheel on a 360 mm deck is oversized — higher CG, front/rear wheels close together.
+
+**Recommendation:**
+- **If budget/time is tight → use the 152 mm you have.** Nothing in the firmware or geometry changes except `WHEEL_RADIUS = 0.0762` and a hard software speed cap (set `MAX_LINEAR = 0.40` m/s → wheel ≈ 5.3 rad/s, plenty for SLAM). Get the platform moving, validate PID + SLAM, and only upgrade if odometry noise bothers you.
+- **If you want the clean build → buy 100 mm bearing-roller mecanum wheels.** Better proportions on this deck, ~1.5× finer odometry than 152 mm, smoother rollers. This is the one place I'd spend money on this robot.
+- Either way you need **2 left-handed + 2 right-handed** wheels (rollers forming an "X" from above) and a hub coupler matching your PG36 output shaft (≈6 mm D — verify yours).
+
+> **You do NOT strictly need to buy 100 mm.** The 152 mm works. It's a "good enough vs. ideal" call, and for a SLAM-focused robot the ideal leans smaller.
+
+**If you keep the 152 mm**, the profile becomes: `wheel_radius: 0.0762`, `max_linear: 0.40`, `max_wheel_speed: 10.0` in `ros2/mini_robot.yaml`, and `ROBOT_PROFILE` in the firmware gets `WHEEL_RADIUS = 0.0762f` (geometry `l1/l2/d` are axle positions — unchanged by wheel size).
+
+### 12.3 Power — PDB-XT60 is **not enough on its own** for the Pi 5
+
+From the [Matek PDB-XT60 manual](https://robu-prod-media.s3.ap-south-1.amazonaws.com/uploads/2018/02/pdb-xt60_manual_en.pdf):
+
+| PDB output | Rating | Use in this robot |
+|---|---|---|
+| Input (XT60) | 3S–4S, **9–18 V** | 3S Li-ion (11.1 V) fits |
+| ESC pads | **25 A×4 / 15 A×6** continuous | ✅ distribute battery to the 2 SmartElex drivers |
+| **5 V BEC** | DC/DC buck, **2 A cont (2.5 A/10 s)** | ✅ ESP32 + Lidar + IMU (~0.7 A) — but **✗ NOT the Pi 5** |
+| 12 V BEC | **linear, 500 mA** (and only ~10 V on 3S: "Vbatt − 1 V") | ✗ unused — too weak, and not 12 V on 3S |
+
+**The Pi 5 needs up to 5 A at 5 V (27 W).** The PDB's 5 V BEC delivers **2 A**. If you run the Pi from it, it will brown-out and CPU-throttle mid-SLAM — the classic "why did my map glitch" failure. So:
+
+**→ Yes, you need a separate 12 V→5 V converter — a dedicated 5 V / ≥5 A buck for the Raspberry Pi 5.** Good options: Pololu D36V50F5 (5 V/5 A), a quality 5 V/5–6 A UBEC, or any Pi-5-rated 5 V/5 A supply module.
+
+**But the PDB is still worth using** — it does two useful jobs:
+1. **Distribution:** XT60 battery in → its high-current ESC pads cleanly feed both motor drivers (25 A×4 ≫ your ~6 A nominal / ~22 A worst-case stall), and it consolidates grounds.
+2. **Sensor 5 V:** its 2 A BEC comfortably powers the light 5 V loads — **ESP32 (0.25 A) + YDLIDAR X4 Pro (0.4 A) + BNO055** ≈ 0.7 A.
+
+So the final power stack is **PDB (distribution + sensor 5 V) + one dedicated 5 V/≥5 A buck (Pi 5 only)** — see the diagram in §6. Keep the battery on **3S** (the PDB accepts up to 4S, but 4S = 14.8–16.8 V would over-volt the 12 V motors; and the drivers/PDB are happiest at 3S for this build).
 
 ---
 

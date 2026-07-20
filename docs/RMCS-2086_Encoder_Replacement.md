@@ -106,57 +106,52 @@ That's the basis of the request below: if they expose the shaft and sell the dis
 > **Send from your IIT Bombay institute email** (an `@iitb.ac.in`-type address), not a personal one. Vendors like Robokits take institutional buyers seriously — it improves the odds they'll sell a spare part they don't normally list, and it lets them raise a **GST invoice** in the institute's name for reimbursement/procurement. Put your **name, roll no., department, and supervisor (Prof. Ambarish Kunwar, BSBE)** in the signature. Send to **support@robokits.co.in** and the rhinomc.com contact form, **attach the photo** of the `RMCS-PLNTY-108U` board with the shaft exposed, and CC your personal address to keep a copy.
 
 ```
-Subject: Purchase enquiry — rear-shaft encoder assembly for RMCS-2086 /
-         RMCS-2077 planetary geared motors (spare encoder, not full motor)
+Subject: Spare encoder for Rhino RMCS-2086 / RMCS-2077 motors (encoder only, not full motor)
 
-Dear Robokits / Rhino Motion Controls team,
+Dear Robokits team,
 
-I am building a research robot at [Institute / Department] and I use your
-Rhino 24V 60RPM 100W 160Kgcm IG52 planetary geared motors. I have a mix of:
+I work on a research robot at IIT Bombay (Department of Biosciences and
+Bioengineering) and I use your Rhino 24V 60RPM 160Kgcm IG52 planetary geared
+motors. Right now I have four RMCS-2086 units (the version with the 500-line
+optical encoder) and four RMCS-2077 base motors with no encoders that are
+lying idle because I have nothing to fit on them.
 
-  • 4× RMCS-2086 (motor WITH the 500-line optical quadrature encoder), and
-  • 4× RMCS-2077 base motors (the identical motor, WITHOUT encoder — rear
-    shaft exposed) currently sitting idle for want of encoders.
+On two of the RMCS-2086 motors the encoder has stopped working (no A or B
+output), even though the motor and gearbox are completely fine. I would
+rather not buy whole new motors just to replace a dead encoder.
 
-On two of my RMCS-2086 units the optical encoder has failed (no A/B output;
-motor and gearbox are perfectly fine). I do not want to buy complete new
-motors when only the encoder is dead — and I would also like to add encoders
-to the RMCS-2077 base motors I already own.
+When I opened one up, the encoder is clearly a separate board that sits on
+the exposed rear shaft. The PCB is marked RMCS-PLNTY-108U (rhinomc.com,
+HDU3.8). It is a transmissive optical type, a codewheel on the shaft with a
+slotted sensor over it. Since the RMCS-2086 is just the RMCS-2077 base motor
+with this board added, I am hoping you can sell the encoder on its own.
 
-The encoder is a separate rear-shaft sub-assembly: its own PCB is marked
-"RMCS-PLNTY-108U" (rhinomc.com, HDU3.8), a transmissive optical unit with a
-codewheel on the rear shaft and a slotted photo-sensor. Since the RMCS-2086
-is simply the RMCS-2077 base motor with this board fitted onto the exposed
-rear shaft, it should be available as a spare on its own.
+A few questions:
 
-Could you please tell me:
+1. Do you sell this encoder board (RMCS-PLNTY-108U with the codewheel and
+   mount) as a separate spare part? If yes, the price per piece.
+2. Can I fit it myself onto the exposed rear shaft, or does it have to be
+   done at your end?
+3. Could you confirm the encoder details so I can wire it up: resolution
+   (I think 500 lines, 2000 PPR at the motor shaft, around 93,132 CPR after
+   the 1:47 gearbox), supply voltage (3.3V or 5V), output type (A/B
+   quadrature, is there an index?), the wire colour for each function, and
+   the rear shaft diameter.
+4. I would like six pieces in total, two to repair the dead motors and four
+   for the idle base motors. Please share the per-piece and total price, and
+   a GST invoice in the institute's name if possible.
 
-  1. Do you sell this encoder assembly (PCB "RMCS-PLNTY-108U" + codewheel +
-     mounting) SEPARATELY, as a spare/repair part? If so, the part number
-     and unit price.
-  2. Is it user-fittable onto the exposed rear shaft of the RMCS-2077 /
-     RMCS-2086 base motor, or does it require factory assembly?
-  3. Please confirm the encoder specs so I can integrate it:
-       - resolution (I believe 500 lines / 2000 PPR at the base motor shaft,
-         ~93,132 CPR at the output after the 1:47 gearbox),
-       - supply voltage (3.3 V or 5 V),
-       - output type (incremental A/B quadrature; index?),
-       - wire colour → function mapping and connector type,
-       - rear-shaft diameter and the required disc/magnet mounting method.
-  4. Price and availability for 6 encoder units — 2 to repair my failed
-     motors and 4 to equip the idle base motors above (per-unit and total).
-     A GST invoice in my institute's name would be appreciated. Please
-     include shipping to [City, PIN].
+Shipping address is IIT Bombay, Powai, Mumbai 400076.
 
-If the encoder is not sold separately, please advise the lowest-cost route to
-restore encoder feedback on these specific motors.
+If the encoder is not available separately, please let me know the cheapest
+way to get encoder feedback back on these motors.
 
-Thank you — I would appreciate a quote and technical confirmation at your
-earliest convenience.
+Thank you, I look forward to your reply.
 
-Best regards,
-Aritra Das
-[Institute / Department]
+Regards,
+Aritra Das (Roll No. 25D0074)
+Department of Biosciences and Bioengineering, IIT Bombay
+Supervisor: Prof. Ambarish Kunwar
 [email] · [phone]
 ```
 

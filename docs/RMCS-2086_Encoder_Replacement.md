@@ -103,7 +103,7 @@ That's the basis of the request below: if they expose the shaft and sell the dis
 
 ## 7. Vendor email template (Robokits / Rhino Motion Controls)
 
-> Send to **support@robokits.co.in** (and/or the contact form at rhinomc.com). Use your institute email for credibility, and attach a photo of a motor's rear shaft with the dead encoder removed.
+> **Send from your IIT Bombay institute email** (an `@iitb.ac.in`-type address), not a personal one. Vendors like Robokits take institutional buyers seriously — it improves the odds they'll sell a spare part they don't normally list, and it lets them raise a **GST invoice** in the institute's name for reimbursement/procurement. Put your **name, roll no., department, and supervisor (Prof. Ambarish Kunwar, BSBE)** in the signature. Send to **support@robokits.co.in** and the rhinomc.com contact form, **attach the photo** of the `RMCS-PLNTY-108U` board with the shaft exposed, and CC your personal address to keep a copy.
 
 ```
 Subject: Purchase enquiry — rear-shaft encoder assembly for RMCS-2086 /
@@ -115,8 +115,8 @@ I am building a research robot at [Institute / Department] and I use your
 Rhino 24V 60RPM 100W 160Kgcm IG52 planetary geared motors. I have a mix of:
 
   • 4× RMCS-2086 (motor WITH the 500-line optical quadrature encoder), and
-  • several RMCS-2077 (the identical base motor, WITHOUT encoder — rear shaft
-    exposed).
+  • 4× RMCS-2077 base motors (the identical motor, WITHOUT encoder — rear
+    shaft exposed) currently sitting idle for want of encoders.
 
 On two of my RMCS-2086 units the optical encoder has failed (no A/B output;
 motor and gearbox are perfectly fine). I do not want to buy complete new
@@ -143,9 +143,10 @@ Could you please tell me:
        - output type (incremental A/B quadrature; index?),
        - wire colour → function mapping and connector type,
        - rear-shaft diameter and the required disc/magnet mounting method.
-  4. Price and availability for an initial 2 units (to repair my failed
-     motors), and per-unit pricing if I order 4–6 (to also equip my spare
-     base motors). Please include shipping to [City, PIN].
+  4. Price and availability for 6 encoder units — 2 to repair my failed
+     motors and 4 to equip the idle base motors above (per-unit and total).
+     A GST invoice in my institute's name would be appreciated. Please
+     include shipping to [City, PIN].
 
 If the encoder is not sold separately, please advise the lowest-cost route to
 restore encoder feedback on these specific motors.

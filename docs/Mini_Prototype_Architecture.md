@@ -382,6 +382,34 @@ From the [Matek PDB-XT60 manual](https://robu-prod-media.s3.ap-south-1.amazonaws
 
 So the final power stack is **PDB (distribution + sensor 5 V) + one dedicated 5 V/≥5 A buck (Pi 5 only)** — see the diagram in §6. Keep the battery on **3S** (the PDB accepts up to 4S, but 4S = 14.8–16.8 V would over-volt the 12 V motors; and the drivers/PDB are happiest at 3S for this build).
 
+### 12.4 If you SKIP the PDB — the 5 V rails
+
+You still only truly step down 5 V for the **Pi** — the Lidar and ESP32 hang off the Pi's USB:
+
+- **Raspberry Pi 5** → its **own 5 V / ≥5 A (6 A ideal) buck**, straight from the 12 V battery rail.
+- **YDLIDAR X4 Pro** → it's a **USB device**; by default it draws its ~0.4 A *through the Pi's USB port*. So it needs no separate rail — but giving it its **own small 5 V / 1–2 A buck** (into the X4 adapter's power input) is the *safer* choice: it isolates the scanner-motor current spikes from the Pi's rail and prevents SLAM-time brown-outs. **This is why your instinct — "step down 5 V for two things" — is right: Pi (big) + Lidar (small).**
+- **ESP32** → powered from the **Pi's USB** (as you planned). No dedicated rail.
+
+So: **two bucks — 5 V/≥5 A for the Pi, 5 V/1–2 A for the Lidar** — plus one common ground. (One 6 A buck feeding the Pi, with Lidar+ESP32 on its USB, also works, but the two-rail version is more robust for SLAM.)
+
+### 12.5 Battery — why NOT run 12 V motors off a 4S pack directly
+
+**"4S" is ambiguous, and the chemistry decides whether this is safe:**
+
+| Pack | Nominal | Full charge | Verdict for 12 V motors |
+|---|---|---|---|
+| **3S Li-ion / LiPo** | 11.1 V | 12.6 V | ✅ at/under 12 V rating — ideal |
+| **4S LiFePO₄** | 12.8 V | 14.6 V | ✅ basically a "12 V" pack — fine (this is what the full NAB uses) |
+| **4S Li-ion / LiPo** | 14.8 V | **16.8 V** | 🔴 **~40 % over the 12 V rating — don't run direct** |
+
+**On the current question you asked** — "at full speed will the drivers pull excessive current and damage the driver or motors?":
+
+- **Full speed is the *low*-current case, not the high one.** A spinning DC motor generates back-EMF, so free-running current is small (~0.3–0.5 A). The big current is at **stall / hard acceleration**, where I ≈ V/R_winding. Higher pack voltage → higher stall current.
+- **The driver is safe regardless.** The SmartElex 13D is **current-limited at 30 A** with **thermal shutdown + under-voltage lockout**, and 13 A continuous ≫ these motors' ~5.5 A stall. It won't be damaged by the motors' current draw — it just passes what the motor demands, and clamps if it ever hits 30 A.
+- **The real risk with 4S Li-ion/LiPo is over-*voltage* on the 12 V motors**, not driver current: at 16.8 V they spin ~40 % fast, run hotter, and the brushes/commutator wear faster — shortened life, not instant failure.
+
+**Recommendation:** use **3S** (or **4S LiFePO₄**, which is a 12.8 V pack). If you must use a 4S Li-ion/LiPo, **buck the motor rail down to 12 V** (a buck rated for the motor current, ~10–15 A) rather than feeding 16.8 V straight in.
+
 ---
 
 *NarrowAisleBot Mini Prototype Architecture — IIT Bombay BSBE — Aritra Das (25D0074). Companion to `docs/Master_Reference.md`. Current estimates for motor current and Kff are marked — confirm against the PG36M555 datasheet and in-air calibration.*

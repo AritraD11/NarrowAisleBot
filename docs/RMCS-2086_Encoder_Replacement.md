@@ -15,16 +15,21 @@ Two Rhino model numbers get confused here — they are the **same base motor + g
 
 So the sheet you sent is the *non-encoder* variant — it confirms the motor/gearbox but has a blank encoder table. Your real part is the **RMCS-2086**.
 
-### The encoder (confirmed from Robokits + the repo)
+### The encoder (confirmed from Robokits, the repo, AND the physical unit)
+
+A photo of the opened encoder confirms the type and — usefully — its own part number.
 
 | Property | Value |
 |---|---|
-| Type | **Optical, incremental quadrature** (2-channel A/B) |
+| Type | **Transmissive optical, incremental quadrature** — a clear **codewheel** (fine radial lines) on the shaft read by a **slotted photo-interrupter** (IR LED + detector). 2-channel A/B. |
+| **Encoder PCB marking** | **`RMCS-PLNTY-108U`** · silkscreen `rhinomc.com` · `HDU3.8` · dated `30/6/2K20` · RHINO logo *(verify the exact suffix on your board — the codewheel overlaps it)* |
 | Resolution | **500 lines → 2000 PPR** at the base-motor shaft (×4 quadrature) |
 | Output CPR at the wheel | **≈ 93,132** (2000 × 46.6 effective gear) — the `ENCODER_CPR` in firmware |
 | Location | On the **rear of the base DC motor**, before the 47:1 gearbox |
 | Encoder supply | **5 V** (this is why the NAB needs the TXS0108E level shifter to the 3.3 V ESP32) |
 | Wiring (6 leads total) | 2 thick: **Motor +, Motor −**. 4 thin: **Red = +5 V, Black = GND, Yellow = Channel A, Green = Channel B** |
+
+> **Why it's the likely failure:** transmissive optical encoders are the delicate kind — a dead IR LED/detector, dust or oil in the optical slot, a bent codewheel, or a cracked flex trace will kill A/B with the disc and board still *looking* perfect. This is exactly the failure a **magnetic** encoder (§8) is immune to — which is why the AS5047P retrofit is the robust long-term fix, not just the cheap one.
 
 ---
 
@@ -118,13 +123,16 @@ motor and gearbox are perfectly fine). I do not want to buy complete new
 motors when only the encoder is dead — and I would also like to add encoders
 to the RMCS-2077 base motors I already own.
 
-Since the RMCS-2086 is the RMCS-2077 base motor with the encoder fitted onto
-the exposed rear shaft, I believe the encoder is a separate sub-assembly.
+The encoder is a separate rear-shaft sub-assembly: its own PCB is marked
+"RMCS-PLNTY-108U" (rhinomc.com, HDU3.8), a transmissive optical unit with a
+codewheel on the rear shaft and a slotted photo-sensor. Since the RMCS-2086
+is simply the RMCS-2077 base motor with this board fitted onto the exposed
+rear shaft, it should be available as a spare on its own.
 
 Could you please tell me:
 
-  1. Do you sell the encoder assembly (the encoder disc + sensor PCB + its
-     mounting/cap) SEPARATELY, as a spare/repair part? If so, the part number
+  1. Do you sell this encoder assembly (PCB "RMCS-PLNTY-108U" + codewheel +
+     mounting) SEPARATELY, as a spare/repair part? If so, the part number
      and unit price.
   2. Is it user-fittable onto the exposed rear shaft of the RMCS-2077 /
      RMCS-2086 base motor, or does it require factory assembly?

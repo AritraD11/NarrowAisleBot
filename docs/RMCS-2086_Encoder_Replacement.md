@@ -87,4 +87,97 @@ Mount a rotary encoder on the 12 mm output shaft / wheel hub (magnetic AS5600, o
 
 ---
 
+## 6. Why the base motor's rear shaft is exposed (and why that helps)
+
+The RMCS-2077 (base) and RMCS-2086 (encoder) are the **same motor**. On the base version the **rear shaft is left deliberately exposed — that stub *is* the encoder-mounting provision.** Robokits builds the RMCS-2086 by fitting a slotted disc onto that exact shaft and a photo-interrupter board around it. This means:
+
+1. The encoder is a **separate sub-assembly**, not moulded into the motor — so it *can* be sold and fitted on its own.
+2. Anyone with the base motors you already own can, in principle, be upgraded to encoder motors by fitting that same assembly.
+
+That's the basis of the request below: if they expose the shaft and sell the disc+sensor as part of the -2086, they should be able to sell you the assembly to (a) repair your two dead fronts and (b) add encoders to the bare base motors you already have.
+
+## 7. Vendor email template (Robokits / Rhino Motion Controls)
+
+> Send to **support@robokits.co.in** (and/or the contact form at rhinomc.com). Use your institute email for credibility, and attach a photo of a motor's rear shaft with the dead encoder removed.
+
+```
+Subject: Purchase enquiry — rear-shaft encoder assembly for RMCS-2086 /
+         RMCS-2077 planetary geared motors (spare encoder, not full motor)
+
+Dear Robokits / Rhino Motion Controls team,
+
+I am building a research robot at [Institute / Department] and I use your
+Rhino 24V 60RPM 100W 160Kgcm IG52 planetary geared motors. I have a mix of:
+
+  • 4× RMCS-2086 (motor WITH the 500-line optical quadrature encoder), and
+  • several RMCS-2077 (the identical base motor, WITHOUT encoder — rear shaft
+    exposed).
+
+On two of my RMCS-2086 units the optical encoder has failed (no A/B output;
+motor and gearbox are perfectly fine). I do not want to buy complete new
+motors when only the encoder is dead — and I would also like to add encoders
+to the RMCS-2077 base motors I already own.
+
+Since the RMCS-2086 is the RMCS-2077 base motor with the encoder fitted onto
+the exposed rear shaft, I believe the encoder is a separate sub-assembly.
+
+Could you please tell me:
+
+  1. Do you sell the encoder assembly (the encoder disc + sensor PCB + its
+     mounting/cap) SEPARATELY, as a spare/repair part? If so, the part number
+     and unit price.
+  2. Is it user-fittable onto the exposed rear shaft of the RMCS-2077 /
+     RMCS-2086 base motor, or does it require factory assembly?
+  3. Please confirm the encoder specs so I can integrate it:
+       - resolution (I believe 500 lines / 2000 PPR at the base motor shaft,
+         ~93,132 CPR at the output after the 1:47 gearbox),
+       - supply voltage (3.3 V or 5 V),
+       - output type (incremental A/B quadrature; index?),
+       - wire colour → function mapping and connector type,
+       - rear-shaft diameter and the required disc/magnet mounting method.
+  4. Price and availability for an initial 2 units (to repair my failed
+     motors), and per-unit pricing if I order 4–6 (to also equip my spare
+     base motors). Please include shipping to [City, PIN].
+
+If the encoder is not sold separately, please advise the lowest-cost route to
+restore encoder feedback on these specific motors.
+
+Thank you — I would appreciate a quote and technical confirmation at your
+earliest convenience.
+
+Best regards,
+Aritra Das
+[Institute / Department]
+[email] · [phone]
+```
+
+## 8. AS5047P magnetic retrofit — how it works & whether it will work
+
+**How it works.** The AS5047P is an *on-axis magnetic* rotary sensor:
+
+- You fix a small **diametrically-magnetised magnet** (N–S split *across* the diameter, not top/bottom — the module ships with one) to the **end of the rotating shaft**, centred on the axis.
+- The AS5047P chip sits **stationary, ~0.5–2 mm above** the magnet, coaxial with it. As the shaft turns, the magnet's field *direction* turns; the chip's Hall array reads that angle to 14 bits.
+- It can emit that angle as SPI, PWM, or — the one you want — **ABI incremental quadrature**: two square waves **A** and **B** 90° apart (plus index **I**), *identical in form to the optical encoder's A/B*. So it drops into the ESP32 PCNT pins with no logic change.
+
+**Why it fits your case well:**
+- Your rear shaft is **exposed and rotates** — exactly what it needs. Mount the sensor on the **rear (fast) shaft**, before the gearbox, so you keep the ×47 resolution multiplication (the base motor spins up to 2800 RPM; the AS5047P handles ~28,000 RPM, so no problem).
+- It runs at **3.3 V**, so A/B go **straight to the ESP32 — the TXS0108E level shifter is deleted** for these channels (removing the interface that's failed before).
+- Set its ABI resolution to **512 PPR (2048 CPR) at the motor shaft** → ×47 ≈ **96,256 CPR at the wheel**, essentially matching the original 93,132, so `ENCODER_CPR` barely changes.
+
+**Step by step (per motor):**
+1. Remove the dead optical assembly (disc + photo-interrupter + cap). Note the rear-shaft **diameter and length**.
+2. Glue the **diametric magnet** to the flat centre of the rear shaft end (diametric orientation; keep it concentric — this is the critical step).
+3. Make/3D-print a **non-ferrous mount** (a cap/bracket) that holds the AS5047P board stationary, **coaxial** with the shaft, ~1 mm above the magnet.
+4. Wire **VCC→3.3 V, GND→GND, A→ESP32 enc-A pin, B→ESP32 enc-B pin** (skip the level shifter). Optionally MOSI/MISO/CLK/CSn if you want to set ABIRES over SPI once.
+5. In firmware: set `ENCODER_CPR` to (ABI PPR × 4 × 47); calibrate `ENC_DIR_SIGN` as usual so it matches `MOTOR_DIR_SIGN`.
+
+**Will it work? Yes, provided:**
+- The magnet is **centred within ~0.5 mm** and the sensor is coaxial and not tilted — off-centre/tilt causes angle error and missed counts. **A printed jig is what makes or breaks this.**
+- The rear shaft stub is long/accessible enough to carry a magnet (verify — some stubs are very short).
+- Keep loose ferrous material off the sensor face; the close-range magnet field dominates, so the steel shaft itself is fine.
+
+**Don't use an AS5600 here:** it's absolute-only over I2C/analog/PWM with a fixed address — driving four of them for clean A/B quadrature is messy. The **AS5047P's ABI output is the right match** because it *is* quadrature.
+
+---
+
 *Sources: [Robokits RMCS-2086 product page](https://robokits.co.in/motors/rhino-planetary-geared-24v-motor/100w-24v-encoder-servo-motor/rhino-servo-24v-60rpm-100w-ig52-extra-heavy-duty-planetary-encoder-servo-motor-160kgcm) · [AS5047P (Amazon.in)](https://www.amazon.in/AS5047P-Peripheral-Interface-Applications-Diametrical/dp/B0FLR68Z6Y) · uploaded RMCS-2077 datasheet · `docs/Master_Reference.md` §2.3/§4.3. Prices July 2026 — verify before ordering.*

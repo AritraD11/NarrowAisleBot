@@ -103,7 +103,7 @@ That's the basis of the request below: if they expose the shaft and sell the dis
 
 ## 7. Vendor email template (Robokits / Rhino Motion Controls)
 
-> **Send from your IIT Bombay institute email** (an `@iitb.ac.in`-type address), not a personal one. Vendors like Robokits take institutional buyers seriously — it improves the odds they'll sell a spare part they don't normally list, and it lets them raise a **GST invoice** in the institute's name for reimbursement/procurement. Put your **name, roll no., department, and supervisor (Prof. Ambarish Kunwar, BSBE)** in the signature. Send to **support@robokits.co.in** and the rhinomc.com contact form, **attach the photo** of the `RMCS-PLNTY-108U` board with the shaft exposed, and CC your personal address to keep a copy.
+> **Send from your IIT Bombay institute email** (an `@iitb.ac.in`-type address), not a personal one. Vendors like Robokits take institutional buyers seriously — it improves the odds they'll sell a spare part they don't normally list, and it lets them raise a **GST invoice** in the institute's name for reimbursement/procurement. Put your **name, roll no., department, and supervisor (Prof. Ambarish Kunwar, BSBE)** in the signature. Send to **support@robokits.co.in** and **info@rhinomc.com** (Rhino Motion Control Solutions is the design house that actually makes these motors and the encoder board, so info@rhinomc.com is the more relevant one). **Attach the photo** of the `RMCS-PLNTY-108U` board with the shaft exposed, and CC your own personal address to keep a copy (plus your supervisor / lab purchase coordinator if this goes through institute procurement).
 
 ```
 Subject: Spare encoder for Rhino RMCS-2086 / RMCS-2077 motors (encoder only, not full motor)
@@ -132,12 +132,7 @@ A few questions:
    mount) as a separate spare part? If yes, the price per piece.
 2. Can I fit it myself onto the exposed rear shaft, or does it have to be
    done at your end?
-3. Could you confirm the encoder details so I can wire it up: resolution
-   (I think 500 lines, 2000 PPR at the motor shaft, around 93,132 CPR after
-   the 1:47 gearbox), supply voltage (3.3V or 5V), output type (A/B
-   quadrature, is there an index?), the wire colour for each function, and
-   the rear shaft diameter.
-4. I would like six pieces in total, two to repair the dead motors and four
+3. I would like six pieces in total, two to repair the dead motors and four
    for the idle base motors. Please share the per-piece and total price, and
    a GST invoice in the institute's name if possible.
 

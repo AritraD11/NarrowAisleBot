@@ -142,7 +142,59 @@ flicker while turning a wheel means that channel is not passing signal.
 
 ---
 
-## STAGE B / C — Level shifter in the path
+## Full 8-channel wiring — all four encoders on one board
+
+With the 8-channel discrete MOSFET board there is no need to test two
+separate shifters turn by turn — one board covers all four encoders at once.
+This is the actual, final connection list.
+
+**Channel assignment** (H*x* pairs with L*x* — same number, same physical FET):
+
+| Motor | Wire | Signal | `Hx` (5 V side) | `Lx` (3.3 V side) | ESP32 GPIO |
+|---|---|---|---|---|---|
+| FR | Green | A | **H0** | **L0** | 36 |
+| FR | White | B | **H1** | **L1** | 39 |
+| FL | Green | A | **H2** | **L2** | 34 |
+| FL | White | B | **H3** | **L3** | 35 |
+| RR | Yellow | A | **H4** | **L4** | 32 |
+| RR | Green | B | **H5** | **L5** | 33 |
+| RL | Yellow | A | **H6** | **L6** | 25 |
+| RL | Green | B | **H7** | **L7** | 26 |
+
+This ordering matches the PCNT unit order already used in the production
+firmware (FR=unit0, FL=unit1, RR=unit2, RL=unit3), so it's consistent with
+the rest of the codebase, not an arbitrary new scheme.
+
+**The wire colours are NOT the same between encoder types** — this exact
+mix-up already corrupted a channel once earlier in this project:
+
+| Wire | GTK08 (front, FR/FL) | RMCS-2086 (rear, RR/RL) |
+|---|---|---|
+| Green | Channel A | Channel B |
+| White | Channel B | — |
+| Yellow | Z-index (unused here) | Channel A |
+
+Verify against the physical wire, not memory, before landing it on a channel.
+
+**Power:**
+
+| Pin | Connect to |
+|---|---|
+| Shifter `LV+` | ESP32 `3.3V` |
+| Shifter `LV−` | GND rail |
+| Shifter `HV+` | Buck `5V` |
+| Shifter `HV−` | GND rail |
+| All 4 encoders — Red | Buck `5V` (same rail as HV+) |
+| All 4 encoders — Black | GND rail (same rail as LV−/HV−) |
+
+One ground rail: ESP32 GND, buck GND, shifter LV−, shifter HV−, all four
+encoder Black wires — all on it. No external pull-ups (the board has its
+own), `L0`–`L7` jumper straight into the ESP32 GPIOs above, no components in
+between.
+
+---
+
+## STAGE B / C — Level shifter in the path (TXS0108E only)
 
 Swap the dividers out, put the shifter in. One shifter at a time.
 

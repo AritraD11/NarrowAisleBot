@@ -4,14 +4,19 @@ AisleBot ESP32 Bridge v3.1
 ==========================
 Bidirectional serial bridge between ROS2 (Raspberry Pi 5) and ESP32.
 
-PROTOCOL (matches aislebot_esp32_v2.ino):
+PROTOCOL (matches aislebot_esp32.ino v3.0):
   Pi → ESP32:  <V,fr,fl,rr,rl>   velocity setpoints in rad/s
   Pi → ESP32:  <M,fr,fl,rr,rl>   direct PWM (-255 to 255)
-  Pi → ESP32:  <S>               emergency stop
+  Pi → ESP32:  <S>               emergency stop (LATCHES — clear with <E1>)
   Pi → ESP32:  <P>               ping (expects [PONG])
-  Pi → ESP32:  <E1> / <E0>       enable / disable motors
+  Pi → ESP32:  <E1> / <E0>       enable (+ clear E-STOP) / disable motors
   ESP32 → Pi:  CSV telemetry lines (when <L1> enabled)
-  ESP32 → Pi:  encoder counts for odometry
+
+v3.0 keeps <V> and the 13-column telemetry line byte-identical to v2.0,
+so nothing in this bridge needed changing for it. <L2> appends further
+columns after those 13; the fixed-index parse below is unaffected either
+way. The ESP32-hosted WiFi joystick is gone in v3.0 — this bridge is now
+the only command source, so there is no arbitration to lose against.
 
 TOPICS:
   Subscribes: /wheel_speeds  (Float64MultiArray) [FR, FL, RR, RL] rad/s
@@ -44,7 +49,12 @@ class ESP32Bridge(Node):
         # === Parameters ===
         self.declare_parameter('serial_port', '/dev/ttyUSB0')
         self.declare_parameter('baud_rate', 921600)
-        self.declare_parameter('max_wheel_speed', 6.28)       # rad/s
+        # Match the firmware's max_wheel_speed. 5.2 rad/s is the v3.0 AIR
+        # value; the ESP32 clamps to its own limit regardless, but keeping
+        # them equal means the Pi's idea of what it commanded is the truth.
+        # Lower BOTH to ~4.2 after ground calibration — see
+        # docs/PID_Calibration.md §7.
+        self.declare_parameter('max_wheel_speed', 5.20)       # rad/s
         self.declare_parameter('reconnect_interval', 3.0)     # seconds
         self.declare_parameter('watchdog_timeout', 0.5)       # seconds
         self.declare_parameter('enable_imu', False)

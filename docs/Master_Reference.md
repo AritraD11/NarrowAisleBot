@@ -304,6 +304,15 @@ emergency_stop = false; // DELETE THIS ENTIRE BLOCK
 
 **6.2 PID + Feedforward Parameters**
 
+> **⚠ SUPERSEDED by firmware v3.0 (4 Aug 2026). See [`PID_Calibration.md`](PID_Calibration.md) for the current values and the data behind them.**
+>
+> The table below documents v2.0 and is kept for history. Three things in it are now known to be wrong:
+> - **`Encoder CPR = 93,132` is only true for the rears.** FR/FL now carry GTK08 encoders at **186,264 CPR**. A single shared constant makes the fronts read double their true speed and run at half the commanded velocity.
+> - **The per-motor `Kff` spread (40.2 – 47.9) is an artefact** of the faulty-encoder era. Re-measured on the confirmed-good path, all four motors fall inside a 3 % band: `{37.3, 38.4, 38.3, 38.0}`.
+> - **`Ki = 30` is roughly an order of magnitude too low.** It moved the output ~3 PWM/s at 0.1 rad/s of error, which is the direct cause of the 3.79 s worst-case settling time recorded on 14 May. v3.0 uses **250**, derived from the measured plant gain.
+>
+> v3.0 also drops the ESP32-hosted WiFi joystick entirely — the Pi is the only command source — so the WiFi override row no longer applies.
+
 |                           |             |                                                                                                                       |
 |---------------------------|-------------|-----------------------------------------------------------------------------------------------------------------------|
 | **Parameter**             | **Value**   | **Description**                                                                                                       |

@@ -31,6 +31,24 @@ this campaign traced back to this swap, a D2/D3 breadboard contact fault
 (Mega phase), or genuine floating pins from an unpowered rail — never the
 shifter chip itself or the GTK08/RMCS-2086 encoders, both of which are good.
 
+**Reconfirmed with a much larger sample, same day.** A long manual-drive
+session put every motor through repeated forward/reverse bursts — 16 bursts
+total, each individually verdict `HEALTHY`, edge ratio 1.00 on every one:
+
+```
+FR   +327251  -453331  +457946  -450951      (edge ratio 1.00 x4)
+FL   +425200  -446067  +442017  +441589      (edge ratio 1.00 x4)
+RR   +212051  -221425  +218675  -221196      (edge ratio 1.00 x4)
+RL   +169592  -224692  +217591  -225552      (edge ratio 1.00 x4)
+```
+
+No regression on the FR/FL fix across the whole session — every command to a
+given motor was answered by that motor's own burst summary, never a
+neighbour's. All four motors converge to a narrow 1.83–1.94 rad/s band at the
+same PWM (80), and the front/rear count ratio still lands on ~2.0-2.1x with a
+much bigger sample (hundreds of thousands of counts vs. tens of thousands
+previously) — stronger statistical confirmation of the same conclusion.
+
 One open, non-blocking item: intermittent corrupted serial bytes appeared
 during periods of active motor current draw (garbled text, not bad data).
 Possible USB cable/driver hiccup or supply sag — worth a glance if it recurs

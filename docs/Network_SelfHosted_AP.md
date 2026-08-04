@@ -49,6 +49,44 @@ sudo nmcli con up aislebot-ap
 
 Each switch drops your current SSH session, because the radio is changing networks. Reconnect on the new one — that's expected, not a fault.
 
+## Full round trip: get online, sync the clock, pull CSVs, come back home
+
+The complete sequence for "I need real data off the Pi" — go online just long enough to fix the clock and grab logs, then return to the robot's own network. The `ssh`/`nmcli` steps run **on the Pi**; the `scp`/`rsync` step runs **on your PC**, outside any SSH session.
+
+```bash
+# 1. SSH in on whichever network you're currently on
+ssh aritra@10.42.0.1                  # if already on AisleBot-Pi
+#  or, if you don't know the current IP:
+ssh aritra@aritra-desktop.local
+
+# 2. On the Pi, switch to eduroam
+sudo nmcli con up eduroam
+#    -> drops the SSH session immediately. Expected, not a fault.
+
+# 3. Reconnect. eduroam hands out a DHCP address, not a fixed one like
+#    10.42.0.1, so don't go hunting for an IP — use the mDNS hostname:
+ssh aritra@aritra-desktop.local
+
+# 4. Confirm REAL internet, not just link-layer association, then sync
+#    the clock. Don't skip straight to apt/ntp — narrow the failure first:
+ping -c3 8.8.8.8              # raw L3 connectivity, bypasses DNS
+ping -c3 google.com           # DNS resolution
+sudo systemctl restart systemd-timesyncd
+timedatectl status            # look for "System clock synchronized: yes"
+
+# 5. From the PC — a NEW terminal, not the SSH session — pull the logs
+scp aritra@aritra-desktop.local:~/aislebot_logs/*.csv .
+#  or, to mirror the whole folder and skip files you already have:
+rsync -avz aritra@aritra-desktop.local:~/aislebot_logs/ ./aislebot_logs/
+
+# 6. Back on the Pi's SSH session, return to the robot's own network
+sudo nmcli con up aislebot-ap
+#    -> drops SSH again, expected. Reconnect at the fixed 10.42.0.1 once
+#       the AP is back up (~10-15s).
+```
+
+**Do step 4 every round trip, not just when something looks wrong.** The Pi has no battery-backed RTC, so the clock drifts out of sync the moment it reboots without WAN — it doesn't announce this, a file's timestamp just quietly becomes untrustworthy. See `Research_Journal.md` Part XVI §16.4 for how this was found and why a hardware RTC (DS3231) is the real fix.
+
 ## What's unaffected by this
 
 ROS2 runs exactly as before. CycloneDDS is bound to loopback, so node discovery never looked at WiFi in the first place. The dashboard code is unchanged; it binds to all interfaces and now just answers on `10.42.0.1`. The ESP32 serial bridge, the udev rules, and `aislebot.service` are all untouched.

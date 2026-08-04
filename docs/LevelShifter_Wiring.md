@@ -1,4 +1,14 @@
-# TXS0108E Level Shifter — Complete Wiring Reference
+# TXS0108E Level Shifter — Complete Wiring Reference (RETIRED, 4 Aug 2026)
+
+> **This hardware is no longer on the robot.** The dual-TXS0108E design
+> documented below was replaced on 4 Aug 2026 with a single **8-channel
+> discrete MOSFET (BSS138-style) bidirectional level shifter board** — no IC,
+> no OE pin, per-channel LEDs, all four encoders on one board. Current wiring:
+> `Bench_Test_Map.md` §"Full 8-channel wiring — all four encoders on one
+> board". This document is kept because the underlying principles (signal
+> direction, common ground, the GTK08-vs-RMCS wire-colour trap in §5) still
+> apply — only the shifter part itself changed. See `Master_Reference.md`
+> §2.5 for the hardware-change note.
 
 Two 8-channel TXS0108E boards translate the 5 V encoder signals down to the
 ESP32's 3.3 V GPIOs. **U1 handles the front pair (FR, FL), U2 handles the rear

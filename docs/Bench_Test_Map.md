@@ -5,6 +5,43 @@ for all, whether the TXS0108E level shifters are the problem.
 
 ---
 
+## RESOLVED — all 4 encoders / all 8 shifter channels confirmed healthy
+
+**Verified 4 Aug 2026** with `firmware/nab_bench_manual_drive_diagnostic_esp32.ino`
+on the ESP32, driving all four motors through the 8-channel BSS138 shifter
+(the discrete MOSFET board, not a TXS0108E). Three consecutive AUTO TEST runs,
+all `HEALTHY`, edge ratios (eA/eB) within ~0.1% of 1.00 on every channel:
+
+```
+FR   +119085  -118067  HEALTHY        FL   +115121  -115607  HEALTHY
+RR    +57416   -58244  HEALTHY        RL    +57358   -59139  HEALTHY
+```
+
+**Cross-check that clinches it:** front (GTK08, 186,264 CPR) counts land at
+~2.0x the rear (RMCS-2086, 93,132 CPR) counts at identical PWM/duration —
+exactly the CPR ratio, on hardware that's the same physical gearmotor front
+and rear. That's independent confirmation the signal *and* the firmware's CPR
+constants are both correct, not just "counts are nonzero."
+
+**Root cause of the whole saga:** not the level shifter, not a dead encoder.
+It was a **FR/FL cross-connection** (driving FR moved FL's encoder and vice
+versa) — a wiring swap, not a component failure. Once corrected, both fronts
+read independently and cleanly. Every earlier "dead" or "no signal" result in
+this campaign traced back to this swap, a D2/D3 breadboard contact fault
+(Mega phase), or genuine floating pins from an unpowered rail — never the
+shifter chip itself or the GTK08/RMCS-2086 encoders, both of which are good.
+
+One open, non-blocking item: intermittent corrupted serial bytes appeared
+during periods of active motor current draw (garbled text, not bad data).
+Possible USB cable/driver hiccup or supply sag — worth a glance if it recurs
+paired with actual bad readings, not urgent otherwise.
+
+**Next step:** per-motor `ENCODER_CPR[]` in the real firmware (fronts
+186,264 / rears 93,132), full PID/feedforward calibration on the confirmed
+hardware.
+
+---
+
 ## The one thing to understand first
 
 **You cannot wire a 5 V encoder straight into an ESP32 pin.** The ESP32 is not

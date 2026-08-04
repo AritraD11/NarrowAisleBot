@@ -1631,6 +1631,8 @@ The GitHub backup was reorganised into a professional, disaster-recoverable stat
 
 This supersedes the 16 May 2026 snapshot in Part IX. Same purpose: a single honest view of what works, what's in flight, and what's queued.
 
+**Partially superseded by Part XVI (4 August 2026)** — the encoder fault referenced throughout this snapshot is resolved, and the firmware/gains in §15.3 are one generation behind. Read Part XVI first for anything control-related; this snapshot is kept for the LiDAR/SLAM/infrastructure state, which it still describes correctly.
+
 ## 15.1 What works
 
 - **Drive:** closed-loop PID + feedforward on the ESP32, validated in air (14 May 2026). All four encoders read correctly through the level shifters.
@@ -1665,6 +1667,64 @@ This supersedes the 16 May 2026 snapshot in Part IX. Same purpose: a single hone
 - **Control:** ground-load Kff recalibration; stress-test the ROS 2 → ESP32 serial path under sustained PID throughput on battery.
 - **Cytron MDD20A Channel 2 failure** (Q4 low-side MOSFET, June 2026) — replacement decision pending; if BTS7960 IBT-2 modules are adopted, recheck the per-motor DIR convention (§12.4).
 - **Autonomy:** procure/mount IMU (Phase 2); make the `AisleBot-Pi` AP the netplan default so it survives reboot; set up Foxglove Bridge.
+
+# Part XVI — 4 August 2026: Bench Recalibration, Telemetry Review, and a Clock-Reliability Finding
+
+## 16.1 Encoder fault resolved, firmware recalibrated
+
+The breadboard bench campaign (`Bench_Test_Map.md`) closed out today. All four encoders and all eight channels of the 8-channel BSS138 level shifter came back `HEALTHY` across three AUTO TEST runs and a larger 16-burst manual-drive reconfirmation. The root cause of the whole multi-session encoder saga was a **FR/FL cross-connection** — a wiring swap, not a dead shifter or a dead encoder. The front/rear raw-count ratio at matched PWM landed at 2.0–2.1×, which also independently confirmed the front (GTK08, 186,264 CPR) vs rear (RMCS-2086, 93,132 CPR) encoder split.
+
+That fact fed straight into a firmware defect: `aislebot_esp32.ino` (through v2.0) used a single shared `ENCODER_CPR = 93132` for all four motors. On hardware with GTK08 fronts, that made FR/FL report double their true speed, so the closed loop would settle them at roughly half the commanded velocity — a permanent, silent, speed-dependent yaw bias invisible in any air-test that didn't specifically cross-check front vs rear CPR.
+
+Firmware v3.0 fixes this and recalibrates the controller against the bench data:
+
+- `ENCODER_CPR` is now `float[NUM_MOTORS]` — 186,264 for FR/FL, 93,132 for RR/RL.
+- Feedforward is now two-term (`pwm = Kff·ω + Kstat·sgn(ω)`) rather than one slope, fitted across the 4 Aug manual-drive data, the 4 Aug AUTO TEST data, and the 14 May closed-loop back-calculation. `Kff` converged to `{37.3, 38.4, 38.3, 38.0}` — the old 19% per-motor spread (40.2–47.9) turns out to have been an artefact of the faulty-encoder era, not real motor-to-motor variation.
+- `Ki`: 30 → 250, derived from the measured plant gain via lambda tuning (λ = 0.15 s). This is the actual fix for the 3.79 s worst-case settling time logged 14 May — at `Ki = 30` the integral moved about 3 PWM/s per 0.1 rad/s of error, an order of magnitude too slow to matter inside a manoeuvre.
+- Anti-windup changed from a fixed `±200` clamp (which, at the old `Ki`, permitted a ~6000 PWM integral term and never actually bound) to a per-tick dynamic clamp against the real PWM headroom left after FF+P+D.
+- Derivative now acts on measurement, not error, removing the kick every time the Pi steps a setpoint.
+- Control loop: 50 Hz → 100 Hz.
+- WiFi, the WebSocket server, and the hosted joystick page are removed entirely — the Pi is now the sole command source, so there is no arbitration path left to have a bug in.
+- Added: setpoint slew limiting; overspeed / runaway / stall trips (the runaway trip specifically checks saturated+opposing+not-decelerating, so a `MOTOR_DIR_SIGN`/`ENC_DIR_SIGN` mismatch is caught even though it just pins the motor at rated speed rather than exceeding it); `<B>` body-twist passthrough; live `<K>`/`<A>`/`<X>` tuning; `<O>`/`<R>` odometry; `<L2>` extended telemetry.
+- Fixed a latent bug inherited from v2.0: `<M>` direct-PWM was silently overwritten by the PID task on its next 10 ms tick, so it never actually held. Unnoticed until open-loop bench calibration needed it. There is now an explicit open-loop mode.
+
+One gain is still an estimate: **`Kp` = 45 assumes a plant time constant τ ≈ 0.18 s that has never been measured on this robot** — every bench run logged so far captured steady-state points only, never a transient. `tools/nab_pid_logger.py --test plant` (new today, see §16.2) is built to close exactly this gap in about 40 seconds on the bench. Full derivation, all source data, and the honest confidence level on each number: `docs/PID_Calibration.md`.
+
+`<V,...>` and the 13-column telemetry line stayed byte-identical to v2.0 throughout, so `esp32_bridge.py` and `aislebot_pid_analysis_v2.py` needed no changes.
+
+## 16.2 Old telemetry recovered and reviewed
+
+Pulled `~/aislebot_logs/run_20260702_183233.csv` off the Pi (`scp aritra@10.42.0.1:~/aislebot_logs/run_20260702_183233.csv .`) and added it to the repo at `data/bench_logs/run_20260702_183233.csv` for reference. This predates today's per-motor-CPR fix, so it was recorded under the old single-CPR firmware.
+
+It is not a structured calibration run — target velocity ramps smoothly and holds varying plateaus, including several in-place rotations (opposite-sign FR/RL and FL/RR targets), consistent with a live phone-joystick drive session rather than a scripted step/staircase test.
+
+**Reading it, under the firmware that was active at the time:**
+
+| Motor | RMS tracking error | PWM saturation |
+|---|---|---|
+| FR | 0.032 rad/s | 0% |
+| FL | 0.032 rad/s | 0% |
+| RR | 0.041 rad/s | 0% |
+| RL | 0.037 rad/s | 0% |
+
+Against commands up to ~0.95 rad/s, that's 3–6% tracking error, no saturation, and all four motors closely matched — a reasonable showing for the old Kp=50/Ki=30/Kd=3 gains at low-to-moderate speed. One initial mis-read corrected before reporting it: the diagonal-mismatch diagnostic from `aislebot_pid_analysis_v2.py` flagged an alarming 0.60 rad/s RMS on FR−RL. Traced to source — it's an artefact of this log containing rotation commands, where FR and RL are *supposed* to carry opposite-sign targets under the mecanum IK. The diagnostic assumes straight-line motion only and isn't meaningful on a mixed drive log; not a hardware fault.
+
+**Why this file can't be used to validate or tune v3.0:** no isolated steps to fit a step response from, and — see §16.3 — no confirmed-reliable timestamp to anchor it against a known firmware state by date alone. It's kept as a reference point for "the old controller wasn't badly broken," nothing stronger.
+
+A fresh capture on the corrected v3.0 firmware is in progress; the wheels/PID verdict for the *current* controller will be logged here once that data is reviewed.
+
+## 16.3 Pi system clock reliability — new open item
+
+While chasing the CSV above, a `sudo nmcli con up eduroam` on the Pi reset the active SSH session — expected, matches the documented behaviour in `Network_SelfHosted_AP.md` §"switching networks always drops the current SSH session." Reconnected via `ssh aritra@aritra-desktop.local` (mDNS) successfully, but `apt` still failed to reach `changelogs.ubuntu.com` — eduroam association without confirmed working internet (link-layer connected, WAN reachability unverified; could be DNS, routing, or a captive-portal step that `nmcli` alone doesn't satisfy).
+
+Cross-checking the recovered CSV's embedded `pi_time_s` (`1782997353.3266` → `2026-07-02 18:32:33 IST`) against its filename (`run_20260702_183233.csv`) shows they agree exactly — but that only proves the filename and the logged timestamp came from the same system clock, not that the clock was showing the true calendar date when the file was written.
+
+**The underlying issue:** a Raspberry Pi 5 has no battery-backed RTC by default. The robot's normal operating mode is the self-hosted AP with no WAN path, so there is no NTP correction available during ordinary use — the clock only gets corrected on a boot that happens to have eduroam (or other internet) access at the time. Any log file's timestamp is only as trustworthy as "was this Pi's clock NTP-synced since its last reboot," which is not currently something the logging pipeline records or checks.
+
+**Open items:**
+- Confirm real internet reachability once associated to eduroam, in this order: `ping -c3 <IP literal, e.g. 8.8.8.8>` (raw L3, bypasses DNS) → `ping -c3 google.com` (DNS) → `curl -I https://example.com` (HTTPS/proxy). Narrows whether the gap is DNS, routing, or a portal.
+- Once online, force a resync rather than waiting for it: `sudo systemctl restart systemd-timesyncd` then `timedatectl status` to confirm `System clock synchronized: yes`.
+- Evaluate a hardware RTC module (DS3231 is the standard cheap choice, I²C, coin-cell backed) so file timestamps stay trustworthy across reboots regardless of WAN state — the right fix for a robot that spends most of its life with no internet by design.
 
 # Appendix A — Document Catalogue
 
@@ -1806,6 +1866,12 @@ Every supporting document, organised by category. Update this as new artefacts a
 
 - Long-term: revisit fuzzy-adaptive PID and MPC alternatives once the baseline fixed-gain PID is at full performance. Decision criterion: does the baseline produce visible imperfections in cargo-handling motion? If yes, advance; if no, the simpler controller wins.
 
+## B.6 Infrastructure (added 4 August 2026)
+
+- Verify eduroam actually reaches the internet from the Pi, not just link-layer association (Part XVI §16.3) — `ping` by IP, then by name, then HTTPS, to localise the gap.
+- Evaluate a hardware RTC (DS3231 or similar) so log-file timestamps are trustworthy across reboots without depending on an NTP-capable boot (Part XVI §16.3).
+- Run `tools/nab_pid_logger.py --test plant` — the last unmeasured quantity in the v3.0 controller (plant time constant τ, which `Kp` currently only estimates) closes with this one bench run.
+
 # Revision Log
 
 | **Date**     | **Version** | **Summary**                                                                                                                                                                                                                                                                                                                                                                                |
@@ -1814,5 +1880,6 @@ Every supporting document, organised by category. Update this as new artefacts a
 | 09 June 2026 | v1.2        | Firmware audit pass against aislebot_esp32_v2.ino. Table 17 corrected (was Mega-era D-pin numbers; now ESP32 GPIO map). Added Part XII (ESP32 Firmware Deep Dive). Three explicit reconciliations: D14-D21 vs ESP32 GPIOs, 921600 vs 115200 baud, physical wire swap vs software sign arrays. Note: v1.1 was an interim file with no content delta from v1.0 (file-name renumbering only). |
 | 22 June 2026 | v1.3        | Added the UV-C tube lighting subsystem section (embedded in Part IX): hardware inventory from bench photos, the continuously-powered-inverter / 240 V-side staged-relay architecture, the cross-inverter safety rule, the aislebot_arm_v7 → v8 firmware changes (staged `<U1>`/`<U0>`/`<U?>`), the arm_bridge.py / phone_dashboard.py integration, the 22 June deployment, and the open items (floating-pin strike on unpowered Mega, pack BMS rating, burn-in, warning beacon). (Logged retroactively.) |
 | 08 July 2026 | v2.0        | Major update — Phase 3 opened. Added Part XIII (LiDAR + SLAM bringup: YDLIDAR X4 Pro, the identical-CP2102 udev port-pinning, the best-effort/reliable QoS relay, rf2o dropped, the scan-matching-only slam_nodom pipeline, verified 26 June). Added Part XIV (dashboard v2.2 desktop mouse+keyboard, self-hosted AisleBot-Pi AP, CycloneDDS Jazzy syntax fix, repository consolidation + rename to NarrowAisleBot, MIT license, checksum-verified-against-Pi discipline). Added Part XV (current status snapshot, superseding Part IX). Updated Part X Phase 3 from planned-RPLiDAR to as-built YDLIDAR. Updated Appendix A firmware/file names (esp32_v2→esp32, arm_v7→arm v8, +scan_relay, +A.6 LiDAR configs). |
+| 04 Aug 2026  | v2.1        | Added Part XVI: the encoder-fault bench resolution (FR/FL cross-connection, not the shifter — full detail in `Bench_Test_Map.md`), the resulting per-motor-CPR firmware bug and its fix, and the full v3.0 PID/feedforward recalibration (two-term FF, Ki 30→250, dynamic anti-windup, 100 Hz loop, WiFi removed — derivation in `docs/PID_Calibration.md`). Logged the recovery and review of `run_20260702_183233.csv` (old-firmware behaviour: 3–6% RMS tracking error, no saturation, all four motors matched; not usable to tune v3.0). Logged a new open item: the Pi has no battery-backed RTC and its clock reliability during no-WAN operation is now flagged rather than assumed. Added B.6 (infrastructure TODOs). Noted Part XV as partially superseded for control-related content. |
 
 Future revisions append rows here. When in doubt about whether something deserves an entry, err toward writing it — the value of this document is the path travelled.

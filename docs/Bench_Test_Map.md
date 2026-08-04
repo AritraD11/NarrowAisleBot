@@ -95,9 +95,60 @@ wheel turn separates three hypotheses.
 
 ---
 
+## Which shifter board are you using?
+
+Two different parts are in play in this project, and they wire up differently.
+
+| | **TXS0108E** (IC type) | **Discrete MOSFET** (BSS138-style) |
+|---|---|---|
+| Identify by | Single 20-pin IC on board | ~16 transistors, ~32 resistors, no IC |
+| Power pins | VCCA / VCCB / GND | LV+ / LV− / HV+ / HV− |
+| **OE pin** | **Yes — must be tied to VCCA** | **None — nothing to get wrong** |
+| Channels | 8 | 8 |
+| Per-channel LEDs | No | Often yes — free visual diagnostic |
+| Built-in pull-ups | Yes (weak, with one-shot drive) | Yes (plain resistors) |
+| Rising edge | Actively driven | RC-limited by pull-up (slower) |
+
+**Speed check for this project:** worst case is the motor shaft at ~2820 RPM
+≈ 47 rev/s, and the GTK08 is 1000 PPR, so each line toggles at about **47 kHz**
+(10.6 µs half-period). Both board types have roughly an order of magnitude of
+margin on that. Speed is not the limiting factor either way.
+
+**If you have the discrete MOSFET board, prefer it.** No OE pin removes one of
+the main suspected failure modes, the per-channel LEDs let you see activity
+before opening a serial monitor, and 8 channels covers all four encoders on a
+single board.
+
+### Discrete MOSFET board wiring
+
+| Board pin | Connect to |
+|---|---|
+| **LV+** | ESP32 3.3 V |
+| **LV−** | GND rail |
+| **HV+** | Buck 5 V |
+| **HV−** | GND rail |
+| **NC** (if present, middle of HV header) | nothing — spacer |
+| H0–H7 | encoder A/B signals (5 V side) |
+| L0–L7 | ESP32 GPIO (3.3 V side) |
+
+**LV+ must be the LOWER voltage.** The FET gates reference LV+, so 3.3 V on LV
+and 5 V on HV. Swapping them breaks the shifting action.
+
+**Do not add external pull-ups to this board** — it already has them on every
+channel, both sides. And note this changes the float test: a dead channel sits
+**HIGH** (pulled up), not floating, so a stuck-high line becomes ambiguous
+between "working, idle" and "broken." Use the LEDs as the tiebreaker — no
+flicker while turning a wheel means that channel is not passing signal.
+
+---
+
 ## STAGE B / C — Level shifter in the path
 
 Swap the dividers out, put the shifter in. One shifter at a time.
+
+*(The diagram below is for the TXS0108E. If you're on the discrete MOSFET
+board, use the wiring table above instead — same idea, but no OE pin and no
+external pull-ups.)*
 
 ```
                         ┌──────────── TXS0108E ────────────┐

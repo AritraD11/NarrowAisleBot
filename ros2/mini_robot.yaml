@@ -1,0 +1,39 @@
+# MiniAisleBot — ROS 2 robot profile
+# ==================================
+# The SAME Raspberry Pi 5 / ROS 2 Jazzy stack drives both robots. Because
+# mecanum_teleop_asymmetric.py declares every geometry value as a parameter,
+# switching to the prototype is a params file — not a code change.
+#
+#   ros2 run mecanum_robot mecanum_teleop_asymmetric \
+#        --ros-args --params-file ros2/mini_robot.yaml
+#
+# or add `parameters=[PathJoinSubstitution([...,'mini_robot.yaml'])]` to the
+# teleop node in aislebot_full.launch.py and select it with a launch arg
+# (e.g. `robot:=mini`). SLAM (slam_nodom.yaml), Nav2, the EKF, and the
+# YDLIDAR X4 Pro driver are all unchanged.
+
+mecanum_teleop_asymmetric:
+  ros__parameters:
+    wheel_radius: 0.040      # 80 mm mecanum  (NAB: 0.0762)
+    l1: 0.150                # outer pair FR, RL  (NAB: 0.403)
+    l2: 0.120                # inner pair FL, RR  (NAB: 0.333)
+    d:  0.075                # half-track         (NAB: 0.15769)
+    max_linear: 0.45         # m/s   — SLAM-friendly cruise
+    max_angular: 2.0         # rad/s
+    max_wheel_speed: 22.0    # rad/s clamp (~80% of 27.44 hardware max)
+    input_source: cmd_vel    # 'cmd_vel' (Nav2/teleop) or 'joy'
+
+# --- odometry_publisher (forward kinematics) uses the same constants ---
+odometry_publisher:
+  ros__parameters:
+    wheel_radius: 0.040
+    l1: 0.150
+    l2: 0.120
+    d:  0.075
+    encoder_cpr: 537.6       # 7 PPR x4 x19.2  (NAB: 93132) — velocity scaling
+    publish_tf: false        # let robot_localization EKF own odom->base_link
+
+# --- notes for the URDF / TF tree (edit the prototype's URDF to match) ---
+# laser_frame:  x≈+0.12 m, z≈+0.12 m above base_link (front-centre LiDAR mount)
+# imu_link:     x=0, y=0, z≈+0.03 m (BNO055 near deck centre)
+# Footprint for Nav2 costmap inflation: ~0.36 x 0.20 m (use radius ≈ 0.21 m).

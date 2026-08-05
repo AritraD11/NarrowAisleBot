@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "author": "Aritra Das (25D0074)",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+
+    { "type": "wokwi-slide-potentiometer", "id": "potVX", "top": -180, "left": -230,
+      "attrs": { "travelLength": "30" } },
+    { "type": "wokwi-slide-potentiometer", "id": "potVY", "top": -80, "left": -230,
+      "attrs": { "travelLength": "30" } },
+    { "type": "wokwi-slide-potentiometer", "id": "potWZ", "top": 20, "left": -230,
+      "attrs": { "travelLength": "30" } },
+
+    { "type": "wokwi-led", "id": "ledFR", "top": -180, "left": 260,
+      "attrs": { "color": "red",    "label": "FR" } },
+    { "type": "wokwi-led", "id": "ledFL", "top": -110, "left": 260,
+      "attrs": { "color": "green",  "label": "FL" } },
+    { "type": "wokwi-led", "id": "ledRR", "top": -40, "left": 260,
+      "attrs": { "color": "blue",   "label": "RR" } },
+    { "type": "wokwi-led", "id": "ledRL", "top": 30, "left": 260,
+      "attrs": { "color": "yellow", "label": "RL" } },
+
+    { "type": "wokwi-resistor", "id": "rFR", "top": -170, "left": 150, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "rFL", "top": -100, "left": 150, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "rRR", "top": -30, "left": 150, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "rRL", "top": 40, "left": 150, "attrs": { "value": "220" } }
+  ],
+  "connections": [
+    [ "potVX:VCC", "esp:3V3", "red", [] ],
+    [ "potVY:VCC", "esp:3V3", "red", [] ],
+    [ "potWZ:VCC", "esp:3V3", "red", [] ],
+    [ "potVX:GND", "esp:GND.1", "black", [] ],
+    [ "potVY:GND", "esp:GND.1", "black", [] ],
+    [ "potWZ:GND", "esp:GND.1", "black", [] ],
+    [ "potVX:SIG", "esp:D34", "green", [] ],
+    [ "potVY:SIG", "esp:D35", "green", [] ],
+    [ "potWZ:SIG", "esp:D32", "green", [] ],
+
+    [ "esp:D25", "rFR:1", "orange", [] ],
+    [ "esp:D26", "rFL:1", "orange", [] ],
+    [ "esp:D27", "rRR:1", "orange", [] ],
+    [ "esp:D14", "rRL:1", "orange", [] ],
+
+    [ "rFR:2", "ledFR:A", "orange", [] ],
+    [ "rFL:2", "ledFL:A", "orange", [] ],
+    [ "rRR:2", "ledRR:A", "orange", [] ],
+    [ "rRL:2", "ledRL:A", "orange", [] ],
+
+    [ "ledFR:C", "esp:GND.2", "black", [] ],
+    [ "ledFL:C", "esp:GND.2", "black", [] ],
+    [ "ledRR:C", "esp:GND.2", "black", [] ],
+    [ "ledRL:C", "esp:GND.2", "black", [] ]
+  ]
+}

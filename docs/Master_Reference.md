@@ -114,11 +114,15 @@ FRONT FL (inner) FR (outer) l₂ = 333 mm l₁ = 403 mm ╔═══════
 | **Compute**         | Raspberry Pi 5    | Ubuntu 24.04 LTS, ROS2 Jazzy, 8GB RAM                                      |
 | **Microcontroller** | ESP32-WROOM-32    | Robocraze 38-pin, CP2102 USB-UART, 240MHz dual-core, 520KB SRAM            |
 | **Motor drivers**   | Cytron MDD20A × 2 | 20A continuous, 6–30V, PWM+DIR control, logic threshold 1.5V               |
-| **Level shifter**   | TXS0108E × 2      | Bidirectional 8-channel 3.3V ↔ 5V. One per driver pair (U1=front, U2=rear) |
+| **Level shifter**   | 8-channel discrete MOSFET (BSS138-style) × 1 | Bidirectional, 3.3V ↔ 5V. All 4 motors × 2 encoder channels on one board — see note below |
 | **Battery**         | SM12830SL LiFePO4 | 12.8V, 30Ah, 384Wh                                                         |
 | **Power relay**     | SSR-50DD          | Solid State Relay, 50A, 5–200V switching, 3–32VDC trigger, −20 to 85°C     |
 | **Boost converter** | 1200W DC-DC       | 12.8V → 24V for motors                                                     |
-| **Buck converter**  | DFRobot 60W       | 12.8V → 5V for encoders + TXS0108E VCCB                                    |
+| **Buck converter**  | DFRobot 60W       | 12.8V → 5V for encoders + level shifter HV rail                            |
+
+> **⚠ HARDWARE CHANGE, 4 Aug 2026.** The dual-TXS0108E design below (§3–§4.4) was replaced with a single **8-channel discrete MOSFET (BSS138-style) bidirectional level shifter board** — no IC, no OE pin, per-channel LEDs, `LV+/LV−/HV+/HV−` power rails, `H0–H7` (5V side) / `L0–L7` (3.3V side) signal rails. All four encoders (both channels each) run through this one board. It was adopted after the TXS0108E interface failed for the third time (`Research_Journal.md` §7.12, and the 3 Aug all-four-dead bench run that `LevelShifter_Wiring.md` was written to diagnose) — the discrete-MOSFET board removes the OE pin entirely, which is one of the two failure modes that kept recurring. Root cause of that specific 3 Aug failure turned out to be a wiring cross-connection, not the shifter part itself, but the discrete board was already the planned replacement and is what's actually installed now.
+>
+> **Current wiring reference:** `Bench_Test_Map.md` §"Full 8-channel wiring — all four encoders on one board". `LevelShifter_Wiring.md` (below) documents the retired TXS0108E design and is kept for history — its signal-direction and grounding principles still apply, but its pin tables describe hardware no longer on the robot.
 
 **3. Power Architecture**
 
@@ -179,9 +183,11 @@ All 8 motor control pins are on the right side of the ESP32 board. 3.3V logic fr
 
 ℹ Motor wiring is identical for all 4 motors: Red → MxA, Black → MxB. Direction differences between left and right sides are handled purely in software via MOTOR_DIR_SIGN\[\].
 
-**4.3 Encoder Inputs — LEFT Side of Board via TXS0108E**
+**4.3 Encoder Inputs — LEFT Side of Board via Level Shifter**
 
-Encoder signals are 5V. ESP32 GPIOs are 3.3V. TXS0108E level shifting is MANDATORY.
+> **⚠ Table below (and §4.4) describes the retired TXS0108E design.** Current hardware is the single 8-channel discrete MOSFET board — see the callout in §2.5 and `Bench_Test_Map.md`. The GPIO/PCNT/Dir-Sign columns are still correct (the ESP32 side of the interface didn't change); only the shifter part and its pin names changed. Also note: front (GTK08) and rear (RMCS-2086) encoders use **different wire colours for A/B** — the Yellow/Green convention below is the RMCS (rear) convention only. See `LevelShifter_Wiring.md` §5 before wiring a front channel.
+
+Encoder signals are 5V. ESP32 GPIOs are 3.3V. Level shifting is MANDATORY.
 
 |           |                    |                   |            |            |               |              |
 |-----------|--------------------|-------------------|------------|------------|---------------|--------------|
@@ -195,7 +201,7 @@ Encoder signals are 5V. ESP32 GPIOs are 3.3V. TXS0108E level shifting is MANDATO
 
 **⚠ MOTOR_DIR_SIGN and ENC_DIR_SIGN MUST be identical per motor. If they differ, the PID loop sees positive feedback → motor runaway.**
 
-**4.4 TXS0108E Level Shifter Wiring**
+**4.4 TXS0108E Level Shifter Wiring (RETIRED — see §2.5)**
 
 |                  |                                     |                                  |
 |------------------|-------------------------------------|----------------------------------|
@@ -304,6 +310,15 @@ emergency_stop = false; // DELETE THIS ENTIRE BLOCK
 
 **6.2 PID + Feedforward Parameters**
 
+> **⚠ SUPERSEDED by firmware v3.0 (4 Aug 2026). See [`PID_Calibration.md`](PID_Calibration.md) for the current values and the data behind them.**
+>
+> The table below documents v2.0 and is kept for history. Three things in it are now known to be wrong:
+> - **`Encoder CPR = 93,132` is only true for the rears.** FR/FL now carry GTK08 encoders at **186,264 CPR**. A single shared constant makes the fronts read double their true speed and run at half the commanded velocity.
+> - **The per-motor `Kff` spread (40.2 – 47.9) is an artefact** of the faulty-encoder era. Re-measured on the confirmed-good path, all four motors fall inside a 3 % band: `{37.3, 38.4, 38.3, 38.0}`.
+> - **`Ki = 30` is roughly an order of magnitude too low.** It moved the output ~3 PWM/s at 0.1 rad/s of error, which is the direct cause of the 3.79 s worst-case settling time recorded on 14 May. v3.0 uses **250**, derived from the measured plant gain.
+>
+> v3.0 also drops the ESP32-hosted WiFi joystick entirely — the Pi is the only command source — so the WiFi override row no longer applies.
+
 |                           |             |                                                                                                                       |
 |---------------------------|-------------|-----------------------------------------------------------------------------------------------------------------------|
 | **Parameter**             | **Value**   | **Description**                                                                                                       |
@@ -357,7 +372,9 @@ timestamp_ms, FR_tgt, FR_act, FR_pwm, FL_tgt, FL_act, FL_pwm, RR_tgt, RR_act, RR
 
 13 columns. Velocities in rad/s. Logged at 10Hz. The Pi logger (aislebot_telemetry_logger.py) reads this via --port /dev/ttyUSB0 and computes error = actual − target on the Pi side.
 
-**6.6 WiFi Configuration**
+**6.6 WiFi Configuration (REMOVED in firmware v3.0 — historical)**
+
+> **⚠ The ESP32 hosts no WiFi network as of v3.0 (4 Aug 2026).** The radio, WebSocket server and joystick page were removed; the Pi is the sole command source. The table below describes v2.0 and is retained for history only. See `Research_Journal.md` Part XVI §16.6 and `Network_SelfHosted_AP.md`.
 
 |                      |                                                                                                  |
 |----------------------|--------------------------------------------------------------------------------------------------|

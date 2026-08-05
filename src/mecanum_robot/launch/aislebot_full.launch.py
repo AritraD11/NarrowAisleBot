@@ -111,7 +111,7 @@ def generate_launch_description():
         parameters=[{
             'serial_port':     LaunchConfiguration('esp32_port'),
             'baud_rate':       921600,
-            'max_wheel_speed': 6.28,
+            'max_wheel_speed': 5.20,
         }],
         output='screen',
     )

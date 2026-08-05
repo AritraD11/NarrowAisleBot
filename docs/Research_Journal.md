@@ -176,7 +176,7 @@ A complete list of every component currently installed on AisleBot, with the rat
 | **Component**     | **Specification**                                   | **Role**                                                                                                                |
 |-------------------|-----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
 | Raspberry Pi 5    | Ubuntu 24.04.4 LTS + ROS 2 Jazzy                    | Planning, perception, ROS 2 nodes, future SLAM / Nav2                                                                   |
-| ESP32-WROOM-32    | 38-pin module, CP2102 USB-UART, 240 MHz, 4 MB flash | Real-time PID + feedforward velocity controller at 50 Hz, encoder counting via PCNT, WiFi AP for joystick teleoperation |
+| ESP32-WROOM-32    | 38-pin module, CP2102 USB-UART, 240 MHz, 4 MB flash | Real-time PID + feedforward velocity controller at **100 Hz** (v3.0; was 50 Hz), encoder counting via PCNT. **WiFi removed in v3.0** — the Pi is the sole command source (Part XVI) |
 | Arduino Mega 2560 | ATmega2560, 16 MHz                                  | UV-arm stepper controller (separate subsystem)                                                                          |
 
 The dual-microcontroller split is deliberate. The ESP32 has the throughput and hardware peripherals needed for four-channel quadrature encoder counting at the ~93,000 pulses/second the drive motors produce under load. The Mega cannot service that interrupt rate while also handling stepper drivers, so responsibilities are partitioned by physical capability rather than by software architecture.
@@ -189,9 +189,20 @@ The dual-microcontroller split is deliberate. The ESP32 has the throughput and h
 | Operating voltage                  | 24 V DC                                  |
 | No-load speed                      | 60 RPM (≈ 6.28 rad/s)                    |
 | Gear ratio                         | 1 : 47                                   |
-| Encoder type                       | Quadrature (A / B channels), built-in    |
-| Encoder CPR (full quadrature)      | 93,132 counts per output revolution      |
+| Encoder type                       | Quadrature (A / B channels) — **two different types since Aug 2026, see below** |
+| Encoder CPR (full quadrature)      | **Front (FR/FL) 186,264 · Rear (RR/RL) 93,132** counts per output revolution |
 | Encoder pulses at max load (all 4) | ≈ 93 k pulses / second across the system |
+
+**The four motors no longer carry identical encoders.** The two front units were replaced with GTK08 encoders after the original RMCS-2086 optical encoders failed (`RMCS-2086_Encoder_Replacement.md`); the rears keep the originals. They differ by exactly 2× in resolution:
+
+| | Front — FR, FL | Rear — RR, RL |
+|---|---|---|
+| Encoder | GTK08 | RMCS-2086 built-in optical |
+| Resolution | 1000 PPR | 500 lines |
+| CPR at the wheel | 1000 × 4 × 46.566 = **186,264** | 500 × 4 × 46.566 = **93,132** |
+| Supply | 5 V | 5 V |
+
+Both are handled by a single per-motor `ENCODER_CPR[]` array in firmware, which normalises them to identical rad/s output — the mechanism, and the silent failure that results from getting it wrong, are documented in `PID_Calibration.md` §1. The motors and gearboxes themselves are unchanged and identical.
 
 > *Why the encoder pulse rate matters: at the system-wide peak of ~93 k pulses/s, ISR-based encoder counting on an ATmega2560 saturates the CPU and corrupts the velocity estimate. This single fact is the technical reason the project migrated motor control off the Mega and onto the ESP32, whose PCNT hardware peripheral handles quadrature decoding with zero CPU overhead.*
 
@@ -231,12 +242,20 @@ Choosing LiFePO₄ over Li-ion was a safety decision. Thermal runaway tolerance 
 
 ## 3.6 Level shifters
 
-The ESP32 operates at 3.3 V logic; the motor encoders output 5 V signals. Two TXS0108E bidirectional level-shifter boards translate between the two voltage domains, one handling the front axle and the other the rear.
+The ESP32 operates at 3.3 V logic; the motor encoders output 5 V signals, so a level shifter between them is mandatory.
 
-| **Shifter** | **Side A (ESP32 3.3 V)** | **Side B (encoder 5 V)**   | **Channels in use**      |
-|-------------|--------------------------|----------------------------|--------------------------|
-| U1 (front)  | From ESP32 GPIO          | To FR encoder + FL encoder | FR (A1, A2), FL (A3, A4) |
-| U2 (rear)   | From ESP32 GPIO          | To RR encoder + RL encoder | RR (A1, A2), RL (A3, A4) |
+**Current hardware (since 4 Aug 2026): one 8-channel discrete MOSFET (BSS138-style) bidirectional board** carrying all four encoders — both channels each — on a single part.
+
+| **Rail / bus** | **Connects to** |
+|---|---|
+| `LV+` / `LV−` | ESP32 `3V3` / common GND — **LV must be the LOWER voltage** |
+| `HV+` / `HV−` | Buck 5 V / common GND |
+| `H0`–`H7` | Encoder A/B outputs (5 V side), in PCNT order FR, FL, RR, RL |
+| `L0`–`L7` | ESP32 GPIO 36, 39, 34, 35, 32, 33, 25, 26 |
+
+No OE pin (one of the two recurring TXS0108E failure modes is structurally impossible on this board), no external pull-ups needed (it has its own on both sides), and per-channel LEDs give a visual signal check before opening a serial monitor. Full pin-by-pin wiring: `Bench_Test_Map.md` §"Full 8-channel wiring".
+
+*Retired:* the previous design used **two TXS0108E boards** (U1 front, U2 rear, 4 of 8 channels each). It is documented in `LevelShifter_Wiring.md`, kept for its still-valid principles — signal direction, common grounding, and the GTK08-vs-RMCS wire-colour trap. The swap rationale is in Part XVI §16.3.
 
 Power is daisy-chained: ESP32 3V3 → U1 V_CCA → U2 V_CCA, and Buck 5 V → U1 V_CCB → U2 V_CCB. Output Enable (OE) is tied to V_CCA on both boards. This daisy-chain has been the source of two debugging episodes — a broken wire on U2 ch1/2 took down RR; a later break on U2 ch3/4 took down RL. See Part VII for details.
 
@@ -246,7 +265,7 @@ Power is daisy-chained: ESP32 3V3 → U1 V_CCA → U2 V_CCA, and Buck 5 V → U1
 |---------------------------|-----------------------------------------------------------------------------------------------------|---------------------------------------------------------|
 | 16×2 character LCD        | I²C interface via PCF8574 backpack, address 0x27                                                    | On-robot status display: mode, wheel directions, errors |
 | Xbox 360 controller       | Dual analog sticks + buttons over USB                                                               | Primary teleoperation input                             |
-| WiFi-based phone joystick | Hosted by ESP32 AP (SSID AisleBot-Control, password aislebot123) at HTTP port 80, WebSocket port 81 | Secondary teleoperation when Pi is unavailable          |
+| ~~WiFi-based phone joystick~~ | ~~Hosted by ESP32 AP (SSID AisleBot-Control) at HTTP :80, WebSocket :81~~ | **REMOVED in firmware v3.0 (Aug 2026).** The ESP32 no longer runs a radio at all. Teleop is Pi-only; E-STOP now goes via the Pi dashboard or the serial link. See Part XVI §16.6 |
 
 ## 3.8 UV-arm subsystem (cargo handling)
 
@@ -411,7 +430,7 @@ The Mega drives the UV arm only. It uses the AccelStepper library for stepper-ac
 |------------------------|---------------------------------------------|-----------------------------------------------------------------------|
 | Pi WiFi (college SSID) | 10.53.6.122 / 16                            | Primary network when in the lab                                       |
 | Pi eth0 (laptop ICS)   | 192.168.137.x                               | Pi powered + tethered to Windows laptop's Internet Connection Sharing |
-| ESP32 WiFi (AP mode)   | SSID AisleBot-Control, password aislebot123 | WiFi joystick fallback; HTTP :80, WebSocket :81                       |
+| ~~ESP32 WiFi (AP mode)~~ | ~~SSID AisleBot-Control~~                  | **REMOVED in v3.0** — ESP32 hosts no network. Part XVI §16.6          |
 | Phone dashboard        | http://10.53.6.122:8080/                    | FastAPI/uvicorn UI served by phone_dashboard.py                       |
 
 SSH access is over ethernet only — keeps the WiFi link free of bulk file transfers and avoids the latency variation that comes with college WiFi.
@@ -1605,7 +1624,7 @@ Historically the Pi joined college WiFi (eduroam / 10.53.x.x, an address that ch
 
 `10.42.0.1` never changes — NetworkManager's shared mode always places the AP host there, so dashboard and SSH targets are stable every session. Phone and PC can both join simultaneously (drive from the phone, watch logs over SSH from the PC).
 
-Two honest caveats recorded for the record: (a) the AP does **not** yet start automatically on boot — autoconnect is off, so after a reboot the Pi returns to eduroam and the AP must be raised by hand (`sudo nmcli con up aislebot-ap`); making it the permanent default means writing it into netplan config, which is the next step. (b) The Pi has one radio, so hosting the AP means no internet; to go online, switch back to eduroam (`sudo nmcli con up eduroam`), which drops the current SSH session by design. The ESP32's own AP (`AisleBot-Control` @ `192.168.4.1`) remains the independent escape hatch for when the Pi itself is down — the PID lives on the ESP32, so the robot can still be driven or stopped with the Pi gone. Full detail in `docs/Network_SelfHosted_AP.md`.
+Two honest caveats recorded for the record: (a) the AP does **not** yet start automatically on boot — autoconnect is off, so after a reboot the Pi returns to eduroam and the AP must be raised by hand (`sudo nmcli con up aislebot-ap`); making it the permanent default means writing it into netplan config, which is the next step. (b) The Pi has one radio, so hosting the AP means no internet; to go online, switch back to eduroam (`sudo nmcli con up eduroam`), which drops the current SSH session by design. ~~The ESP32's own AP (`AisleBot-Control` @ `192.168.4.1`) remains the independent escape hatch for when the Pi itself is down.~~ **No longer true as of firmware v3.0 (4 Aug 2026)** — the ESP32's radio was removed entirely, so this escape hatch does not exist. The PID still lives on the ESP32 and still fails safe on its own (command watchdog stops the motors ~750 ms after the Pi goes quiet), but there is no longer any way to *drive* the robot with the Pi down. See Part XVI §16.6. Full detail in `docs/Network_SelfHosted_AP.md`.
 
 ## 14.3 A real config bug fixed in passing — CycloneDDS on Jazzy
 
@@ -1741,6 +1760,20 @@ Cross-checking the recovered CSV's embedded `pi_time_s` (`1782997353.3266` → `
 As of today, the encoder feedback loop is closed end-to-end on confirmed-good hardware: all four encoders verified `HEALTHY` through all eight channels of the new shifter board (§16.1, §16.3), per-motor CPR corrected in firmware, PID/feedforward recalibrated against real bench data, and the ESP32 reflashed with v3.0 and running (§16.2 update). That's the hardware+firmware side of the two-month encoder hurdle — done.
 
 What's still open before calling the *controller* validated: ground-load recalibration (air-calibrated `Kff`/`Kstat` are expected to rise 10–30% under real chassis weight — `PID_Calibration.md` §7) and the plant-ID bench run for `Kp` (§16.1, τ still unmeasured). Ground testing starts next — first calibration, then wheel odometry accuracy (feeds `odometry_publisher.py`, already in the tree), then SLAM/Nav2 tuning on top of that.
+
+One capability regression to carry forward alongside that: §16.6.
+
+## 16.6 Consequence of removing WiFi: the ESP32 escape hatch is gone
+
+Recorded separately because it is a **safety-relevant capability loss**, not just a code cleanup, and it was not called out when the change was made.
+
+Firmware v3.0 removes the ESP32's WiFi AP, WebSocket server and joystick page (§16.1, item 1). Several documents described that AP (`AisleBot-Control` @ `192.168.4.1`) as the independent escape hatch for a dead Pi — `Network_SelfHosted_AP.md`, `Master_Reference.md` §6.6, Part III §3.7, Part XIV. All of those are now stale and have been corrected.
+
+**What was lost:** the ability to *drive* the robot with the Pi down (crash, SD corruption, kernel panic, USB drop). That was the escape hatch's entire purpose.
+
+**What still holds without the Pi:** the ESP32's own command watchdog stops the motors ~750 ms after commands stop arriving, and the runaway / stall / overspeed trips latch E-STOP autonomously. So a dead Pi now produces a **stopped** robot rather than a drivable one — the safer of the two failure modes, but genuinely less capable. The only manual override that does not depend on the Pi is now the battery disconnect, which must stay physically reachable during ground testing.
+
+Restoring a hardware-independent override (a 2.4 GHz RC receiver on a spare ESP32 input, or a minimal WiFi E-STOP-only endpoint that doesn't reintroduce the arbitration path v3.0 deliberately deleted) is an open item.
 
 # Appendix A — Document Catalogue
 
@@ -1896,6 +1929,6 @@ Every supporting document, organised by category. Update this as new artefacts a
 | 09 June 2026 | v1.2        | Firmware audit pass against aislebot_esp32_v2.ino. Table 17 corrected (was Mega-era D-pin numbers; now ESP32 GPIO map). Added Part XII (ESP32 Firmware Deep Dive). Three explicit reconciliations: D14-D21 vs ESP32 GPIOs, 921600 vs 115200 baud, physical wire swap vs software sign arrays. Note: v1.1 was an interim file with no content delta from v1.0 (file-name renumbering only). |
 | 22 June 2026 | v1.3        | Added the UV-C tube lighting subsystem section (embedded in Part IX): hardware inventory from bench photos, the continuously-powered-inverter / 240 V-side staged-relay architecture, the cross-inverter safety rule, the aislebot_arm_v7 → v8 firmware changes (staged `<U1>`/`<U0>`/`<U?>`), the arm_bridge.py / phone_dashboard.py integration, the 22 June deployment, and the open items (floating-pin strike on unpowered Mega, pack BMS rating, burn-in, warning beacon). (Logged retroactively.) |
 | 08 July 2026 | v2.0        | Major update — Phase 3 opened. Added Part XIII (LiDAR + SLAM bringup: YDLIDAR X4 Pro, the identical-CP2102 udev port-pinning, the best-effort/reliable QoS relay, rf2o dropped, the scan-matching-only slam_nodom pipeline, verified 26 June). Added Part XIV (dashboard v2.2 desktop mouse+keyboard, self-hosted AisleBot-Pi AP, CycloneDDS Jazzy syntax fix, repository consolidation + rename to NarrowAisleBot, MIT license, checksum-verified-against-Pi discipline). Added Part XV (current status snapshot, superseding Part IX). Updated Part X Phase 3 from planned-RPLiDAR to as-built YDLIDAR. Updated Appendix A firmware/file names (esp32_v2→esp32, arm_v7→arm v8, +scan_relay, +A.6 LiDAR configs). |
-| 04 Aug 2026  | v2.1        | Added Part XVI: the encoder-fault bench resolution (FR/FL cross-connection, not the shifter — full detail in `Bench_Test_Map.md`), the resulting per-motor-CPR firmware bug and its fix, and the full v3.0 PID/feedforward recalibration (two-term FF, Ki 30→250, dynamic anti-windup, 100 Hz loop, WiFi removed — derivation in `docs/PID_Calibration.md`). Logged the recovery and review of two bench CSVs: `run_20260702_183233.csv` (old firmware, pre-fix; 3–6% RMS tracking error) and, same day, `run_20260804_193703.csv` (post-flash confirmation on v3.0, wheels in air; 2.0–2.4% RMS error, 0% saturation, zero direction-sign faults). Documented the TXS0108E → single 8-channel discrete-MOSFET level shifter hardware swap and updated `Master_Reference.md` §2.5/§4.3–4.4 and `LevelShifter_Wiring.md` (now marked retired) accordingly. Logged a new open item: the Pi has no battery-backed RTC and its clock reliability during no-WAN operation is now flagged rather than assumed — one of the two CSVs above had a correct timestamp, the other didn't, which is exactly the failure mode this flags. Added B.6 (infrastructure TODOs). Declared the encoder feedback loop closed on the hardware+firmware side (§16.5); ground calibration is next. Noted Part XV as partially superseded for control-related content. |
+| 04 Aug 2026  | v2.1        | Added Part XVI: the encoder-fault bench resolution (FR/FL cross-connection, not the shifter — full detail in `Bench_Test_Map.md`), the resulting per-motor-CPR firmware bug and its fix, and the full v3.0 PID/feedforward recalibration (two-term FF, Ki 30→250, dynamic anti-windup, 100 Hz loop, WiFi removed — derivation in `docs/PID_Calibration.md`). Logged the recovery and review of two bench CSVs: `run_20260702_183233.csv` (old firmware, pre-fix; 3–6% RMS tracking error) and, same day, `run_20260804_193703.csv` (post-flash confirmation on v3.0, wheels in air; 2.0–2.4% RMS error, 0% saturation, zero direction-sign faults). Documented the TXS0108E → single 8-channel discrete-MOSFET level shifter hardware swap and updated `Master_Reference.md` §2.5/§4.3–4.4 and `LevelShifter_Wiring.md` (now marked retired) accordingly. Logged a new open item: the Pi has no battery-backed RTC and its clock reliability during no-WAN operation is now flagged rather than assumed — one of the two CSVs above had a correct timestamp, the other didn't, which is exactly the failure mode this flags. Added B.6 (infrastructure TODOs). Declared the encoder feedback loop closed on the hardware+firmware side (§16.5); ground calibration is next. Brought Part III's hardware inventory up to date (dual-encoder split with the GTK08 fronts, the discrete-MOSFET level shifter, ESP32 at 100 Hz with no radio) and documented the CPR-normalisation mechanism in `PID_Calibration.md` §1. Recorded §16.6: removing WiFi also removed the ESP32 escape hatch, a safety-relevant capability loss that several docs still described as live — all corrected. Noted Part XV as partially superseded for control-related content. |
 
 Future revisions append rows here. When in doubt about whether something deserves an entry, err toward writing it — the value of this document is the path travelled.

@@ -42,6 +42,67 @@ cross-connection was found. Re-measured on the confirmed-good path, all
 four motors fall inside a **3 % band**. The four near-identical numbers
 in v3.0 are what the hardware actually does.
 
+### How two different encoders produce the same number
+
+Worth being explicit about, because "half the robot has a different
+sensor" sounds like it should need correction factors scattered through
+the code. It doesn't. The entire mechanism is one array and one division.
+
+Both encoders measure the same physical thing — rotation of the wheel —
+and differ only in how finely they slice it. The velocity calculation in
+`pidControlTask()` is:
+
+```c
+int32_t delta   = readEncoderDelta(i);              // counts this tick
+float   rev     = (float)delta / ENCODER_CPR[i];    // counts -> revolutions
+float   raw_vel = rev * (2.0f * PI) / PID_DT;       // revolutions -> rad/s
+```
+
+`ENCODER_CPR[i]` is *counts per revolution of that motor's own wheel*.
+Dividing each motor's raw count by its own constant converts a
+sensor-specific quantity (edges) into a physical one (revolutions). The
+2× scale difference cancels exactly, because the encoder that produces
+twice as many counts is divided by a twice-larger number:
+
+| One full wheel revolution | Front (GTK08) | Rear (RMCS-2086) |
+|---|---|---|
+| Counts produced | 186,264 | 93,132 |
+| `ENCODER_CPR[i]` | 186,264 | 93,132 |
+| `delta / CPR` | **1.000 rev** | **1.000 rev** |
+
+Two wheels turning at identical speed report identical rad/s. Everything
+downstream — PID, feedforward, the mecanum IK, odometry — sees only rad/s
+and never learns which encoder produced it. There is no scaling term
+anywhere else in the firmware, and no per-motor special-casing.
+
+**What genuinely differs is resolution**, and only resolution:
+
+| | Front (GTK08) | Rear (RMCS-2086) |
+|---|---|---|
+| One count = | 3.37 × 10⁻⁵ rad of wheel rotation | 6.75 × 10⁻⁵ rad |
+| Velocity quantum at 100 Hz | **0.0034 rad/s** | **0.0067 rad/s** |
+
+Both sit far below the mechanical and electrical noise floor, so neither
+limits the velocity loop — which is why the velocity filter can stay
+light (`VEL_FILTER_ALPHA = 0.4`) without the derivative term picking up
+quantisation hash. The fronts being twice as precise matters for
+**odometry integration** (Phase 2), where counts accumulate over minutes,
+rather than for control.
+
+**Why getting this wrong is silent and serious.** Under a single shared
+`ENCODER_CPR = 93132`, a front wheel turning one revolution reports
+186,264 / 93,132 = **2.0 revolutions** — double its true speed. The
+controller believes it, sees itself overshooting, and cuts PWM until the
+*reported* speed matches the target, i.e. until the wheel is physically
+turning at **half** the commanded velocity. The rears, correctly scaled,
+track properly. The result is a permanent front/rear speed split that
+scales with commanded velocity: the robot yaws under pure translation and
+curves under commanded rotation, with no error, no warning, and clean
+tracking in every telemetry plot — because the loop *is* tracking, just
+tracking a lie. It is invisible to any test that doesn't independently
+cross-check front against rear, which is exactly why the 4 Aug bench
+campaign's front/rear count-ratio check (~2.0×) mattered so much.
+
 ---
 
 ## 2. Source data

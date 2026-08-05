@@ -372,7 +372,9 @@ timestamp_ms, FR_tgt, FR_act, FR_pwm, FL_tgt, FL_act, FL_pwm, RR_tgt, RR_act, RR
 
 13 columns. Velocities in rad/s. Logged at 10Hz. The Pi logger (aislebot_telemetry_logger.py) reads this via --port /dev/ttyUSB0 and computes error = actual − target on the Pi side.
 
-**6.6 WiFi Configuration**
+**6.6 WiFi Configuration (REMOVED in firmware v3.0 — historical)**
+
+> **⚠ The ESP32 hosts no WiFi network as of v3.0 (4 Aug 2026).** The radio, WebSocket server and joystick page were removed; the Pi is the sole command source. The table below describes v2.0 and is retained for history only. See `Research_Journal.md` Part XVI §16.6 and `Network_SelfHosted_AP.md`.
 
 |                      |                                                                                                  |
 |----------------------|--------------------------------------------------------------------------------------------------|

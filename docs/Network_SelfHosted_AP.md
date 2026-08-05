@@ -91,17 +91,25 @@ sudo nmcli con up aislebot-ap
 
 ROS2 runs exactly as before. CycloneDDS is bound to loopback, so node discovery never looked at WiFi in the first place. The dashboard code is unchanged; it binds to all interfaces and now just answers on `10.42.0.1`. The ESP32 serial bridge, the udev rules, and `aislebot.service` are all untouched.
 
-## Escape hatch — the ESP32's own AP
+## ⚠ Escape hatch — REMOVED in firmware v3.0 (4 Aug 2026)
 
-The ESP32's own AP stays. It is the escape hatch for when the Pi itself is dead: crash, SD corruption, kernel panic, USB drop. The PID lives on the ESP32, so even with the Pi gone you connect straight to it and drive the robot out of an aisle or stop it.
+**The ESP32 no longer hosts a WiFi network.** `AisleBot-Control` @ `192.168.4.1` does not exist on v3.0 firmware — the radio, WebSocket server, and joystick web page were all removed when the Pi became the sole command source (`Research_Journal.md` Part XVI). Any older note in these docs describing it as a live fallback is stale.
 
-| Setting | Value |
-|---|---|
-| SSID | `AisleBot-Control` |
-| Password | `aislebot123` |
-| Address | http://192.168.4.1 |
+**What this changes, practically:** there is no longer a way to *drive* the robot with the Pi down. That was the escape hatch's whole purpose, and it is gone.
 
-To use it, switch your phone off `AisleBot-Pi` and onto `AisleBot-Control`. You're on one network at a time, so reaching the backup is a deliberate "the Pi is down, switch networks" move.
+**What still protects you:**
+
+| Layer | Behaviour | Works if the Pi is dead? |
+|---|---|---|
+| ESP32 command watchdog | No command for 750 ms → motors ramp to stop | **Yes** — this is on the ESP32 itself |
+| ESP32 runaway / stall / overspeed trips | Latch E-STOP on fault | **Yes** |
+| Pi dashboard E-STOP | Sends `<S>`, latches until `<E1>` | No |
+| `Ctrl-C` in `nab_pid_logger.py` | Sends `<S>` then `<E0>` | No |
+| Battery main disconnect (SSR / physical) | Cuts power | **Yes** — the true last resort |
+
+So a dead Pi now means the robot **stops** (watchdog) rather than becoming drivable-by-other-means. That is the safer failure mode of the two, but it is a real capability loss: keep the battery disconnect physically reachable during ground testing, because it is now the only manual override that does not depend on the Pi.
+
+Restoring a hardware-independent escape hatch — a cheap 2.4 GHz RC receiver on a spare ESP32 input, or re-adding a minimal WiFi E-STOP-only endpoint — is an open item, not a solved problem.
 
 ## Troubleshooting
 

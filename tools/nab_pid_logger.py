@@ -373,9 +373,31 @@ def test_plant(link, args):
     return path
 
 
+def ols_fit(xs, ys):
+    """Least-squares line y = m*x + c. Pure Python -- no numpy dependency,
+    this script only needs pyserial so it stays runnable on the Pi as-is."""
+    n = len(xs)
+    if n < 2:
+        return None
+    sx = sum(xs); sy = sum(ys)
+    sxx = sum(x * x for x in xs); sxy = sum(x * y for x, y in zip(xs, ys))
+    denom = n * sxx - sx * sx
+    if abs(denom) < 1e-9:
+        return None
+    m = (n * sxy - sx * sy) / denom
+    c = (sy - m * sx) / n
+    return m, c
+
+
 def test_staircase(link, args):
     """PWM up in small steps from rest. The first step that produces
-    motion is Kstat (breakaway). Do it in the air, then on the floor."""
+    motion is a conservative (slightly high) estimate of breakaway PWM.
+    The more accurate numbers come from a straight-line fit through the
+    moving points: v = m*pwm + c, so Kff = 1/m (the viscous slope) and
+    Kstat = -c/m (the PWM x-intercept -- where the line crosses v=0, a
+    tighter estimate of true breakaway than 'first step that moved').
+    Do this in the air, then again on the floor -- the two Kff/Kstat
+    fits are what quantify the ground-load correction, not a guess."""
     print("\n=== STATIC FRICTION STAIRCASE (open loop) ===")
     print(f"    PWM {args.min_pwm} -> {args.max_pwm} step {args.pwm_step}, "
           f"{args.dwell:.1f} s each.\n")
@@ -418,16 +440,45 @@ def test_staircase(link, args):
                 breakaway[m] = pwm
         print(f"    {pwm:3d}  " + "".join(cells))
 
-    print("\n    === BREAKAWAY PWM (this is Kstat) ===")
-    vals = []
+    print("\n    === BREAKAWAY PWM (raw, conservative -- first step that moved) ===")
     for m in MOTORS:
         b = breakaway[m]
         print(f"    {m}: {b if b is not None else 'not reached'}")
-        if b is not None:
-            vals.append(b)
-    if vals:
-        print(f"\n    Firmware:  <K,{','.join(str(v) for v in vals)}>")
-        print("    Then make it permanent in Kstat[] in aislebot_esp32.ino.")
+
+    # Straight-line fit through the moving region: v = m*pwm + c.
+    # Only points at or above breakaway are in the linear (non-stiction)
+    # regime; below breakaway v=0 by definition and would bias the fit.
+    print("\n    === LINE FIT (v = m*pwm + c) -> Kff=1/m, Kstat=x-intercept ===")
+    fit_kff, fit_kstat = {}, {}
+    for i, m in enumerate(MOTORS):
+        if breakaway[m] is None:
+            print(f"    {m}: never broke away in this PWM range -- raise --max-pwm")
+            continue
+        pts = [(pwm, steady_state(col(rows, i, 1, True), t + args.dwell - 0.4, t + args.dwell))
+               for t, pwm in marks if pwm >= breakaway[m]]
+        pts = [(p, v) for p, v in pts if not math.isnan(v) and v > 0.02]
+        fit = ols_fit([p for p, _ in pts], [v for _, v in pts])
+        if fit is None or fit[0] <= 1e-6:
+            print(f"    {m}: not enough clean points to fit ({len(pts)} usable) -- "
+                  f"widen --max-pwm or --pwm-step")
+            continue
+        slope, intercept = fit
+        kff = 1.0 / slope
+        kstat = -intercept / slope
+        fit_kff[m], fit_kstat[m] = kff, kstat
+        print(f"    {m}: Kff={kff:6.2f} pwm/(rad/s)   Kstat={kstat:5.1f} pwm   "
+              f"(n={len(pts)} points, breakaway was {breakaway[m]})")
+
+    if len(fit_kstat) == len(MOTORS):
+        print(f"\n    Firmware:  <F,{','.join(f'{fit_kff[m]:.2f}' for m in MOTORS)}>")
+        print(f"               <K,{','.join(f'{fit_kstat[m]:.1f}' for m in MOTORS)}>")
+        print("    Then make these permanent in Kff[]/Kstat[] in aislebot_esp32.ino.")
+        print("\n    These Kff values also refine Ki (Ki = Kff / lambda, lambda=0.15s\n"
+              "    by default) and, once you have tau from --test plant, Kp = tau * Ki.\n"
+              "    See docs/PID_Calibration.md for the full derivation.")
+    else:
+        print("\n    Not all four motors got a clean fit -- see warnings above before "
+              "trusting these numbers.")
     return path
 
 

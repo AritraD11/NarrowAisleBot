@@ -65,17 +65,11 @@ else
     echo "[$(date +%H:%M:%S)] Mega found ✓"
 fi
 
-# ── Wait for Xbox controller (/dev/input/js0) ────────────────
-echo "[$(date +%H:%M:%S)] Waiting for Xbox controller..."
-for i in $(seq 1 10); do
-    [ -e /dev/input/js0 ] && break
-    sleep 1
-done
-
+# ── Xbox controller (/dev/input/js0) — none on this deployment ──
 if [ -e /dev/input/js0 ]; then
     echo "[$(date +%H:%M:%S)] Xbox controller found ✓"
 else
-    echo "[WARN] No joystick — phone dashboard still works"
+    echo "[$(date +%H:%M:%S)] No joystick configured for this robot — phone dashboard is primary control"
 fi
 
 # ── Launch ───────────────────────────────────────────────────

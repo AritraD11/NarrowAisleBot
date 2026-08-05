@@ -23,15 +23,15 @@ The Pi is its own WiFi network. No router, no eduroam, no IP hunting. Power it o
 
 Phone and PC can both be on it at the same time. Drive from the phone, watch logs over SSH on the PC, no conflict.
 
-## Current status — manual start only
+## Current status — persists across reboot
 
-Right now the AP does **not** start automatically on boot. Autoconnect is off, left over from testing as a safety net. If you reboot the Pi today it goes back to eduroam, and `10.42.0.1` won't exist until you bring the AP up by hand:
+Confirmed as of 5 Aug 2026: the AP survives a reboot with no manual step. `aislebot-ap` is written into a real, persistent netplan file (`/etc/netplan/90-NM-*.yaml`, not the `/run` copy that gets wiped) with `connection.autoconnect: yes` and `connection.autoconnect-priority: 10`. Neither `eduroam` nor `IITB-Wireless` sets a priority (default 0), so `aislebot-ap` always wins the boot-time autoconnect race regardless of what other networks are in range. Power-cycle the Pi and it comes back on `AisleBot-Pi` / `10.42.0.1` on its own.
+
+The manual command is still useful for the one real case it's needed — coming back from eduroam mid-session (see below):
 
 ```bash
 sudo nmcli con up aislebot-ap
 ```
-
-This Pi runs networking through netplan (NetworkManager is just the renderer underneath), and its live profiles sit in `/run`, which is wiped on every reboot. So locking the AP in as the permanent default means writing it into netplan's config, not relying on the autoconnect flag. That's the next step (not done yet).
 
 ## Getting the Pi online
 

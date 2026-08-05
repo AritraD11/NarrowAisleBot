@@ -19,6 +19,19 @@ A Raspberry Pi 5 / ROS 2 Jazzy robot whose defining feature is a non-collinear, 
 
 ---
 
+## Repository branches
+
+| Branch | Scope | Status |
+|---|---|---|
+| `main` | Stable baseline | Default branch |
+| `claude/nab-hardware-calibration` | **Main NAB robot** — hardware, encoders, level shifter, PID/feedforward calibration, bench & ground tests, mechanical/electrical design ideas and models | Active |
+| `claude/nab-raspi-ros` | **Raspberry Pi + ROS2 exclusively** — `src/`, `system/`, SLAM/Nav2, teleop, dashboard, every Pi-side change | Active |
+| `claude/narrowaislebot-prototype-arch-m9y94t` | Historical — original mini-scale prototype architecture design, plus the full encoder/level-shifter debugging campaign and firmware v3.0 PID calibration that happened on it before the split above. Left as-is; has an open PR (#4). Mini prototype build itself is deferred, not the current priority. | Frozen — do not rename (breaks the open PR) |
+
+`claude/nab-hardware-calibration` and `claude/nab-raspi-ros` both branch from the same confirmed-working commit (firmware v3.0, all 4 encoders + level shifter verified, PID calibrated — see `docs/PID_Calibration.md` and `docs/Bench_Test_Map.md`). Use whichever matches the work: hardware/firmware/calibration on one, Pi/ROS on the other. Two dead branches (`claude/telemetry-and-mecanum-tools`, `claude/zen-volta-ev72sf` — both fully merged into `main` already, PRs #1–#3 all closed) are pending manual deletion in GitHub settings; this environment's git proxy blocks branch deletion.
+
+---
+
 ## Fresh Pi — one command
 
 ```bash

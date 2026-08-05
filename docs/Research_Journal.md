@@ -1899,7 +1899,8 @@ Every supporting document, organised by category. Update this as new artefacts a
 
 - Decide mounting location — close to the geometric centre to minimise tangential acceleration mixing into yaw rate.
 
-- Decide host: ESP32 reads IMU over I²C and forwards over serial, vs Pi reads IMU directly.
+- ~~Decide host: ESP32 reads IMU over I²C and forwards over serial, vs Pi reads IMU directly.~~ **Resolved (5 Aug 2026): ESP32-hosted**, on G14 (SDA) / G13 (SCL), forwarded to the Pi as `[IMU]qw,qx,qy,qz,gx,gy,gz,ax,ay,az` — matching the parser that already exists (unused) in `esp32_bridge.py`. Reasoning: a BNO055 read at 100 Hz is a small, bounded-time I²C transaction, not comparable to the WiFi-stack load that motivated removing WiFi in v3.0, and ESP32-hosting keeps the IMU sample on the same 100 Hz loop as the wheel velocities — tighter time-sync for the EKF than two independently-clocked streams would give.
+- **New, found 5 Aug 2026 — fix before wiring the IMU up:** `esp32_bridge.py` publishes to `imu/data_raw`; `ekf_params.yaml`'s `imu0:` expects `imu/data`. Currently silent (no IMU exists to trigger it) — will silently starve the EKF of IMU input the day one is connected, with no obvious error. One-line topic remap or rename to fix.
 
 ## B.4 Phase 3 preparation
 

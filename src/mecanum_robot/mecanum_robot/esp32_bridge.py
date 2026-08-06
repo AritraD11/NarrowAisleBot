@@ -102,6 +102,14 @@ class ESP32Bridge(Node):
         # === Timers ===
         self.create_timer(self.reconnect_sec, self.check_connection)
         self.create_timer(1.0 / 20.0, self.watchdog_check)  # 20Hz watchdog
+        if self.telemetry_enabled:
+            # <L1> is otherwise only sent once, in connect_serial(). If the
+            # ESP32 resets on its own (e.g. brownout) fast enough that this
+            # bridge's serial layer never sees a disconnect, telemetry goes
+            # silent with no error anywhere while drive commands keep working
+            # (Research_Journal.md §16.10). Re-sending periodically means it
+            # self-heals instead of needing a manual <L1> every time.
+            self.create_timer(5.0, self.resend_telemetry_enable)
 
         # === Serial reader thread ===
         self.reader_thread = threading.Thread(target=self.serial_reader, daemon=True)
@@ -153,6 +161,10 @@ class ESP32Bridge(Node):
                         self.port = p.device
                     break
             self.connect_serial()
+
+    def resend_telemetry_enable(self):
+        if self.connected:
+            self.send_raw('<L1>')
 
     def send_raw(self, cmd):
         with self.serial_lock:

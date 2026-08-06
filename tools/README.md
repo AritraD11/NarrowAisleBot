@@ -30,7 +30,7 @@ then `<E0>` — so does any crash or a SIGTERM.
 | `--test` | Purpose |
 |---|---|
 | `plant` | Open-loop PWM steps, PID bypassed. Measures the plant time constant τ and DC gain, and prints the Kp/Ki they imply. **Run this first** — τ is the last unmeasured quantity in the controller. |
-| `staircase` | PWM ramped up from rest in steps of 2. Finds per-motor breakaway PWM = `Kstat`. Run once in the air, once on the floor; the difference is the ground-load correction. |
+| `staircase` | PWM ramped up from rest in steps of 2. Fits per-motor `Kff` and `Kstat` together (least-squares through the moving points). Run once in the air, once on the floor; the difference is the ground-load correction. **On the ground this drives in a straight line and can cover several metres** — add `--mode rotate` if the floor space isn't there; the wheels get the mecanum spin sign-pattern instead of a straight drive, so the chassis turns roughly in place while still loading the wheels against the floor the same way. |
 | `steps` | Closed-loop velocity steps. Rise, overshoot, settling time, steady-state error, PWM saturation — the verdict test for a gain set. |
 | `sweep` | `steps`, repeated across several gain sets, one CSV each. `--gains "45,250,0.5 70,250,0.5"` |
 | `record` | Log only. Drive the robot however you like (ROS 2 teleop, joystick); Ctrl-C to stop. |

@@ -35,6 +35,12 @@ TESTS
              Finds start-of-motion PWM = Kstat, and the low-speed slope.
              Run it in the air, then again on the floor — the difference
              between those two numbers is the ground-load correction.
+             ON THE GROUND this drives in a straight line, one continuous
+             ramp, and can cover several metres by the top of the range —
+             clear a runway first. Tight on space? Add --mode rotate: the
+             wheels get the mecanum sign pattern for a pure spin instead of
+             a straight drive, so the chassis turns roughly in place. Same
+             wheel-floor friction being measured, far less floor needed.
 
   steps      Closed-loop velocity steps through the PID.
              Rise time, overshoot, settling time, steady-state error.
@@ -80,6 +86,33 @@ except ImportError:
 
 
 MOTORS = ["FR", "FL", "RR", "RL"]
+
+# Sign pattern per mode, in FR/FL/RR/RL order -- matches the <M,fr,fl,rr,rl>
+# wire format exactly. 'translate' (default) drives all four the same way,
+# same as pushing all four pedals evenly -- the robot moves in a straight
+# line, which is why it needs a clear runway on the ground. 'rotate' uses
+# the sign pattern the mecanum IK assigns for a pure yaw (mecanumIK() in
+# aislebot_esp32.ino: wz>0 -> FR/RR positive, FL/RL negative), so the wheels
+# still roll against the floor under the same load -- same friction physics
+# -- but the chassis spins roughly in place instead of driving forward.
+# Not a mathematically perfect zero-translation spin: true zero-drift
+# rotation needs the outer pair (FR/RL, K_OUTER) slightly faster than the
+# inner pair (FL/RR, K_INNER) in velocity terms, and this is an open-loop
+# PWM command, not a velocity command, so per-motor Kff differences add a
+# little more residual drift on top of that. In practice this is a small
+# fraction of straight-line travel, not a fix for zero space, but it turns
+# "needs 3-5 m" into "needs under a meter" for the same PWM range.
+MODE_SIGNS = {
+    "translate": {"FR": +1, "FL": +1, "RR": +1, "RL": +1},
+    "rotate":    {"FR": +1, "FL": -1, "RR": +1, "RL": -1},
+}
+
+
+def pwm_quad(pwm, mode):
+    """Return the (fr, fl, rr, rl) PWM tuple for <M,...> at this base
+    magnitude and mode."""
+    s = MODE_SIGNS[mode]
+    return (pwm * s["FR"], pwm * s["FL"], pwm * s["RR"], pwm * s["RL"])
 
 BASE_HEADER = ["pi_time_s"] + [
     f"{m}_{f}" for m in MOTORS
@@ -305,7 +338,12 @@ def test_plant(link, args):
     back is the plant on its own: gain and time constant, no controller
     in the way. tau from this run is what pins down Kp."""
     print("\n=== PLANT IDENTIFICATION (open loop, PID bypassed) ===")
-    print("    Wheels in the air. Drives all four at once.\n")
+    if args.mode == "rotate":
+        print("    ROTATE mode: robot spins roughly in place, not a straight-line drive.")
+        print("    Ground use: still needs some clearance (residual drift), just far less.\n")
+    else:
+        print("    Wheels in the air, or ground TRANSLATE mode: drives all four the same way.")
+        print("    On the ground this is a straight-line drive -- clear a runway first.\n")
 
     link.send("<E1>")
     link.send("<W0>")          # no command watchdog — <M> is not a <V>
@@ -320,7 +358,8 @@ def test_plant(link, args):
             link.send("<M,0,0,0,0>", 0)
             time.sleep(1.5)
             t_step = time.time()
-            link.send(f"<M,{sign*pwm},{sign*pwm},{sign*pwm},{sign*pwm}>", 0)
+            fr, fl, rr, rl = pwm_quad(sign * pwm, args.mode)
+            link.send(f"<M,{fr},{fl},{rr},{rl}>", 0)
             marks.append((t_step, sign * pwm))
             print(f"    step -> PWM {sign*pwm:+4d}   ({time.time()-t0:5.1f} s)")
             time.sleep(args.plant_hold)
@@ -400,7 +439,14 @@ def test_staircase(link, args):
     fits are what quantify the ground-load correction, not a guess."""
     print("\n=== STATIC FRICTION STAIRCASE (open loop) ===")
     print(f"    PWM {args.min_pwm} -> {args.max_pwm} step {args.pwm_step}, "
-          f"{args.dwell:.1f} s each.\n")
+          f"{args.dwell:.1f} s each.")
+    if args.mode == "rotate":
+        print("    ROTATE mode: spins roughly in place -- far less travel than "
+              "a straight-line ramp, but not exactly zero.\n")
+    else:
+        print("    TRANSLATE mode: on the ground this is ONE CONTINUOUS DRIVE in "
+              "one direction, speed increasing the whole time. Clear a runway, "
+              "or use --mode rotate if space is tight.\n")
 
     link.send("<E1>")
     link.send("<W0>")
@@ -413,7 +459,8 @@ def test_staircase(link, args):
         link.send("<M,0,0,0,0>", 0)
         time.sleep(0.6)                       # let it come fully to rest
         t_step = time.time()
-        link.send(f"<M,{pwm},{pwm},{pwm},{pwm}>", 0)
+        fr, fl, rr, rl = pwm_quad(pwm, args.mode)
+        link.send(f"<M,{fr},{fl},{rr},{rl}>", 0)
         marks.append((t_step, pwm))
         time.sleep(args.dwell)
         print(f"    PWM {pwm:3d}")
@@ -476,6 +523,14 @@ def test_staircase(link, args):
         print("\n    These Kff values also refine Ki (Ki = Kff / lambda, lambda=0.15s\n"
               "    by default) and, once you have tau from --test plant, Kp = tau * Ki.\n"
               "    See docs/PID_Calibration.md for the full derivation.")
+        if args.mode == "rotate":
+            print("\n    NOTE: this was run in --mode rotate (spinning, not driving\n"
+                  "    straight). Each wheel still rolled against the floor under the\n"
+                  "    same load, so these numbers are expected to be close to a\n"
+                  "    straight-line run -- but they are not identical: a spin loads\n"
+                  "    each wheel's rollers at a slightly different angle than a\n"
+                  "    straight drive does. Treat as a strong estimate, and cross-check\n"
+                  "    against a short --mode translate run if you get more floor space.")
     else:
         print("\n    Not all four motors got a clean fit -- see warnings above before "
               "trusting these numbers.")
@@ -610,6 +665,12 @@ def main():
 
     ap.add_argument("--test", required=True,
                     choices=["plant", "staircase", "steps", "sweep", "record"])
+    ap.add_argument("--mode", choices=["translate", "rotate"], default="translate",
+                    help="plant/staircase only: 'translate' drives straight (needs "
+                         "a clear runway on the ground). 'rotate' spins roughly in "
+                         "place instead -- use this when floor space is tight. "
+                         "No effect on steps/sweep/record (those go through the "
+                         "closed-loop IK, not raw <M>).")
     ap.add_argument("--port", default=None, help="default: autodetect")
     ap.add_argument("--baud", type=int, default=921600)
     ap.add_argument("--logdir", default="~/aislebot_logs")
@@ -649,7 +710,16 @@ def main():
 
     if args.test != "record":
         print("\n" + "=" * 62)
-        print("  WHEELS MUST BE IN THE AIR. This drives all four motors.")
+        if args.test in ("plant", "staircase") and args.mode == "translate":
+            print("  GROUND: this drives in a STRAIGHT LINE, one continuous ramp.")
+            print("  Clear several metres in the direction the robot is facing,")
+            print("  or re-run with --mode rotate if space is tight.")
+        elif args.test in ("plant", "staircase") and args.mode == "rotate":
+            print("  ROTATE mode: spins roughly in place. Still clear >=1 m all")
+            print("  round -- residual drift is real, just far smaller.")
+        else:
+            print("  Closed-loop test. Confirm wheels are clear to move and the")
+            print("  battery disconnect is reachable before continuing.")
         print("  Ctrl-C stops everything (<S> then <E0>).")
         print("=" * 62)
         try:

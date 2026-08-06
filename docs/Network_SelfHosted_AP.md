@@ -85,7 +85,7 @@ sudo nmcli con up aislebot-ap
 #       the AP is back up (~10-15s).
 ```
 
-**Do step 4 every round trip, not just when something looks wrong.** The Pi has no battery-backed RTC, so the clock drifts out of sync the moment it reboots without WAN — it doesn't announce this, a file's timestamp just quietly becomes untrustworthy. See `Research_Journal.md` Part XVI §16.4 for how this was found and why a hardware RTC (DS3231) is the real fix.
+**Update (6 Aug 2026): step 4 is no longer required for routine use.** A DS3231 RTC is now wired in and keeps correct time across reboots with zero network needed — see `Research_Journal.md` Part XVI §16.4 for the fix. This round trip is still the right sequence for its other purpose (pulling CSVs off the Pi), just not clock-driven anymore; do step 4 only if you suspect the RTC itself has drifted or lost its charge.
 
 ## What's unaffected by this
 

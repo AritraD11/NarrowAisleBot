@@ -51,11 +51,17 @@ Trend: worst-motor tracking error has gone 4.5% → 2.4% → 1.4% across the thr
 
 ## Ground runs (on the floor)
 
-| Run | Date | Firmware | Type | Worst RMS error | Ground vs air PWM gap | Verdict |
-|---|---|---|---|---|---|---|
-| [`run_20260806_152810`](ground/analysis/run_20260806_152810.md) | 6 Aug 2026 | v3.0, air-calibrated gains (not yet ground-refit) | live drive, full weight | RL 4.0% of peak | **+12–15%** at matched velocities (measured, not just predicted) | Loop stable on real ground — zero saturation, zero sign faults. Confirms the predicted ground-load Kff increase quantitatively. New finding: ~3–5× more steady-state velocity ripple than air, cause not yet confirmed. **Not a substitute for the structured `staircase`/`plant` tests** — still a drive session, can't separate Kff from Kstat or measure τ. |
+| Run | Date | Firmware | Type | Worst RMS error | PWM sat | Sign faults | Diagonal dev. |
+|---|---|---|---|---|---|---|---|
+| [`run_20260806_152810`](ground/analysis/run_20260806_152810.md) | 6 Aug 2026, 15:28 | v3.0, air-calibrated gains | live drive, full weight | RL 4.0% of peak | 0% | 0 | 0.036/0.035 rad/s |
+| [`run_20260806_183540`](ground/analysis/run_20260806_183540.md) | 6 Aug 2026, 18:35 | v3.0, air-calibrated gains | live drive, full weight | RR 3.1% of peak | 0% | 0 | 0.044/0.044 rad/s |
+| [`run_20260806_184938`](ground/analysis/run_20260806_184938.md) | 6 Aug 2026, 18:49 | v3.0, air-calibrated gains | live drive, full weight | FL 4.1% of peak | 0% | 0 | 0.045/0.045 rad/s |
 
-First real-floor data. Confirms the direction and rough size of the predicted ground-load correction (§7 in `PID_Calibration.md`) directly from driving, ahead of the structured tests. See the linked report for the full matched-plateau comparison and the ripple investigation.
+All three: loop stable on real ground, zero saturation, zero direction-sign faults. Diagonal deviation (matched-target samples — see below) is tight and consistent across all three sessions, several hours apart: **0.035–0.045 rad/s**, no sign of a per-wheel hardware asymmetry.
+
+**Ground-load Kff gap — confirmed real, size is noisier than the first estimate.** The first run's three matched-amplitude plateaus gave a clean +12–15% (`run_20260806_152810` report). Checking the same matched levels across the two later runs tells a messier story: individual plateaus range from **+1% to +24%** above the air baseline, not a tight band. Plausible cause: casual driving covers different physical patches of floor and headings, unlike a staircase test held in one spot — floor-texture variation is now a real suspect alongside pure weight-loading. **This is exactly the reason the structured `staircase` test matters more, not less** — it isolates the measurement from this location-dependent noise by holding position while sweeping PWM, rather than averaging over wherever the robot happened to be driving.
+
+See the `run_20260806_152810` report for the full matched-plateau method and the steady-state ripple investigation (still unconfirmed cause, present in all three sessions — reproducible, not a one-off).
 
 ## What every analysis checks
 
@@ -66,12 +72,15 @@ on across these three runs:
 - PWM saturation % and headroom
 - Direction-sign mismatches (target/actual opposite sign at speed — the
   tell for a `MOTOR_DIR_SIGN`/`ENC_DIR_SIGN` fault)
-- Diagonal-pair deviation (FR−RL, FL−RR), **restricted to same-sign-target
-  samples** — rotation commands legitimately put a diagonal pair at
-  opposite-sign targets, and computing this over all samples produces a
-  false alarm. (This mistake was made and caught once already — see
-  `docs/Research_Journal.md` Part XVI §16.2 — the tool now does the
-  correct thing by default.)
+- Diagonal-pair deviation (FR−RL, FL−RR), **restricted to matched-target
+  samples** (|Δtarget| < 0.1 rad/s) — same-sign alone isn't tight enough:
+  blended joystick input (forward+strafe+turn together) can put a
+  same-sign diagonal pair at genuinely different targets, and the
+  resulting actual-velocity gap is then correct tracking, not a fault.
+  Caught twice on this project now: first as same-sign vs. opposite-sign
+  (rotation), then as same-sign-but-different-magnitude (blended driving)
+  — see `docs/Research_Journal.md` Part XVI §16.2. The tool applies the
+  matched-target filter by default.
 - Sample-rate / gap check
 - Embedded-timestamp sanity: does `pi_time_s` decode to a plausible date
   that matches the filename (the Pi has no battery-backed RTC — Part XVI

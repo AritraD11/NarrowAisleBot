@@ -12,10 +12,17 @@ the same checks applied by hand to every CSV reviewed in this project:
   - Direction-sign mismatch count (tgt/act opposite sign at speed —
     the tell for a MOTOR_DIR_SIGN/ENC_DIR_SIGN fault)
   - Diagonal-pair deviation (FR-RL, FL-RR), computed ONLY over rows where
-    both wheels are commanded the same sign — rotation commands legitimately
-    put diagonal pairs at opposite sign and will otherwise produce a false
-    alarm (this exact mistake was made and corrected once already on this
-    project — see docs/Research_Journal.md Part XVI 16.2)
+    both wheels are commanded to (approximately) the SAME target velocity
+    — same-sign alone isn't tight enough, since blended joystick input
+    (forward+strafe+turn together) can put a same-sign pair at genuinely
+    different targets, and the resulting actual-velocity gap is then
+    correct tracking, not a fault. Confirmed on real data: a same-sign-only
+    filter reported FR-RL RMS 0.105 rad/s on one ground run; restricting to
+    matched targets dropped it to 0.044, with the removed samples' actual
+    difference matching their target difference almost exactly. See
+    docs/Research_Journal.md Part XVI 16.2 for the earlier, related mistake
+    (same general lesson: this metric needs the *reason* two wheels differ
+    checked before treating the number as a fault signal)
   - Sample-rate / gap check (drop-outs, pauses in the recording)
   - Embedded-timestamp sanity: does pi_time_s decode to a plausible date,
     and does it match the filename (the Pi has no battery-backed RTC —
@@ -67,12 +74,23 @@ def gaps(df, threshold=0.3):
     return [(df["time"].values[i], dt[i]) for i in idx]
 
 
-def diagonal_rms(df, a, b):
+def diagonal_rms(df, a, b, tgt_tol=0.1):
     """RMS of act[a]-act[b], restricted to rows where a and b are commanded
-    the same sign (or either is ~0) -- excludes rotation commands, where
-    a diagonal pair legitimately carries opposite-sign targets."""
+    to (approximately) the SAME target -- the only case where equal actual
+    velocity is actually expected.
+
+    Same-sign alone isn't tight enough: blended joystick input (forward +
+    strafe + turn all at once, which is how people actually drive) can put
+    a same-sign pair at genuinely different target magnitudes, and the
+    resulting actual-velocity gap is then correct tracking, not a fault.
+    Confirmed on real ground data (run_20260806_183540): raw same-sign
+    filtering gave FR-RL RMS 0.105 rad/s; restricting further to
+    |target_a - target_b| < tgt_tol dropped it to 0.044, with the removed
+    samples showing target RMS 0.87 matching actual RMS 0.86 -- i.e. the
+    "deviation" was the actual signal correctly following different
+    commands, not two wheels disagreeing on the same command."""
     ta, tb = df[f"{a}_target_rads"], df[f"{b}_target_rads"]
-    mask = (ta * tb) >= 0
+    mask = (ta - tb).abs() < tgt_tol
     d = df.loc[mask, f"{a}_actual_rads"] - df.loc[mask, f"{b}_actual_rads"]
     return float(np.sqrt((d ** 2).mean())) if mask.any() else float("nan"), int(mask.sum()), int((~mask).sum())
 
@@ -219,12 +237,15 @@ def write_report(md_path, csv_relpath, plot1_name, plot2_name, m, notes):
                       f"{r['pwm_peak']:.0f}/{PWM_MAX} | {r['mismatches']} |")
     lines.append("")
 
-    lines.append("## Diagonal-pair deviation (rotation-excluded)\n")
-    lines.append(f"Computed only over samples where both wheels of the pair are commanded the same sign "
-                  f"(excludes rotation, where FR/RL and FL/RR are *supposed* to be opposite-sign — "
-                  f"see Research_Journal.md Part XVI §16.2 for why this exclusion matters).\n")
-    lines.append(f"- FR−RL RMS: {m['fr_rl_rms']:.3f} rad/s  ({m['fr_rl_n']} samples used, {m['fr_rl_excl']} excluded as rotation)")
-    lines.append(f"- FL−RR RMS: {m['fl_rr_rms']:.3f} rad/s  ({m['fl_rr_n']} samples used, {m['fl_rr_excl']} excluded as rotation)")
+    lines.append("## Diagonal-pair deviation (matched-target samples only)\n")
+    lines.append(f"Computed only over samples where both wheels of the pair are commanded to "
+                  f"*approximately the same target velocity* (|Δtarget| < 0.1 rad/s) — same-sign "
+                  f"alone isn't tight enough, since blended joystick input (forward+strafe+turn "
+                  f"together) can put a same-sign pair at genuinely different targets, and the "
+                  f"resulting actual-velocity gap is then correct tracking, not a fault. "
+                  f"See Research_Journal.md Part XVI §16.2 for why this check needs care.\n")
+    lines.append(f"- FR−RL RMS: {m['fr_rl_rms']:.3f} rad/s  ({m['fr_rl_n']} matched-target samples, {m['fr_rl_excl']} excluded as differently-commanded)")
+    lines.append(f"- FL−RR RMS: {m['fl_rr_rms']:.3f} rad/s  ({m['fl_rr_n']} matched-target samples, {m['fl_rr_excl']} excluded as differently-commanded)")
     lines.append("")
 
     lines.append("## Plots\n")

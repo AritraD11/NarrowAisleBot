@@ -51,7 +51,11 @@ Trend: worst-motor tracking error has gone 4.5% → 2.4% → 1.4% across the thr
 
 ## Ground runs (on the floor)
 
-None yet — ground testing starts once the air-side `plant`/`staircase`/`steps` calibration sequence (`docs/PID_Calibration.md` §6) is done. See `ground/README.md`.
+| Run | Date | Firmware | Type | Worst RMS error | Ground vs air PWM gap | Verdict |
+|---|---|---|---|---|---|---|
+| [`run_20260806_152810`](ground/analysis/run_20260806_152810.md) | 6 Aug 2026 | v3.0, air-calibrated gains (not yet ground-refit) | live drive, full weight | RL 4.0% of peak | **+12–15%** at matched velocities (measured, not just predicted) | Loop stable on real ground — zero saturation, zero sign faults. Confirms the predicted ground-load Kff increase quantitatively. New finding: ~3–5× more steady-state velocity ripple than air, cause not yet confirmed. **Not a substitute for the structured `staircase`/`plant` tests** — still a drive session, can't separate Kff from Kstat or measure τ. |
+
+First real-floor data. Confirms the direction and rough size of the predicted ground-load correction (§7 in `PID_Calibration.md`) directly from driving, ahead of the structured tests. See the linked report for the full matched-plateau comparison and the ripple investigation.
 
 ## What every analysis checks
 

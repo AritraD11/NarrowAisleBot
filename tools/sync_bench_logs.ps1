@@ -31,7 +31,7 @@
 #>
 
 param(
-    [string]$LocalDir = "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading",
+    [string]$LocalDir = "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test",
     [string]$Remote   = "aritra@10.42.0.1",
     [string]$RemoteDir = "aislebot_logs"
 )

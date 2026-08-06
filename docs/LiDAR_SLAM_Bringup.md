@@ -32,6 +32,51 @@ seating. Don't build a map on garbage scans.
 
 ---
 
+## Two silent blockers found 6 Aug 2026 (check both before anything else)
+
+**`ydlidar.service`.** A systemd unit exists on the Pi
+(`/etc/systemd/system/ydlidar.service`, driven by `/home/aritra/start_lidar.sh`)
+that auto-starts the lidar driver + `scan_relay.py` at boot, independent of
+`aislebot.service`. It is **not vendored in this repo** — nothing in `system/`
+or `install.sh` knows about it. If it's enabled, every manual Terminal 1 +
+Terminal 2 launch below stacks a second `/ydlidar_ros2_driver_node` and
+`/static_tf_pub_laser` on top of it, which corrupts scan data (checksum-error
+floods that look identical to the cable/vibration signature below, but aren't)
+and doubles `/scan_reliable`'s rate. Check first:
+```bash
+systemctl status ydlidar.service --no-pager
+ros2 node list | sort | uniq -d      # any output here means a live duplicate
+```
+If it's `active (running)`, either work entirely through it (skip Terminal 1 +
+2 below, they're redundant) or `sudo systemctl stop ydlidar.service &&
+sudo systemctl disable ydlidar.service` first for a clean, fully-manual,
+single-reader run. Don't mix manual terminals with this service left running.
+
+**`esp32_bridge`'s telemetry gate.** `odometry_publisher` only ever broadcasts
+the `odom → base_link` TF from inside its `/wheel_velocities_actual`
+subscription callback — no timer, no fallback, no periodic heartbeat. That
+topic only gets messages once `esp32_bridge` has sent the ESP32 `<L1>`
+(enable telemetry), which is gated by its `telemetry_enabled` parameter
+(now defaulted `True` in `aislebot_full.launch.py` as of this fix — if the Pi
+is still running an older deployed copy of that launch file, it's `False`
+there and needs redeploying, same drift pattern as §16.7 in the Research
+Journal). Without it, `odom` doesn't just go stale — `tf2_echo` reports
+"frame does not exist" — and since `slam_nodom.yaml` sets `odom_frame: odom`,
+slam_toolbox will sit at `Activating` forever with **zero further log output,
+no error**. This blocks mapping regardless of how healthy the lidar and relay
+are, and driving the robot around doesn't fix it either — it's not about
+motion, it's about the ESP32 never being told to start reporting at all.
+Confirm before trusting a silent `Activating`:
+```bash
+ros2 run tf2_ros tf2_echo odom base_link
+```
+If it reports "frame does not exist", enable telemetry live with no restart:
+```bash
+ros2 topic pub --once /esp32/command std_msgs/msg/String "data: '<L1>'"
+```
+
+---
+
 ## Hardware facts worth not re-discovering
 
 The X4 Pro adapter has two USB ports. USB-B is power (goes to your 5V buck), USB-C is
@@ -120,7 +165,16 @@ ros2 launch slam_toolbox online_async_launch.py \
 ```
 A `~` here silently fails — the launch system won't expand it and slam falls back to
 its defaults (wrong topic, expects odom). Watch for `Configuring` then `Activating`
-with NO "is not a file" warning above them.
+with NO "is not a file" warning above them — but don't trust `Activating` on its
+own, it only means the lifecycle node reached the active state, not that scans are
+being consumed. Wait for the next line:
+```
+Registering sensor: [Custom Described Lidar]
+```
+That's the proof slam_toolbox actually processed a scan. If `Activating` appears but
+this line never does, and there's no error either, check the `odom` TF gotcha above
+before assuming it's a lidar or relay problem — that silent-hang symptom is exactly
+what the telemetry gate produces.
 
 **Verify the map is building:**
 ```bash

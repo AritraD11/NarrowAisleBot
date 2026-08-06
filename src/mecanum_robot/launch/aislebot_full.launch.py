@@ -109,9 +109,15 @@ def generate_launch_description():
         package='mecanum_robot', executable='esp32_bridge',
         name='esp32_bridge',
         parameters=[{
-            'serial_port':     LaunchConfiguration('esp32_port'),
-            'baud_rate':       921600,
-            'max_wheel_speed': 5.20,
+            'serial_port':       LaunchConfiguration('esp32_port'),
+            'baud_rate':         921600,
+            'max_wheel_speed':   5.20,
+            # Without this, the ESP32 is never sent <L1>, so
+            # /wheel_velocities_actual never gets a message and
+            # odometry_publisher's odom->base_link TF (publish_tf
+            # above) never fires — slam_toolbox then sits at
+            # "Activating" forever with no error (docs/LiDAR_SLAM_Bringup.md).
+            'telemetry_enabled': True,
         }],
         output='screen',
     )

@@ -136,9 +136,29 @@ because slam_toolbox hits the identical QoS wall.
 
 ## Bringup sequence (the actual restart)
 
+**As of 6 Aug 2026, this collapses into one command**, now that the pipeline itself is
+proven end-to-end (Research_Journal.md §16.8-16.9):
+```bash
+source ~/ros2_ws/install/setup.bash
+ros2 launch mecanum_robot mapping_full.launch.py
+```
+This runs the same three pieces below (lidar driver, QoS relay, slam_toolbox) as one
+process tree instead of three manual terminals. It is **on-demand only, by design** —
+nothing about it auto-starts at boot, matching how `ydlidar.service` auto-starting
+independently of manual runs was the root cause of most of §16.8-16.9's debugging.
+Launch it when you actually want to map, same as before. It still needs `odom->base_link`
+TF already flowing from `aislebot.service` (see the telemetry gotcha below) — if that's
+missing it will sit silently with slam_toolbox never reaching `Registering sensor`, same
+failure mode as the manual path.
+
+The per-terminal breakdown below is still the right tool for debugging a failure — it's
+what originally diagnosed the QoS mismatch, the duplicate-node collision, and the
+telemetry gate, and it's what actually caught the `/scan_reliable` rate doubling to
+begin with. Reach for it if `mapping_full.launch.py` doesn't come up clean and you need
+to isolate which piece is unhealthy.
+
 Each long-running node holds its own terminal. Open them one at a time, confirm each is
-healthy before the next. This whole thing collapses into one launch file later; for now
-it's manual so failures are obvious.
+healthy before the next.
 
 **Terminal 1 — lidar:**
 ```bash

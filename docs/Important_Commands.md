@@ -72,25 +72,32 @@ ros2 pkg executables mecanum_robot | grep <expected_new_executable>
 
 ## 3. Downloading data off the Pi to your PC
 
-Run these **on your PC**, in a new terminal — not inside the SSH session.
+Run these **on your PC** (PowerShell), in a new terminal — not inside the
+SSH session. Confirmed working, downloads straight into the ground-test
+folder:
 
-**Telemetry CSVs from a run:**
 ```powershell
-scp aritra@10.42.0.1:~/aislebot_logs/*.csv "<destination folder>"
+scp aritra@10.42.0.1:~/aislebot_logs/*.csv "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/*.pgm "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/*.yaml "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/*_report.json "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
 ```
 
-**A specific run's full set — map, metadata, and the auto-generated report:**
+**Just one run's full set** — map, metadata, and the auto-generated report —
+swap the glob for that run's timestamp:
 ```powershell
-scp aritra@10.42.0.1:~/aislebot_logs/run_<timestamp>.* "<destination folder>"
+scp aritra@10.42.0.1:~/aislebot_logs/run_<timestamp>.* "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
 ```
 
 **Everything, or just what's new since last time:**
 ```powershell
-rsync -avz aritra@10.42.0.1:~/aislebot_logs/ ./aislebot_logs/
+rsync -avz aritra@10.42.0.1:~/aislebot_logs/ "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
 ```
 
 If you're not on the AisleBot-Pi AP (e.g. pulling from off-site over
-eduroam), swap `10.42.0.1` for `aritra-desktop.local`.
+eduroam), swap `10.42.0.1` for `aritra-desktop.local`. Pulling to a
+different folder some other time, swap out the destination path — it's
+just the last argument to `scp`/`rsync`.
 
 ---
 

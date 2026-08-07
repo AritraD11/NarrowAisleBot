@@ -538,6 +538,21 @@
       background: currentColor;
     }
 
+    .swatch-block {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 1px solid var(--line);
+      background: currentColor;
+    }
+
+    .map-canvas-wrap {
+      height: 460px;
+      padding: 10px 12px 12px;
+    }
+
+    #mapCanvas { image-rendering: pixelated; }
+
     @media (max-width: 1100px) {
       .shell { grid-template-columns: 1fr; }
       .sidebar {
@@ -659,6 +674,7 @@
           <button class="tab" data-tab="errorpwm" type="button">Error + PWM</button>
           <button class="tab" data-tab="diagnostics" type="button">Diagnostics</button>
           <button class="tab" data-tab="compare" type="button">Compare</button>
+          <button class="tab" data-tab="map" type="button">Map</button>
         </div>
 
         <section class="status-strip" id="metricCards"></section>
@@ -765,6 +781,35 @@
               </thead>
               <tbody id="compareTable"></tbody>
             </table>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-map">
+          <div id="mapEmpty" class="empty" style="min-height:260px">
+            <div class="empty-inner">
+              <h2>No map attached to this run</h2>
+              <p>Drop the <code>.pgm</code> and <code>.yaml</code> files together from this run's <code>map_saver_cli</code> save. Both files at once — they're paired automatically.</p>
+              <input id="mapFileInput" type="file" accept=".pgm,.yaml,.yml" multiple hidden>
+              <button class="primary" id="mapOpenBtn" type="button">Open map files</button>
+            </div>
+          </div>
+          <div id="mapContent" hidden>
+            <div class="dropzone" id="mapDropzone" style="min-height:64px;margin-bottom:14px">
+              <strong>Drop a different .pgm + .yaml pair to replace this run's map</strong>
+            </div>
+            <section class="status-strip" id="mapStatCards"></section>
+            <div class="split">
+              <div class="chart-tile">
+                <div class="chart-head"><span>Occupancy grid</span><span class="chart-note" id="mapCanvasNote"></span></div>
+                <div class="map-canvas-wrap"><canvas id="mapCanvas"></canvas></div>
+                <div class="legend">
+                  <span class="key" style="color:#1a202c"><span class="swatch-block"></span>Occupied</span>
+                  <span class="key" style="color:#ffffff"><span class="swatch-block" style="border-color:#9aa7b8"></span>Free</span>
+                  <span class="key" style="color:#d8dee9"><span class="swatch-block"></span>Unknown</span>
+                </div>
+              </div>
+              <div class="findings" id="mapFindings"></div>
+            </div>
           </div>
         </section>
       </div>
@@ -890,8 +935,242 @@
         rows: normalized,
         invalidCells,
         loadedAt: new Date().toISOString(),
-        duration: Math.max(0, duration)
+        duration: Math.max(0, duration),
+        map: null
       };
+    }
+
+    // ─── Map (.pgm + .yaml) loading, from map_saver_cli output ──────────
+
+    function parseSimpleYaml(text) {
+      const out = {};
+      for (const rawLine of String(text || "").split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line || line.startsWith("#")) continue;
+        const idx = line.indexOf(":");
+        if (idx === -1) continue;
+        const key = line.slice(0, idx).trim();
+        let value = line.slice(idx + 1).trim();
+        const hashIdx = value.indexOf(" #");
+        if (hashIdx !== -1) value = value.slice(0, hashIdx).trim();
+        if (value.startsWith("[") && value.endsWith("]")) {
+          value = value.slice(1, -1).split(",").map(s => Number(s.trim()));
+        } else if (value === "true" || value === "false") {
+          value = value === "true";
+        } else if (value !== "" && !Number.isNaN(Number(value))) {
+          value = Number(value);
+        } else {
+          value = value.replace(/^["']|["']$/g, "");
+        }
+        out[key] = value;
+      }
+      return out;
+    }
+
+    function parsePgm(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let pos = 0;
+      function skipWhitespaceAndComments() {
+        while (pos < bytes.length) {
+          const c = bytes[pos];
+          if (c === 35) { // '#'
+            while (pos < bytes.length && bytes[pos] !== 10) pos++;
+          } else if (c === 32 || c === 9 || c === 10 || c === 13) {
+            pos++;
+          } else break;
+        }
+      }
+      function readToken() {
+        skipWhitespaceAndComments();
+        const start = pos;
+        while (pos < bytes.length && !(bytes[pos] === 32 || bytes[pos] === 9 || bytes[pos] === 10 || bytes[pos] === 13)) pos++;
+        let s = "";
+        for (let i = start; i < pos; i++) s += String.fromCharCode(bytes[i]);
+        return s;
+      }
+      const magic = readToken();
+      if (magic !== "P5" && magic !== "P2") {
+        throw new Error(`Not a PGM file (expected P5/P2 header, got "${magic}")`);
+      }
+      const width = parseInt(readToken(), 10);
+      const height = parseInt(readToken(), 10);
+      const maxval = parseInt(readToken(), 10);
+      if (!width || !height || !maxval) throw new Error("Malformed PGM header.");
+      let data;
+      if (magic === "P5") {
+        pos++; // single whitespace byte separating header from binary data
+        data = bytes.subarray(pos, pos + width * height);
+        if (data.length < width * height) throw new Error("PGM binary data is truncated.");
+      } else {
+        data = new Uint8Array(width * height);
+        for (let i = 0; i < width * height; i++) data[i] = parseInt(readToken(), 10);
+      }
+      return { width, height, maxval, data };
+    }
+
+    // Standard ROS occupancy-grid PGM convention, as written by nav2's
+    // map_saver_cli: 0 = occupied, 205 = unknown, 254 = free. Classify by
+    // nearest reference value rather than exact match, in case of any
+    // encoder/format variation.
+    function classifyMapPixel(value) {
+      const dOcc = Math.abs(value - 0);
+      const dUnk = Math.abs(value - 205);
+      const dFree = Math.abs(value - 254);
+      if (dOcc <= dUnk && dOcc <= dFree) return "occupied";
+      if (dFree <= dUnk && dFree <= dOcc) return "free";
+      return "unknown";
+    }
+
+    function computeMapStats(pgm, yamlMeta) {
+      let occupied = 0, free = 0, unknown = 0;
+      for (let i = 0; i < pgm.data.length; i++) {
+        const cls = classifyMapPixel(pgm.data[i]);
+        if (cls === "occupied") occupied++;
+        else if (cls === "free") free++;
+        else unknown++;
+      }
+      const total = pgm.width * pgm.height;
+      const resolution = Number(yamlMeta.resolution) || 0.05;
+      return {
+        width: pgm.width,
+        height: pgm.height,
+        total,
+        occupied, free, unknown,
+        occupiedPct: total ? occupied / total * 100 : 0,
+        freePct: total ? free / total * 100 : 0,
+        unknownPct: total ? unknown / total * 100 : 0,
+        resolution,
+        extentWidthM: pgm.width * resolution,
+        extentHeightM: pgm.height * resolution
+      };
+    }
+
+    function buildMapFindings(stats) {
+      const out = [];
+      if (stats.unknownPct > 90) {
+        out.push({
+          level: "bad",
+          title: "Almost entirely unmapped",
+          body: `${fmt(stats.unknownPct, 1)}% unknown. This run barely covered any area — drive further, with some loop closure, before saving next time.`
+        });
+      } else if (stats.unknownPct > 70) {
+        out.push({
+          level: "warn",
+          title: "Sparse coverage",
+          body: `${fmt(stats.unknownPct, 1)}% unknown. Fine as a pipeline check, not yet a usable map for navigation.`
+        });
+      } else {
+        out.push({
+          level: "ok",
+          title: "Reasonable coverage",
+          body: `${fmt(stats.unknownPct, 1)}% unknown, ${fmt(stats.freePct, 1)}% free, ${fmt(stats.occupiedPct, 1)}% occupied.`
+        });
+      }
+      if (stats.occupiedPct < 0.5) {
+        out.push({
+          level: "warn",
+          title: "Almost no occupied space resolved",
+          body: "Very few wall/obstacle cells detected. Check the drive path actually passed close enough to real obstacles for slam_toolbox's scan matching to resolve them."
+        });
+      }
+      return out;
+    }
+
+    function drawMap(canvas, pgm) {
+      const { ctx, width, height } = setupCanvas(canvas);
+      ctx.save();
+      ctx.fillStyle = "#eef2f7";
+      ctx.fillRect(0, 0, width, height);
+      const scale = Math.min(width / pgm.width, height / pgm.height);
+      const drawW = Math.max(1, Math.floor(pgm.width * scale));
+      const drawH = Math.max(1, Math.floor(pgm.height * scale));
+      const offX = Math.floor((width - drawW) / 2);
+      const offY = Math.floor((height - drawH) / 2);
+
+      const off = document.createElement("canvas");
+      off.width = pgm.width;
+      off.height = pgm.height;
+      const octx = off.getContext("2d");
+      const imgData = octx.createImageData(pgm.width, pgm.height);
+      for (let i = 0; i < pgm.data.length; i++) {
+        const cls = classifyMapPixel(pgm.data[i]);
+        let r, g, b;
+        if (cls === "occupied") { r = 26; g = 32; b = 44; }
+        else if (cls === "free") { r = 255; g = 255; b = 255; }
+        else { r = 216; g = 222; b = 233; }
+        const o = i * 4;
+        imgData.data[o] = r;
+        imgData.data[o + 1] = g;
+        imgData.data[o + 2] = b;
+        imgData.data[o + 3] = 255;
+      }
+      octx.putImageData(imgData, 0, 0);
+
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(off, 0, 0, pgm.width, pgm.height, offX, offY, drawW, drawH);
+      ctx.strokeStyle = COLORS.axis;
+      ctx.strokeRect(offX, offY, drawW, drawH);
+      ctx.restore();
+    }
+
+    async function handleMapFiles(fileList) {
+      const run = selectedRun();
+      if (!run) {
+        alert("Select a run first, then load its map.");
+        return;
+      }
+      const files = Array.from(fileList || []);
+      const pgmFile = files.find(f => /\.pgm$/i.test(f.name));
+      const yamlFile = files.find(f => /\.ya?ml$/i.test(f.name));
+      if (!pgmFile || !yamlFile) {
+        alert("Drop both the .pgm and .yaml files from the same map_saver_cli save together.");
+        return;
+      }
+      try {
+        const [pgmBuf, yamlText] = await Promise.all([pgmFile.arrayBuffer(), yamlFile.text()]);
+        const pgm = parsePgm(pgmBuf);
+        const yamlMeta = parseSimpleYaml(yamlText);
+        const stats = computeMapStats(pgm, yamlMeta);
+        run.map = { pgm, yamlMeta, stats, pgmName: pgmFile.name, yamlName: yamlFile.name };
+        renderAll();
+      } catch (err) {
+        alert("Failed to load map: " + err.message);
+      }
+    }
+
+    function renderMapPanel() {
+      const run = selectedRun();
+      if (!run) return;
+      const emptyMap = document.getElementById("mapEmpty");
+      const mapContent = document.getElementById("mapContent");
+      if (!run.map) {
+        emptyMap.hidden = false;
+        mapContent.hidden = true;
+        return;
+      }
+      emptyMap.hidden = true;
+      mapContent.hidden = false;
+      const { stats } = run.map;
+      document.getElementById("mapStatCards").innerHTML = [
+        ["Resolution", fmt(stats.resolution, 3) + " m/px", `${stats.width} x ${stats.height} px`, ""],
+        ["Extent", `${fmt(stats.extentWidthM, 1)} x ${fmt(stats.extentHeightM, 1)} m`, "", ""],
+        ["Coverage", fmt(100 - stats.unknownPct, 1) + "% known", `${fmt(stats.freePct, 1)}% free, ${fmt(stats.occupiedPct, 1)}% occupied`, ""],
+        ["Source", run.map.pgmName, run.map.yamlName, ""]
+      ].map(([label, value, note, cls]) => `
+        <article class="metric-card">
+          <div class="metric-label">${label}</div>
+          <div class="metric-value ${cls}">${escapeHtml(String(value))}</div>
+          <div class="metric-note">${escapeHtml(note)}</div>
+        </article>
+      `).join("");
+      document.getElementById("mapCanvasNote").textContent = `${stats.width}x${stats.height} px @ ${fmt(stats.resolution, 3)} m/px`;
+      document.getElementById("mapFindings").innerHTML = buildMapFindings(stats).map(f => `
+        <article class="finding ${f.level}">
+          <div class="title">${escapeHtml(f.title)}</div>
+          <div class="body">${escapeHtml(f.body)}</div>
+        </article>
+      `).join("");
+      drawMap(document.getElementById("mapCanvas"), run.map.pgm);
     }
 
     function clamp(value, min, max) {
@@ -1389,6 +1668,7 @@
       renderErrorPwm(metrics);
       renderDiagnostics(metrics);
       renderCompare();
+      renderMapPanel();
     }
 
     function renderFileList() {
@@ -1409,6 +1689,7 @@
             <span>${fmt(run.duration, 1)} s</span>
             <span>${run.rows.length} rows</span>
             <span class="${full.health === "bad" ? "health-bad" : full.health === "warn" ? "health-warn" : "health-ok"}">${full.health.toUpperCase()}</span>
+            ${run.map ? '<span class="pill">+ map</span>' : ""}
           </span>
         `;
         btn.addEventListener("click", () => {
@@ -1601,7 +1882,13 @@
             frRlRms: metrics.frRlRms,
             flRrRms: metrics.flRrRms,
             byMotor: metrics.byMotor,
-            findings: buildFindings(run, metrics)
+            findings: buildFindings(run, metrics),
+            map: run.map ? {
+              pgmName: run.map.pgmName,
+              yamlName: run.map.yamlName,
+              stats: run.map.stats,
+              findings: buildMapFindings(run.map.stats)
+            } : null
           };
         })
       };
@@ -1705,6 +1992,24 @@
       });
       document.getElementById("exportJsonBtn").addEventListener("click", exportJson);
       document.getElementById("exportCsvBtn").addEventListener("click", exportCsv);
+
+      const mapFileInput = document.getElementById("mapFileInput");
+      const openMap = () => mapFileInput.click();
+      document.getElementById("mapOpenBtn").addEventListener("click", openMap);
+      mapFileInput.addEventListener("change", e => handleMapFiles(e.target.files));
+      for (const dz of [document.getElementById("mapDropzone"), document.getElementById("mapEmpty")]) {
+        dz.addEventListener("dragover", e => {
+          e.preventDefault();
+          dz.classList.add("is-over");
+        });
+        dz.addEventListener("dragleave", () => dz.classList.remove("is-over"));
+        dz.addEventListener("drop", e => {
+          e.preventDefault();
+          dz.classList.remove("is-over");
+          handleMapFiles(e.dataTransfer.files);
+        });
+      }
+      document.getElementById("mapDropzone").addEventListener("click", openMap);
       document.querySelectorAll(".tab").forEach(btn => {
         btn.addEventListener("click", () => {
           state.activeTab = btn.dataset.tab;

@@ -1847,6 +1847,37 @@ Captured at the end of this session, in the user's own framing: hardware is cons
 
 **Explicitly out of scope for this work, deferred to a separate future discussion**: full SLAM parameter tuning for autonomy, dynamic modeling, and what's needed for reliable/robust/adaptive/autonomous control. The user wants to discuss this deliberately, not have it bundled into the reliability/dashboard work above — flagged here so the topic isn't lost, not because it's unimportant.
 
+## 16.12 7 Aug 2026: Post-reboot bringup re-verified clean — §16.10's gap did not recur
+
+Resumed from §16.10–§16.11's open item, fresh Pi boot. Ran the two queued diagnostics plus one more to fully bisect the pipeline:
+
+- `ros2 topic hz /motor_telemetry_raw` — steady ~20.4 Hz from the start. Rules out "nothing arriving from the ESP32."
+- `ros2 topic hz /wheel_velocities_actual` — steady ~20 Hz, including through a period of active driving (a brief rate/jitter wobble during motion self-corrected, not a drop).
+- `ros2 run tf2_ros tf2_echo odom base_link` — tracked real translation and rotation cleanly through a full drive sequence (forward ~1 m, an in-place rotation past 180°, return), no "frame does not exist" beyond the single line `tf2_echo` prints before its very first message ever arrives (normal startup, not a gap).
+
+All three healthy end-to-end. This boot never reproduced §16.10's gap — the `telemetry_enabled: True` launch-file fix (§16.9) held cleanly across this reboot.
+
+**Still open, deliberately deferred rather than resolved:** the `resend_telemetry_enable` 5-second timer (§16.10's self-heal fix) was never actually exercised — nothing broke for it to heal from. A controlled repro (pressing the ESP32's EN/RST button while watching `/wheel_velocities_actual` hz, confirming recovery within ~5-10s with no manual `<L1>`) was proposed and declined for this session in favor of moving on to §16.11's items 2-3. Do this the next time bringup is touched, or immediately if the gap recurs.
+
+**If the gap recurs:** first check is the drift audit, not new code — `sha256sum ~/ros2_ws/src/mecanum_robot/mecanum_robot/esp32_bridge.py` against this repo's copy and `grep -n resend_telemetry_enable` on the deployed file. That exact pattern (fix committed to the repo, Pi's `~/ros2_ws/src` copy left stale) has recurred multiple times on this project (§16.7, §16.9–§16.10) and is the more likely explanation than a new hardware regression.
+
+Bringup accepted as solid enough to build on for today's session goals.
+
+## 16.13 7 Aug 2026: Map button on the dashboard, replacing RECORD RUN
+
+`phone_dashboard.py` v2.3. Replaces the RECORD RUN button (`toggleRecording()` / `record_start` / `record_stop`) with a Map button in the same UI slot — same bottom-bar position, keyboard shortcut moved `R` → `M`. Per §16.11 item 2, one press now does two things as a single action:
+
+- Launches `ros2 launch mecanum_robot mapping_full.launch.py` (lidar + `scan_relay.py` + `slam_toolbox`) as a subprocess, in its own process group (`preexec_fn=os.setsid`) so it can be cleanly stopped as a unit.
+- Calls the existing `start_recording()` path unchanged — every mapping run is recorded by default, no separate toggle, exactly as scoped.
+
+Second press (or E-STOP) stops both together: `SIGINT` to the launch tree's process group (mirrors a terminal Ctrl+C, so `ros2 launch` cascades its own shutdown to lidar/relay/slam_toolbox), a 10s wait, then `SIGKILL` to the group if it hasn't exited, followed by `stop_recording()`. E-STOP's handler changed from calling `stop_recording()` to `stop_mapping()`, so hitting E-STOP now also tears down any in-flight mapping run instead of leaving `mapping_full.launch.py` orphaned in the background.
+
+New WebSocket message types `map_start` / `map_stop` replace `record_start` / `record_stop`. `start_recording()` / `stop_recording()` themselves are untouched — reused exactly as §16.11 specified, just no longer independently reachable from the UI.
+
+Deliberately trigger-only: this is the placeholder for a future "Autonomous Drive" button once SLAM is trusted (same UI slot), not autonomy behavior itself. No crash recovery if `mapping_full.launch.py` dies mid-run on its own (`mapping_active` would stay stuck `True` until the next E-STOP or dashboard restart) — accepted as a known gap for today rather than built around, consistent with keeping robustness/autonomy work out of this session's scope.
+
+Verified with a static render of the extracted dashboard HTML in a headless browser (idle "MAP" state and the active "STOP MAP" pulsing state both confirmed visually) — this session has no network path to the Pi, so the actual launch/record behavior end-to-end is unverified against real hardware. That's next-session/on-Pi work: press Map, confirm `mapping_full.launch.py`'s four processes come up and a CSV starts under `~/aislebot_logs/`, press it again mid-run, confirm the launch tree and recording both stop cleanly with no orphaned `ros2 launch` process left behind (`ps aux | grep mapping_full`).
+
 # Appendix A — Document Catalogue
 
 Every supporting document, organised by category. Update this as new artefacts are produced.

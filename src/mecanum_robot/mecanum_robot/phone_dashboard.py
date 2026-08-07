@@ -1,36 +1,48 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║  AisleBot Phone Dashboard v2.1                                   ║
+║  AisleBot Phone Dashboard v2.3                                   ║
 ║  ROS2 Node + FastAPI WebSocket on port 8080                      ║
-║                                                                  ║
+║                                                                    ║
 ║  Controls:                                                       ║
-║    • Drive joystick (vx / vy) + separate yaw slider             ║
-║    • Speed: SLOW (33%) / NORMAL (67%) / FAST (100%)             ║
-║    • Arm: LIFT / LOWER / OPEN / CLOSE (hold to move)           ║
-║    • Record Run → ~/aislebot_logs/run_YYYYMMDD_HHMMSS.csv       ║
-║    • E-STOP (latches) / CLEAR                                   ║
-║                                                                  ║
+║    • Drive joystick (vx / vy) + separate yaw slider              ║
+║    • Speed: SLOW (33%) / NORMAL (67%) / FAST (100%)              ║
+║    • Arm: LIFT / LOWER / OPEN / CLOSE (hold to move)             ║
+║    • Map -> mapping_full.launch.py + telemetry recording,        ║
+║      together, one action -> ~/aislebot_logs/run_*.csv           ║
+║    • E-STOP (latches) / CLEAR                                    ║
+║                                                                    ║
 ║  FIXES in v2.1:                                                  ║
-║    • Speed buttons: touchstart replaces onclick (mobile fix)    ║
-║    • MAX_LINEAR lowered to 0.15 m/s (prevents motor saturation) ║
+║    • Speed buttons: touchstart replaces onclick (mobile fix)     ║
+║    • MAX_LINEAR lowered to 0.15 m/s (prevents motor saturation)  ║
 ║    • Auto-ENABLE arm on WebSocket connect                        ║
-║    • ESTOP CLEAR also re-enables arm                            ║
-║                                                                  ║
-║  NEW in v2.2 — desktop/PC support (no touchscreen needed):       ║
+║    • ESTOP CLEAR also re-enables arm                             ║
+║                                                                    ║
+║  NEW in v2.2 -- desktop/PC support (no touchscreen needed):      ║
 ║    • All controls also bound to mouse (click + drag)             ║
 ║    • Hidden keyboard control, not shown anywhere in the UI:      ║
-║        W/A/S/D  -> drive joystick                                 ║
-║        Q/E      -> yaw (Q = CCW, E = CW)                          ║
-║        R        -> toggle record run                              ║
-║                                                                  ║
+║        W/A/S/D  -> drive joystick                                ║
+║        Q/E      -> yaw (Q = CCW, E = CW)                         ║
+║        M        -> toggle mapping                                ║
+║                                                                    ║
+║  NEW in v2.3 -- Map button (Research_Journal.md Part XVI 16.11): ║
+║    • Replaces RECORD RUN. One press starts mapping_full.launch.py║
+║      (lidar + relay + slam_toolbox, as a managed subprocess      ║
+║      group) AND telemetry/PID recording together -- every run    ║
+║      is recorded by default, no separate toggle.                 ║
+║    • Second press (or E-STOP) SIGINTs the launch tree's process  ║
+║      group and stops recording, together.                        ║
+║    • Same UI slot is a deliberate placeholder for a future        ║
+║      "Autonomous Drive" button once SLAM is trusted -- not built  ║
+║      yet, this is trigger-only.                                   ║
+║                                                                    ║
 ║  ROS2 Topics:                                                    ║
-║    Publishes  /cmd_vel          geometry_msgs/Twist  (drive)    ║
-║    Publishes  /arm/command      std_msgs/String       (arm)     ║
-║    Publishes  /esp32/command    std_msgs/String  (<L1>/<L0>/…)  ║
-║    Subscribes /motor_telemetry  std_msgs/Float64MultiArray      ║
-║                                                                  ║
-║  Aritra Das (25D0074) — IIT Bombay — Prof. Ambarish Kunwar      ║
+║    Publishes  /cmd_vel          geometry_msgs/Twist  (drive)     ║
+║    Publishes  /arm/command      std_msgs/String       (arm)      ║
+║    Publishes  /esp32/command    std_msgs/String  (<L1>/<L0>/…)   ║
+║    Subscribes /motor_telemetry  std_msgs/Float64MultiArray       ║
+║                                                                    ║
+║  Aritra Das (25D0074) — IIT Bombay — Prof. Ambarish Kunwar        ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
@@ -47,6 +59,8 @@ from fastapi.responses import HTMLResponse
 import json
 import csv
 import os
+import signal
+import subprocess
 import time
 from datetime import datetime
 from typing import Optional, Set
@@ -97,9 +111,9 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
 .status-dot{width:9px;height:9px;border-radius:50%;background:#ef4444;flex-shrink:0;
             transition:background .3s}
 .status-dot.on{background:#22c55e;box-shadow:0 0 6px #22c55e}
-.rec-badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;
-           background:#450a0a;color:#f87171;letter-spacing:1px;display:none}
-.rec-badge.show{display:inline-block;animation:pulse 1s infinite}
+.map-badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;
+           background:#0c2a43;color:#7dd3fc;letter-spacing:1px;display:none}
+.map-badge.show{display:inline-block;animation:pulse 1s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 
 /* ── SPEED INDICATOR ── */
@@ -165,14 +179,14 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
 /* ── BOTTOM BAR ── */
 .bottom{display:flex;height:72px;flex-shrink:0;border-top:1.5px solid #1e3a5f;
         background:#111827}
-.rec-btn{flex:1;border:none;border-right:1.5px solid #1e3a5f;
-         background:transparent;color:#22c55e;font-size:11px;font-weight:700;
+.map-btn{flex:1;border:none;border-right:1.5px solid #1e3a5f;
+         background:transparent;color:#38bdf8;font-size:11px;font-weight:700;
          cursor:pointer;font-family:inherit;letter-spacing:.5px;
          display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
          transition:background .15s;touch-action:manipulation}
-.rec-btn .rec-icon{font-size:18px;line-height:1}
-.rec-btn.recording{background:#0a1f0a;color:#4ade80;animation:recpulse 1.5s infinite}
-@keyframes recpulse{0%,100%{background:#0a1f0a}50%{background:#052e16}}
+.map-btn .map-icon{font-size:18px;line-height:1}
+.map-btn.mapping{background:#082032;color:#7dd3fc;animation:mappulse 1.5s infinite}
+@keyframes mappulse{0%,100%{background:#082032}50%{background:#0c2a43}}
 .uv-btn{flex:1;border:none;border-right:1.5px solid #1e3a5f;
         background:transparent;color:#c084fc;font-size:11px;font-weight:700;
         cursor:pointer;font-family:inherit;letter-spacing:.5px;
@@ -216,7 +230,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
     <button class="spd-btn" id="spd2">FAST</button>
   </div>
   <div class="hdr-right">
-    <span class="rec-badge" id="recBadge">REC</span>
+    <span class="map-badge" id="mapBadge">MAP</span>
     <span class="status-dot" id="dot"></span>
   </div>
 </div>
@@ -268,9 +282,9 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
 
 <!-- BOTTOM BAR -->
 <div class="bottom">
-  <button class="rec-btn" id="recBtn">
-    <span class="rec-icon" id="recIcon">⏺</span>
-    <span id="recLabel">RECORD RUN</span>
+  <button class="map-btn" id="mapBtn">
+    <span class="map-icon" id="mapIcon">▦</span>
+    <span id="mapLabel">MAP</span>
   </button>
   <button class="uv-btn" id="uvBtn">
     <span class="uv-icon" id="uvIcon">☼</span>
@@ -303,7 +317,7 @@ let speedIdx    = 0;
 let joyX = 0, joyY = 0, joyActive = false, joyTouchId = null;
 let yawVal = 0, yawActive = false, yawTouchId = null;
 let estopped  = false;
-let recording = false;
+let mapping   = false;
 let armInterval = null;
 
 // ── WEBSOCKET ─────────────────────────────────────────────────────
@@ -547,32 +561,38 @@ bindHold('btnClose', 'CLOSE');
 bindHold('btnUp',    'LIFT');
 bindHold('btnDown',  'LOWER');
 
-// ── RECORD RUN ────────────────────────────────────────────────────
-function toggleRecording() {
+// ── MAP (mapping_full.launch.py + recording, together) ────────────
+// One button: starts the lidar+relay+slam_toolbox launch tree and PID/
+// telemetry recording as a single action, stops both together. Every
+// mapping run is recorded by default — there's no separate record toggle.
+// Placeholder slot for a future "Autonomous Drive" button once SLAM is
+// trusted; this is trigger-only, no autonomy behavior here.
+function mapReset() {
+  mapping = false;
+  document.getElementById('mapBtn').classList.remove('mapping');
+  document.getElementById('mapIcon').textContent  = '▦';
+  document.getElementById('mapLabel').textContent = 'MAP';
+  document.getElementById('mapBadge').classList.remove('show');
+}
+
+function toggleMapping() {
   if (estopped) return;
-  recording = !recording;
-  const btn   = document.getElementById('recBtn');
-  const icon  = document.getElementById('recIcon');
-  const label = document.getElementById('recLabel');
-  const badge = document.getElementById('recBadge');
-  if (recording) {
-    send({ type: 'record_start' });
-    btn.classList.add('recording');
-    icon.textContent  = '⏹';
-    label.textContent = 'STOP REC';
-    badge.classList.add('show');
+  if (mapping) {
+    send({ type: 'map_stop' });
+    mapReset();
   } else {
-    send({ type: 'record_stop' });
-    btn.classList.remove('recording');
-    icon.textContent  = '⏺';
-    label.textContent = 'RECORD RUN';
-    badge.classList.remove('show');
+    mapping = true;
+    send({ type: 'map_start' });
+    document.getElementById('mapBtn').classList.add('mapping');
+    document.getElementById('mapIcon').textContent  = '⏹';
+    document.getElementById('mapLabel').textContent = 'STOP MAP';
+    document.getElementById('mapBadge').classList.add('show');
   }
 }
 
-const recBtnEl = document.getElementById('recBtn');
-recBtnEl.addEventListener('touchstart', e => { e.preventDefault(); toggleRecording(); }, { passive: false });
-recBtnEl.addEventListener('click', toggleRecording);
+const mapBtnEl = document.getElementById('mapBtn');
+mapBtnEl.addEventListener('touchstart', e => { e.preventDefault(); toggleMapping(); }, { passive: false });
+mapBtnEl.addEventListener('click', toggleMapping);
 
 // ── UV LIGHTS (staged on the Mega: T1, +5s T2, +10s T3) ──────────
 let uvOn = false;
@@ -623,7 +643,7 @@ function toggleEstop() {
     joyActive = false; yawActive = false;
     joyThumb.style.transform = 'translate(-50%,-50%)';
     yawThumb.style.top = '50%';
-    if (recording) { recording = false; send({ type: 'record_stop' }); }
+    if (mapping) { send({ type: 'map_stop' }); mapReset(); }
     estopBtn.classList.add('armed');
     estopCircle.textContent = 'CLEAR';
     estopLbl.textContent    = 'TAP TO RESUME';
@@ -688,8 +708,8 @@ window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
-  if (k === 'r') {
-    if (!e.repeat) toggleRecording();
+  if (k === 'm') {
+    if (!e.repeat) toggleMapping();
     e.preventDefault();
     return;
   }
@@ -759,9 +779,13 @@ class PhoneDashboard(Node):
         self._sample_count = 0
         self._run_path     = ''
 
+        # ── Mapping (mapping_full.launch.py, subprocess-managed) ────
+        self.mapping_active = False
+        self._mapping_proc: Optional[subprocess.Popen] = None
+
         self.ws_clients: Set[WebSocket] = set()
 
-        self.get_logger().info(f'Phone Dashboard v2.1 — port {self.port}')
+        self.get_logger().info(f'Phone Dashboard v2.3 — port {self.port}')
         self.get_logger().info(f'Log directory: {self.log_dir}')
 
     # ── Drive ─────────────────────────────────────────────────────
@@ -824,6 +848,55 @@ class PhoneDashboard(Node):
         self.get_logger().info(
             f'Recording stopped — {self._sample_count} samples → {self._run_path}'
         )
+
+    # ── Map: start (mapping_full.launch.py + recording, together) ──
+
+    def start_mapping(self) -> str:
+        """Launch the mapping stack and begin recording as one action.
+
+        Every mapping run is recorded by default (Research_Journal.md
+        §16.11) — there is no separate record toggle anymore.
+        """
+        if self.mapping_active:
+            return self._run_path
+        try:
+            self._mapping_proc = subprocess.Popen(
+                ['ros2', 'launch', 'mecanum_robot', 'mapping_full.launch.py'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                preexec_fn=os.setsid,
+            )
+        except Exception as e:
+            self.get_logger().error(f'Failed to launch mapping_full.launch.py: {e}')
+            return ''
+        self.mapping_active = True
+        path = self.start_recording()
+        self.get_logger().info(
+            f'Mapping started (pid {self._mapping_proc.pid}) + recording → {path}'
+        )
+        return path
+
+    # ── Map: stop ────────────────────────────────────────────────
+
+    def stop_mapping(self):
+        """Stop the mapping launch tree and recording together."""
+        if not self.mapping_active:
+            return
+        self.mapping_active = False
+        proc, self._mapping_proc = self._mapping_proc, None
+        if proc is not None and proc.poll() is None:
+            # SIGINT to the whole process group == a terminal Ctrl+C, so
+            # ros2 launch cascades a clean shutdown to lidar/relay/slam_toolbox.
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGINT)
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self.get_logger().warn(
+                    'mapping_full.launch.py did not exit on SIGINT, sending SIGKILL')
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        self.stop_recording()
+        self.get_logger().info('Mapping stopped')
 
     # ── Telemetry callback ────────────────────────────────────────
 
@@ -904,18 +977,18 @@ def _dispatch(msg: dict):
         elif cmd == 'off':
             _node.publish_arm('UV_OFF')
 
-    elif t == 'record_start':
-        path = _node.start_recording()
-        _node.get_logger().info(f'Dashboard: record start → {path}')
+    elif t == 'map_start':
+        path = _node.start_mapping()
+        _node.get_logger().info(f'Dashboard: map start → {path}')
 
-    elif t == 'record_stop':
-        _node.stop_recording()
+    elif t == 'map_stop':
+        _node.stop_mapping()
 
     elif t == 'estop':
         _node.publish_drive(0.0, 0.0, 0.0)
         _node.send_esp32_raw('<S>')
         _node.publish_arm('ESTOP')
-        _node.stop_recording()
+        _node.stop_mapping()
 
     elif t == 'estop_clear':
         _node.send_esp32_raw('<E1>')
@@ -944,7 +1017,7 @@ def main(args=None):
         log_level = 'warning',
     )
 
-    _node.stop_recording()
+    _node.stop_mapping()
     _node.destroy_node()
     rclpy.shutdown()
 

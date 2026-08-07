@@ -65,6 +65,8 @@ import time
 from datetime import datetime
 from typing import Optional, Set
 
+from .run_report import generate_report, write_report
+
 # ═══════════════════════════════════════════════════════════════════
 #  ROBOT CONSTANTS
 #  FIX: MAX_LINEAR lowered from 0.48 → 0.15 m/s
@@ -877,12 +879,40 @@ class PhoneDashboard(Node):
 
     # ── Map: stop ────────────────────────────────────────────────
 
+    def _save_map(self, map_prefix: str) -> bool:
+        """Save the live /map via map_saver_cli. Must run before the launch
+        tree is killed — slam_toolbox (and therefore /map) dies with it."""
+        try:
+            result = subprocess.run(
+                ['ros2', 'run', 'nav2_map_server', 'map_saver_cli', '-f', map_prefix],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15,
+            )
+            if result.returncode != 0:
+                self.get_logger().warn(
+                    f'map_saver_cli exited {result.returncode} — report will have no map block')
+                return False
+            return True
+        except subprocess.TimeoutExpired:
+            self.get_logger().warn('map_saver_cli timed out — report will have no map block')
+            return False
+        except Exception as e:
+            self.get_logger().warn(f'map_saver_cli failed: {e} — report will have no map block')
+            return False
+
     def stop_mapping(self):
-        """Stop the mapping launch tree and recording together."""
+        """Stop the mapping launch tree and recording together, then run
+        the same post-run analysis pass as telemetry_analyzer.html —
+        automatically, so every run gets one without a manual step
+        (Research_Journal.md §16.11 item 3)."""
         if not self.mapping_active:
             return
         self.mapping_active = False
         proc, self._mapping_proc = self._mapping_proc, None
+        run_path = self._run_path
+
+        map_prefix = os.path.splitext(run_path)[0] if run_path else ''
+        map_saved = bool(map_prefix) and self._save_map(map_prefix)
+
         if proc is not None and proc.poll() is None:
             # SIGINT to the whole process group == a terminal Ctrl+C, so
             # ros2 launch cascades a clean shutdown to lidar/relay/slam_toolbox.
@@ -897,6 +927,37 @@ class PhoneDashboard(Node):
                 pass
         self.stop_recording()
         self.get_logger().info('Mapping stopped')
+
+        if run_path:
+            self._write_run_report(run_path, map_prefix if map_saved else None)
+
+    def _write_run_report(self, csv_path: str, map_prefix: Optional[str]):
+        """Generate and log the automatic post-run report (PID + map
+        findings) — the Python port of telemetry_analyzer.html's analysis,
+        run headless since there's no browser on the Pi to open it in."""
+        pgm_path = f'{map_prefix}.pgm' if map_prefix else None
+        yaml_path = f'{map_prefix}.yaml' if map_prefix else None
+        try:
+            report = generate_report(csv_path, pgm_path, yaml_path)
+            out_path = os.path.splitext(csv_path)[0] + '_report.json'
+            write_report(report, out_path)
+        except Exception as e:
+            self.get_logger().warn(f'Post-run report generation failed: {e}')
+            return
+        self.get_logger().info(
+            f"Run report → {out_path}  (health={report['health']}, "
+            f"{report['samples']} samples, {report['duration']:.1f}s)"
+        )
+        for finding in report['findings']:
+            self.get_logger().info(f"  [{finding['level'].upper()}] {finding['title']}")
+        if report['map']:
+            s = report['map']['stats']
+            self.get_logger().info(
+                f"  map: {s['unknownPct']:.1f}% unknown, {s['freePct']:.1f}% free, "
+                f"{s['occupiedPct']:.1f}% occupied"
+            )
+            for finding in report['map']['findings']:
+                self.get_logger().info(f"  [{finding['level'].upper()}] {finding['title']}")
 
     # ── Telemetry callback ────────────────────────────────────────
 

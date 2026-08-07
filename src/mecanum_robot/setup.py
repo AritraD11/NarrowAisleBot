@@ -35,6 +35,7 @@ setup(
             'joy_to_aislebot   = mecanum_robot.joy_to_aislebot:main',
             'phone_dashboard   = mecanum_robot.phone_dashboard:main',
             'lcd_display       = mecanum_robot.lcd_display:main',
+            'run_report        = mecanum_robot.run_report:main',
         ],
     },
 )

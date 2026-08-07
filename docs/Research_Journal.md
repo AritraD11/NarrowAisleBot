@@ -1831,6 +1831,22 @@ Later the same session. The `telemetry_enabled: True` fix was deployed directly 
 
 **Next session: run those two checks first**, before anything else. Current state to resume from: `ydlidar.service` still disabled, `mapping_full.launch.py` deployed and structurally proven, `esp32_bridge.py`'s resend timer deployed but its actual effectiveness unconfirmed pending the above.
 
+## 16.11 Scope for the next session — reliable bringup as a system, dashboard-triggered mapping + recording
+
+Captured at the end of this session, in the user's own framing: hardware is considered solid at this point; what's left is software — ROS2/SLAM bringup reliability and the dashboard/analysis layer on top of it. Goals, in order:
+
+1. **Finish §16.10's open item first.** The telemetry self-heal doesn't yet reliably clear a post-reboot recurrence. Run the two queued diagnostics before anything else: `ros2 topic hz /motor_telemetry_raw` (bytes arriving at all vs. a parsing bug) and a fresh manual `<L1>` retry (resend timer not firing vs. a genuine link regression). Nothing else below is worth building on top of an unreliable bringup.
+
+2. **A "Map" button on the phone/PC dashboard**, replacing the existing `phone_dashboard.py` "RECORD RUN" button (`toggleRecording()` / `record_start` / `record_stop` WebSocket messages, `start_recording()`/`stop_recording()` on the dashboard node, logs to `~/aislebot_logs/run_YYYYMMDD_HHMMSS.csv`). Pressing "Map" should, as one action:
+   - Bring up the mapping stack (`mapping_full.launch.py`) — `phone_dashboard.py` doesn't currently launch or manage other ROS2 processes, so this is new: needs a way to start/stop that launch tree from the dashboard node (subprocess management, most likely) rather than a human running it in a terminal.
+   - Start telemetry/PID recording automatically at the same time, using the existing `start_recording()` path — **every mapping run recorded by default**, no separate toggle.
+   - Stop both together, cleanly, when pressed again or the run ends.
+   - Deliberately a placeholder for a future "Autonomous Drive" button once SLAM is trusted enough — same UI slot, different behavior later. Not building autonomy behavior itself yet.
+
+3. **Deep post-run analysis after every recorded run** — PID performance, map quality, and other research-grade metrics. Existing tools to build from: `tools/nab_pid_logger.py`, `aislebot_pid_analysis_v2.py`, `docs/tools/telemetry_analyzer.html`. What "deep analysis" concretely means (which metrics, what output format) isn't defined yet — needs scoping with the user before implementation, not assumed.
+
+**Explicitly out of scope for this work, deferred to a separate future discussion**: full SLAM parameter tuning for autonomy, dynamic modeling, and what's needed for reliable/robust/adaptive/autonomous control. The user wants to discuss this deliberately, not have it bundled into the reliability/dashboard work above — flagged here so the topic isn't lost, not because it's unimportant.
+
 # Appendix A — Document Catalogue
 
 Every supporting document, organised by category. Update this as new artefacts are produced.

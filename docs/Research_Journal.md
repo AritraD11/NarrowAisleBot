@@ -1892,6 +1892,16 @@ Scoped with the user rather than assumed (as §16.11 flagged): keep the existing
 
 **Not verified end-to-end on hardware** — same caveat as §16.13's Map button, compounded: this session has no path to the Pi, so `stop_mapping()`'s new sequencing (map save while the process group is still alive, then kill, then report) is unverified against a real `mapping_full.launch.py` run. Next session: press Map, drive briefly, press Map again, confirm `~/aislebot_logs/` ends up with matching `run_*.csv`, `run_*.pgm`, `run_*.yaml`, and `run_*_report.json`, and that the report's numbers are sane against what `telemetry_analyzer.html` shows for the same CSV.
 
+## 16.15 7 Aug 2026: Map button + automated report — confirmed end-to-end on hardware
+
+Closes out the "not verified on hardware" caveat both §16.13 and §16.14 ended on. Deployed today's three changed files (`phone_dashboard.py`, `run_report.py`, `setup.py`) to the Pi via `curl` against the raw GitHub URLs for this branch (the Pi briefly went on eduroam and the repo was made public for this — no persistent git clone was set up, same manual-deploy pattern as always), rebuilt with `colcon build --packages-select mecanum_robot`, restarted `aislebot.service`, and verified via `sha256sum` that all three files matched this repo byte-for-byte before trusting the deploy.
+
+**Full round-trip, one press each way, no manual intervention:** pressed Map, drove for ~157s, pressed Map again. Confirmed via live `ros2 node list` that `mapping_full.launch.py`'s subprocess pid matched exactly what the dashboard logged ("Mapping started (pid 3145)" ↔ `/launch_ros_3145` in the node list) — the subprocess tracking isn't just launching something and losing track of it. `~/aislebot_logs/` ended up with all four files sharing one timestamp stem (`run_20260807_174101.{csv,pgm,yaml}` + `_report.json`), confirming the map-save-before-kill ordering from §16.14 actually holds on real hardware — the `.pgm` is 41 KB, not empty, so `map_saver_cli` captured a real map while slam_toolbox was still alive, not after it had already been killed. `ps aux | grep mapping_full` came back empty afterward — no orphaned `ros2 launch` process.
+
+**The auto-generated report's own findings check out against known-good numbers.** 3146 samples, 157.3s, health `ok`, one PID finding (diagonal mismatch — expected for a driven run with turns, not a fault) and one map finding: 81.0% unknown correctly triggered "Sparse coverage" (the 70–90% warn band, not the >90% bad band) — same ballpark as §16.9's first map (81% unknown) and §16.10's second (79.6% unknown), both short drives without deliberate loop closure. No warnings logged about `map_saver_cli` failing or the launch tree needing `SIGKILL` — both hit their clean-path branches.
+
+Bringup (§16.12), the Map button (§16.13), and the automated report (§16.14) are now all confirmed solid on hardware, not just structurally. Today's three-item scope from §16.11 is complete.
+
 # Appendix A — Document Catalogue
 
 Every supporting document, organised by category. Update this as new artefacts are produced.

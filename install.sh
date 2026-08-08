@@ -153,6 +153,7 @@ sudo apt-get install -y -q \
     ros-jazzy-xacro \
     ros-jazzy-tf-transformations \
     ros-jazzy-rviz2 \
+    ros-jazzy-foxglove-bridge \
     >> "$INSTALL_LOG" 2>&1
 ok "All ROS2 add-on packages installed"
 

@@ -11,11 +11,16 @@ Nodes started:
     arm_bridge             (arm topics → Arduino Mega)      /dev/mega  CH340
     phone_dashboard        (HTTP + WebSocket → ROS2 publishers)
     lcd_display            (16x2 I2C LCD status at 0x27)
+    foxglove_bridge        (websocket :8765 → live RViz-equivalent view,
+                             Research_Journal.md §13.8/§17.5 — Foxglove Studio
+                             on a laptop connects here; RViz-on-laptop can't,
+                             since DDS multicast doesn't cross this network)
 
 Usage:
     ros2 launch mecanum_robot aislebot_full.launch.py
     ros2 launch mecanum_robot aislebot_full.launch.py use_phone:=false
     ros2 launch mecanum_robot aislebot_full.launch.py use_joystick:=false
+    ros2 launch mecanum_robot aislebot_full.launch.py use_foxglove:=false
 """
 
 from launch import LaunchDescription
@@ -41,10 +46,14 @@ def generate_launch_description():
         DeclareLaunchArgument('http_port',    default_value='8080'),
         DeclareLaunchArgument('max_linear',   default_value='0.15'),
         DeclareLaunchArgument('max_angular',  default_value='0.30'),
+        DeclareLaunchArgument('use_foxglove', default_value='true',
+                              description='Start foxglove_bridge for live visualization'),
+        DeclareLaunchArgument('foxglove_port', default_value='8765'),
     ]
 
-    use_joy   = LaunchConfiguration('use_joystick')
-    use_phone = LaunchConfiguration('use_phone')
+    use_joy      = LaunchConfiguration('use_joystick')
+    use_phone    = LaunchConfiguration('use_phone')
+    use_foxglove = LaunchConfiguration('use_foxglove')
 
     banner = LogInfo(msg=[
         '\n══════════════════════════════════════════════════════════\n',
@@ -155,6 +164,19 @@ def generate_launch_description():
         output='screen',
     )
 
+    # ── VISUALIZATION ────────────────────────────────────────────
+    # DDS multicast doesn't cross this network (Research_Journal.md §13.8),
+    # so RViz running on a laptop can't discover this robot's topics
+    # directly. foxglove_bridge exposes them over a plain TCP websocket
+    # instead, which Foxglove Studio connects to from anywhere on the LAN.
+    foxglove = Node(
+        package='foxglove_bridge', executable='foxglove_bridge',
+        name='foxglove_bridge',
+        parameters=[{'port': LaunchConfiguration('foxglove_port')}],
+        condition=IfCondition(use_foxglove),
+        output='screen',
+    )
+
     return LaunchDescription([
         *args,
         banner,
@@ -162,4 +184,5 @@ def generate_launch_description():
         teleop, esp32_bridge, odom_pub,
         arm_bridge,
         lcd,
+        foxglove,
     ])

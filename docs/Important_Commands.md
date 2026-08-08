@@ -134,7 +134,36 @@ single self-contained file, no server or install needed:
 
 ---
 
-## 6. Quick health checks
+## 6. Live visualization (Foxglove)
+
+`aislebot_full.launch.py` now starts `foxglove_bridge` on port 8765 by
+default (Research_Journal.md §17.5) — a websocket that Foxglove Studio
+connects to. This is the headless-friendly route because DDS multicast
+doesn't cross this network, so RViz running directly on a laptop can't
+see the robot's topics; Foxglove's plain-TCP websocket bridge can.
+
+1. Install [Foxglove Studio](https://foxglove.dev/download) on your laptop
+   (desktop app or the web app both work).
+2. Make sure your laptop is on the same network as the Pi (AisleBot-Pi AP
+   or eduroam, matching whichever the Pi is on).
+3. In Foxglove Studio: **Open connection → Foxglove WebSocket**, then enter:
+   ```
+   ws://10.42.0.1:8765
+   ```
+   (swap the IP for `aritra-desktop.local` if you're both on eduroam.)
+4. Add panels for `/map`, `/scan_reliable`, `/tf`, and a 3D panel with the
+   robot model — same information RViz2 would show, just over a
+   connection that actually works on this network.
+
+If the connection fails, confirm the bridge is actually running:
+```bash
+ros2 node list | grep foxglove
+ss -tlnp | grep 8765
+```
+
+---
+
+## 7. Quick health checks
 
 ```bash
 ros2 node list                              # what's actually running

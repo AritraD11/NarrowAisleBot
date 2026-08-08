@@ -1912,6 +1912,48 @@ Two small repo-organization additions alongside the merge, both scoped to what t
 
 - **`docs/Important_Commands.md`** (new) — a copy-paste command reference for the things done over and over this session: SSH login (AP-mode fixed IP vs. eduroam mDNS hostname), deploying a code change to the Pi (no persistent git clone, so this means `curl` from GitHub's raw URL + `sha256sum` verify + `colcon build` + service restart), downloading run data to a PC (`scp`/`rsync`), where everything lives on the Pi, how to view a map (`telemetry_analyzer.html`, not the raw `.pgm`), and a short list of quick health-check commands. Doesn't replace `Network_SelfHosted_AP.md` or the Research Journal's own detail — it's the fast-reference layer on top of them.
 
+# Part XVII — SLAM, Visualization, and Autonomous Drive
+
+Opened 7 Aug 2026, same day as Part XVI's close. The user's own framing: bringup is concluded and confirmed working — move to reliable mapping/visualization, real SLAM, and proper autonomous drive. Two-week timeline. IR proximity sensors (the 8-pair collision-avoidance layer discussed earlier this session) are explicitly deferred — mapping and SLAM first. Standing requirement for everything from here forward: scientifically sound, reasoned, grounded in real literature — this is PhD work, not a hobby build.
+
+## 17.1 Literature review: SLAM algorithm choice, done before touching any parameters
+
+Per the user's explicit instruction — don't tune anything without grounding the choice in real papers first. Searched and verified via Scite (not assumed from memory; every paper below was retrieved from the actual publication record and checked for retractions/corrections before citing). Full write-up: `docs/SLAM_Theory.md`. Full citation list with DOIs: `research_articles/README.md` (new folder, new convention going forward — any paper that materially informs a decision gets added there, cited by author/year in whichever doc it backs).
+
+**Bottom line: `slam_toolbox` (Macenski & Jambrečić, 2021) — what this robot already runs — is the scientifically justified choice, not just the path of least resistance.** Compared against the real alternatives:
+- GMapping/RBPF (Grisetti, Stachniss & Burgard, 2007) carries one map copy per particle — memory/compute scales with particle count × map size, a real cost on a Pi 5 with no GPU (quantified directly in Sugiura & Matsutani's FPGA-acceleration papers, 2021/2022, built specifically because RBPF-SLAM is too slow on embedded hardware otherwise). An empirical comparison on an RPLidar-A1 — same hardware tier as this robot's YDLIDAR X4 Pro — found it noisier and less accurate than scan-matching approaches on this sensor class (Laksono & Kusuma, 2022).
+- Hector SLAM (Kohlbrecher et al., 2011) has no pose-graph back-end and no loop closure — drift is minimized going forward, never corrected once accumulated. Its no-odometry philosophy was the right call while this project's odometry was unreliable (§16.9–§16.10), but that's no longer the situation.
+- Cartographer (Heß et al., 2016) is more sophisticated (submaps + branch-and-bound global matching) — a reasonable future upgrade if map scale grows well past a single narrow-aisle environment, but more machinery than the current problem needs.
+
+**One concrete, reasoned recommendation for the next session, not just a confirmation of the status quo:** this project currently runs `slam_toolbox` scan-matching-only, deliberately not fusing wheel odometry as a pose prior (`system/slam_nodom.yaml`) — a choice made when the odometry pipeline itself was unreliable. That reasoning doesn't automatically hold anymore: §16.12 and §16.15 confirmed odom-TF holds cleanly across reboots and real driving. A scan matcher with a good motion prior converges faster and more reliably than one with none. **Next session: benchmark `slam_toolbox` with odometry-as-prior enabled against the current no-odometry config**, now that the original reason for avoiding it no longer applies. Full derivation of why in `docs/SLAM_Theory.md` §2.3.
+
+`docs/SLAM_Theory.md` also derives the actual math the algorithm runs, cited throughout: the point-to-line ICP scan-matching metric (Censi, 2008) `slam_toolbox`'s front-end descends from, the pose-graph nonlinear least-squares formulation (Grisetti, Kümmerle & Stachniss, 2010) the back-end solves, and the Bayesian log-odds occupancy-grid update (Moravec & Elfes, 1985) — with an explicit tie back to this project's own tooling: the `.pgm` convention `run_report.py`'s `classify_map_pixel` reads (0/205/254 = occupied/unknown/free) is literally that log-odds value, saturated toward its extremes as evidence accumulates. "81% unknown" in §16.15's map isn't a separate metric from the theory — it's cells that never accumulated enough log-odds evidence to move off zero.
+
+## 17.2 Next session: LiDAR placement trial — three positions, one test procedure, ready to run
+
+The user has three candidate LiDAR mounting positions in mind and wants an empirical trial-and-error comparison, not a guess, before committing to a final mount (extends the §16.8/B.6 deferred "elevate the LiDAR mount" item, now informed by the mechanical analysis done earlier this session — the tall fixed rear stack cannot be practically cleared, so the real comparison is about how much the *battery* occlusion specifically costs each position).
+
+**Three positions to test, same robot, same route each time:**
+
+1. **In front of the battery, current height (not elevated)** — battery blocks part of the LiDAR's line of sight. The baseline/worst case.
+2. **On top of the battery** — battery occlusion removed; the fixed rear-stack blind wedge (accepted as static and unavoidable per this session's earlier analysis) remains, which is fine.
+3. **In front of the battery, elevated** — battery occlusion avoided by height instead of by repositioning onto it.
+
+**One test motion, run identically for all three positions, so the comparison is fair:**
+1. Stationary for the first minute (baseline scan, no motion blur/timing artifacts).
+2. Drive forward.
+3. Drive backward.
+4. One full rotation in place, clockwise.
+5. One full rotation in place, counter-clockwise.
+
+Same path, same duration targets, for all three — the only variable being compared is mount position. Use the **Map** button (§16.13) for each run — every run gets recorded and auto-analyzed (§16.14) with no extra steps, so all three runs produce a directly comparable `_report.json` map-quality section (unknown/free/occupied %, findings) plus the `.pgm` for visual comparison in `telemetry_analyzer.html`'s Map tab.
+
+**What decides the winner:** lowest `unknownPct` / highest usable coverage for the same driven path, no new findings-level warnings (e.g. "Sparse coverage") that the other positions don't also have, and — separately from the automated report — an eyeballed check in RViz2 or the Map tab for whether the accepted rear blind wedge is the *only* dead zone, or whether a new one appeared from whatever the position change was near.
+
+## 17.3 Session and branch close-out
+
+This session (branch `claude/raspi-slam-mapping-bringup-75tf7i`) closes here. Everything in it — bringup reliability, the Map button, automated analysis, the `main` consolidation, and this literature review — is merged onto `main` and confirmed working. The next phase (LiDAR placement trial → SLAM implementation → autonomous drive) starts in a **new session on a new branch**, since §17.2's trial needs the user at the robot. Two weeks allotted for a reliable SLAM + AMR result, everything grounded in the literature going forward, IR collision sensors deliberately out of scope until mapping/SLAM is solid.
+
 # Appendix A — Document Catalogue
 
 Every supporting document, organised by category. Update this as new artefacts are produced.
@@ -1968,6 +2010,8 @@ Every supporting document, organised by category. Update this as new artefacts a
 
 - Important_Commands.md — copy-paste cheat sheet for login, code deploy, data download, and quick health checks (new, added 7 Aug 2026, §16.16).
 
+- SLAM_Theory.md — SLAM algorithm choice and underlying math (scan matching, pose-graph optimization, occupancy grids), grounded in `research_articles/` (new, added 7 Aug 2026, §17.1).
+
 ## A.4 ROS 2 source files (Pi)
 
 - esp32_bridge.py — ESP32 serial-protocol node.
@@ -2013,6 +2057,21 @@ Every supporting document, organised by category. Update this as new artefacts a
 - system/slam_nodom.yaml — the working slam_toolbox config (scan-matching only); deployed at ~/ros2_ws/slam_nodom.yaml.
 
 - ydlidar_ros2_driver — third-party, cloned by install.sh (branch humble), not vendored.
+
+## A.7 Research articles (new, v2.4, 7 Aug 2026)
+
+Living bibliography backing SLAM/AMR decisions from Part XVII onward — full list with DOIs and per-paper relevance notes in `research_articles/README.md`, source of truth; this is a pointer, not a duplicate.
+
+- Macenski & Jambrečić (2021) — SLAM Toolbox — the algorithm this robot runs.
+- Grisetti, Stachniss & Burgard (2007) — GMapping/RBPF — the particle-filter alternative.
+- Kohlbrecher, von Stryk, Meyer & Klingauf (2011) — Hector SLAM — the no-odometry alternative.
+- Heß, Kohler, Rapp & Andor (2016) — Cartographer — the submap/branch-and-bound alternative.
+- Konolige, Grisetti & Kümmerle (2010) — Sparse Pose Adjustment — Karto's back-end, `slam_toolbox`'s lineage.
+- Censi (2008) — point-to-line ICP (PLICP) — the scan-matching metric.
+- Grisetti, Kümmerle & Stachniss (2010) — graph-based SLAM tutorial — the pose-graph optimization math.
+- Moravec & Elfes (1985) — occupancy grid mapping — the Bayesian log-odds update.
+- Laksono & Kusuma (2022) — Hector SLAM vs. GMapping on an RPLidar-A1 — empirical comparison on similar hardware.
+- Sugiura & Matsutani (2021, 2022) — FPGA acceleration for 2D LiDAR SLAM — quantifies embedded-hardware compute constraints.
 
 # Appendix B — Open Questions and TODOs
 
@@ -2077,5 +2136,6 @@ Every supporting document, organised by category. Update this as new artefacts a
 | 04 Aug 2026  | v2.1        | Added Part XVI: the encoder-fault bench resolution (FR/FL cross-connection, not the shifter — full detail in `Bench_Test_Map.md`), the resulting per-motor-CPR firmware bug and its fix, and the full v3.0 PID/feedforward recalibration (two-term FF, Ki 30→250, dynamic anti-windup, 100 Hz loop, WiFi removed — derivation in `docs/PID_Calibration.md`). Logged the recovery and review of two bench CSVs: `run_20260702_183233.csv` (old firmware, pre-fix; 3–6% RMS tracking error) and, same day, `run_20260804_193703.csv` (post-flash confirmation on v3.0, wheels in air; 2.0–2.4% RMS error, 0% saturation, zero direction-sign faults). Documented the TXS0108E → single 8-channel discrete-MOSFET level shifter hardware swap and updated `Master_Reference.md` §2.5/§4.3–4.4 and `LevelShifter_Wiring.md` (now marked retired) accordingly. Logged a new open item: the Pi has no battery-backed RTC and its clock reliability during no-WAN operation is now flagged rather than assumed — one of the two CSVs above had a correct timestamp, the other didn't, which is exactly the failure mode this flags. Added B.6 (infrastructure TODOs). Declared the encoder feedback loop closed on the hardware+firmware side (§16.5); ground calibration is next. Brought Part III's hardware inventory up to date (dual-encoder split with the GTK08 fronts, the discrete-MOSFET level shifter, ESP32 at 100 Hz with no radio) and documented the CPR-normalisation mechanism in `PID_Calibration.md` §1. Recorded §16.6: removing WiFi also removed the ESP32 escape hatch, a safety-relevant capability loss that several docs still described as live — all corrected. Noted Part XV as partially superseded for control-related content. |
 | 06 Aug 2026  | v2.2        | Resolved the RTC open item from v2.1: DS3231 wired on the shared I²C bus, the two-RTC-device (`rtc0` SoC vs `rtc1` DS3231) discovery, and two custom systemd units targeting `/dev/rtc1` explicitly — verified across a full network-less power-cycle (§16.4 update). Added §16.7: a Pi-vs-GitHub code drift audit (no persistent git clone on the Pi, verified via sha256 instead of `git diff`) that found and fixed a deprecated CycloneDDS syntax, a `max_wheel_speed` launch-file override masking the corrected node default, and a dead Xbox-controller wait loop; also corrected `Network_SelfHosted_AP.md`'s stale "manual AP start" section. Added §16.8: the first real LiDAR ground test — a data-corruption episode matching the documented checksum-error failure mode (resolved, validated clean under a 2-minute drive test), followed by a separate `/map`-never-publishes failure root-caused to duplicate `/scan_relay` and `/static_tf_pub_laser` nodes left over from un-killed prior terminal sessions; resolved via a full Pi reboot rather than continued targeted process cleanup, re-verification pending. Updated B.6 to mark the RTC item resolved and add the pending post-reboot LiDAR/SLAM re-verification and the deferred LiDAR-elevation mounting fix. |
 | 07 Aug 2026  | v2.3        | Reliable mapping as a system, not a manually-babysat pipeline (§16.9–§16.16). Root-caused and fixed the first ground-truth `/map` blockers: the undocumented `ydlidar.service` collision and `odom` never existing in TF because `esp32_bridge`'s `telemetry_enabled` defaulted off (§16.9); a third silent failure where the ESP32 could reset without the Pi's serial layer noticing, fixed with a periodic `<L1>` resend self-heal (§16.10); consolidated the 3-terminal LiDAR/SLAM bringup into one on-demand `mapping_full.launch.py`. Re-verified all of it post-reboot clean (§16.12). Added a **Map** button to `phone_dashboard.py` (v2.3), replacing RECORD RUN — one press launches the mapping stack and starts telemetry/PID recording together as a single action, no separate toggle (§16.13). Added `run_report.py`, a pure-stdlib Python port of `telemetry_analyzer.html`'s metrics/findings logic, so every mapping run gets an automated PID+map analysis report the moment it stops — numerically cross-checked against the browser tool's own JS, exact match (§16.14). Confirmed the entire chain end-to-end on real hardware in one clean run: Map button → subprocess-managed launch tree → map saved while slam_toolbox was still alive → clean teardown → auto-generated report, zero manual steps (§16.15). Merged onto `main` as the new baseline, archived the superseded `aislebot_pid_analysis_v2.py` to `past_iterations/`, added `docs/Important_Commands.md`, and cleaned up merged/superseded branches (§16.16). |
+| 07 Aug 2026  | v2.4        | Opened Part XVII — SLAM, visualization, and autonomous drive, two-week timeline, everything grounded in literature going forward (§17). Literature-reviewed the SLAM algorithm choice via Scite before touching any parameters: confirmed `slam_toolbox` (Macenski & Jambrečić, 2021) is the scientifically justified pick against GMapping/RBPF, Hector SLAM, and Cartographer, not just the incumbent; surfaced one concrete reasoned recommendation for next session — re-evaluate the scan-matching-only (no odometry prior) config now that odom-TF is confirmed reliable, since that config's original justification (unreliable odometry) no longer holds (§17.1). Added `docs/SLAM_Theory.md`, deriving the actual math (point-to-line ICP scan matching, pose-graph nonlinear least-squares optimization, Bayesian log-odds occupancy grids) with an explicit tie back to this project's own `run_report.py`/`telemetry_analyzer.html` map classification. Added `research_articles/`, a living, DOI-cited bibliography (new Appendix A.7) — ten papers, all verified via Scite, none retracted. Documented the next session's ready-to-execute LiDAR placement trial: three candidate mount positions × one standardized test motion (§17.2). Session and branch close out at §17.3 — the next phase begins in a new session on a new branch. |
 
 Future revisions append rows here. When in doubt about whether something deserves an entry, err toward writing it — the value of this document is the path travelled.

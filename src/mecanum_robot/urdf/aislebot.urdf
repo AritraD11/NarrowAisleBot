@@ -157,7 +157,11 @@
 
   <!-- ==================== SENSOR FRAMES ==================== -->
 
-  <!-- LiDAR mount (front-center, 20cm above base) -->
+  <!-- LiDAR mount: on top of the battery (Position 2, Research_Journal.md §17.4).
+       Derived from the pre-trial estimate (0.35, 0, 0.20) plus the user-reported
+       deltas from that mount to this one (+0.075 height, -0.20 pushed back) -- not
+       an independent measurement. Refine with calipers if TF accuracy ever matters
+       for something beyond visualization. -->
   <link name="laser_frame">
     <visual>
       <geometry><cylinder radius="0.04" length="0.04"/></geometry>
@@ -171,7 +175,7 @@
   <joint name="laser_joint" type="fixed">
     <parent link="base_link"/>
     <child link="laser_frame"/>
-    <origin xyz="0.35 0 0.20" rpy="0 0 0"/>
+    <origin xyz="0.15 0 0.275" rpy="0 0 0"/>
   </joint>
 
   <!-- IMU (center of chassis) -->

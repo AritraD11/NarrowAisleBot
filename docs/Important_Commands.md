@@ -155,6 +155,16 @@ see the robot's topics; Foxglove's plain-TCP websocket bridge can.
    robot model — same information RViz2 would show, just over a
    connection that actually works on this network.
 
+**3D panel frame settings, for diagnosing motion/drift bugs specifically**
+(confirmed working 11 Aug 2026, Research_Journal.md §17.11): set both
+**Fixed frame** and **Display frame** to `base_link`, not the `map` default.
+This holds the robot stationary at screen-center, so any accumulated map
+drift becomes directly visible as map *motion* while driving — this exact
+setting is what originally exposed the §17.10 sideways-drift symptom, and
+what was used afterward to confirm the fix (map now slides away behind the
+robot on forward drive, not sideways). Switch back to `map` for normal
+"where is the robot in the world" viewing once you're not debugging motion.
+
 If the connection fails, confirm the bridge is actually running:
 ```bash
 ros2 node list | grep foxglove

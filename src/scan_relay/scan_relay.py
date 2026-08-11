@@ -13,20 +13,30 @@ TWO JOBS
    `ros2 topic hz` says is perfectly alive.
 
 2. ANGULAR CORRECTION (added 11 Aug 2026, section 17.9).
-   Measured on hardware by placing a single block at known bearings and
-   reading where it appeared:
+   Measured on hardware by placing a single block at known bearings *in
+   base_link's own frame as this robot actually drives it* -- confirmed
+   empirically (W -> +Y, D -> +X, both against Foxglove's Fixed/Display
+   frame set to base_link), not assumed from the REP-103 textbook
+   convention (which would put forward on +X). Whatever base_link's real
+   axes are is what this scan has to line up with, so that is what was
+   measured against:
 
-       block truly at FRONT (   0 deg)  ->  reported  180 deg   WRONG
-       block truly at RIGHT ( -90 deg)  ->  reported  -90 deg   correct
-       block truly at LEFT  ( +90 deg)  ->  reported  +90 deg   correct
+       block truly RIGHT (base_link +X,   0 deg) -> reported  270 deg
+       block truly FRONT (base_link +Y,  90 deg) -> reported  180 deg
+       block truly LEFT  (base_link -X, 180 deg) -> reported   90 deg
 
-   Left/right correct, front/back swapped. That is a REFLECTION about the
-   robot's Y axis, i.e.
+   All three solve the same relationship: reported = 270 deg - true. That
+   is a REFLECTION (a rotation would add the same signed delta at every
+   heading; here the delta is 270, 90, 270 -- not constant -- while
+   reported + true IS constant at every heading, which is what a mirror
+   about a fixed line produces, not a turn).
 
-       reported = 180 deg - true
-
-   not a rotation. A rotation by 180 deg would have swapped left and right
-   as well, and it demonstrably did not.
+   An earlier pass at this fix assumed base_link's forward was +X
+   (REP-103) and derived yaw_offset=180 deg. That number is 90 deg off
+   from every one of the three measurements above and was never deployed
+   -- flagged here because it is the mistake to not repeat if this is ever
+   re-derived: measure against how the robot actually drives, not against
+   the textbook axis convention.
 
    This distinction decides where the fix can live: **a TF cannot express a
    reflection.** tf2 carries proper rigid motions (rotation + translation)
@@ -41,7 +51,7 @@ TWO JOBS
 PARAMETERS
 ----------
    mirror         (bool,   default True)   negate the scan angle
-   yaw_offset_deg (double, default 180.0)  rotation applied after the mirror
+   yaw_offset_deg (double, default 270.0)  rotation applied after the mirror
 
    Physical angle recovered as:  true = mirror_sign * reported + yaw_offset
 
@@ -72,7 +82,7 @@ class ScanRelay(Node):
         super().__init__('scan_relay')
 
         self.declare_parameter('mirror', True)
-        self.declare_parameter('yaw_offset_deg', 180.0)
+        self.declare_parameter('yaw_offset_deg', 270.0)
         self.mirror = self.get_parameter('mirror').value
         self.yaw_offset = math.radians(
             self.get_parameter('yaw_offset_deg').value)

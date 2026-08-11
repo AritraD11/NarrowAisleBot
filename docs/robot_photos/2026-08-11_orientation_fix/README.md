@@ -16,7 +16,10 @@ angle correction. Full technical write-up, math, and code:
 | [`forward_drive_frame_end.jpg`](forward_drive_frame_end.jpg) | Last frame: robot has closed the distance, block's map position has moved correspondingly closer to the origin. Direction of travel is toward the block in both the real-world and map panes — the geometry check that motivated ruling out a simple frame swap and pursuing the reflection hypothesis instead. |
 
 **Result:** three placements (right/front/left) all solve one consistent
-relationship — a reflection, not a rotation — fixed in `scan_relay.py` with
-`mirror=True, yaw_offset_deg=270`. Confirmed by the user afterward: "now it
-maps perfectly." Full derivation in
+relationship — a reflection, not a rotation. The reflection diagnosis drawn
+from these photos was correct and still stands; the specific rotation
+constant derived from them at the time (`yaw_offset_deg=270`) was not — it
+rested on an axis-convention claim that a later, independent odometry check
+overturned. Final, corrected value is `yaw_offset_deg=180`. Full arc,
+including the correction, in
 [`docs/LiDAR_Orientation_Calibration.md`](../../LiDAR_Orientation_Calibration.md).

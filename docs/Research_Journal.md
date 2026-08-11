@@ -2037,6 +2037,8 @@ Method: a single opaque reference block at a known bearing, robot rotated in pla
 
 ## 17.9 11 Aug 2026: LiDAR scan found mirrored — diagnosed and fixed in `scan_relay.py`
 
+**⚠ Superseded the same day — see §17.10.** The `yaw_offset=270°` this section describes as deployed and confirmed was itself wrong, built on a W/D-key convention claim that turned out not to match the robot's real odometry. Left below as written at the time rather than edited away, because the *reflection* diagnosis and the measurement method are both still correct and reused directly in §17.10 — only the rotation constant was wrong, and the entry below is also the record of exactly how.
+
 While running §17.8's trial, a block placed in front of the robot was appearing *behind* it in the map. The live `base_link -> laser_frame` transform was checked and found to be an unset placeholder (`(0, 0, 0.02)`, zero rotation) rather than Position 2's real mount offset — but a translation error cannot swap front and back, so this was a real, separate fault, not an artifact of that known TF gap.
 
 **Measured, not guessed**, with a single block at three bearings, defined empirically by how the robot actually drives (`W` -> `+Y`, `D` -> `+X`, confirmed by a side-by-side video of the robot driving toward a block while its map position closed in step) rather than assumed from the ROS/REP-103 convention that forward is `+X`. That distinction mattered directly: a first derivation assuming REP-103 produced a 180° offset that is 90° away from every one of the three measured points, and was caught before deployment.
@@ -2054,6 +2056,37 @@ All three solve `reported = 270° - true`. This is a **reflection**, not a rotat
 Full derivation, the ruled-out 180° hypothesis, and the code: `docs/LiDAR_Orientation_Calibration.md`. Photographic evidence: `docs/robot_photos/2026-08-11_orientation_fix/` (block-placement photos, forward-drive confirmation video).
 
 **Open items carried to B.6:** §17.8's blind-sector bearings were measured in the pre-fix, mirrored frame and need re-measuring against corrected `/scan_reliable` before they're used for anything (e.g. a scan mask); the `base_link -> laser_frame` *translation* is a separate, still-open bug from the one fixed here.
+
+## 17.10 11 Aug 2026: §17.9's fix corrected — `yaw_offset` was 270°, should have been 180°
+
+§17.9 deployed `yaw_offset=270°` on the strength of a claimed `W -> +Y, D -> +X` axis convention, "confirmed" by watching the robot and a live map together. Immediately after deploying it, a new, independent symptom appeared: driving the robot **forward** made the accumulated `/map` shift **sideways** relative to the robot, not backward as it should for a correctly-tracked forward move. That symptom has nothing to do with scan angles — it's about whether the robot's *own estimated direction of travel* matches its *real* direction of travel, which is odometry's job, not the LiDAR's. A translation-tracking problem appearing right after an angle-tracking fix was suspicious enough to check properly rather than assume unrelated.
+
+**Checked against raw odometry, not a screenshot.** `ros2 run tf2_ros tf2_echo odom base_link`, logged before and after two controlled, single-axis moves — forward-only, then strafe-right-only, nothing else, no rotation:
+
+| Move (physically confirmed) | dX | dY | Reads as |
+|---|---:|---:|---|
+| Forward (`W`) | +0.257 m | +0.015 m | **94% of motion in X** |
+| Strafe right (`D`) | +0.011 m | −0.287 m | **96% of motion in Y** |
+
+That's REP-103 exactly — `base_link`'s real `+X` is forward, `+Y` is left — the *opposite* of what §17.9's fix assumed, and the same convention the very first (pre-§17.9) hypothesis used before being set aside.
+
+**Re-solving §17.9's original three block measurements with forward correctly assigned to `+X`** reproduces that first hypothesis exactly, no residual:
+
+| Block truly at | True bearing (REP-103) | Reported (raw, unchanged) | Solves for |
+|---|---:|---:|---:|
+| Right | −90° | 270° | |
+| Front | 0° | 180° | |
+| Left | 90° | 90° | |
+
+All three: `reported = 180° − true`. `yaw_offset=180°`, not 270°.
+
+**Why the earlier "confirmation" didn't catch this:** §17.9's block-placement test judged correctness by asking "does the object appear where the `W`/`D` convention says it should?" — but that convention is exactly what was wrong, so the test could only ever agree with itself. It wasn't a bad test; it was a test that shared its assumption with the thing it was checking, which is a different and easier mistake to make than it sounds. The odometry check didn't share that assumption — it compared against physically-confirmed real motion, which is what broke the tie.
+
+**Fixed:** `scan_relay.py`'s default `yaw_offset_deg` changed `270.0 -> 180.0`. `mirror=True` is unchanged and was never in question — the reflection diagnosis in §17.9 holds; only the rotation constant was wrong. Reverified through the actual runtime remapping function (not the point algebra alone) against all three block measurements under the corrected assignment. `docs/LiDAR_Orientation_Calibration.md` and `scan_relay.py`'s own docstring both rewritten to carry this full arc — including the wrong turn — rather than quietly presenting 180° as if it had been obvious from the start.
+
+**The general lesson, stated plainly because it's worth carrying into the next session:** "measure, don't assume" only works if the measurement is actually independent of the assumption being checked. A visual read of a live display, while much better than a guess, is still a weaker check than a raw number logged before and after a controlled single-axis motion. Where the two disagreed here, the raw number was right.
+
+No new B.6 items — this closes out §17.9's fix rather than opening further questions.
 
 # Appendix A — Document Catalogue
 
@@ -2262,5 +2295,7 @@ Living bibliography backing SLAM/AMR decisions from Part XVII onward — full li
 
 | 08 Aug 2026  | v2.8        | Footprint tape-measured (§17.7), resolving §17.6's blocking item: 36 × 100 cm, giving a Nav2 footprint of 1.12 × 0.48 m. Found the URDF's chassis `<box>` (0.50 m wide) was the wrong number, not the hand measurement — the URDF's own wheel-joint origins (0.375 m outer) agreed with the tape and were unaffected, since inverse kinematics and odometry consume those, not the visual/collision box. Corrected `nav2_params.yaml`'s footprint (both costmaps) and `aislebot.urdf`'s chassis width; left the chassis inertia tensor deliberately stale (Gazebo-only impact) rather than substitute an un-derived guess. |
 | 11 Aug 2026  | v2.9        | Self-occlusion measured directly by block-placement trial rather than inferred from map coverage stats (§17.8) — found a blind sector roughly a third of the full sweep, explaining the placement trial's stubborn ~85%-unknown maps better than battery occlusion alone. While running that trial, found and fixed a LiDAR scan mirror bug (§17.9): a block in front was appearing behind, measured against three bearings defined by how the robot actually drives (not the REP-103 textbook convention, which a first attempt wrongly assumed and which was caught before deployment). All three measurements solved one relationship — a reflection, not a rotation, provably outside what any `tf2` static transform could correct — fixed by re-indexing the scan in `scan_relay.py` (`mirror=True, yaw_offset=270°`), verified against the runtime remapping function, deployed, and confirmed live: "now it maps perfectly." Added `docs/LiDAR_Orientation_Calibration.md` (full derivation and code) and `docs/robot_photos/2026-08-11_recalibration_cw/` + `2026-08-11_orientation_fix/` (photographic evidence, captioned). B.6 updated: the live TF's stale placeholder translation confirmed still-open and separate from this fix; §17.8's blind-sector bearings flagged as needing re-measurement in the corrected frame; chassis-occlusion/danger-cushion validation scoped forward to the next session's dedicated branch. |
+
+| 11 Aug 2026  | v2.10       | Corrected §17.9's LiDAR fix the same day it was deployed (§17.10): `yaw_offset` was `270°`, should have been `180°`. Caught by a symptom the original fix couldn't have caught itself — driving forward moved the accumulated map sideways rather than backward — checked against raw odometry (`tf2_echo odom base_link` before/after controlled single-axis moves) rather than a screenshot, which showed `base_link`'s real forward axis is `+X` (REP-103), not `+Y` as §17.9's fix assumed. Re-solving the original three block measurements with that correction reproduces the very first, earlier-discarded hypothesis exactly. `scan_relay.py`'s default changed `270.0 -> 180.0`, `mirror=True` unchanged; reverified through the runtime remapping function. `docs/LiDAR_Orientation_Calibration.md` and the script's own docstring both rewritten to carry the full arc, including the wrong turn, rather than presenting the right answer as if it had been obvious from the start. |
 
 Future revisions append rows here. When in doubt about whether something deserves an entry, err toward writing it — the value of this document is the path travelled.

@@ -1,19 +1,33 @@
 # LiDAR Orientation Calibration — What Happened and How It Was Fixed
 
-11 Aug 2026. Companion to `Research_Journal.md` §17.8–§17.9. Photographic
+11 Aug 2026. Companion to `Research_Journal.md` §17.8–§17.10. Photographic
 evidence in `docs/robot_photos/2026-08-11_recalibration_cw/` and
 `docs/robot_photos/2026-08-11_orientation_fix/`.
 
+**This doc was rewritten the same day it was first written**, because the
+fix it originally described was itself wrong. Left in as a full account of
+both rounds rather than quietly edited to look right the first time — the
+wrong turn is as much a part of the record as the correct answer, and it's
+the reason the correct answer is trustworthy rather than a second guess.
+
 ## Summary
 
-The LiDAR's scan data was reflected — objects to the robot's front and rear
-were swapped, while left and right were correct. Not a mounting-angle error
-(which a static transform could fix) and not a hardware fault: the sensor's
-own angle indexing didn't match the direction it was physically bolted on
-facing. Diagnosed by placing a single reference block at three known
-bearings and solving for the relationship between where it should appear and
-where it did. Fixed in software, in `scan_relay.py`, which already sits
-between the driver and everything downstream.
+The LiDAR's scan data was **reflected** — objects to the robot's front and
+rear were swapped, while left and right individually read correctly. Not a
+mounting-angle error (a static transform could have fixed that) and not a
+hardware fault: the sensor's own angle indexing didn't match the direction
+it was physically bolted on facing. Fixed in software, in `scan_relay.py`,
+which already sits between the driver and everything downstream.
+
+**Final, confirmed values: `mirror = True`, `yaw_offset = 180°`.**
+
+Getting to that number took two attempts. The first (180°, assuming
+standard ROS convention) was correct but got second-guessed and replaced
+with a wrong one (270°, based on an unverified claim about which way the
+robot's own axes point) before deployment. The wrong version was deployed,
+looked correct on its own test, then failed a second, independent test —
+which is exactly what led back to 180°. That arc is the useful part of this
+document, not just the final numbers.
 
 ## How it was found
 
@@ -33,28 +47,19 @@ transforms are rigid motions, and getting the position wrong doesn't
 relabel directions. Something else was wrong, and it needed measuring, not
 guessing.
 
-## The measurement
+## Round 1: the reflection, diagnosed correctly; the rotation, diagnosed wrong
 
 A single opaque block, placed at one known bearing at a time, `Fixed
-frame`/`Display frame` both set to `base_link` in Foxglove (so the display
-is base_link's own axes, not an arbitrary camera frame), `Theta` (camera
-rotation) fixed at 0° throughout so every reading uses the same visual
-convention.
+frame`/`Display frame` both set to `base_link` in Foxglove, `Theta` (camera
+rotation) fixed at 0° throughout.
 
-Critically, "known bearing" was defined *empirically*, by how the robot
-actually drives — `W` moves it toward `+Y`, `D` moves it toward `+X`,
-confirmed by watching the robot move and the map update together
-(`docs/robot_photos/2026-08-11_orientation_fix/forward_drive_confirmation.mp4`)
-— not assumed from the ROS/REP-103 textbook convention (which puts
-"forward" on `+X`). This distinction mattered: an earlier pass at this fix,
-derived by assuming REP-103, got a number 90° away from the one that
-actually matches this robot. The textbook convention describes how *most*
-ROS robots are wired; it doesn't describe this one for free, and the first
-attempt at this fix would have been wrong had it shipped.
+"Known bearing" was defined by an *asserted* driving convention — `W` moves
+the robot toward `+Y`, `D` toward `+X` — said to be confirmed by watching
+the robot and the live map together. This assertion turned out to be wrong
+(see Round 2), but it produced an internally self-consistent set of
+readings:
 
-Three placements, three readings:
-
-| Block truly at | Expected bearing | Reported bearing |
+| Block truly at | Expected bearing (per the `W`/`D` claim) | Reported bearing |
 |---|---:|---:|
 | Right (`base_link` `+X`) | 0° | 270° |
 | Front (`base_link` `+Y`) | 90° | 180° |
@@ -63,70 +68,94 @@ Three placements, three readings:
 (`docs/robot_photos/2026-08-11_orientation_fix/block_at_right.jpg`,
 `block_at_front.jpg`, `block_at_left.jpg`)
 
-## The math
+All three solved one relationship: $\text{reported} = 270° - \text{true}$.
 
-All three solve one relationship:
+**The reflection diagnosis drawn from this data was correct, and still
+holds.** A rotation adds the *same* signed offset at every heading —
+$\text{reported} - \text{true}$ would be constant. Here it wasn't (270°,
+90°, 270° across the three headings). What *was* constant was
+$\text{reported} + \text{true}$ (270° every time) — the signature of a
+mirror about a fixed line, not a turn. That's why the correction has to
+live in the scan data itself: `tf2` composes rotations and translations —
+proper rigid motions — and a reflection is not one; no
+`base_link -> laser_frame` static transform, at any angle, equals a mirror.
 
-$$\text{reported} = 270° - \text{true} \pmod{360°}$$
+**What was wrong was the rotation constant**, because it was only as good
+as the `W`/`D` claim it was built on. Solving for the fix under that claim
+gave `mirror=True, yaw_offset=270°`. An earlier, independent derivation —
+made before the `W`/`D` claim, assuming the standard ROS convention
+(REP-103: forward on `+X`) instead — had produced `yaw_offset=180°`, 90°
+away from this. At the time, 180° looked like the thing to discard: it
+disagreed with the empirical-sounding `W`/`D` measurement, so 270° shipped.
 
-Check: $270 - 0 = 270$. $270 - 90 = 180$. $270 - 180 = 90$. All three, exactly.
+**Deployed, and it appeared to work** — a live block-placement check after
+deployment showed objects appearing at the expected bearing. But that check
+shared its assumption with the fix it was checking (both used the same
+`W`/`D` claim for "expected"), so agreement with it was not independent
+confirmation. It could only ever pass.
 
-**Why this is a reflection, not a rotation**, and why that distinction is
-the whole point: a rotation adds the *same* signed offset at every heading —
-$\text{reported} - \text{true}$ would be constant. Here it isn't (270°, 90°,
-270°). What *is* constant is $\text{reported} + \text{true} = 270°$ at every
-heading — the signature of a mirror about a fixed line, not a turn. Left and
-right individually read correctly when checked alone; it's specifically
-front and back that are swapped, which is exactly what reflecting about the
-robot's left-right axis produces.
+## Round 2: an unrelated symptom exposes the real answer
 
-This is the fact that rules out a TF-based fix. `tf2` transforms compose
-rotations and translations — proper rigid motions. A reflection is not a
-rigid motion (it inverts handedness); no rotation, at any angle, equals a
-mirror. So no `base_link -> laser_frame` static transform, correctly
-measured or not, could have fixed this. The correction has to act on the
-scan data's angle indexing directly.
+Immediately after deployment, driving the robot forward made the
+accumulated `/map` shift **sideways** relative to the robot, not backward
+as a correctly-tracked forward move should look. This has nothing to do
+with scan angles — it's whether the robot's *estimated direction of
+travel* (odometry) matches its *real* direction of travel. An
+angle-tracking fix should not have been able to cause a translation-tracking
+symptom; that mismatch was reason enough to check rather than assume it was
+unrelated noise.
 
-Solving the same relationship for the fix (published bearing should equal
-true bearing):
+**Checked against raw odometry, not a screenshot** —
+`ros2 run tf2_ros tf2_echo odom base_link`, logged before and after two
+controlled, single-axis, physically-confirmed moves:
 
-$$\text{true} = 270° - \text{reported}$$
+| Move | dX | dY | Reads as |
+|---|---:|---:|---|
+| Forward only (`W`) | +0.257 m | +0.015 m | **94% of motion in X** |
+| Strafe right only (`D`) | +0.011 m | −0.287 m | **96% of motion in Y** |
 
-which in `mirror`/`yaw_offset` form (see code below) is `mirror = True`,
-`yaw_offset = 270°`.
+That is REP-103, exactly — `base_link`'s real `+X` is forward, `+Y` is left
+— the opposite of the `W`/`D` claim Round 1 was built on, and the same
+convention the *first*, discarded derivation had used.
 
-**The number that was almost shipped instead:** an initial derivation,
-before the empirical `W`/`D` measurement, assumed `base_link`'s forward axis
-was `+X` (REP-103) and produced `yaw_offset = 180°`. Every one of the three
-measurements above is 90° away from what that value would correct to. It was
-never deployed — caught by insisting on driving-based measurement over
-textbook assumption before locking anything in.
+**Re-solving Round 1's original three measurements with forward correctly
+assigned to `+X`** reproduces that first derivation exactly, no residual:
 
-## The fix
+| Block truly at | True bearing (REP-103) | Reported (raw, unchanged) |
+|---|---:|---:|
+| Right | −90° | 270° |
+| Front | 0° | 180° |
+| Left | 90° | 90° |
 
-`src/scan_relay/scan_relay.py` — already the one node sitting between the
-driver's `/scan` and everything else's `/scan_reliable` (originally built to
-bridge a QoS mismatch, §13.4). Re-indexes each incoming scan through a cached
-angle map:
+All three: $\text{reported} = 180° - \text{true}$.
+
+## The fix, final
+
+`src/scan_relay/scan_relay.py` — the node bridging `/scan` to
+`/scan_reliable` for QoS reasons (§13.4), which now also re-indexes each
+scan through a cached angle map built once per scan geometry:
 
 ```python
 MIRROR = True
-YAW_OFFSET = math.radians(270.0)   # true = -reported + 270 deg
+YAW_OFFSET = math.radians(180.0)   # true = -reported + 180 deg
 ```
 
-with the correction applied as an index remap (pull each output bin's value
-from the appropriate input bin) rather than per-message trigonometry, so the
-map is computed once per scan geometry and reused every message after that.
+Verified through the actual runtime index-remapping function — not just the
+point algebra — against all three block measurements under the corrected
+axis assignment. All pass; pass-through mode (`mirror=False,
+yaw_offset=0`) remains the exact identity map.
 
-Verified two ways before deployment:
-1. Algebraically, against all three measured points plus a fourth
-   (untested) heading as a sanity check.
-2. Through the actual index-remapping function used at runtime, not just
-   the point arithmetic — confirming the implementation matches the derivation,
-   not only the theory.
+## What actually decided this, and why it's worth remembering
 
-Both passed. Deployed, and confirmed by the user against a live map: "now
-it maps perfectly."
+"Measure, don't assume" is only as good as the measurement. A visual read
+of a live display — watching the robot and a map together and judging
+which arrow it moved toward — is a real measurement, better than a guess,
+but it is a *weaker* one than a raw number logged before and after a
+controlled, single-axis motion. Where the two disagreed here, the raw
+number was the one that turned out to be right. The practical version of
+this lesson: when a claimed convention is being used to calibrate
+something, look for an independent way to check the claim itself before
+trusting derivations built on it.
 
 ## What's still open
 
@@ -140,9 +169,8 @@ it maps perfectly."
   unset-placeholder `(0, 0, 0.02)` rather than Position 2's actual offset.
   This fix corrected the scan's *angle* convention, not the mount's
   *position* in TF; they're independent bugs. `tools/scan_bearing.py` (added
-  same session) can help re-derive this if it's tackled directly, though the
-  block-placement method used here worked without it.
+  same session) can help re-derive this if it's tackled directly.
 - Re-run `tools/scan_bearing.py` against `/scan_reliable` post-fix as a
-  numeric double-check, now that the tool and the fix exist together.
+  numeric double-check, now that the tool and the corrected fix both exist.
 
 See `Research_Journal.md` Appendix B.6 for these as tracked open items.

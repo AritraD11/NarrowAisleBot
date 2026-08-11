@@ -12,46 +12,54 @@ TWO JOBS
    connect, and the symptom is a node that waits forever on a topic that
    `ros2 topic hz` says is perfectly alive.
 
-2. ANGULAR CORRECTION (added 11 Aug 2026, section 17.9).
-   Measured on hardware by placing a single block at known bearings *in
-   base_link's own frame as this robot actually drives it* -- confirmed
-   empirically (W -> +Y, D -> +X, both against Foxglove's Fixed/Display
-   frame set to base_link), not assumed from the REP-103 textbook
-   convention (which would put forward on +X). Whatever base_link's real
-   axes are is what this scan has to line up with, so that is what was
-   measured against:
+2. ANGULAR CORRECTION (added 11 Aug 2026, section 17.9; corrected same day,
+   section 17.10 -- read that correction, not just this docstring, for the
+   full story of why the number changed twice).
 
-       block truly RIGHT (base_link +X,   0 deg) -> reported  270 deg
-       block truly FRONT (base_link +Y,  90 deg) -> reported  180 deg
-       block truly LEFT  (base_link -X, 180 deg) -> reported   90 deg
+   The scan is REFLECTED, not merely rotated: a block truly ahead of the
+   robot was being reported as if it were behind it, while left and right
+   individually read correctly. A rotation adds the same signed delta at
+   every heading; a reflection does not (delta was 270, 90, 270 across the
+   three test headings -- not constant -- while reported + true WAS
+   constant, 270 deg every time, which is the signature of a mirror about a
+   fixed line). This decides where the fix can live: **a TF cannot express a
+   reflection.** tf2 carries proper rigid motions only, so no
+   base_link -> laser_frame static transform, at any yaw, can undo this --
+   the scan data itself has to be re-indexed, which is why the fix is here.
 
-   All three solve the same relationship: reported = 270 deg - true. That
-   is a REFLECTION (a rotation would add the same signed delta at every
-   heading; here the delta is 270, 90, 270 -- not constant -- while
-   reported + true IS constant at every heading, which is what a mirror
-   about a fixed line produces, not a turn).
+   Getting the REFLECTION right (mirror=True) was correct on the first
+   attempt. Getting the ROTATION half right (yaw_offset) took two tries,
+   because it depends on which way base_link's own +X axis actually points,
+   and that turned out not to be obvious:
 
-   An earlier pass at this fix assumed base_link's forward was +X
-   (REP-103) and derived yaw_offset=180 deg. That number is 90 deg off
-   from every one of the three measurements above and was never deployed
-   -- flagged here because it is the mistake to not repeat if this is ever
-   re-derived: measure against how the robot actually drives, not against
-   the textbook axis convention.
+   - First attempt assumed REP-103 (forward = +X): yaw_offset = 180 deg.
+   - Second attempt used an asserted W/D key mapping (forward = +Y, said to
+     be confirmed by watching the display): yaw_offset = 270 deg. Deployed.
+     A static block-placement test appeared to confirm it -- but that test
+     shared the same assumption it was meant to check, so agreement with it
+     proved nothing.
+   - The 270 deg deployment then produced a real, independent symptom: the
+     *map* moved the wrong way relative to the *robot's actual driving
+     direction*. Measured directly against raw odometry (`tf2_echo odom
+     base_link`, forward-only then strafe-only, nothing inferred from a
+     screenshot): forward driving put 94% of the resulting translation into
+     dX, and rightward strafing put 96% into dY. That is REP-103, plainly,
+     contradicting the W/D claim the 270 deg fix rested on.
+   - Re-solving the original three block measurements with base_link's
+     forward correctly assigned to +X reproduces the FIRST attempt exactly:
+     yaw_offset = 180 deg, all three points, no residual.
 
-   This distinction decides where the fix can live: **a TF cannot express a
-   reflection.** tf2 carries proper rigid motions (rotation + translation)
-   only, so no base_link -> laser_frame transform, at any yaw, can undo
-   this. The scan data itself has to be re-indexed -- which is why the fix
-   is here, in the one node that already touches every scan.
-
-   The correction is an involution (applying `reported = 180 - true` twice
-   returns the original), so the same expression that describes the fault
-   also repairs it.
+   The general lesson, not just this specific fix: "measure against how the
+   robot actually behaves, not the textbook" is only as good as the
+   measurement. A visual read of a live display is a weaker measurement
+   than a raw TF number logged before and after a controlled, single-axis
+   motion -- and where the two disagreed, the raw TF number was the one
+   that turned out to be right.
 
 PARAMETERS
 ----------
    mirror         (bool,   default True)   negate the scan angle
-   yaw_offset_deg (double, default 270.0)  rotation applied after the mirror
+   yaw_offset_deg (double, default 180.0)  rotation applied after the mirror
 
    Physical angle recovered as:  true = mirror_sign * reported + yaw_offset
 
@@ -82,7 +90,7 @@ class ScanRelay(Node):
         super().__init__('scan_relay')
 
         self.declare_parameter('mirror', True)
-        self.declare_parameter('yaw_offset_deg', 270.0)
+        self.declare_parameter('yaw_offset_deg', 180.0)
         self.mirror = self.get_parameter('mirror').value
         self.yaw_offset = math.radians(
             self.get_parameter('yaw_offset_deg').value)

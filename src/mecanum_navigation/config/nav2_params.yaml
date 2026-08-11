@@ -1,6 +1,21 @@
 # ==============================================================
 # AisleBot Nav2 Configuration
 # Tuned for omnidirectional mecanum with narrow-aisle constraints
+#
+# Theory and parameter reasoning: docs/Navigation_Theory.md
+#
+# ⚠ FOOTPRINT NEEDS A TAPE MEASURE BEFORE FIRST AUTONOMOUS RUN.
+#   See the footprint comment in local_costmap below. The value here is
+#   derived from aislebot.urdf's chassis box (1.0 x 0.50 m) plus a 6 cm
+#   margin. It has NOT been verified against the physical robot, and the
+#   URDF and the user's own measurement currently disagree about width.
+#   A footprint smaller than the real robot means confident collisions.
+#
+# ⚠ AMCL vs SLAM: do NOT run amcl and slam_toolbox at the same time.
+#   Both publish the map->odom transform; running both corrupts the pose
+#   estimate (Navigation_Theory.md §5). The amcl block below is for the
+#   FUTURE "navigate on a previously-saved map" mode only. While
+#   slam_toolbox is mapping, amcl must stay unlaunched.
 # ==============================================================
 
 amcl:
@@ -31,7 +46,12 @@ bt_navigator:
   ros__parameters:
     global_frame: map
     robot_base_frame: base_link
-    odom_topic: /odometry/filtered
+    # /odometry/filtered is the robot_localization EKF output — that node is
+    # Phase 2 work and is NOT running. odometry_publisher publishes /wheel_odom
+    # (aislebot_full.launch.py). Pointing at the EKF topic means bt_navigator
+    # waits forever for odometry that never arrives. Switch back to
+    # /odometry/filtered if and when the EKF is actually brought up.
+    odom_topic: /wheel_odom
     bt_loop_duration: 10
     default_server_timeout: 20
     wait_for_service_timeout: 5
@@ -126,7 +146,14 @@ planner_server:
       plugin: "nav2_navfn_planner::NavfnPlanner"
       tolerance: 0.5
       use_astar: true
-      allow_unknown: false
+      # MUST be true while mapping an unknown space with slam_toolbox. With
+      # false, the planner refuses to route through unknown cells — and the
+      # placement-trial maps were ~85% unknown (§17.4), so essentially no goal
+      # would ever be reachable. Safety comes from the local costmap + footprint
+      # check, not from refusing to enter unmapped space
+      # (Navigation_Theory.md §2). Set false only when navigating a complete,
+      # previously-saved map.
+      allow_unknown: true
 
 smoother_server:
   ros__parameters:
@@ -167,27 +194,62 @@ local_costmap:
       width: 3
       height: 3
       resolution: 0.05
-      # AisleBot footprint (rectangle, meters)
-      footprint: "[[0.45, 0.20], [0.45, -0.20], [-0.45, -0.20], [-0.45, 0.20]]"
+      # ── FOOTPRINT ────────────────────────────────────────────────────
+      # Rectangle in base_link, [x, y] corners, metres. base_link sits at the
+      # chassis centre, so a chassis of length l and width w spans
+      # x = ±l/2, y = ±w/2.
+      #
+      # Derivation of the value below: aislebot.urdf's chassis box is
+      # 1.0 x 0.50 m, plus the 6 cm all-round clearance margin ->
+      # 1.12 x 0.62 m -> x = ±0.56, y = ±0.31.
+      #
+      # ⚠ UNVERIFIED — MEASURE BEFORE THE FIRST AUTONOMOUS RUN.
+      #   The previous value here was 0.90 x 0.40 m, which is SMALLER than the
+      #   URDF chassis in both axes — i.e. it told the planner the robot was
+      #   10 cm shorter and 10 cm narrower than it is. That is a collision bug,
+      #   not a conservative approximation, and it is why this needs a real
+      #   measurement rather than another inherited guess.
+      #   Separately: a hand measurement of 48 cm total width was reported,
+      #   versus the 62 cm this URDF-derived value implies. That gap is most
+      #   likely chassis-body width (50 cm, what the URDF models) vs. wheel-span
+      #   width (~37.5 cm from the wheel joint origins). The footprint must
+      #   enclose the WIDEST part of the robot, whichever that is.
+      #   Tape-measure the true overall length and width, add the margin, and
+      #   set both this and the global_costmap copy to match.
+      footprint: "[[0.56, 0.31], [0.56, -0.31], [-0.56, -0.31], [-0.56, 0.31]]"
       plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: true
         observation_sources: scan
         scan:
-          topic: /scan
+          # /scan is published BEST-EFFORT by the ydlidar driver; costmap
+          # subscribes reliable by default. That is exactly the QoS mismatch
+          # that made slam_toolbox hang forever on "Waiting for laser_scans"
+          # (§13.4) — same trap, same silent failure mode, different consumer.
+          # Use the relay's reliable republication, as everything else does.
+          topic: /scan_reliable
           max_obstacle_height: 2.0
           clearing: true
           marking: true
           data_type: "LaserScan"
-          raytrace_max_range: 12.0
+          # YDLIDAR X4 Pro is spec'd 0.12–10 m (80% reflectivity). The old 12.0
+          # exceeded the hardware maximum. Kept slightly under 10 m because the
+          # rated range degrades on dark/matte surfaces, which is most of a real
+          # warehouse.
+          raytrace_max_range: 9.0
           raytrace_min_range: 0.0
-          obstacle_max_range: 10.0
+          obstacle_max_range: 8.0
           obstacle_min_range: 0.0
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 5.0
-        inflation_radius: 0.35         # Robot half-width + safety margin
+        # Must be >= the footprint's inscribed radius (half-width = 0.31 m) or
+        # poses that are certainly in collision get non-lethal cost. But too
+        # large closes narrow aisles entirely — inflation from both walls meets
+        # in the middle and the planner sees no corridor (Navigation_Theory.md
+        # §1.1). Tune against the narrowest aisle that must be traversable.
+        inflation_radius: 0.35
 
 global_costmap:
   global_costmap:
@@ -198,7 +260,9 @@ global_costmap:
       robot_base_frame: base_link
       resolution: 0.05
       track_unknown_space: true
-      footprint: "[[0.45, 0.20], [0.45, -0.20], [-0.45, -0.20], [-0.45, 0.20]]"
+      # Keep identical to local_costmap's footprint — see the full note there.
+      # ⚠ UNVERIFIED, measure before the first autonomous run.
+      footprint: "[[0.56, 0.31], [0.56, -0.31], [-0.56, -0.31], [-0.56, 0.31]]"
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
@@ -208,11 +272,15 @@ global_costmap:
         enabled: true
         observation_sources: scan
         scan:
-          topic: /scan
+          topic: /scan_reliable      # QoS — see local_costmap note
           max_obstacle_height: 2.0
           clearing: true
           marking: true
           data_type: "LaserScan"
+          raytrace_max_range: 9.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 8.0
+          obstacle_min_range: 0.0
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 5.0

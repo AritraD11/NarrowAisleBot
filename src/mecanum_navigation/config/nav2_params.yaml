@@ -20,7 +20,7 @@
 # ⚠ AXES: base_link is NOT standard REP-103 on this robot. +X = right,
 #   +Y = forward (odometry_publisher.py publishes a constant -90 deg
 #   rotation to match the LiDAR's validated calibration rather than the
-#   textbook convention — Research_Journal.md §17.11). Every x/y-labelled
+#   textbook convention — Research_Journal.md §17.10). Every x/y-labelled
 #   parameter below (footprint, DWB velocity limits, sample counts) is
 #   swapped from what a stock Nav2 config would have, on purpose. If this
 #   axis convention is ever changed back, every one of these needs

@@ -32,7 +32,9 @@ question it was taken to answer.
 
 | Folder | Date | What it documents |
 |---|---|---|
-| [`2026-08-11_occlusion_trial_cw/`](2026-08-11_occlusion_trial_cw/) | 11 Aug 2026 | Robot orientation at each 90° stop of the clockwise self-occlusion trial (Research_Journal.md §17.8) |
+| [`2026-08-11_occlusion_trial_cw/`](2026-08-11_occlusion_trial_cw/) | 11 Aug 2026 | Robot orientation at each 90° stop of the first clockwise self-occlusion trial (Research_Journal.md §17.8) |
+| [`2026-08-11_recalibration_cw/`](2026-08-11_recalibration_cw/) | 11 Aug 2026 | Second, cleaner self-occlusion trial with a properly configured Foxglove display (§17.8). Bearing values superseded by the orientation fix below — re-measurement needed. |
+| [`2026-08-11_orientation_fix/`](2026-08-11_orientation_fix/) | 11 Aug 2026 | Discovery and fix of the LiDAR scan mirror bug — block-placement evidence, forward-drive confirmation video (§17.9, full write-up in `docs/LiDAR_Orientation_Calibration.md`) |
 
 Earlier hardware photos — the three LiDAR mount positions from the §17.4
 placement trial — were shared in-session and are not yet in this folder. Add

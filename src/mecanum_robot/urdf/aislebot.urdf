@@ -4,7 +4,10 @@
   IIT Bombay — Aritra Das (25D0074) — Prof. Ambarish Kunwar
 
   Geometry:
-    Chassis: 1000mm × 500mm × 200mm (L × W × H)
+    Chassis: 1000mm × 360mm (L × W), tape-measured 8 Aug 2026 (§17.7).
+             Header previously read 500mm wide × 200mm high; the width was
+             wrong (see the chassis link comment) and the height disagreed
+             with the model's own 150mm box. Height left at the model's 150mm.
     l1 = 403mm (outer: FR, RL), l2 = 333mm (inner: FL, RR)
     d  = 157.69mm (half-track), wheel_r = 76.2mm
     Total mass ≈ 45.5 kg
@@ -35,17 +38,31 @@
     <origin xyz="0 0 -0.0762" rpy="0 0 0"/>
   </joint>
 
-  <!-- ==================== CHASSIS ==================== -->
+  <!-- ==================== CHASSIS ====================
+       Width corrected 0.50 -> 0.36 m on 8 Aug 2026 from a tape measurement
+       (Research_Journal.md §17.7). The old 0.50 was wrong: the real robot is
+       36 cm across at its widest (wheel outer to wheel outer). The wheel joint
+       origins below were already consistent with the measurement
+       (±0.15769 ± 0.03 half-wheel-width = 0.375 m outer, within ~1 cm), so the
+       error was confined to this <box> — the kinematic parameters the
+       PID/odometry actually use were never affected.
+
+       Inertia below is still the value computed for the old 0.50 m box and is
+       therefore stale. Left as-is deliberately: it only affects Gazebo
+       simulation dynamics, nothing on the real robot, and guessing a
+       replacement would be no better than the known-stale value. Recompute
+       properly if the simulation is ever used quantitatively.
+  -->
   <link name="chassis">
     <visual>
       <geometry>
-        <box size="1.0 0.50 0.15"/>
+        <box size="1.0 0.36 0.15"/>
       </geometry>
       <material name="dark_gray"/>
     </visual>
     <collision>
       <geometry>
-        <box size="1.0 0.50 0.15"/>
+        <box size="1.0 0.36 0.15"/>
       </geometry>
     </collision>
     <inertial>

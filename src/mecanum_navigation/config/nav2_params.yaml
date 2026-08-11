@@ -196,27 +196,23 @@ local_costmap:
       resolution: 0.05
       # ── FOOTPRINT ────────────────────────────────────────────────────
       # Rectangle in base_link, [x, y] corners, metres. base_link sits at the
-      # chassis centre, so a chassis of length l and width w spans
+      # chassis centre, so a robot of length l and width w spans
       # x = ±l/2, y = ±w/2.
       #
-      # Derivation of the value below: aislebot.urdf's chassis box is
-      # 1.0 x 0.50 m, plus the 6 cm all-round clearance margin ->
-      # 1.12 x 0.62 m -> x = ±0.56, y = ±0.31.
+      # TAPE-MEASURED 8 Aug 2026 (§17.7):
+      #   width  = 36 cm wheel-outer to wheel-outer (the widest part)
+      #   length = 100 cm
+      #   + 6 cm clearance margin all round -> 1.12 x 0.48 m
+      #   -> x = ±0.56, y = ±0.24
       #
-      # ⚠ UNVERIFIED — MEASURE BEFORE THE FIRST AUTONOMOUS RUN.
-      #   The previous value here was 0.90 x 0.40 m, which is SMALLER than the
-      #   URDF chassis in both axes — i.e. it told the planner the robot was
-      #   10 cm shorter and 10 cm narrower than it is. That is a collision bug,
-      #   not a conservative approximation, and it is why this needs a real
-      #   measurement rather than another inherited guess.
-      #   Separately: a hand measurement of 48 cm total width was reported,
-      #   versus the 62 cm this URDF-derived value implies. That gap is most
-      #   likely chassis-body width (50 cm, what the URDF models) vs. wheel-span
-      #   width (~37.5 cm from the wheel joint origins). The footprint must
-      #   enclose the WIDEST part of the robot, whichever that is.
-      #   Tape-measure the true overall length and width, add the margin, and
-      #   set both this and the global_costmap copy to match.
-      footprint: "[[0.56, 0.31], [0.56, -0.31], [-0.56, -0.31], [-0.56, 0.31]]"
+      # NOTE: aislebot.urdf models the chassis box as 0.50 m wide, which the
+      # measurement contradicts — the real robot is 36 cm across. The URDF's
+      # WHEEL joint origins (±0.15769 ± 0.03 half-width = 0.375 m outer) do
+      # agree with the tape to within a centimetre, so it is specifically the
+      # chassis <box> that is wrong, not the kinematic parameters (which are
+      # what the PID/odometry actually depend on — those are unaffected).
+      # URDF box corrected to match; see the comment there.
+      footprint: "[[0.56, 0.24], [0.56, -0.24], [-0.56, -0.24], [-0.56, 0.24]]"
       plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -244,7 +240,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 5.0
-        # Must be >= the footprint's inscribed radius (half-width = 0.31 m) or
+        # Must be >= the footprint's inscribed radius (half-width = 0.24 m) or
         # poses that are certainly in collision get non-lethal cost. But too
         # large closes narrow aisles entirely — inflation from both walls meets
         # in the middle and the planner sees no corridor (Navigation_Theory.md
@@ -261,8 +257,7 @@ global_costmap:
       resolution: 0.05
       track_unknown_space: true
       # Keep identical to local_costmap's footprint — see the full note there.
-      # ⚠ UNVERIFIED, measure before the first autonomous run.
-      footprint: "[[0.56, 0.31], [0.56, -0.31], [-0.56, -0.31], [-0.56, 0.31]]"
+      footprint: "[[0.56, 0.24], [0.56, -0.24], [-0.56, -0.24], [-0.56, 0.24]]"
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"

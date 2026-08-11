@@ -16,6 +16,30 @@ TOPICS:
   Subscribes: /wheel_velocities_actual (Float64MultiArray) [FR,FL,RR,RL] rad/s
   Publishes:  /wheel_odom (Odometry) raw wheel odometry
   Publishes:  /tf (odom → base_link transform)
+
+PUBLISHED-FRAME ROTATION (added 11 Aug 2026, Research_Journal.md §17.10).
+  The kinematics above compute vx/vy/theta in the standard REP-103 sense
+  (vx=forward, vy=left) -- that internal computation is correct and is left
+  untouched. What gets published is deliberately rotated by a constant
+  -90 deg from it, so that base_link's own +X reads as "right" and +Y reads
+  as "forward" -- matching the already-validated LiDAR scan calibration
+  (scan_relay.py, mirror=True, yaw_offset=270 deg), rather than requiring
+  that calibration to be redone.
+
+  Why a CONSTANT rotation of the published orientation, not a relabelling
+  of vx/vy in the integration itself: TF's rotation and "which way a frame's
+  own +X points" are the same fact by definition (a rotation of angle theta
+  IS what makes +X point in direction theta). Translation (self.x, self.y --
+  where the origin physically is) is unaffected by how the frame's local
+  axes are labelled and is published unchanged. Verified algebraically at
+  an arbitrary heading (not just the near-zero heading this was measured
+  at) before deploying: a real obstacle directly ahead reads at published
+  bearing +90 deg regardless of the robot's true heading.
+
+  If the LiDAR is ever remounted and scan_relay.py's yaw_offset is
+  re-derived to something other than 270 deg, this constant must be
+  re-derived to match it -- the two are coupled by construction, not
+  independently choosable.
 """
 
 import rclpy
@@ -110,9 +134,21 @@ class OdometryPublisher(Node):
         # Normalize theta to [-pi, pi]
         self.theta = math.atan2(math.sin(self.theta), math.cos(self.theta))
 
-        # Create quaternion from yaw
-        qz = math.sin(self.theta / 2.0)
-        qw = math.cos(self.theta / 2.0)
+        # ── Published-frame rotation (see module docstring, §17.10) ──────
+        # Internal self.x/self.y/self.theta above are standard REP-103
+        # (vx=forward, vy=left) and stay that way. Only the PUBLISHED
+        # orientation gets a constant -90 deg twist, to match the LiDAR's
+        # validated front=+Y calibration. Position is unaffected -- the
+        # origin doesn't move because we relabel which way its local axes
+        # point.
+        pub_theta = math.atan2(math.sin(self.theta - math.pi / 2.0),
+                                math.cos(self.theta - math.pi / 2.0))
+        pub_vx = -vy   # published +X = "right"
+        pub_vy = vx    # published +Y = "forward"
+
+        # Create quaternion from published yaw
+        qz = math.sin(pub_theta / 2.0)
+        qw = math.cos(pub_theta / 2.0)
 
         # Publish odometry
         odom = Odometry()
@@ -131,8 +167,8 @@ class OdometryPublisher(Node):
         odom.pose.covariance[7] = 0.01   # y
         odom.pose.covariance[35] = 0.03  # yaw
 
-        odom.twist.twist.linear.x = vx
-        odom.twist.twist.linear.y = vy
+        odom.twist.twist.linear.x = pub_vx
+        odom.twist.twist.linear.y = pub_vy
         odom.twist.twist.angular.z = wz
 
         odom.twist.covariance[0] = 0.01

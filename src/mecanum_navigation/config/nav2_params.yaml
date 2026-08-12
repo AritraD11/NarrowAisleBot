@@ -66,20 +66,20 @@ bt_navigator:
     wait_for_service_timeout: 5
     # Default BT — navigates, recovers, replans
     default_nav_to_pose_bt_xml: ""
-    plugin_lib_names:
-      - nav2_compute_path_to_pose_action_bt_node
-      - nav2_follow_path_action_bt_node
-      - nav2_spin_action_bt_node
-      - nav2_wait_action_bt_node
-      - nav2_back_up_action_bt_node
-      - nav2_clear_costmap_service_bt_node
-      - nav2_is_stuck_condition_bt_node
-      - nav2_goal_reached_condition_bt_node
-      - nav2_rate_controller_bt_node
-      - nav2_recovery_node_bt_node
-      - nav2_pipeline_sequence_bt_node
-      - nav2_round_robin_node_bt_node
-      - nav2_transform_available_condition_bt_node
+    # plugin_lib_names DELIBERATELY NOT SET. Nav2 ships a comprehensive
+    # default list, and setting this key REPLACES that list rather than
+    # adding to it — so a hand-written subset means every BT node not in
+    # the subset fails to load. The default behaviour tree
+    # (navigate_to_pose_w_replanning_and_recovery.xml, used because
+    # default_nav_to_pose_bt_xml is "") references a good deal more than
+    # the 13 entries that used to be listed here — speed controller,
+    # truncate path, goal updater, remove-passed-goals, the selector and
+    # error-code nodes — so bt_navigator would have failed at load with
+    # "Node not recognized" on the first goal. Never exercised before
+    # because Nav2 has never run on this robot (§17.6's four-bug pass
+    # found the same class of latent config error).
+    # Re-add this key ONLY to register genuinely custom BT plugins, and
+    # then it must repeat Nav2's full default list as well.
 
 controller_server:
   ros__parameters:
@@ -315,3 +315,47 @@ waypoint_follower:
       plugin: "nav2_waypoint_follower::WaitAtWaypoint"
       enabled: true
       waypoint_pause_duration: 200   # ms
+
+# ==============================================================
+# VELOCITY SMOOTHER
+#
+# Last stage of the Nav2 cmd_vel chain, and easy to miss:
+#   controller_server -> /cmd_vel_nav -> velocity_smoother -> /cmd_vel
+# /cmd_vel is what teleop_asym consumes, so EVERY autonomous command
+# passes through here. Nav2's navigation_launch.py starts this node
+# whether or not this block exists.
+#
+# ⚠ THIS BLOCK IS NOT OPTIONAL ON THIS ROBOT. Nav2's stock defaults are
+#   written for a differential-drive base and set the y limits to 0.0 —
+#   "this robot cannot move sideways." On a standard robot that is
+#   correct and harmless. Here, +Y IS FORWARD (see the AXES note at the
+#   top of this file), so inheriting those defaults would clamp all
+#   forward and reverse motion to zero and the robot would refuse to
+#   drive anywhere, while the planner happily produced paths and the
+#   controller happily published velocities into a silent wall.
+#
+# Arrays are [x, y, theta] = [strafe, forward/reverse, yaw] on this
+# robot. Values match the DWB limits in controller_server above; keep
+# the two in step if either is retuned.
+# ==============================================================
+velocity_smoother:
+  ros__parameters:
+    smoothing_frequency: 20.0
+    scale_velocities: false
+    feedback: "OPEN_LOOP"          # CLOSED_LOOP reads odom to estimate the
+                                   # current velocity; OPEN_LOOP integrates
+                                   # its own last command. Open-loop first —
+                                   # one less coupling while proving the
+                                   # chain end-to-end.
+    max_velocity: [0.15, 0.15, 0.30]
+    min_velocity: [-0.10, -0.10, -0.30]
+    max_accel: [0.5, 0.5, 1.0]
+    max_decel: [-0.5, -0.5, -1.0]
+    odom_topic: "/wheel_odom"      # odometry_publisher's topic, same as
+                                   # bt_navigator. NOT /odometry/filtered —
+                                   # that EKF has never run (§17.6).
+    odom_duration: 0.1
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0          # stop if no command for 1 s — the
+                                   # dead-man for a planner that stops
+                                   # publishing mid-drive.

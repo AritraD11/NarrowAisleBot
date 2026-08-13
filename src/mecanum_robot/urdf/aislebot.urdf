@@ -62,6 +62,12 @@
   <material name="black">
     <color rgba="0.1 0.1 0.1 1.0"/>
   </material>
+  <!-- Translucent amber: the safety cushion is a boundary to look through,
+       not a solid to look at. Alpha kept low enough that scan returns
+       crossing into it stay readable. -->
+  <material name="cushion_amber">
+    <color rgba="1.0 0.65 0.0 0.28"/>
+  </material>
 
   <!-- ==================== BASE LINK (ground reference) ==================== -->
   <link name="base_link"/>
@@ -121,6 +127,51 @@
     <parent link="base_link"/>
     <child link="chassis"/>
     <origin xyz="0 0 0.075" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ==================== SAFETY CUSHION (visual only) ====================
+       The 6 cm clearance margin, drawn. This is the SAME rectangle
+       nav2_params.yaml declares as the costmap footprint:
+
+           chassis   0.36 x 1.00 m
+           + 6 cm all round
+           = 0.48 x 1.12 m   ->  x = +/-0.24, y = +/-0.56
+
+       Purpose is to make the stop condition something you can SEE rather
+       than infer. When a /scan_reliable return crosses inside this
+       rectangle, the robot is at the cushion boundary in that direction —
+       which is exactly the condition the guarded-drive feature will act on.
+
+       ⚠ THIS IS A MIRROR, NOT A SOURCE. The numbers here are duplicated
+         from nav2_params.yaml's footprint, and nothing enforces that they
+         stay in step. Change one and change the other, or the picture will
+         start lying about what the collision check actually does. Once Nav2
+         is running, local_costmap/published_footprint is the authoritative
+         live version of this same polygon — correct by construction because
+         the planner publishes what it actually collision-checks against.
+         This link is what gives you the picture in the meantime, and it
+         stays useful afterwards for teleop, when Nav2 is not running.
+
+       Visual only: no <collision>, so Gazebo cannot mistake a safety margin
+       for a physical object. No <inertial> either — it is massless, same as
+       base_footprint, and KDL folds fixed-joint links into the parent.
+
+       Sits at floor level and 1 cm thin so it reads as a footprint decal
+       under the chassis rather than a box around it, and so it cannot
+       z-fight with the chassis visual above it.
+  -->
+  <link name="safety_cushion">
+    <visual>
+      <geometry>
+        <box size="0.48 1.12 0.01"/>
+      </geometry>
+      <material name="cushion_amber"/>
+    </visual>
+  </link>
+  <joint name="safety_cushion_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="safety_cushion"/>
+    <origin xyz="0 0 0.005" rpy="0 0 0"/>
   </joint>
 
   <!-- ==================== WHEELS ==================== -->

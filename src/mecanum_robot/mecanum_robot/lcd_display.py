@@ -25,12 +25,15 @@ I2C bus that often):
                              only thing these networks are used for
             NO NETWORK   -- no interface has a route at all
 """
+import re
+import subprocess
+
 import rclpy
 from rclpy.node import Node
 from RPLCD.i2c import CharLCD
-import socket
 
 
+WLAN_IFACE = 'wlan0'
 AP_IP = '10.42.0.1'   # AisleBot-Pi AP's fixed address (Important_Commands.md §1)
 AP_PORT = 8080        # phone_dashboard.py's port
 NET_PORT = 22          # ssh -- the only thing eduroam/IITB-Wireless/etc. are for
@@ -62,12 +65,19 @@ class LCDDisplay(Node):
         self.update_display()
 
     def _get_ip(self):
+        # Read the IP straight off the interface rather than inferring it by
+        # opening a socket toward the internet (the previous approach). That
+        # trick needs a route to exist -- even an unused one -- and the
+        # AisleBot-Pi AP deliberately has no upstream route at all (no
+        # internet uplink, by design). It failed silently into "NO NETWORK"
+        # in exactly the one mode this display exists to cover.
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(('8.8.8.8', 80))
-            ip = s.getsockname()[0]
-            s.close()
-            return ip
+            out = subprocess.check_output(
+                ['ip', '-4', '-o', 'addr', 'show', WLAN_IFACE],
+                stderr=subprocess.DEVNULL, timeout=1.0,
+            ).decode()
+            m = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', out)
+            return m.group(1) if m else None
         except Exception:
             return None
 

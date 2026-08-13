@@ -236,6 +236,37 @@ compare scans. **Real features move in the laser frame as the robot rotates;
 self-occlusion does not.** That invariance is the discriminator, and it needs no
 props, no reference objects, and no physical construction.
 
+**Measured, 13 Aug 2026 (Research_Journal.md §17.15).** The prediction above was
+written before any real driving happened; this is the confirmation. `tools/
+scan_bearing.py` was run at five headings roughly 90° apart, one full rotation,
+against the corrected (post-mirror-fix, post-odometry-fix) `/scan_reliable`.
+Cross-checking the five sector tables against each other rather than reading any
+one of them in isolation: exactly one contiguous bearing block —
+**`-135°` to `-45°` (true bearing, this robot's convention: `0°`=right, `+90°`=
+forward, `180°`=left, `-90°`=behind)** — returned a nonzero `<1m` reading in
+*every single one* of the five independent headings, at consistent percentages
+each time (e.g. the `-90°..-75°` bin read `42%, 43%, 39%, 41%, 40%` across the
+five runs — a ~4-point spread despite the robot facing a completely different
+way each time). Every other sector that any individual run flagged "always
+close" appeared in exactly one run and nowhere else — those are real walls the
+robot happened to be facing at that particular heading, correctly *not*
+persisting, which is the discriminator working as designed. The single nearest
+point across all five scans, independently, clustered at `-104°` to `-125°`
+bearing and `0.12–0.13 m` range every time — right inside the identified block,
+right at the LiDAR's own minimum range, and the sort of five-way agreement that
+is not plausible for a real object at that scale.
+
+**Result: a 90° wedge centred on directly behind the robot** (`-90°` ± `45°`),
+not the ~120° ("roughly a third") figure from the original pre-fix,
+mirrored-frame measurement in §17.8 — a real refinement now that it has been
+re-measured in the corrected frame, per the B.6 item that flagged exactly this.
+Consistent with the returns being real-but-phantom rather than shadow (`hits%`
+and `<1m%` are equal or nearly so throughout the block — whenever a beam
+returns anything there, it is close), the fix per this section's own
+prescription is to mask `[-135°, -45°]` as invalid in `scan_relay.py`, not to
+mark it occupied or free. Not yet implemented in code as of this measurement;
+tracked in B.6.
+
 ---
 
 ## 5. Putting it together — the autonomy stack for this robot

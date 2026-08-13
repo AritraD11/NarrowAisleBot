@@ -317,6 +317,95 @@ waypoint_follower:
       waypoint_pause_duration: 200   # ms
 
 # ==============================================================
+# COLLISION MONITOR
+#
+# The last node in the cmd_vel chain, and a hard safety layer independent
+# of the planner:
+#   controller_server -> cmd_vel_nav -> velocity_smoother
+#     -> cmd_vel_smoothed -> collision_monitor -> cmd_vel
+# Nothing reaches the wheels without passing through here.
+#
+# ⚠ THIS BLOCK IS NOT OPTIONAL, AND ITS ABSENCE IS NOT A SOFT FAILURE.
+#   `observation_sources` has no default — Nav2 cannot guess what sensors
+#   a robot has — so with no block at all the node fails to configure,
+#   lifecycle_manager aborts the ENTIRE bringup, and nothing publishes
+#   /cmd_vel, so the robot cannot move at all. That is exactly what
+#   happened on the first-ever Nav2 launch attempt (§17.17): every other
+#   server configured cleanly and the run still died here.
+#
+#   This Nav2 build is newer than the one this file was originally
+#   written against — it also starts route_server and opennav_docking,
+#   neither of which existed then. Both configure fine on their own
+#   defaults (route_server logs "No graph file provided to load yet" and
+#   carries on); collision_monitor is the one that genuinely cannot.
+#
+# WHAT THIS GIVES US, beyond unblocking the launch: this is the
+# "stop before you hit something" guard, native to Nav2, working against
+# the real footprint polygon rather than a point approximation. It is a
+# better answer than a hand-written guarded-teleop node for the
+# autonomous case, because it sits below the planner and cannot be
+# reasoned around by it.
+# ==============================================================
+collision_monitor:
+  ros__parameters:
+    base_frame_id: "base_link"
+    odom_frame_id: "odom"
+    # Topic names, not remappings — nav2_bringup's navigation_launch.py
+    # expects collision_monitor to be wired through parameters.
+    cmd_vel_in_topic: "cmd_vel_smoothed"
+    cmd_vel_out_topic: "cmd_vel"
+    state_topic: "collision_monitor_state"
+    transform_tolerance: 0.2
+    source_timeout: 1.0
+    base_shift_correction: True
+    # If the monitor itself stops publishing, downstream must not coast on
+    # a stale command. esp32_bridge's own 500 ms watchdog is the harder
+    # backstop underneath this (§17.14).
+    stop_pub_timeout: 2.0
+
+    polygons: ["FootprintApproach"]
+    FootprintApproach:
+      type: "polygon"
+      # "approach" is velocity-aware: it forward-simulates the footprint
+      # along the currently commanded velocity and only intervenes if that
+      # path actually collides. Deliberately chosen over a static "stop"
+      # polygon at the cushion boundary, which would halt the robot any
+      # time it sat near a wall — including the legitimate 7 cm-from-a-wall
+      # case measured in §17.15, and including normal narrow-aisle
+      # transit, which is the entire point of this robot.
+      action_type: "approach"
+      # The live footprint Nav2 actually collision-checks against — the
+      # 1.12 x 0.48 m cushioned rectangle, correct by construction rather
+      # than duplicated here (see aislebot.urdf's safety_cushion note).
+      footprint_topic: "/local_costmap/published_footprint"
+      time_before_collision: 1.2
+      simulation_time_step: 0.1
+      # Points required inside the projected footprint before acting. Low
+      # enough to catch a real obstacle, high enough that a single noisy
+      # return does not stop a 45 kg robot mid-aisle.
+      min_points: 6
+      # Publishes the polygon for Foxglove. On deliberately: the first
+      # autonomous runs are exactly when seeing what the safety layer
+      # thinks is worth the small overhead.
+      visualize: True
+      polygon_pub_topic: "collision_monitor_polygon"
+      enabled: True
+
+    observation_sources: ["scan"]
+    scan:
+      type: "scan"
+      # /scan_reliable, NOT /scan — two independent reasons, both already
+      # cost this project real debugging time:
+      #   1. QoS. /scan is best-effort from the driver; this subscribes
+      #      reliable. That mismatch is §13.4's silent hang, recurring in
+      #      yet another consumer.
+      #   2. The self-occlusion mask (§17.15) lives in scan_relay.py. On
+      #      raw /scan the rear mast reads as a permanent obstacle ~0.13 m
+      #      behind the robot, and this node would refuse to ever reverse.
+      topic: "/scan_reliable"
+      enabled: True
+
+# ==============================================================
 # VELOCITY SMOOTHER
 #
 # Last stage of the Nav2 cmd_vel chain, and easy to miss:

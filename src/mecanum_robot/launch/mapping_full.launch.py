@@ -35,9 +35,12 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import LifecycleNode
 
 
 def generate_launch_description():
+
+    ydlidar_share = get_package_share_directory('ydlidar_ros2_driver')
 
     args = [
         DeclareLaunchArgument(
@@ -48,15 +51,39 @@ def generate_launch_description():
             'scan_relay_path',
             default_value=os.path.expanduser('~/ros2_ws/src/scan_relay/scan_relay.py'),
         ),
+        DeclareLaunchArgument(
+            'ydlidar_params_file',
+            default_value=os.path.join(ydlidar_share, 'params', 'ydlidar.yaml'),
+            description="The driver's own params file — same default its "
+                        "ydlidar_launch.py uses.",
+        ),
     ]
 
-    lidar = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory('ydlidar_ros2_driver'),
-                'launch', 'ydlidar_launch.py',
-            )
-        ),
+    # ── LiDAR driver, started DIRECTLY rather than via the vendor's
+    #    ydlidar_launch.py ────────────────────────────────────────────────
+    # That launch file bundles two things: this driver node, and a
+    # static_transform_publisher hardcoding base_link -> laser_frame as
+    # (0, 0, 0.02) with zero rotation — a placeholder that is not this
+    # robot's real mount, confirmed live in §17.9 and never corrected. It
+    # takes no argument to disable it, so the only way to stop publishing a
+    # wrong transform is to not run that file.
+    #
+    # The real mount is now measured and lives in aislebot.urdf's laser_joint
+    # (0, 0.27, 0.275 — §17.12), published by robot_state_publisher from
+    # aislebot_full.launch.py. Exactly one publisher owns this transform, and
+    # it is the one carrying the measured value.
+    #
+    # The node declaration below is copied verbatim from the vendor launch
+    # file (LifecycleNode, same name/namespace/params) so the driver behaves
+    # identically — only its TF companion is dropped.
+    lidar = LifecycleNode(
+        package='ydlidar_ros2_driver',
+        executable='ydlidar_ros2_driver_node',
+        name='ydlidar_ros2_driver_node',
+        output='screen',
+        emulate_tty=True,
+        parameters=[LaunchConfiguration('ydlidar_params_file')],
+        namespace='/',
     )
 
     # scan_relay.py is a plain script, not an installed package executable

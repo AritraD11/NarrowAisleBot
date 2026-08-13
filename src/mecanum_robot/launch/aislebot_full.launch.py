@@ -23,6 +23,9 @@ Usage:
     ros2 launch mecanum_robot aislebot_full.launch.py use_foxglove:=false
 """
 
+import os
+
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.substitutions import LaunchConfiguration
@@ -31,6 +34,11 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
+
+    urdf_path = os.path.join(
+        get_package_share_directory('mecanum_robot'), 'urdf', 'aislebot.urdf')
+    with open(urdf_path, 'r') as f:
+        robot_description = f.read()
 
     args = [
         DeclareLaunchArgument('esp32_port',   default_value='/dev/esp32',
@@ -177,6 +185,29 @@ def generate_launch_description():
         output='screen',
     )
 
+    # ── ROBOT MODEL ──────────────────────────────────────────────
+    # Publishes /robot_description and the URDF's fixed-joint TFs, so
+    # Foxglove draws the actual 36 x 100 cm chassis, four wheels and LiDAR
+    # instead of a bare set of axes — the robot is a body, not a point, and
+    # the 6 cm cushion only means something against a body.
+    #
+    # This OWNS base_link -> laser_frame. The vendor ydlidar_launch.py used
+    # to publish a competing hardcoded (0, 0, 0.02) placeholder for the same
+    # transform; mapping_full.launch.py now starts the driver node directly
+    # and leaves that publisher out, so there is exactly one source and it
+    # carries the measured mount (§17.12).
+    #
+    # URDF is read at launch-time into a parameter rather than passed as a
+    # path: robot_state_publisher wants the XML itself, and reading it here
+    # fails loudly at launch if the file is missing rather than leaving the
+    # node up with an empty description.
+    robot_state_pub = Node(
+        package='robot_state_publisher', executable='robot_state_publisher',
+        name='robot_state_publisher',
+        parameters=[{'robot_description': robot_description}],
+        output='screen',
+    )
+
     return LaunchDescription([
         *args,
         banner,
@@ -185,4 +216,5 @@ def generate_launch_description():
         arm_bridge,
         lcd,
         foxglove,
+        robot_state_pub,
     ])

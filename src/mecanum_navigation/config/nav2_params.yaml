@@ -86,22 +86,35 @@ bt_navigator:
     bt_loop_duration: 10
     default_server_timeout: 20
     wait_for_service_timeout: 5
-    # Default BT — navigates, recovers, replans
-    default_nav_to_pose_bt_xml: ""
-    # plugin_lib_names DELIBERATELY NOT SET. Nav2 ships a comprehensive
-    # default list, and setting this key REPLACES that list rather than
-    # adding to it — so a hand-written subset means every BT node not in
-    # the subset fails to load. The default behaviour tree
-    # (navigate_to_pose_w_replanning_and_recovery.xml, used because
-    # default_nav_to_pose_bt_xml is "") references a good deal more than
-    # the 13 entries that used to be listed here — speed controller,
-    # truncate path, goal updater, remove-passed-goals, the selector and
-    # error-code nodes — so bt_navigator would have failed at load with
-    # "Node not recognized" on the first goal. Never exercised before
-    # because Nav2 has never run on this robot (§17.6's four-bug pass
-    # found the same class of latent config error).
-    # Re-add this key ONLY to register genuinely custom BT plugins, and
-    # then it must repeat Nav2's full default list as well.
+    # default_nav_to_pose_bt_xml / default_nav_through_poses_bt_xml are
+    # DELIBERATELY NOT SET HERE. nav2_slam.launch.py supplies both as an
+    # absolute path resolved from nav2_bt_navigator's own installed share
+    # directory at launch time — see that file's comments.
+    #
+    # An earlier version of this file set default_nav_to_pose_bt_xml: ""
+    # here, on the theory that an empty string falls back to Nav2's
+    # built-in default file. IT DOES NOT, on this Nav2 build — confirmed
+    # on hardware, 14 Aug 2026 (Research_Journal.md §17.19). The first
+    # goal ever sent came back "Behavior tree threw exception: Empty
+    # Tree. Exiting with failure" with no path ever loaded, and
+    # `ros2 param get /bt_navigator default_nav_to_pose_bt_xml` on the
+    # live node showed the parameter as an empty string, not the
+    # computed default — an explicitly-provided empty value is not the
+    # same as an omitted one, and only the latter triggers Nav2's
+    # internal fallback here. Providing the real, resolved path from the
+    # launch file removes the guess entirely rather than trusting that
+    # fallback a second time.
+    #
+    # plugin_lib_names is CORRECTLY left unset, unlike the above —
+    # checked directly against this Nav2 build's own reference config
+    # (/opt/ros/jazzy/share/nav2_bringup/params/nav2_params.yaml), which
+    # also omits it and states plainly: "Built-in plugins are added
+    # automatically." `ros2 param get` showing `[]` on the live node
+    # looked, at first, like the same bug as the BT-xml path above — it
+    # is not. An empty plugin_lib_names is this build's normal, working
+    # state. Re-add this key ONLY to register genuinely custom BT
+    # plugins, and only as an ADDITION to Nav2's own built-in
+    # registration, never a replacement of it.
 
 controller_server:
   ros__parameters:

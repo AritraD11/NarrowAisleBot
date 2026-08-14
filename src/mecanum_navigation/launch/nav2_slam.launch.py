@@ -104,6 +104,22 @@ def generate_launch_description():
     nav_dir = get_package_share_directory('mecanum_navigation')
     default_params = os.path.join(nav_dir, 'config', 'nav2_params.yaml')
 
+    # bt_navigator's default_nav_to_pose_bt_xml / default_nav_through_poses_bt_xml
+    # are supplied HERE, not in nav2_params.yaml. An explicit empty string in
+    # the YAML does not trigger Nav2's built-in fallback on this Nav2 build —
+    # confirmed on hardware 14 Aug 2026 (Research_Journal.md §17.19): the
+    # first-ever goal came back "Empty Tree. Exiting with failure" because
+    # bt_navigator had a real (if empty) filename and never substituted
+    # anything for it. Resolving the actual installed file path here removes
+    # the guess rather than trusting that fallback a second time.
+    bt_nav_dir = get_package_share_directory('nav2_bt_navigator')
+    default_nav_to_pose_bt = os.path.join(
+        bt_nav_dir, 'behavior_trees',
+        'navigate_to_pose_w_replanning_and_recovery.xml')
+    default_nav_through_poses_bt = os.path.join(
+        bt_nav_dir, 'behavior_trees',
+        'navigate_through_poses_w_replanning_and_recovery.xml')
+
     params_file = LaunchConfiguration('params_file')
     use_sim_time = LaunchConfiguration('use_sim_time')
     autostart = LaunchConfiguration('autostart')
@@ -165,7 +181,14 @@ def generate_launch_description():
         ),
         Node(
             package='nav2_bt_navigator', executable='bt_navigator',
-            name='bt_navigator', output='screen', parameters=common,
+            name='bt_navigator', output='screen',
+            # Real, resolved BT xml paths appended after the common params
+            # file — see the comment above generate_launch_description's
+            # bt_nav_dir lookup for why these can't just live in the yaml.
+            parameters=common + [{
+                'default_nav_to_pose_bt_xml': default_nav_to_pose_bt,
+                'default_nav_through_poses_bt_xml': default_nav_through_poses_bt,
+            }],
         ),
         Node(
             package='nav2_waypoint_follower', executable='waypoint_follower',

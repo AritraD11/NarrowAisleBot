@@ -43,7 +43,29 @@ amcl:
     odom_frame_id: "odom"
     robot_model_type: "omnidirectional"    # Mecanum = omnidirectional
     set_initial_pose: true
-    initial_pose: {x: 0.0, y: 0.0, z: 0.0, yaw: 0.0}
+    # ⚠ BOTH NUMBERS HERE WERE WRONG UNTIL §17.18, and this block has never
+    #   been run, so treat the corrected values as derived rather than
+    #   confirmed on hardware.
+    #
+    #   yaw: this robot's base_link +X is its RIGHT, not its front
+    #   (see the AXES note at the top of this file). A robot whose front
+    #   points along map +X therefore has yaw -90°, not 0. yaw: 0.0 meant
+    #   "the robot is standing sideways" and would have made AMCL's first
+    #   scan match fail against a map built the other way round.
+    #
+    #   x/y: the old 0,0 assumed a saved map's origin sits at the physical
+    #   zero mark. It does not. slam_toolbox plants the map frame on the
+    #   ODOM frame at the first scan (map->odom starts as identity), so a
+    #   saved map's (0,0) is wherever odometry happened to be zeroed —
+    #   i.e. wherever the robot stood when aislebot.service last started.
+    #   Unless the drive stack is deliberately restarted at the mark
+    #   immediately before mapping, (0,0) is NOT the mark.
+    #
+    #   Before this mode is ever used for real: either adopt that
+    #   restart-at-the-mark procedure so 0,0 genuinely means the mark, or
+    #   set set_initial_pose: false and supply the pose live (Foxglove's
+    #   2D Pose Estimate / the /initialpose topic) instead of guessing.
+    initial_pose: {x: 0.0, y: 0.0, z: 0.0, yaw: -1.5708}
     tf_broadcast: true
     transform_tolerance: 1.0
     recovery_alpha_slow: 0.001
@@ -131,19 +153,42 @@ controller_server:
       short_circuit_trajectory_evaluation: true
       xy_goal_tolerance: 0.05
       trans_stopped_velocity: 0.25
+      # ── CRITICS ──────────────────────────────────────────────────────
+      # GoalAlign and PathAlign are DELIBERATELY ABSENT, and this is the
+      # third instance of the same bug class on this stack (§17.14's
+      # missing velocity_smoother block, §17.17's missing collision_monitor
+      # block): a stock Nav2 setting that is silently wrong here purely
+      # because base_link's axes are non-standard.
+      #
+      # Both critics work by projecting a point forward_point_distance
+      # ahead of the robot and scoring how close THAT point lands to the
+      # path/goal. "Ahead" is hardcoded in nav2_dwb_critics as
+      # (cos(yaw), sin(yaw)) — i.e. along base_link's +X. On this robot
+      # +X is the robot's RIGHT (see the AXES note at the top of this
+      # file), so both critics would score the robot as well-aligned when
+      # its SIDE faces the direction of travel, and actively rotate a
+      # 1.12 x 0.48 m chassis ~90° mid-aisle to get there. There is no
+      # parameter to tell them which axis is forward.
+      #
+      # Every remaining critic is axis-agnostic and needs no swapping:
+      # PathDist/GoalDist score positions, ObstacleFootprint scores the
+      # (already-swapped) footprint polygon, RotateToGoal compares yaw to
+      # goal yaw, Oscillation only watches for sign flips. Alignment
+      # critics exist to make a differential-drive base face where it is
+      # going; a mecanum base has no such constraint, so dropping them
+      # costs nothing here beyond the pull they were never applying
+      # correctly. PathDist/GoalDist scales are left as they were — their
+      # ratio to each other and to the obstacle critic is unchanged.
+      #
+      # Re-add these ONLY together with a forward-axis fix, and only if
+      # base_link is ever returned to REP-103.
       critics:
         - RotateToGoal
         - Oscillation
         - ObstacleFootprint
-        - GoalAlign
-        - PathAlign
         - PathDist
         - GoalDist
       ObstacleFootprint.scale: 0.02
-      PathAlign.scale: 32.0
-      PathAlign.forward_point_distance: 0.1
-      GoalAlign.scale: 24.0
-      GoalAlign.forward_point_distance: 0.1
       PathDist.scale: 32.0
       GoalDist.scale: 24.0
       RotateToGoal.scale: 32.0

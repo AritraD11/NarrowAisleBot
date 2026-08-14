@@ -142,17 +142,31 @@ controller_server:
       debug_trajectory_details: true
       # x = strafe axis, y = forward/reverse axis on this robot (see the
       # AXES note at the top of this file) — swapped from a stock config.
-      min_vel_x: -0.10                   # Can strafe the other way (mecanum!)
-      min_vel_y: -0.10                   # Can reverse
-      max_vel_x: 0.15                    # Full strafe capability
-      max_vel_y: 0.15                    # Conservative for narrow aisles
-      max_vel_theta: 0.30
+      #
+      # SPEEDS HALVED 14 Aug 2026 at the user's request, after the first
+      # autonomous drive attempt (§17.19). Worth recording honestly: the
+      # robot was NOT exceeding its limits on that run — measured 0.14–0.17
+      # m/s between consecutive pose samples, i.e. the 0.15 cap working as
+      # configured. It felt fast because it was travelling 90° off the
+      # commanded direction (the cmd_vel axis bug, fixed by
+      # cmd_vel_axis_adapter.py), not because it was overspeeding. These
+      # lower numbers buy reaction time while the corrected chain is proven
+      # on hardware; raise them again once it is.
+      min_vel_x: -0.06                   # Can strafe the other way (mecanum!)
+      min_vel_y: -0.06                   # Can reverse
+      max_vel_x: 0.08                    # Full strafe capability
+      max_vel_y: 0.08                    # Conservative for narrow aisles
+      max_vel_theta: 0.20
       min_speed_xy: 0.0
-      max_speed_xy: 0.20
+      max_speed_xy: 0.10
       min_speed_theta: 0.0
-      acc_lim_x: 0.5                     # Mecanum can accelerate laterally
-      acc_lim_y: 0.5
-      acc_lim_theta: 1.0
+      acc_lim_x: 0.3                     # Mecanum can accelerate laterally
+      acc_lim_y: 0.3
+      acc_lim_theta: 0.6
+      # DECEL LIMITS DELIBERATELY NOT REDUCED alongside the accel limits.
+      # These cap how hard the robot may brake, so lowering them would make
+      # it slower to stop — the opposite of the intent behind slowing it
+      # down. Gentle starts, hard stops.
       decel_lim_x: -0.5
       decel_lim_y: -0.5
       decel_lim_theta: -1.0
@@ -411,7 +425,14 @@ collision_monitor:
     # Topic names, not remappings — nav2_bringup's navigation_launch.py
     # expects collision_monitor to be wired through parameters.
     cmd_vel_in_topic: "cmd_vel_smoothed"
-    cmd_vel_out_topic: "cmd_vel"
+    # NOT "cmd_vel" -- output goes to cmd_vel_axis_adapter, which rotates it
+    # from base_link's TF axes (+X=right, +Y=forward) into the wheel
+    # kinematics' REP-103 axes (+X=forward, +Y=left) and publishes the real
+    # /cmd_vel. Everything upstream of the adapter, this node included,
+    # works in TF axes -- which is what makes the FootprintApproach polygon
+    # below correct, since it forward-simulates that same footprint along
+    # this same velocity. See cmd_vel_axis_adapter.py and §17.19.
+    cmd_vel_out_topic: "cmd_vel_baselink"
     state_topic: "collision_monitor_state"
     transform_tolerance: 0.2
     source_timeout: 1.0
@@ -494,9 +515,12 @@ velocity_smoother:
                                    # its own last command. Open-loop first —
                                    # one less coupling while proving the
                                    # chain end-to-end.
-    max_velocity: [0.15, 0.15, 0.30]
-    min_velocity: [-0.10, -0.10, -0.30]
-    max_accel: [0.5, 0.5, 1.0]
+    # Halved to match the DWB limits above (§17.19) — keep the two in step.
+    # max_decel is NOT reduced, for the same reason given there: it caps
+    # braking effort, so lowering it would slow the robot's stop.
+    max_velocity: [0.08, 0.08, 0.20]
+    min_velocity: [-0.06, -0.06, -0.20]
+    max_accel: [0.3, 0.3, 0.6]
     max_decel: [-0.5, -0.5, -1.0]
     odom_topic: "/wheel_odom"      # odometry_publisher's topic, same as
                                    # bt_navigator. NOT /odometry/filtered —

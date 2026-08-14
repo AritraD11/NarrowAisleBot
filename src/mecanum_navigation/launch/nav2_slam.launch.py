@@ -68,13 +68,21 @@ the AXES note at the top of that file before touching any of them.
 cmd_vel CHAIN, wired by the remappings below:
     controller_server -> /cmd_vel_nav
       -> velocity_smoother -> /cmd_vel_smoothed
-        -> collision_monitor -> /cmd_vel
+        -> collision_monitor -> /cmd_vel_baselink      (base_link TF axes)
+          -> cmd_vel_axis_adapter -> /cmd_vel          (wheel-kinematics axes)
 /cmd_vel is what teleop_asym already consumes, so Nav2 slots into the
 existing, validated drive path as just another publisher — the wheel
 kinematics and the ESP32 bridge are untouched by any of this. Note that
 collision_monitor is wired by PARAMETERS (cmd_vel_in_topic /
 cmd_vel_out_topic in nav2_params.yaml), not by remapping, which is how
 that node expects to be configured.
+
+The adapter on the end is not decoration. Nav2 reads the robot's pose in
+base_link's TF axes and writes velocity in those same axes, but the wheel
+kinematics read /cmd_vel as standard REP-103 — a 90° disagreement that
+sent the first-ever autonomous goal 0.956 m sideways (§17.19). See
+cmd_vel_axis_adapter.py for the derivation and why it sits last in the
+chain rather than earlier.
 """
 
 import os
@@ -193,6 +201,17 @@ def generate_launch_description():
         Node(
             package='nav2_waypoint_follower', executable='waypoint_follower',
             name='waypoint_follower', output='screen', parameters=common,
+        ),
+        # NOT a lifecycle node, and deliberately outside LIFECYCLE_NODES: a
+        # plain rclpy node that is up the moment the process starts. It must
+        # already be translating before collision_monitor is ever activated,
+        # or the first commands out of the stack reach the wheels rotated
+        # 90°. Nothing to configure or activate, so there is nothing for
+        # lifecycle_manager to manage.
+        Node(
+            package='mecanum_navigation', executable='cmd_vel_axis_adapter',
+            name='cmd_vel_axis_adapter', output='screen',
+            parameters=[{'use_sim_time': use_sim_time}],
         ),
         Node(
             package='nav2_lifecycle_manager', executable='lifecycle_manager',

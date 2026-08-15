@@ -87,11 +87,22 @@ class OdometryPublisher(Node):
         # the 6.7-18.2 cm pose jumps seen during zero_point_scan.py's first
         # working run, and why its nudges never landed where it aimed them.
         #
-        # A PARAMETER, not a constant: this is an empirical, surface-dependent
-        # number. A third run on different flooring reported 1.080 m for a
-        # nominally similar strafe, so the true figure varies with the floor.
-        # Re-measure on the surface that matters and override at launch rather
-        # than editing this file.
+        # A PARAMETER, not a constant, and READ LIVE rather than cached at
+        # startup. Surface dependence is not a footnote here, it is the main
+        # result -- two floors in the same building measured, same procedure,
+        # same robot, same session:
+        #     floor A:  raw 1.248 / 1.245 per 1.00 m tape  -> scale 0.80
+        #     floor B:  raw 1.080 / 1.089 per 1.00 m tape  -> scale 0.92
+        # A single compiled-in constant is therefore wrong somewhere by
+        # construction. Reading the parameter inside the callback makes
+        #     ros2 param set /odometry_publisher lateral_scale 0.92
+        # take effect immediately, so recalibrating for a new floor is a
+        # strafe, a tape measure and one command -- no edit, no rebuild, no
+        # service restart that would throw away the zero point.
+        #
+        # Repeatability on a single surface is excellent (an out-and-back of
+        # ~1.74 m closed to 2.6 cm, 1.5%), so this is a scale factor worth
+        # measuring, not noise to be averaged away.
         self.declare_parameter('lateral_scale', 0.80)
 
         self.r = self.get_parameter('wheel_radius').value
@@ -101,7 +112,6 @@ class OdometryPublisher(Node):
         self.publish_tf = self.get_parameter('publish_tf').value
         self.odom_frame = self.get_parameter('odom_frame').value
         self.base_frame = self.get_parameter('base_frame').value
-        self.lateral_scale = self.get_parameter('lateral_scale').value
 
         self.K_outer = self.l1 + self.d
         self.K_inner = self.l2 + self.d
@@ -145,7 +155,8 @@ class OdometryPublisher(Node):
         # __init__ for the tape-measured derivation. Applied here, at the one
         # place vy is produced, so the integrated position, the published
         # twist, and anything downstream all inherit the same correction.
-        vy = (self.r / 4.0) * (w_fr - w_fl - w_rr + w_rl) * self.lateral_scale
+        lateral_scale = self.get_parameter('lateral_scale').value
+        vy = (self.r / 4.0) * (w_fr - w_fl - w_rr + w_rl) * lateral_scale
 
         # For rotation, use weighted formula accounting for asymmetry
         wz = (self.r / 4.0) * (

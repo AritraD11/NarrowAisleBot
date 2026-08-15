@@ -66,6 +66,34 @@ class OdometryPublisher(Node):
         self.declare_parameter('odom_frame', 'odom')
         self.declare_parameter('base_frame', 'base_link')
 
+        # ── LATERAL SLIP CORRECTION (measured on hardware 15 Aug 2026) ──
+        # Mecanum rollers scrub sideways across the floor during a strafe, so
+        # the wheels turn further than the chassis actually travels. The ideal
+        # kinematics below cannot know this and over-report lateral distance.
+        #
+        # Measured directly, tape measure vs this node's own output, robot
+        # driven manually with no rotation:
+        #     forward 1.00 m -> reported 1.009 m   (+0.9%,  no correction needed)
+        #     strafe  1.00 m -> reported 1.248 m   (+24.8%)
+        #     strafe  1.00 m -> reported 1.245 m   (+24.5%)   repeat run
+        # -> true lateral distance = 0.80 x reported.
+        #
+        # Longitudinal is left at 1.0 deliberately: it measured accurate, and
+        # scaling an axis that isn't wrong only adds a second thing to doubt.
+        #
+        # Why this matters beyond tidiness: slam_toolbox takes odom as its
+        # motion prior and then scan-matches against it. A 25% lie on every
+        # sideways move forces a correction each time, which is what produced
+        # the 6.7-18.2 cm pose jumps seen during zero_point_scan.py's first
+        # working run, and why its nudges never landed where it aimed them.
+        #
+        # A PARAMETER, not a constant: this is an empirical, surface-dependent
+        # number. A third run on different flooring reported 1.080 m for a
+        # nominally similar strafe, so the true figure varies with the floor.
+        # Re-measure on the surface that matters and override at launch rather
+        # than editing this file.
+        self.declare_parameter('lateral_scale', 0.80)
+
         self.r = self.get_parameter('wheel_radius').value
         self.l1 = self.get_parameter('l1').value
         self.l2 = self.get_parameter('l2').value
@@ -73,6 +101,7 @@ class OdometryPublisher(Node):
         self.publish_tf = self.get_parameter('publish_tf').value
         self.odom_frame = self.get_parameter('odom_frame').value
         self.base_frame = self.get_parameter('base_frame').value
+        self.lateral_scale = self.get_parameter('lateral_scale').value
 
         self.K_outer = self.l1 + self.d
         self.K_inner = self.l2 + self.d
@@ -112,7 +141,11 @@ class OdometryPublisher(Node):
 
         # Forward kinematics (asymmetric)
         vx = (self.r / 4.0) * (w_fr + w_fl + w_rr + w_rl)
-        vy = (self.r / 4.0) * (w_fr - w_fl - w_rr + w_rl)
+        # lateral_scale corrects roller scrub — see the parameter's comment in
+        # __init__ for the tape-measured derivation. Applied here, at the one
+        # place vy is produced, so the integrated position, the published
+        # twist, and anything downstream all inherit the same correction.
+        vy = (self.r / 4.0) * (w_fr - w_fl - w_rr + w_rl) * self.lateral_scale
 
         # For rotation, use weighted formula accounting for asymmetry
         wz = (self.r / 4.0) * (

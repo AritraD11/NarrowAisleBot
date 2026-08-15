@@ -103,6 +103,7 @@ GO/RETURN commands).
 
 import argparse
 import math
+import os
 import sys
 import time
 
@@ -234,8 +235,25 @@ class ZeroPointScanner(Node):
             rclpy.spin_once(self, timeout_sec=0.1)
         current = self.known_cell_count()
         if current is None or baseline_count is None:
+            # Loud, because the two failure modes look identical from the
+            # outside: "the nudge did not reveal anything" and "/map never
+            # arrived so nothing could ever be counted".
+            self.get_logger().warn(
+                '    no /map to measure (baseline={}, current={}) -- '
+                'is slam_toolbox running?'.format(baseline_count, current))
             return False, current
-        return (current - baseline_count) >= self.args.min_growth_cells, current
+
+        delta = current - baseline_count
+        grew = delta >= self.args.min_growth_cells
+        # Print the actual numbers, not just the verdict. The 15 Aug 2026
+        # run reported "no growth" 6 times and there was no way to tell from
+        # the log whether the map was static, growing slightly under
+        # threshold, or absent entirely -- three very different problems.
+        self.get_logger().info(
+            '    map cells {} -> {} ({:+d}, need +{}) => {}'.format(
+                baseline_count, current, delta,
+                self.args.min_growth_cells, 'GREW' if grew else 'no change'))
+        return grew, current
 
     def run(self):
         start_x, start_y, start_yaw = self.measure_pose()
@@ -331,6 +349,42 @@ class ZeroPointScanner(Node):
                 completed, skipped, n_steps))
 
 
+LOCK_PATH = '/tmp/zero_point_scan.lock'
+
+
+def acquire_lock():
+    """Refuse to start if another scan is already driving the robot.
+
+    The dashboard's CALIBRATE button runs this same script as a subprocess.
+    Its own guard only stops a second BUTTON press -- it cannot see a copy
+    started by hand in a terminal. Two instances both issuing NavigateToPose
+    goals preempt each other continuously, which looks exactly like the
+    robot moving at random. Cheap to prevent, confusing and unsafe to debug.
+    """
+    if os.path.exists(LOCK_PATH):
+        try:
+            with open(LOCK_PATH) as f:
+                pid = int(f.read().strip())
+            os.kill(pid, 0)          # signal 0 = liveness test, no signal sent
+        except (ValueError, OSError):
+            pass                     # stale lock from a killed run; take it
+        else:
+            print('ERROR: another zero_point_scan.py is already running '
+                  '(pid {}). Stop it first -- two of them fight over '
+                  '/navigate_to_pose.'.format(pid), file=sys.stderr)
+            return False
+    with open(LOCK_PATH, 'w') as f:
+        f.write(str(os.getpid()))
+    return True
+
+
+def release_lock():
+    try:
+        os.unlink(LOCK_PATH)
+    except OSError:
+        pass
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Autonomous 360 degree base-map scan, self-detecting '
@@ -339,8 +393,20 @@ def main():
                         help='degrees per heading step. Default 20 (~18 steps).')
     parser.add_argument('--max-duration', type=float, default=150.0,
                         help='overall time budget in seconds. Default 150 (2.5 min).')
-    parser.add_argument('--nudge-dist', type=float, default=0.15,
-                        help='metres per nudge attempt. Default 0.15.')
+    # MUST stay above slam_nodom.yaml's minimum_travel_distance (0.2 m).
+    # slam_toolbox refuses to even PROCESS a scan taken closer than that to
+    # the last processed one (with 10% slack, so ~0.179 m effective), so a
+    # nudge below it cannot grow the map no matter how good the parallax is
+    # -- and because this script returns to the anchor after every attempt,
+    # short nudges never accumulate past the gate either. The original 0.15
+    # default was below the gate and produced exactly that: hardware run
+    # 15 Aug 2026, 0 headings completed, every single growth check negative.
+    # Raise minimum_travel_distance's counterpart in slam_nodom.yaml if this
+    # is ever lowered; the two are coupled and only one of them is obvious.
+    parser.add_argument('--nudge-dist', type=float, default=0.25,
+                        help='metres per nudge attempt. Default 0.25. Must '
+                             "exceed slam_nodom.yaml's minimum_travel_distance "
+                             '(0.2) or the map can never register the nudge.')
     parser.add_argument('--max-nudge-attempts', type=int, default=3,
                         help='give up on a heading after this many failed nudges.')
     parser.add_argument('--min-growth-cells', type=int, default=30,
@@ -355,6 +421,9 @@ def main():
     parser.add_argument('--base-frame', default='base_link')
     args = parser.parse_args()
 
+    if not acquire_lock():
+        return 1
+
     rclpy.init()
     node = ZeroPointScanner(args)
     try:
@@ -367,11 +436,13 @@ def main():
         print('ERROR: {}'.format(exc), file=sys.stderr)
         node.destroy_node()
         rclpy.shutdown()
+        release_lock()
         return 1
     finally:
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
+        release_lock()
     return 0
 
 

@@ -66,7 +66,9 @@ parameter lives in nav2_params.yaml and is already swapped to match — see
 the AXES note at the top of that file before touching any of them.
 
 cmd_vel CHAIN, wired by the remappings below:
-    controller_server -> /cmd_vel_nav
+    controller_server -> /cmd_vel_nav ─┐
+    behavior_server   -> /cmd_vel_nav ─┤   (Spin / BackUp / Wait recoveries)
+                                       ↓
       -> velocity_smoother -> /cmd_vel_smoothed
         -> collision_monitor -> /cmd_vel_baselink      (base_link TF axes)
           -> cmd_vel_axis_adapter -> /cmd_vel          (wheel-kinematics axes)
@@ -173,6 +175,28 @@ def generate_launch_description():
         Node(
             package='nav2_behaviors', executable='behavior_server',
             name='behavior_server', output='screen', parameters=common,
+            # Closes the open item flagged in §17.20. Without this remap
+            # behavior_server publishes STRAIGHT to /cmd_vel, skipping both
+            # collision_monitor and cmd_vel_axis_adapter — so Spin/BackUp
+            # would reach the wheels unmonitored AND in the wrong axis
+            # convention, reproducing §17.19's 88° miss.
+            #
+            # It was left unfixed on the theory that nothing calls those
+            # behaviours. That theory is wrong: bt_navigator's default tree
+            # (navigate_to_pose_w_replanning_and_recovery.xml, supplied
+            # explicitly above) runs Spin/BackUp AUTOMATICALLY as recovery
+            # whenever a goal fails. Nothing has to ask for them. BackUp's
+            # 0.30 m reverse is aimed squarely into this robot's measured 90°
+            # rear blind sector (§17.15), which is the one direction the
+            # LiDAR cannot see — so bypassing collision_monitor there is the
+            # worst possible place to bypass it.
+            #
+            # cmd_vel_nav is velocity_smoother's input, so behaviours now
+            # take the same smoother -> collision_monitor -> axis-adapter
+            # path the controller does. This is also exactly what upstream
+            # nav2_bringup's navigation_launch.py does; the explicit-nodes
+            # rewrite in §17.17 dropped it by omission, not by decision.
+            remappings=[('cmd_vel', 'cmd_vel_nav')],
         ),
         Node(
             package='nav2_velocity_smoother', executable='velocity_smoother',

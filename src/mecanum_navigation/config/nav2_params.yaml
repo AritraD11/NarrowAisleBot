@@ -126,9 +126,36 @@ controller_server:
     goal_checker_plugins: ["goal_checker"]
     controller_plugins: ["FollowPath"]
 
+    # PoseProgressChecker, NOT SimpleProgressChecker. Simple measures progress
+    # as straight-line XY distance only (pose_distance() ignores yaw entirely),
+    # so a pure in-place rotation scores as ZERO progress no matter how fast
+    # the robot is actually turning. Every autonomous goal this robot has ever
+    # been sent (§17.19) was a translation, which is why this never surfaced.
+    #
+    # zero_point_scan.py (§17.20) is built entirely out of rotate-in-place
+    # goals — same position, new heading — so it walks straight into it. The
+    # arithmetic: max_vel_theta is 0.20 rad/s, so a 90° step is 7.9 s at the
+    # cap alone, against this 10 s allowance, before RotateToGoal's slowing
+    # near the goal yaw eats what little margin is left. The controller would
+    # abort mid-turn with "Failed to make progress".
+    #
+    # That failure is not just a stalled scan. A failed goal hands control to
+    # bt_navigator's recovery branch, i.e. exactly the Spin/BackUp path that
+    # was unremapped until this same commit — so the two bugs chained: an
+    # unmeasurable rotation triggers a recovery that reverses 0.30 m into the
+    # blind rear sector. Both halves are fixed together, deliberately.
+    #
+    # PoseProgressChecker is the same check plus a rotational term: turning
+    # more than required_movement_angle also counts as progress. That is what
+    # "is the robot still doing something" was always meant to mean here.
     progress_checker:
-      plugin: "nav2_controller::SimpleProgressChecker"
+      plugin: "nav2_controller::PoseProgressChecker"
       required_movement_radius: 0.3
+      # radians, ~14°. Deliberately under one 20° scan step, so a single
+      # step's rotation resets the timer on its own. Not smaller: this also
+      # sets how much yaw wobble counts as "progress", and too small would
+      # let a robot oscillating in place look busy forever.
+      required_movement_angle: 0.25
       movement_time_allowance: 10.0
 
     goal_checker:

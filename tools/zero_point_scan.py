@@ -27,19 +27,30 @@ WHY THIS EXISTS
     it didn't -- never a blind fixed nudge every step.
 
 WHY NavigateToPose FOR EVERYTHING, NOT Nav2's Spin/BackUp BEHAVIORS
-    Spin and BackUp would be the obvious tool for this. But
-    nav2_slam.launch.py never gave behavior_server a cmd_vel remap, so its
-    output skips BOTH collision_monitor and cmd_vel_axis_adapter, publishing
-    straight to /cmd_vel in Nav2's own TF-frame convention (+X=right on this
-    robot, see Research_Journal.md sec 17.10/17.19). Spin only ever commands
-    angular.z, which is identical in both conventions, so it is fine.
-    BackUp commands a linear velocity and, unremapped, would almost
-    certainly reproduce the exact 88 degree miss that cmd_vel_axis_adapter
-    was built to fix -- untested and unfixed as of this script, since
-    nothing has called it yet. Rather than fix and freshly test a second
-    thing tonight, this script sidesteps the whole question: every motion
-    here, rotation and nudge alike, goes through NavigateToPose, the one
-    path already proven correct on hardware twice.
+    Spin and BackUp would be the obvious tool for this, and this script
+    still deliberately does not call them: every motion here, rotation and
+    nudge alike, goes through NavigateToPose, the one path already proven
+    correct on hardware.
+
+    CORRECTION to this script's original reasoning, before it ever ran.
+    That reasoning said choosing NavigateToPose "sidesteps the whole
+    question" of behavior_server's missing cmd_vel remap. It does not, and
+    could not: bt_navigator's default tree
+    (navigate_to_pose_w_replanning_and_recovery.xml) invokes Spin and
+    BackUp AUTOMATICALLY as recovery whenever a goal fails. Not calling
+    them directly buys nothing -- any failed goal here reaches them anyway.
+    Worse, this script's rotate-in-place goals were the most likely thing
+    yet built to fail, because SimpleProgressChecker scored a pure rotation
+    as zero progress (see nav2_params.yaml's progress_checker comment).
+    Unremapped, BackUp's 0.30 m reverse skips both collision_monitor and
+    cmd_vel_axis_adapter and aims into the measured 90 degree rear blind
+    sector (sec 17.15) -- the one direction the LiDAR cannot see.
+
+    Both halves are now fixed, together, before this script's first
+    hardware run: behavior_server is remapped to cmd_vel_nav in
+    nav2_slam.launch.py, and the progress checker counts rotation as
+    progress. Spin/BackUp are still not called from here, but they are now
+    safe if the behaviour tree reaches for them on its own.
 
 HOW "DID THE MAP GROW" IS DETECTED
     Subscribes to /map (transient-local, matching how slam_toolbox
@@ -212,9 +223,15 @@ class ZeroPointScanner(Node):
 
     def map_grew_since(self, baseline_count):
         # Give slam_toolbox a chance to publish a fresh map after settling
-        # (map_update_interval: 1.0 in slam_nodom.yaml).
-        time.sleep(1.3)
-        self.spin_until(lambda: True, 0.3)
+        # (map_update_interval: 1.0 in slam_nodom.yaml), and SPIN for that
+        # whole window rather than sleeping through it. /map only reaches
+        # latest_map via a callback, and a blind sleep followed by a single
+        # spin_once may service the TF listener instead -- leaving the count
+        # a cycle stale and reporting "no growth" for a heading that actually
+        # worked, which would then trigger a nudge that was never needed.
+        deadline = time.monotonic() + self.args.map_settle
+        while rclpy.ok() and time.monotonic() < deadline:
+            rclpy.spin_once(self, timeout_sec=0.1)
         current = self.known_cell_count()
         if current is None or baseline_count is None:
             return False, current
@@ -329,6 +346,11 @@ def main():
     parser.add_argument('--min-growth-cells', type=int, default=30,
                         help='minimum newly-known cells to count as "the map grew". '
                              'Filters out noise. Default 30.')
+    parser.add_argument('--map-settle', type=float, default=1.5,
+                        help='seconds to wait (while spinning) for a fresh /map '
+                             'before deciding whether it grew. Must exceed '
+                             "slam_nodom.yaml's map_update_interval (1.0). "
+                             'Default 1.5.')
     parser.add_argument('--map-frame', default='map')
     parser.add_argument('--base-frame', default='base_link')
     args = parser.parse_args()

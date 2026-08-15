@@ -103,7 +103,13 @@ class OdometryPublisher(Node):
         # Repeatability on a single surface is excellent (an out-and-back of
         # ~1.74 m closed to 2.6 cm, 1.5%), so this is a scale factor worth
         # measuring, not noise to be averaged away.
-        self.declare_parameter('lateral_scale', 0.80)
+        # DEFAULT IS FLOOR B, the surface the zero mark sits on and therefore
+        # the one every mapping and navigation run actually starts from.
+        # Confirmed twice by independent routes: an uncorrected strafe read
+        # 1.080 m per 1.00 m tape, and a 0.80-corrected strafe read 0.868 m
+        # per 1.00 m tape (raw 1.085). Both give 0.92.
+        # On floor A use 0.80 — see the surface table above.
+        self.declare_parameter('lateral_scale', 0.92)
 
         self.r = self.get_parameter('wheel_radius').value
         self.l1 = self.get_parameter('l1').value

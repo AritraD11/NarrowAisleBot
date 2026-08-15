@@ -9,6 +9,7 @@ pipeline itself is proven (Research_Journal.md Part XVI §16.8-16.9).
 Included/started:
     ydlidar_launch.py      (ydlidar_ros2_driver: driver + base_link->laser_frame TF)
     scan_relay.py           (/scan best-effort -> /scan_reliable reliable)
+    static_transform_publisher (map->zero_point, the visible home marker)
     online_async_launch.py  (slam_toolbox: mapping, params from slam_nodom.yaml)
 
 Deliberately NOT merged into aislebot_full.launch.py / aislebot.service and
@@ -35,7 +36,20 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import LifecycleNode
+from launch_ros.actions import LifecycleNode, Node
+
+
+# base_link's published yaw at a freshly-zeroed odometry, in radians.
+# NOT an arbitrary choice: odometry_publisher.py rotates its published
+# orientation by a constant -90 deg so base_link's +X reads as the robot's
+# RIGHT and +Y as its NOSE, matching the validated LiDAR calibration
+# (Research_Journal.md §17.10). A robot standing on the zero mark with
+# odometry freshly restarted therefore reads exactly -90 deg, confirmed on
+# hardware 15 Aug 2026 (tf2_echo odom base_link -> [0,0,0] @ -90.000 deg).
+# The zero_point marker below carries the same rotation so that its axis
+# triad and base_link's coincide EXACTLY when the robot is home, rather
+# than sitting 90 deg apart and needing mental correction every time.
+ZERO_POINT_YAW = -1.5707963267948966
 
 
 def generate_launch_description():
@@ -93,6 +107,36 @@ def generate_launch_description():
         output='screen',
     )
 
+    # ── The permanent zero-point marker ──────────────────────────────────
+    # A fixed frame at the map's origin, so "am I home?" is a thing you can
+    # SEE in Foxglove rather than a thing you have to eyeball against a mark
+    # on the floor that the robot's own chassis is standing on top of.
+    #
+    # Why this lands on the physical mark at all: slam_toolbox sets map->odom
+    # to identity at a mapping session's first scan — it does NOT plant the
+    # map origin under the robot (§17.18/§17.19, two sessions spent proving
+    # this the hard way). So map (0,0) is wherever ODOMETRY was zeroed, and
+    # odometry zeroes only when odometry_publisher starts. Restarting
+    # aislebot.service with the robot parked on the mark is therefore the
+    # entire re-zero procedure, and this marker is only meaningful when that
+    # procedure was followed — see docs/Important_Commands.md §8.
+    #
+    # Deliberately a child of map, not odom: map is the corrected frame the
+    # occupancy grid itself is anchored to, so this marker stays put on the
+    # map as the robot drives. Parented to odom it would drift along with
+    # every centimetre of wheel slip, which is the opposite of a landmark.
+    zero_point = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='zero_point_tf',
+        output='screen',
+        arguments=[
+            '--x', '0', '--y', '0', '--z', '0',
+            '--roll', '0', '--pitch', '0', '--yaw', str(ZERO_POINT_YAW),
+            '--frame-id', 'map', '--child-frame-id', 'zero_point',
+        ],
+    )
+
     slam = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
@@ -109,5 +153,6 @@ def generate_launch_description():
         *args,
         lidar,
         relay,
+        zero_point,
         slam,
     ])

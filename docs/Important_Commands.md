@@ -183,3 +183,82 @@ ros2 run tf2_ros tf2_echo odom base_link    # odom TF alive and tracking?
 ros2 topic hz /map                          # SLAM producing a map? (~1 Hz is normal)
 ps aux | grep mapping_full | grep -v grep   # confirm no orphaned mapping launch after stopping
 ```
+
+---
+
+## 8. Setting the zero point (re-zeroing on the floor mark)
+
+**This is the procedure that makes map `(0,0)` mean the physical floor mark.**
+Do it whenever the mark is moved, re-taped, or you want a fresh base map.
+
+### Why it works — the part that is not obvious
+
+Pressing **Map** does *not* set the zero point. `slam_toolbox` sets its
+`map -> odom` link to *identity* at a mapping session's first scan — it does
+**not** put the map origin under the robot. So map `(0,0)` lands on whatever
+odometry's origin is, and odometry's origin is set **only when
+`odometry_publisher` starts**, i.e. when `aislebot.service` last started.
+
+Two sessions (§17.17–§17.19) were spent assuming otherwise. If the drive
+stack started at 10:42 and you press Map at 10:56, map `(0,0)` is the
+10:42 parking spot, not the mark.
+
+### The procedure
+
+```bash
+# 1. Park the robot physically ON the floor mark.
+# 2. Stop the mapping session (dashboard Map button) — do this BEFORE the
+#    restart, so slam_toolbox isn't running while its TF parent vanishes.
+# 3. Re-zero odometry at the mark:
+sudo systemctl restart aislebot.service
+
+# 4. Wait ~10 s, then verify. MUST read [0,0,0] and -90.000 degrees:
+ros2 run tf2_ros tf2_echo odom base_link
+
+# 5. Press Map to start a fresh mapping session.
+# 6. Verify the map inherited it — also [0,0,0] @ -90 deg:
+ros2 run tf2_ros tf2_echo map base_link
+```
+
+The `-90.000` is **correct, not an error**. `base_link` on this robot has
+`+X` = right and `+Y` = nose (§17.10), so a perfectly-placed robot reads
+−90° against the map grid. It will never read 0.
+
+### Checking whether you are back home
+
+The floor mark is underneath the chassis, so you cannot see it while
+standing on it. Two ways that don't need eyes on the floor:
+
+```bash
+# Numeric: home is [0,0,0] @ -90 deg, same as step 6 above.
+ros2 run tf2_ros tf2_echo map base_link
+```
+
+**Visual (Foxglove):** `mapping_full.launch.py` publishes a permanent
+`zero_point` frame at the map origin, carrying the same −90° twist
+`base_link` has. Enable both frames in the 3D panel's **Transforms** list.
+When the two axis triads sit exactly on top of each other, you are home.
+The marker is fixed to the map, so it stays put while you drive.
+
+### Driving home automatically
+
+Once the zero point is real, "return to zero" is a *constant* command — it
+no longer has to be computed per-run the way `nav_goal.py` does. Requires
+Nav2 running:
+
+```bash
+ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
+  "{pose: {header: {frame_id: map}, pose: {position: {x: 0.0, y: 0.0, z: 0.0}, \
+   orientation: {x: 0.0, y: 0.0, z: -0.7071068, w: 0.7071068}}}}"
+```
+
+The `z: -0.7071068, w: 0.7071068` quaternion is just −90° yaw written the
+way ROS wants it — the same rotation `tf2_echo` prints as `[0, 0, -0.707,
+0.707]`.
+
+**Caveat, stated honestly:** `slam_toolbox` keeps correcting its own pose
+estimate as it scan-matches, so after heavy driving with wheel slip the map
+origin and the physical mark can separate (§17.19 measured 0.44 m after a
+crash). The marker shows where the map *believes* zero is. Good enough to
+navigate home to; not a survey monument. Re-run the procedure above if the
+two visibly disagree.

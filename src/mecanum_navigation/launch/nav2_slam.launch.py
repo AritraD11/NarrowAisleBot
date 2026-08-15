@@ -237,6 +237,16 @@ def generate_launch_description():
             name='cmd_vel_axis_adapter', output='screen',
             parameters=[{'use_sim_time': use_sim_time}],
         ),
+        # Also not a lifecycle node. INERT by default: it listens on
+        # /goal_pose_click, which nothing publishes until Foxglove's 3D
+        # panel is deliberately pointed at it. Leave the panel on
+        # /goal_pose and this node simply never fires, preserving the
+        # existing "drag 90° clockwise" behaviour (§17.20).
+        Node(
+            package='mecanum_navigation', executable='goal_pose_adapter',
+            name='goal_pose_adapter', output='screen',
+            parameters=[{'use_sim_time': use_sim_time}],
+        ),
         Node(
             package='nav2_lifecycle_manager', executable='lifecycle_manager',
             name='lifecycle_manager_navigation', output='screen',

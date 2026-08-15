@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║  AisleBot Phone Dashboard v2.3                                   ║
+║  AisleBot Phone Dashboard v2.4                                   ║
 ║  ROS2 Node + FastAPI WebSocket on port 8080                      ║
 ║                                                                    ║
 ║  Controls:                                                       ║
@@ -35,6 +35,26 @@
 ║    • Same UI slot is a deliberate placeholder for a future        ║
 ║      "Autonomous Drive" button once SLAM is trusted -- not built  ║
 ║      yet, this is trigger-only.                                   ║
+║                                                                    ║
+║  NEW in v2.4 -- CALIBRATE button (Research_Journal.md 17.20-17.21)║
+║    • Runs tools/zero_point_scan.py as a managed subprocess: at    ║
+║      each of four 90-deg headings it checks whether /map actually ║
+║      grew, nudges <=0.15 m ONLY if it did not, and returns to the ║
+║      exact start pose as its final action. Fills the 360-deg base ║
+║      map from the zero mark without hand-driving it.              ║
+║    • THIS IS THE FIRST BUTTON THAT COMMANDS AUTONOMOUS MOTION.    ║
+║      Everything below exists because of that, not for polish:     ║
+║        - Two-tap arm. One stray tap cannot start a 45 kg robot.   ║
+║        - Refuses to start unless mapping is live AND bt_navigator ║
+║          is on the graph -- without both, the script would fail   ║
+║          obscurely several seconds in rather than plainly now.    ║
+║        - Second press = SIGINT, which the script traps to drive   ║
+║          home before exiting. E-STOP = SIGKILL + a cancel-all on  ║
+║          /navigate_to_pose, because killing the script alone      ║
+║          leaves Nav2 still executing its last accepted goal.      ║
+║        - stdout/stderr -> ~/aislebot_logs/calib_*.log, and the    ║
+║          last lines are polled back to the phone, so a run that   ║
+║          misbehaves is diagnosable afterwards rather than silent. ║
 ║                                                                    ║
 ║  ROS2 Topics:                                                    ║
 ║    Publishes  /cmd_vel          geometry_msgs/Twist  (drive)     ║
@@ -189,6 +209,26 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
 .map-btn .map-icon{font-size:18px;line-height:1}
 .map-btn.mapping{background:#082032;color:#7dd3fc;animation:mappulse 1.5s infinite}
 @keyframes mappulse{0%,100%{background:#082032}50%{background:#0c2a43}}
+/* CALIBRATE — amber, deliberately not the same blue as MAP. MAP is
+   passive (starts sensors); this one makes the robot drive itself. */
+.cal-btn{flex:1;border:none;border-right:1.5px solid #1e3a5f;
+         background:transparent;color:#fbbf24;font-size:11px;font-weight:700;
+         cursor:pointer;font-family:inherit;letter-spacing:.5px;
+         display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+         transition:background .15s;touch-action:manipulation}
+.cal-btn .cal-icon{font-size:18px;line-height:1}
+.cal-btn.disabled{color:#334155;pointer-events:none}
+.cal-btn.armed{background:#422006;color:#fde68a}
+.cal-btn.running{background:#422006;color:#fde68a;animation:calpulse 1.2s infinite}
+@keyframes calpulse{0%,100%{background:#422006}50%{background:#713f12}}
+/* Status strip: overlaid on the joystick area rather than added to the
+   flex column, so the existing height math stays untouched. */
+.cal-status{position:absolute;top:0;left:0;right:0;z-index:20;display:none;
+            background:rgba(12,18,32,.94);border-bottom:1px solid #713f12;
+            padding:4px 6px;font-size:8px;line-height:1.35;color:#fde68a;
+            font-family:inherit;max-height:82px;overflow:hidden}
+.cal-status.show{display:block}
+.cal-status .cal-hd{color:#fbbf24;font-weight:700;letter-spacing:1px}
 .uv-btn{flex:1;border:none;border-right:1.5px solid #1e3a5f;
         background:transparent;color:#c084fc;font-size:11px;font-weight:700;
         cursor:pointer;font-family:inherit;letter-spacing:.5px;
@@ -245,6 +285,10 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
 
   <!-- JOYSTICK -->
   <div class="joy-area" id="joyArea">
+    <div class="cal-status" id="calStatus">
+      <div class="cal-hd" id="calHd">CALIBRATING</div>
+      <div id="calTail"></div>
+    </div>
     <div class="joy-ring" id="joyRing">
       <span class="jlbl t">FWD</span>
       <span class="jlbl b">REV</span>
@@ -287,6 +331,10 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
   <button class="map-btn" id="mapBtn">
     <span class="map-icon" id="mapIcon">▦</span>
     <span id="mapLabel">MAP</span>
+  </button>
+  <button class="cal-btn disabled" id="calBtn">
+    <span class="cal-icon" id="calIcon">⟳</span>
+    <span id="calLabel">CALIBRATE</span>
   </button>
   <button class="uv-btn" id="uvBtn">
     <span class="uv-icon" id="uvIcon">☼</span>
@@ -575,6 +623,7 @@ function mapReset() {
   document.getElementById('mapIcon').textContent  = '▦';
   document.getElementById('mapLabel').textContent = 'MAP';
   document.getElementById('mapBadge').classList.remove('show');
+  calSyncEnabled();
 }
 
 function toggleMapping() {
@@ -590,11 +639,121 @@ function toggleMapping() {
     document.getElementById('mapLabel').textContent = 'STOP MAP';
     document.getElementById('mapBadge').classList.add('show');
   }
+  calSyncEnabled();
 }
 
 const mapBtnEl = document.getElementById('mapBtn');
 mapBtnEl.addEventListener('touchstart', e => { e.preventDefault(); toggleMapping(); }, { passive: false });
 mapBtnEl.addEventListener('click', toggleMapping);
+
+// ── CALIBRATE (tools/zero_point_scan.py) ──────────────────────────
+// The first control here that makes the robot drive itself, so it is the
+// only one with a two-tap arm: tap once to arm (4 s window), tap again to
+// commit. A single stray tap on a phone in a pocket cannot start it.
+let calArmed = false, calRunning = false, calArmTimer = null, calPoll = null;
+
+function calSetLabel(t) { document.getElementById('calLabel').textContent = t; }
+
+function calDisarm() {
+  calArmed = false;
+  clearTimeout(calArmTimer);
+  document.getElementById('calBtn').classList.remove('armed');
+  if (!calRunning) calSetLabel('CALIBRATE');
+}
+
+function calReset() {
+  calRunning = false;
+  calDisarm();
+  clearInterval(calPoll); calPoll = null;
+  const b = document.getElementById('calBtn');
+  b.classList.remove('running');
+  document.getElementById('calIcon').textContent = '⟳';
+  calSetLabel('CALIBRATE');
+  document.getElementById('calStatus').classList.remove('show');
+  calSyncEnabled();
+}
+
+// Enabled only while mapping is live — zero_point_scan.py measures map
+// growth, so without /map it has nothing to decide on. The server enforces
+// this too (calib_preflight); this just stops the tap being offered.
+function calSyncEnabled() {
+  const b = document.getElementById('calBtn');
+  if (mapping || calRunning) b.classList.remove('disabled');
+  else { b.classList.add('disabled'); calDisarm(); }
+}
+
+function calPollStatus() {
+  fetch('/calib_status').then(r => r.json()).then(s => {
+    document.getElementById('calHd').textContent =
+      'CALIBRATING — ' + (s.state || '').toUpperCase();
+    document.getElementById('calTail').innerHTML =
+      (s.tail || []).map(l => l.replace(/[<>&]/g, '')).join('<br>');
+    if (!s.active) {
+      document.getElementById('calHd').textContent =
+        'CALIBRATION ' + (s.state || '').toUpperCase();
+      setTimeout(calReset, 4000);
+      clearInterval(calPoll); calPoll = null;
+    }
+  }).catch(() => {});
+}
+
+function calTap() {
+  if (estopped) return;
+  if (calRunning) { send({ type: 'calib_stop' }); calSetLabel('RETURNING…'); return; }
+  if (!mapping) return;
+  if (!calArmed) {
+    calArmed = true;
+    document.getElementById('calBtn').classList.add('armed');
+    calSetLabel('TAP AGAIN');
+    calArmTimer = setTimeout(calDisarm, 4000);
+    return;
+  }
+  calDisarm();
+  calRunning = true;
+  send({ type: 'calib_start' });
+  const b = document.getElementById('calBtn');
+  b.classList.add('running');
+  document.getElementById('calIcon').textContent = '⏹';
+  calSetLabel('STOP CAL');
+  document.getElementById('calStatus').classList.add('show');
+  document.getElementById('calHd').textContent = 'CALIBRATING — STARTING';
+  document.getElementById('calTail').textContent = '';
+  clearInterval(calPoll);
+  calPoll = setInterval(calPollStatus, 1500);
+  setTimeout(calPollStatus, 700);
+}
+
+const calBtnEl = document.getElementById('calBtn');
+calBtnEl.addEventListener('touchstart', e => { e.preventDefault(); calTap(); }, { passive: false });
+calBtnEl.addEventListener('click', calTap);
+
+// Recover button state on load. Both MAP and CALIBRATE previously tracked
+// their state only in this page's memory, so a refresh — or reopening the
+// dashboard on a second device — showed "MAP" while mapping was actually
+// running, and left CALIBRATE greyed out with no way to enable it short of
+// stopping and restarting a healthy mapping session.
+function syncFromServer() {
+  fetch('/calib_status').then(r => r.json()).then(s => {
+    if (s.mapping && !mapping) {
+      mapping = true;
+      document.getElementById('mapBtn').classList.add('mapping');
+      document.getElementById('mapIcon').textContent  = '⏹';
+      document.getElementById('mapLabel').textContent = 'STOP MAP';
+      document.getElementById('mapBadge').classList.add('show');
+    }
+    if (s.active && !calRunning) {
+      calRunning = true;
+      document.getElementById('calBtn').classList.add('running');
+      document.getElementById('calIcon').textContent = '⏹';
+      calSetLabel('STOP CAL');
+      document.getElementById('calStatus').classList.add('show');
+      clearInterval(calPoll);
+      calPoll = setInterval(calPollStatus, 1500);
+    }
+    calSyncEnabled();
+  }).catch(() => {});
+}
+syncFromServer();
 
 // ── UV LIGHTS (staged on the Mega: T1, +5s T2, +10s T3) ──────────
 let uvOn = false;
@@ -641,6 +800,7 @@ function toggleEstop() {
     estopped = true;
     send({ type: 'estop' });
     uvReset();                       // firmware drops UV on <S>; mirror it here
+    calReset();                      // server already SIGKILLed it; clear the UI
     joyX = 0; joyY = 0; yawVal = 0;
     joyActive = false; yawActive = false;
     joyThumb.style.transform = 'translate(-50%,-50%)';
@@ -757,6 +917,18 @@ class PhoneDashboard(Node):
         self.declare_parameter('port',    8080)
         self.declare_parameter('log_dir', '~/aislebot_logs')
 
+        # ── Calibration (zero_point_scan.py) tunables ──────────────
+        # 90 deg steps, i.e. four headings, is NOT an arbitrary round
+        # number: this robot's rear self-occlusion mask is a measured 90 deg
+        # wedge (§17.15), and a 360 deg LiDAR sees everything else from any
+        # single heading. Four headings 90 deg apart therefore sweep that
+        # blind wedge across the full circle exactly once, with no
+        # redundant stops. Finer steps cost time without covering more.
+        self.declare_parameter('calib_step_deg',     90.0)
+        self.declare_parameter('calib_max_duration', 150.0)
+        self.declare_parameter('zero_point_scan_path',
+                               '~/ros2_ws/tools/zero_point_scan.py')
+
         self.port    = self.get_parameter('port').value
         self.log_dir = os.path.expanduser(
             self.get_parameter('log_dir').get_parameter_value().string_value
@@ -785,9 +957,24 @@ class PhoneDashboard(Node):
         self.mapping_active = False
         self._mapping_proc: Optional[subprocess.Popen] = None
 
+        # ── Calibration (zero_point_scan.py, subprocess-managed) ────
+        self.calib_active = False
+        self.calib_state  = 'idle'      # idle|running|done|failed|aborted
+        self._calib_proc: Optional[subprocess.Popen] = None
+        self._calib_log_path = ''
+        self._calib_log_file = None
+        self._calib_kill_after = 0.0    # monotonic deadline after a SIGINT
+
+        # Reaps the calibration subprocess without blocking the WebSocket
+        # handler. stop_calibration() only signals and returns; this timer
+        # notices the exit and escalates to SIGKILL if the graceful return
+        # to zero overruns. Doing the wait inline would stall the event loop
+        # for as long as the robot takes to drive home.
+        self.create_timer(1.0, self._calib_watchdog)
+
         self.ws_clients: Set[WebSocket] = set()
 
-        self.get_logger().info(f'Phone Dashboard v2.3 — port {self.port}')
+        self.get_logger().info(f'Phone Dashboard v2.4 — port {self.port}')
         self.get_logger().info(f'Log directory: {self.log_dir}')
 
     # ── Drive ─────────────────────────────────────────────────────
@@ -931,6 +1118,169 @@ class PhoneDashboard(Node):
         if run_path:
             self._write_run_report(run_path, map_prefix if map_saved else None)
 
+    # ── Calibrate: the 360° zero-point scan ───────────────────────
+
+    def calib_preflight(self) -> str:
+        """Return '' if it is safe to start, else a human-readable reason.
+
+        Both checks below are things zero_point_scan.py would otherwise
+        discover several seconds in, after the operator has already
+        committed and looked away from the phone — /map never arrives, or
+        the action server never appears. Failing here instead turns a
+        confusing hang into a sentence on the button.
+        """
+        if not self.mapping_active:
+            return 'press MAP first — no /map to measure growth against'
+        # bt_navigator owns /navigate_to_pose, which is the only motion path
+        # this script uses. Checked via the node graph rather than by
+        # building an ActionClient, so mecanum_robot gains no nav2_msgs
+        # dependency for what is a liveness question.
+        if 'bt_navigator' not in self.get_node_names():
+            return 'Nav2 is not running — launch nav2_slam.launch.py first'
+        script = os.path.expanduser(
+            self.get_parameter('zero_point_scan_path')
+            .get_parameter_value().string_value)
+        if not os.path.isfile(script):
+            return f'script not found: {script}'
+        return ''
+
+    def start_calibration(self) -> str:
+        """Start the zero-point scan. Returns '' on success, else a reason."""
+        if self.calib_active:
+            return 'already running'
+        reason = self.calib_preflight()
+        if reason:
+            self.get_logger().warn(f'Calibration refused: {reason}')
+            self.calib_state = 'failed'
+            return reason
+
+        script = os.path.expanduser(
+            self.get_parameter('zero_point_scan_path')
+            .get_parameter_value().string_value)
+        step = self.get_parameter('calib_step_deg').value
+        dur  = self.get_parameter('calib_max_duration').value
+
+        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self._calib_log_path = os.path.join(self.log_dir, f'calib_{ts}.log')
+        try:
+            # Line-buffered, and stderr folded into stdout: rclpy logging
+            # goes to stderr, so without the merge the log would capture
+            # everything except the per-heading progress we actually want.
+            self._calib_log_file = open(self._calib_log_path, 'w', buffering=1)
+            self._calib_proc = subprocess.Popen(
+                ['python3', '-u', script,
+                 '--step-deg', str(step), '--max-duration', str(dur)],
+                stdout=self._calib_log_file, stderr=subprocess.STDOUT,
+                preexec_fn=os.setsid,
+            )
+        except Exception as e:
+            self.get_logger().error(f'Failed to launch zero_point_scan.py: {e}')
+            self._close_calib_log()
+            self.calib_state = 'failed'
+            return str(e)
+
+        self.calib_active = True
+        self.calib_state  = 'running'
+        self._calib_kill_after = 0.0
+        self.get_logger().info(
+            f'Calibration started (pid {self._calib_proc.pid}, '
+            f'step {step}°, budget {dur}s) → {self._calib_log_path}')
+        return ''
+
+    def stop_calibration(self, graceful: bool = True):
+        """Stop the scan. Never blocks — _calib_watchdog does the reaping.
+
+        graceful=True  SIGINT. The script traps it and its finally block
+                       drives back to the exact start pose before exiting,
+                       which is the whole point of stopping it this way.
+        graceful=False SIGKILL now, plus a cancel-all on /navigate_to_pose.
+                       Used by E-STOP. Killing the script alone is NOT
+                       enough: Nav2 holds the last accepted goal and would
+                       keep driving to it, and would resume the moment the
+                       E-STOP latch was cleared.
+        """
+        if not self.calib_active or self._calib_proc is None:
+            return
+        pid = self._calib_proc.pid
+        try:
+            if graceful:
+                os.killpg(os.getpgid(pid), signal.SIGINT)
+                # Generous: the return-to-zero goal is a real drive.
+                self._calib_kill_after = time.monotonic() + 45.0
+                self.calib_state = 'returning'
+                self.get_logger().info(
+                    'Calibration interrupted — returning to zero, then exiting')
+            else:
+                os.killpg(os.getpgid(pid), signal.SIGKILL)
+                self.calib_state = 'aborted'
+                self.get_logger().warn('Calibration KILLED (E-STOP)')
+        except ProcessLookupError:
+            pass
+        if not graceful:
+            self.cancel_nav_goals()
+
+    def cancel_nav_goals(self):
+        """Cancel every in-flight /navigate_to_pose goal.
+
+        An all-zero CancelGoal request means "cancel all" per
+        action_msgs/srv/CancelGoal. Fired as a detached subprocess rather
+        than a service client so this stays non-blocking on the E-STOP
+        path — an E-STOP must never wait on a service round-trip.
+        """
+        try:
+            subprocess.Popen(
+                ['ros2', 'service', 'call',
+                 '/navigate_to_pose/_action/cancel_goal',
+                 'action_msgs/srv/CancelGoal', '{}'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except Exception as e:
+            self.get_logger().warn(f'cancel_goal call failed: {e}')
+
+    def _close_calib_log(self):
+        if self._calib_log_file is not None:
+            try:
+                self._calib_log_file.close()
+            except Exception:
+                pass
+            self._calib_log_file = None
+
+    def _calib_watchdog(self):
+        """1 Hz: reap the scan when it exits, escalate if it overruns."""
+        if not self.calib_active or self._calib_proc is None:
+            return
+        rc = self._calib_proc.poll()
+        if rc is None:
+            if self._calib_kill_after and time.monotonic() > self._calib_kill_after:
+                self.get_logger().warn(
+                    'zero_point_scan.py did not exit after SIGINT — SIGKILL')
+                try:
+                    os.killpg(os.getpgid(self._calib_proc.pid), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                self._calib_kill_after = 0.0
+            return
+        # Exited.
+        if self.calib_state not in ('aborted',):
+            self.calib_state = 'done' if rc == 0 else 'failed'
+        self.calib_active = False
+        self._calib_proc = None
+        self._calib_kill_after = 0.0
+        self._close_calib_log()
+        self.get_logger().info(
+            f'Calibration finished (rc={rc}, {self.calib_state}) '
+            f'— log: {self._calib_log_path}')
+
+    def calib_tail(self, n: int = 6) -> list:
+        """Last n log lines, for the phone's status strip."""
+        if not self._calib_log_path or not os.path.isfile(self._calib_log_path):
+            return []
+        try:
+            with open(self._calib_log_path, 'r', errors='replace') as f:
+                return [ln.rstrip() for ln in f.readlines()[-n:] if ln.strip()]
+        except Exception:
+            return []
+
     def _write_run_report(self, csv_path: str, map_prefix: Optional[str]):
         """Generate and log the automatic post-run report (PID + map
         findings) — the Python port of telemetry_analyzer.html's analysis,
@@ -985,6 +1335,30 @@ _node: Optional[PhoneDashboard] = None
 @app.get('/')
 async def index():
     return HTMLResponse(DASHBOARD_HTML)
+
+
+@app.get('/calib_status')
+async def calib_status():
+    """Polled by the phone while a scan runs.
+
+    A plain GET rather than a WebSocket push because this dashboard's
+    socket has only ever carried client -> server messages; adding a
+    server -> client broadcast path for one status strip would mean new
+    plumbing (and a second place for the connection to go stale) for no
+    gain over a 1.5 s poll that only runs while calibrating.
+    """
+    if _node is None:
+        return {'active': False, 'state': 'no_node', 'tail': []}
+    return {
+        'active':  _node.calib_active,
+        'state':   _node.calib_state,
+        'tail':    _node.calib_tail(),
+        # Also the page's only way to recover button state across a reload.
+        # The dashboard is a phone browser held next to a moving robot;
+        # a dropped connection or an accidental refresh previously left the
+        # UI claiming "MAP" while mapping was in fact still running.
+        'mapping': _node.mapping_active,
+    }
 
 
 @app.websocket('/ws')
@@ -1043,12 +1417,29 @@ def _dispatch(msg: dict):
         _node.get_logger().info(f'Dashboard: map start → {path}')
 
     elif t == 'map_stop':
+        # A scan in flight is driving the robot using this map. Kill it
+        # first, hard — dropping /map out from under an active
+        # NavigateToPose goal is worse than an abort.
+        if _node.calib_active:
+            _node.stop_calibration(graceful=False)
         _node.stop_mapping()
 
+    elif t == 'calib_start':
+        reason = _node.start_calibration()
+        _node.get_logger().info(
+            'Dashboard: calibrate start' if not reason
+            else f'Dashboard: calibrate refused — {reason}')
+
+    elif t == 'calib_stop':
+        _node.stop_calibration(graceful=True)
+
     elif t == 'estop':
+        # Order matters. Cut the motors at the hardware latch FIRST, then
+        # tear down whatever is still issuing commands — not the reverse.
         _node.publish_drive(0.0, 0.0, 0.0)
         _node.send_esp32_raw('<S>')
         _node.publish_arm('ESTOP')
+        _node.stop_calibration(graceful=False)
         _node.stop_mapping()
 
     elif t == 'estop_clear':
@@ -1078,6 +1469,10 @@ def main(args=None):
         log_level = 'warning',
     )
 
+    # Dashboard is going away, so nothing would be left watching a moving
+    # robot — kill the scan outright rather than letting it drive home
+    # unsupervised, and cancel Nav2's goal with it.
+    _node.stop_calibration(graceful=False)
     _node.stop_mapping()
     _node.destroy_node()
     rclpy.shutdown()

@@ -26,6 +26,8 @@ setup(
         'console_scripts': [
             'cmd_vel_axis_adapter ='
             ' mecanum_navigation.cmd_vel_axis_adapter:main',
+            'goal_pose_adapter ='
+            ' mecanum_navigation.goal_pose_adapter:main',
         ],
     },
 )

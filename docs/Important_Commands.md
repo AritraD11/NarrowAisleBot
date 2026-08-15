@@ -256,7 +256,82 @@ The `z: -0.7071068, w: 0.7071068` quaternion is just −90° yaw written the
 way ROS wants it — the same rotation `tf2_echo` prints as `[0, 0, -0.707,
 0.707]`.
 
-**Caveat, stated honestly:** `slam_toolbox` keeps correcting its own pose
+---
+
+## 9. Autonomous base-map scan (the CALIBRATE button)
+
+**Order of operations: MAP → launch Nav2 → CALIBRATE.**
+
+```bash
+# Nav2 must be up before CALIBRATE will do anything.
+ros2 launch mecanum_navigation nav2_slam.launch.py
+```
+
+Then on the dashboard: **CALIBRATE** → **TAP AGAIN** to confirm.
+
+It runs `tools/zero_point_scan.py`: at each of four 90° headings it checks
+whether `/map` actually grew, nudges ≤ 0.15 m *only if it didn't*, and
+returns to the exact start pose as its final action.
+
+**Why 90° steps, i.e. four headings.** Not a round number — the rear
+self-occlusion mask is a *measured* 90° wedge (§17.15), and a 360° LiDAR
+already sees everything else from any single heading. Four headings sweep
+that blind wedge across the full circle exactly once. Finer steps cost time
+without covering more.
+
+**Stopping it:**
+- **CALIBRATE again** → SIGINT. The script traps it and *drives home* first.
+- **E-STOP** → SIGKILL + cancel-all on `/navigate_to_pose`. Killing the
+  script alone is not enough: Nav2 holds the last accepted goal and would
+  resume the moment the E-STOP latch cleared.
+
+**If the button is greyed out:** mapping isn't running. If it refuses on
+tap, check the log — `ros2 node list | grep bt_navigator` (Nav2 down) is the
+usual cause.
+
+**Run log:** `~/aislebot_logs/calib_<timestamp>.log`, with the last lines
+mirrored onto the phone while it runs.
+
+```bash
+tail -f ~/aislebot_logs/calib_*.log      # full detail from the terminal
+```
+
+### Foxglove click-to-goal
+
+`nav2_slam.launch.py` starts `goal_pose_adapter`, which is **inert until you
+opt in**. In the 3D panel settings, set the publish pose topic to:
+
+| Topic | Drag arrow means |
+|---|---|
+| `/goal_pose` (old) | where the robot's **right side** faces — drag 90° clockwise of the heading you want |
+| `/goal_pose_click` (adapter) | where the robot's **nose** faces — drag where you actually mean |
+
+Only the goal's *orientation* was ever affected; position always came from
+the click point. That's why the old workaround was survivable — a mis-drag
+sent the robot to the right place facing the wrong way, not to the wrong
+place.
+
+### Restricting goals to mapped (white) space
+
+`nav2_params.yaml`'s planner sets `allow_unknown: true`, so it will route
+through grey/unknown cells. That is deliberate — early maps were ~85%
+unknown (§17.4) and `false` would make almost every goal unreachable. Once a
+complete base map exists it is reasonable to flip it, but note that a single
+unknown pixel across a corridor makes A* fail outright. Editable on the Pi
+without internet:
+
+```bash
+nano ~/ros2_ws/src/mecanum_navigation/config/nav2_params.yaml   # allow_unknown
+cd ~/ros2_ws && colcon build --packages-select mecanum_navigation
+```
+
+Until then, safety comes from the local costmap, the footprint check, and
+`collision_monitor` — not from refusing to enter unmapped space
+(`Navigation_Theory.md` §2).
+
+---
+
+**Caveat on the zero point, stated honestly:** `slam_toolbox` keeps correcting its own pose
 estimate as it scan-matches, so after heavy driving with wheel slip the map
 origin and the physical mark can separate (§17.19 measured 0.44 m after a
 crash). The marker shows where the map *believes* zero is. Good enough to

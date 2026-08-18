@@ -185,8 +185,28 @@ controller_server:
 
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.05           # 5cm tolerance (tight for narrow aisle)
-      yaw_goal_tolerance: 0.05          # ~3 degrees
+      # TIGHTENED 0.05 -> 0.02 / 0.025 (§17.23), from measured behaviour
+      # rather than taste. SimpleGoalChecker stops the moment the robot is
+      # inside tolerance, and MPPI — being a cost-minimiser with no term
+      # rewarding "closer than required" — reliably stops AT the boundary,
+      # not near it. Three consecutive hardware runs, first ever on MPPI:
+      #     0.50 m goal -> stopped 4.6 cm short   (tol 5 cm)
+      #     0.30 m goal -> stopped 4.5 cm short   (tol 5 cm)
+      #     45 deg goal -> stopped 2.80 deg short (tol 2.86 deg)
+      # That is not scatter, it is the tolerance being reported back as
+      # error. A 5 cm systematic undershoot is most of this robot's 5 cm
+      # budget, and zero_point_scan.py chains 18 goals in sequence.
+      #
+      # Lower bound is set by what the robot can actually resolve, so these
+      # are not arbitrarily small: a 0.30 m run held heading to 0.7 deg and
+      # closed to 1.7 cm of cross-track, and an in-place 42 deg rotation
+      # moved the centre only 8.5 mm. 2 cm and ~1.4 deg are inside
+      # demonstrated capability with margin.
+      #
+      # ⚠ If goals start timing out or the robot hunts near the target,
+      #   this is the first parameter to relax, not the speeds.
+      xy_goal_tolerance: 0.02           # 2 cm
+      yaw_goal_tolerance: 0.025         # ~1.4 degrees
       stateful: true
 
     # ── CONTROLLER: MPPI, replacing DWB (§17.23) ─────────────────────────

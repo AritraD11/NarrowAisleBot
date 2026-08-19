@@ -139,9 +139,10 @@ class RepeatabilityTester(Node):
         raise RuntimeError('could not read {} -> {}: {}'.format(
             self.args.map_frame, self.args.base_frame, last_error))
 
-    def send_goal_and_wait(self, x, y, yaw, timeout_sec=20.0):
-        """Copied verbatim from zero_point_scan.py -- proven on hardware
-        18 Aug 2026, do not diverge without re-validating both."""
+    def send_goal_and_wait(self, x, y, yaw, timeout_sec=150.0):
+        """Based on zero_point_scan.py's version, with one critical fix --
+        see the cancel-on-timeout comment below. Do not remove that without
+        re-reading Research_Journal.md sec 17.24 first."""
         if not self.nav_client.wait_for_server(timeout_sec=5.0):
             raise RuntimeError('/navigate_to_pose action server not available')
 
@@ -165,16 +166,39 @@ class RepeatabilityTester(Node):
         result_future = goal_handle.get_result_async()
         rclpy.spin_until_future_complete(self, result_future, timeout_sec=timeout_sec)
         result = result_future.result()
-        if result is None:
-            self.get_logger().warn('goal timed out waiting for result')
-            return False
-        return result.status == 4  # STATUS_SUCCEEDED
+        if result is not None:
+            return result.status == 4  # STATUS_SUCCEEDED
+
+        # CRITICAL: the CLIENT gave up waiting, but the goal is not
+        # necessarily finished on the SERVER -- bt_navigator/controller_
+        # server may still be actively driving it, mid-recovery. Confirmed
+        # on hardware 19 Aug 2026: a 1.00 m goal that legitimately took
+        # 87 s to succeed timed out here at the old 20 s default; this
+        # function returned False; the CALLER then sent the next goal
+        # (return-to-start) 25 s later while the first was still running.
+        # NavigateToPose only ever has one active goal, so the second send
+        # PREEMPTED the first server-side, mid-drive, from whatever pose
+        # the robot happened to be at -- bt_navigator logged exactly that:
+        # "Begin navigating from current location (0.10, -0.65) to
+        # (0.00, 0.00)". Two goals racing on one controller is what
+        # produced the "moved back, then left, then front, diagonal, then
+        # right" the user described -- not a hardware fault, not an MPPI
+        # problem, this bug. Cancelling explicitly here means this
+        # function NEVER returns while a goal is still live, so the
+        # caller's next action can never collide with a stale one.
+        self.get_logger().warn(
+            'goal timed out waiting for result -- cancelling it explicitly '
+            'before returning (see sec 17.24)')
+        cancel_future = goal_handle.cancel_goal_async()
+        rclpy.spin_until_future_complete(self, cancel_future, timeout_sec=5.0)
+        return False
 
     def run(self):
         side = self.args.side
         right_sign, forward_sign = SIDE_VECTOR[side]
         distance = self.args.distance
         reps = self.args.reps
+        goal_timeout = self.args.goal_timeout
 
         start_x, start_y, start_yaw = self.measure_pose()
         self.get_logger().info(
@@ -220,7 +244,8 @@ class RepeatabilityTester(Node):
                 for rep in range(1, reps + 1):
                     print('--- rep {}/{} ---'.format(rep, reps))
 
-                    out_ok = self.send_goal_and_wait(goal_x, goal_y, start_yaw)
+                    out_ok = self.send_goal_and_wait(
+                        goal_x, goal_y, start_yaw, timeout_sec=goal_timeout)
                     ox, oy, oyaw = self.measure_pose()
                     tf_travelled = math.hypot(ox - start_x, oy - start_y)
                     print('  outbound: {}   TF says it travelled {:.3f} m '
@@ -237,7 +262,8 @@ class RepeatabilityTester(Node):
                         except ValueError:
                             print('  (not a number, recorded as skipped)')
 
-                    return_ok = self.send_goal_and_wait(start_x, start_y, start_yaw)
+                    return_ok = self.send_goal_and_wait(
+                        start_x, start_y, start_yaw, timeout_sec=goal_timeout)
                     rx, ry, ryaw = self.measure_pose()
                     home_error = math.hypot(rx - start_x, ry - start_y)
                     print('  return:   {}   {:.3f} m from the exact start pose'.format(
@@ -349,6 +375,14 @@ def main():
                              '1.00, left 0.35, front 1.00, rear 0.35.')
     parser.add_argument('--reps', type=int, default=5,
                         help='number of out-and-back repetitions. Default 5.')
+    parser.add_argument('--goal-timeout', type=float, default=150.0,
+                        help='seconds to wait for EACH goal (out or back) '
+                             'before giving up and explicitly cancelling '
+                             'it. Default 150. Hardware evidence 19 Aug '
+                             '2026 (sec 17.24): a 1.00 m goal legitimately '
+                             'took 87 s under real recovery/replan load -- '
+                             'do not set this below ~60s for goals near '
+                             '1 m.')
     parser.add_argument('--force', action='store_true',
                         help='allow --distance to exceed the safety ceiling '
                              'for the chosen side. Do not pass this without '

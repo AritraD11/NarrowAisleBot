@@ -216,11 +216,30 @@ class ZeroPointScanner(Node):
         result_future = goal_handle.get_result_async()
         rclpy.spin_until_future_complete(self, result_future, timeout_sec=timeout_sec)
         result = result_future.result()
-        if result is None:
-            self.get_logger().warn('goal timed out waiting for result')
-            return False
-        # status 4 == STATUS_SUCCEEDED (action_msgs/msg/GoalStatus)
-        return result.status == 4
+        if result is not None:
+            # status 4 == STATUS_SUCCEEDED (action_msgs/msg/GoalStatus)
+            return result.status == 4
+
+        # CRITICAL, added 19 Aug 2026 (sec 17.24) after repeatability_
+        # test.py's near-identical send_goal_and_wait produced genuinely
+        # dangerous interleaved motion on hardware: giving up here does
+        # NOT mean the goal stopped executing on the SERVER --
+        # bt_navigator/controller_server may still be actively driving it,
+        # mid-recovery. If this function returns False without cancelling,
+        # the NEXT call to it (this script always sends another goal
+        # right after) PREEMPTS the still-running one server-side, from
+        # whatever pose the robot happens to be at that instant --
+        # confirmed to produce exactly "moved back, then left, then
+        # front, diagonal, then right" rather than the intended motion.
+        # This script's goals are small and were fast in every hardware
+        # run so far, which is almost certainly why it hasn't been hit
+        # here yet -- the risk is identical, not smaller.
+        self.get_logger().warn(
+            'goal timed out waiting for result -- cancelling it explicitly '
+            'before returning (see sec 17.24)')
+        cancel_future = goal_handle.cancel_goal_async()
+        rclpy.spin_until_future_complete(self, cancel_future, timeout_sec=5.0)
+        return False
 
     def map_grew_since(self, baseline_count):
         # Give slam_toolbox a chance to publish a fresh map after settling

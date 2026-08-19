@@ -4,7 +4,10 @@ aislebot_full.launch.py — bring up the entire AisleBot stack.
 
 Nodes started:
     joy_node               (USB gamepad → /joy)
-    joy_to_aislebot        (/joy → /cmd_vel, /arm/cmd_vel, /arm/command)
+    joy_to_aislebot        (/joy → /cmd_vel_manual, /arm/cmd_vel, /arm/command)
+    twist_mux               (/cmd_vel_manual + /cmd_vel_nav_out → /cmd_vel,
+                             priority-arbitrated — see config/twist_mux.yaml.
+                             Always running, whether or not Nav2 is up.)
     teleop_asym            (/cmd_vel → /wheel_speeds)
     esp32_bridge           (/wheel_speeds → ESP32 serial)   /dev/esp32 CP2102
     odom_pub               (encoder feedback → /odom)
@@ -39,6 +42,9 @@ def generate_launch_description():
         get_package_share_directory('mecanum_robot'), 'urdf', 'aislebot.urdf')
     with open(urdf_path, 'r') as f:
         robot_description = f.read()
+
+    twist_mux_params = os.path.join(
+        get_package_share_directory('mecanum_robot'), 'config', 'twist_mux.yaml')
 
     args = [
         DeclareLaunchArgument('esp32_port',   default_value='/dev/esp32',
@@ -108,6 +114,26 @@ def generate_launch_description():
     )
 
     # ── DRIVE PIPELINE ───────────────────────────────────────────
+    # twist_mux arbitrates manual (/cmd_vel_manual, from joy_to_aislebot /
+    # phone_dashboard / keyboard_teleop) against Nav2's fully axis-adapted
+    # output (/cmd_vel_nav_out, published only while nav2_slam.launch.py or
+    # navigation.launch.py is running) and republishes the winner on
+    # /cmd_vel — the one topic teleop_asym has always subscribed to.
+    #
+    # Runs unconditionally, not gated behind use_joystick/use_phone: manual
+    # override must exist even if this particular launch started with
+    # neither input node, and it is a no-op (nothing to arbitrate) when
+    # Nav2 isn't running either. See config/twist_mux.yaml for priorities —
+    # manual always wins over autonomous while actively publishing, which
+    # is the safety gap that made the SLAM-crash collision harder to
+    # interrupt than it should have been (no clean override path existed).
+    twist_mux = Node(
+        package='twist_mux', executable='twist_mux', name='twist_mux',
+        parameters=[twist_mux_params],
+        remappings=[('cmd_vel_out', 'cmd_vel')],
+        output='screen',
+    )
+
     teleop = Node(
         package='mecanum_robot', executable='teleop_asym',
         name='teleop_asym',
@@ -212,6 +238,7 @@ def generate_launch_description():
         *args,
         banner,
         joy_node, joy_translator, phone,
+        twist_mux,
         teleop, esp32_bridge, odom_pub,
         arm_bridge,
         lcd,

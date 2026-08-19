@@ -57,7 +57,10 @@
 ║          misbehaves is diagnosable afterwards rather than silent. ║
 ║                                                                    ║
 ║  ROS2 Topics:                                                    ║
-║    Publishes  /cmd_vel          geometry_msgs/Twist  (drive)     ║
+║    Publishes  /cmd_vel_manual   geometry_msgs/Twist  (drive) —   ║
+║      goes through twist_mux (config/twist_mux.yaml) before       ║
+║      reaching the wheels, so it wins over Nav2 whenever this     ║
+║      is actively publishing.                                     ║
 ║    Publishes  /arm/command      std_msgs/String       (arm)      ║
 ║    Publishes  /esp32/command    std_msgs/String  (<L1>/<L0>/…)   ║
 ║    Subscribes /motor_telemetry  std_msgs/Float64MultiArray       ║
@@ -936,7 +939,7 @@ class PhoneDashboard(Node):
         os.makedirs(self.log_dir, exist_ok=True)
 
         # ── Publishers ────────────────────────────────────────────
-        self.cmd_vel_pub   = self.create_publisher(Twist,             '/cmd_vel',       10)
+        self.cmd_vel_pub   = self.create_publisher(Twist,             '/cmd_vel_manual', 10)
         self.arm_pub       = self.create_publisher(String,            '/arm/command',   10)
         self.esp32_cmd_pub = self.create_publisher(String,            '/esp32/command', 10)
 

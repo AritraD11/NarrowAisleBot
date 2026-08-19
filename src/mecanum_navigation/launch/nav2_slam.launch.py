@@ -71,13 +71,16 @@ cmd_vel CHAIN, wired by the remappings below:
                                        ↓
       -> velocity_smoother -> /cmd_vel_smoothed
         -> collision_monitor -> /cmd_vel_baselink      (base_link TF axes)
-          -> cmd_vel_axis_adapter -> /cmd_vel          (wheel-kinematics axes)
-/cmd_vel is what teleop_asym already consumes, so Nav2 slots into the
-existing, validated drive path as just another publisher — the wheel
-kinematics and the ESP32 bridge are untouched by any of this. Note that
-collision_monitor is wired by PARAMETERS (cmd_vel_in_topic /
-cmd_vel_out_topic in nav2_params.yaml), not by remapping, which is how
-that node expects to be configured.
+          -> cmd_vel_axis_adapter -> /cmd_vel_nav_out  (wheel-kinematics axes)
+            -> twist_mux -> /cmd_vel                   (arbitrated against manual)
+/cmd_vel_nav_out, not /cmd_vel, is where the axis adapter's output lands —
+twist_mux (aislebot_full.launch.py, config/twist_mux.yaml) picks between
+this and /cmd_vel_manual and republishes the winner as /cmd_vel, which is
+what teleop_asym actually consumes. Before this existed, the adapter wrote
+straight to /cmd_vel and had no way to lose an arbitration to a human
+grabbing manual control mid-drive. Note that collision_monitor is wired by
+PARAMETERS (cmd_vel_in_topic / cmd_vel_out_topic in nav2_params.yaml), not
+by remapping, which is how that node expects to be configured.
 
 The adapter on the end is not decoration. Nav2 reads the robot's pose in
 base_link's TF axes and writes velocity in those same axes, but the wheel
@@ -235,7 +238,13 @@ def generate_launch_description():
         Node(
             package='mecanum_navigation', executable='cmd_vel_axis_adapter',
             name='cmd_vel_axis_adapter', output='screen',
-            parameters=[{'use_sim_time': use_sim_time}],
+            # output_topic overridden from the node's own default ('cmd_vel')
+            # to 'cmd_vel_nav_out' so twist_mux — not this node — is the one
+            # writing the final /cmd_vel. See the cmd_vel CHAIN comment above.
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'output_topic': 'cmd_vel_nav_out',
+            }],
         ),
         # Also not a lifecycle node. INERT by default: it listens on
         # /goal_pose_click, which nothing publishes until Foxglove's 3D

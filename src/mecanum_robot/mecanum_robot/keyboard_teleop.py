@@ -3,7 +3,8 @@
 AisleBot Keyboard Teleop v3.0
 ==============================
 Keyboard-based velocity commander for testing without a physical joystick.
-Publishes /cmd_vel (Twist) consumed by mecanum_teleop_asymmetric.
+Publishes /cmd_vel_manual (Twist), which twist_mux (config/twist_mux.yaml)
+arbitrates against Nav2 before handing off to mecanum_teleop_asymmetric.
 
 Controls:
   W/S = forward/backward    A/D = strafe left/right
@@ -51,7 +52,7 @@ class KeyboardTeleop(Node):
         self.max_lin = self.get_parameter('max_linear').value
         self.max_ang = self.get_parameter('max_angular').value
 
-        self.pub = self.create_publisher(Twist, 'cmd_vel', 10)
+        self.pub = self.create_publisher(Twist, 'cmd_vel_manual', 10)
         self.timer = self.create_timer(0.1, self.timer_cb)  # 10Hz
 
         self.vx = 0.0

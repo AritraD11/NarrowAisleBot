@@ -1,71 +1,254 @@
+#!/usr/bin/env python3
 """
-AisleBot Navigation Launch
-============================
-Starts Nav2 stack for autonomous navigation on a pre-built, saved map
-(map_server + AMCL localization).
+navigation.launch.py — Nav2 autonomous navigation on a pre-built, SAVED map
+(map_server + AMCL localization, slam_toolbox NOT running).
 
-⚠ This is the FINISHED-MAP mode. Do NOT run it while slam_toolbox is
-  mapping — AMCL and slam_toolbox both publish map->odom and will fight
-  over the pose estimate (see nav2_params.yaml's AMCL warning). To drive
-  autonomously *while* mapping, use nav2_slam.launch.py instead.
+This is the "map once, then freeze and localize" mode: drive the map with
+mapping_full.launch.py, confirm loop closure back at the physical zero
+mark, save it (slam_toolbox's Save Map service), then load that saved
+.yaml/.pgm pair here. AMCL — a particle filter, not a live scan-matching
+SLAM — places the robot inside that FIXED map. Nothing rewrites the map
+after this point, which is the whole point of this mode: no more of the
+map->odom recentering that live SLAM-while-navigating does every time it
+corrects itself (expected behaviour there, but not what you want once
+you've already trusted a map enough to navigate on it).
+
+⚠ Do NOT run this at the same time as mapping_full.launch.py. AMCL and
+  slam_toolbox both publish map->odom; running both corrupts the pose
+  estimate (nav2_params.yaml's own AMCL warning, and the tutorial script
+  this file follows says the same thing).
+
+REWRITTEN from a bare `nav2_bringup bringup_launch.py` include to this
+explicit-node form for the exact same reason nav2_slam.launch.py was
+(§17.17): bringup_launch.py chains together localization_launch.py AND
+navigation_launch.py, and the latter starts route_server and
+opennav_docking on this Nav2 build — neither exists for this robot, and
+docking_server's unconfigurable state aborts the whole all-or-nothing
+lifecycle bringup. This file was NEVER RUN before that rewrite, so it
+would have hit that exact failure the first time someone tried it.
+
+It ALSO would have been missing the cmd_vel_axis_adapter / twist_mux /
+collision_monitor rewiring nav2_slam.launch.py already has — a stock
+bringup publishes velocity straight to /cmd_vel in base_link's TF axes
+(+X=right, +Y=forward on this robot), which is exactly the 90°
+misdirection that sent the first-ever autonomous goal 0.956 m sideways
+(§17.19). Both gaps are closed below by reusing nav2_slam.launch.py's
+node list verbatim, just swapping the localization source.
+
+WHAT THIS STARTS
+    map_server           loads the saved map, publishes /map (latched)
+    amcl                 particle-filter localization against that map
+    controller_server     MPPI local planner + local costmap
+    planner_server        NavFn/A* global planner + global costmap
+    smoother_server        path smoothing
+    behavior_server        spin / backup / wait recoveries
+    bt_navigator            the behaviour tree that sequences all of the above
+    waypoint_follower       multi-goal sequencing
+    velocity_smoother      acceleration limiting
+    collision_monitor      the hard safety layer, last before the wheels
+    cmd_vel_axis_adapter   TF axes -> wheel-kinematics axes (see below)
+    goal_pose_adapter      Foxglove click-to-goal fix (inert unless armed)
+    lifecycle_manager      brings the above up in order
+
+PREREQUISITES — all must already be up, in this order:
+    1. aislebot.service   (odometry_publisher -> odom->base_link TF,
+                           twist_mux -> /cmd_vel, teleop_asym -> wheels)
+    2. A saved map. mapping_full.launch.py, drive it, confirm loop closure
+       at the zero mark, then use slam_toolbox's Save Map RViz/Foxglove
+       panel (or its save_map service) to write <name>.yaml + <name>.pgm.
+    3. slam_toolbox from step 2 STOPPED. Two nodes publishing map->odom
+       at once corrupts the pose estimate.
+    4. This file, with map:=/path/to/<name>.yaml.
 
 Usage:
-  ros2 launch mecanum_navigation navigation.launch.py map:=/path/to/map.yaml
+    ros2 launch mecanum_navigation navigation.launch.py \
+        map:=/home/aritra/ros2_ws/maps/<name>.yaml
+
+Then send a goal from Foxglove, same as nav2_slam.launch.py.
+
+AXES: base_link on this robot is NOT REP-103 (+X=right, +Y=forward,
+Research_Journal.md §17.10). Every x/y-labelled velocity and footprint
+parameter lives in nav2_params.yaml and is already swapped to match — see
+the AXES note at the top of that file before touching any of them.
+
+cmd_vel CHAIN, wired by the remappings below (identical to nav2_slam.launch.py):
+    controller_server -> /cmd_vel_nav ─┐
+    behavior_server   -> /cmd_vel_nav ─┤   (Spin / BackUp / Wait recoveries)
+                                       ↓
+      -> velocity_smoother -> /cmd_vel_smoothed
+        -> collision_monitor -> /cmd_vel_baselink      (base_link TF axes)
+          -> cmd_vel_axis_adapter -> /cmd_vel_nav_out  (wheel-kinematics axes)
+            -> twist_mux -> /cmd_vel                   (arbitrated against manual,
+                                                          aislebot.service)
+twist_mux (always running as part of aislebot.service) is what actually
+publishes /cmd_vel, the topic teleop_asym consumes — so a human on the
+joystick or phone dashboard can always take over from AMCL/Nav2 mid-drive,
+the same safety property nav2_slam.launch.py has.
+
+robot_localization EKF: deliberately not started, same two reasons as the
+old navigation.launch.py and nav2_slam.launch.py — it would duplicate
+odometry_publisher's odom->base_link TF (and its validated -90° axis
+rotation), and it fuses an IMU (BNO055) that is still unpurchased Phase 2
+work. Restore only when both are addressed together.
 """
 
 import os
-from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.substitutions import LaunchConfiguration
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+
 from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import LifecycleNode, Node
+
+
+# Order matters: lifecycle_manager configures and activates these in
+# sequence. map_server and amcl come first — planner/controller/behavior
+# all need a valid /map and a localized pose before they have anything
+# useful to plan against.
+LIFECYCLE_NODES = [
+    'map_server',
+    'amcl',
+    'controller_server',
+    'smoother_server',
+    'planner_server',
+    'behavior_server',
+    'velocity_smoother',
+    'collision_monitor',
+    'bt_navigator',
+    'waypoint_follower',
+]
 
 
 def generate_launch_description():
     nav_dir = get_package_share_directory('mecanum_navigation')
-    nav2_bringup_dir = get_package_share_directory('nav2_bringup')
-    nav2_params = os.path.join(nav_dir, 'config', 'nav2_params.yaml')
+    default_params = os.path.join(nav_dir, 'config', 'nav2_params.yaml')
 
-    # ── robot_localization EKF: REMOVED, deliberately ────────────────
-    # This launch file used to start ekf_node unconditionally. Two
-    # separate reasons it must not, both found before this file was ever
-    # run for the first time:
-    #
-    #   1. DUPLICATE odom->base_link TF. ekf_params.yaml sets
-    #      publish_tf: true with world_frame: odom, so the EKF publishes
-    #      odom->base_link — the exact transform odometry_publisher
-    #      already publishes (publish_tf: True in aislebot_full.launch.py).
-    #      Two publishers of one transform overwrite each other, and the
-    #      one being overwritten carries the validated constant -90 deg
-    #      published-frame rotation that makes base_link's axes agree with
-    #      the LiDAR (§17.10-§17.11). Starting the EKF would have
-    #      intermittently corrupted the axis convention this project spent
-    #      two sessions confirming on hardware.
-    #
-    #   2. It fuses an IMU that does not exist. ekf_params.yaml's
-    #      imu0: imu/data refers to a BNO055 that is still unpurchased
-    #      Phase 2 work (Appendix B.3).
-    #
-    # bt_navigator already reads /wheel_odom directly (§17.6), so nothing
-    # in the navigation path wanted the EKF's output anyway. Restore this
-    # node only when the IMU exists AND odometry_publisher's publish_tf is
-    # turned off in the same change, so exactly one node owns that TF.
+    # Same reasoning as nav2_slam.launch.py: bt_navigator's default BT xml
+    # paths are resolved here, not left to nav2_params.yaml's fallback,
+    # which this Nav2 build does not actually apply (§17.19).
+    bt_nav_dir = get_package_share_directory('nav2_bt_navigator')
+    default_nav_to_pose_bt = os.path.join(
+        bt_nav_dir, 'behavior_trees',
+        'navigate_to_pose_w_replanning_and_recovery.xml')
+    default_nav_through_poses_bt = os.path.join(
+        bt_nav_dir, 'behavior_trees',
+        'navigate_through_poses_w_replanning_and_recovery.xml')
 
-    return LaunchDescription([
-        DeclareLaunchArgument('map', default_value='',
-                              description='Path to map YAML file'),
-        DeclareLaunchArgument('use_sim_time', default_value='false'),
+    params_file = LaunchConfiguration('params_file')
+    use_sim_time = LaunchConfiguration('use_sim_time')
+    autostart = LaunchConfiguration('autostart')
+    map_yaml = LaunchConfiguration('map')
 
-        # === Nav2 Bringup ===
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(nav2_bringup_dir, 'launch', 'bringup_launch.py')
-            ),
-            launch_arguments={
-                'map': LaunchConfiguration('map'),
-                'use_sim_time': LaunchConfiguration('use_sim_time'),
-                'params_file': nav2_params,
-                'autostart': 'true',
-            }.items()
+    args = [
+        DeclareLaunchArgument(
+            'map',
+            description='Path to the saved map YAML file (required — no '
+                        'default, since navigating on the wrong map, or no '
+                        'map, is worse than failing to launch)',
         ),
-    ])
+        DeclareLaunchArgument(
+            'params_file',
+            default_value=default_params,
+            description='Nav2 parameters (footprint/velocity axes already '
+                        'swapped for this robot, AMCL block included — see '
+                        'the file header)',
+        ),
+        DeclareLaunchArgument(
+            'use_sim_time',
+            default_value='false',
+            description='false on the real robot; true only under Gazebo',
+        ),
+        DeclareLaunchArgument(
+            'autostart',
+            default_value='true',
+            description='Auto-transition the lifecycle nodes to active',
+        ),
+    ]
+
+    common = [params_file, {'use_sim_time': use_sim_time}]
+
+    nodes = [
+        LifecycleNode(
+            package='nav2_map_server', executable='map_server',
+            name='map_server', namespace='', output='screen',
+            parameters=common + [{'yaml_filename': map_yaml}],
+        ),
+        LifecycleNode(
+            package='nav2_amcl', executable='amcl',
+            name='amcl', namespace='', output='screen',
+            parameters=common,
+        ),
+        Node(
+            package='nav2_controller', executable='controller_server',
+            name='controller_server', output='screen', parameters=common,
+            remappings=[('cmd_vel', 'cmd_vel_nav')],
+        ),
+        Node(
+            package='nav2_smoother', executable='smoother_server',
+            name='smoother_server', output='screen', parameters=common,
+        ),
+        Node(
+            package='nav2_planner', executable='planner_server',
+            name='planner_server', output='screen', parameters=common,
+        ),
+        Node(
+            package='nav2_behaviors', executable='behavior_server',
+            name='behavior_server', output='screen', parameters=common,
+            # Same reasoning as nav2_slam.launch.py's behavior_server: without
+            # this remap, Spin/BackUp recoveries reach the wheels unmonitored
+            # (skipping collision_monitor) and in the wrong axis convention.
+            remappings=[('cmd_vel', 'cmd_vel_nav')],
+        ),
+        Node(
+            package='nav2_velocity_smoother', executable='velocity_smoother',
+            name='velocity_smoother', output='screen', parameters=common,
+            remappings=[('cmd_vel', 'cmd_vel_nav')],
+        ),
+        Node(
+            package='nav2_collision_monitor', executable='collision_monitor',
+            name='collision_monitor', output='screen', parameters=common,
+            # cmd_vel_in_topic / cmd_vel_out_topic set in nav2_params.yaml.
+        ),
+        Node(
+            package='nav2_bt_navigator', executable='bt_navigator',
+            name='bt_navigator', output='screen',
+            parameters=common + [{
+                'default_nav_to_pose_bt_xml': default_nav_to_pose_bt,
+                'default_nav_through_poses_bt_xml': default_nav_through_poses_bt,
+            }],
+        ),
+        Node(
+            package='nav2_waypoint_follower', executable='waypoint_follower',
+            name='waypoint_follower', output='screen', parameters=common,
+        ),
+        # Plain rclpy node, not a lifecycle node — must already be
+        # translating before collision_monitor is ever activated. Output
+        # goes to cmd_vel_nav_out, not cmd_vel: twist_mux (aislebot.service)
+        # is what publishes the final /cmd_vel, so a human can override this.
+        Node(
+            package='mecanum_navigation', executable='cmd_vel_axis_adapter',
+            name='cmd_vel_axis_adapter', output='screen',
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'output_topic': 'cmd_vel_nav_out',
+            }],
+        ),
+        # Inert unless Foxglove's 3D panel is deliberately pointed at
+        # /goal_pose_click instead of /goal_pose — see nav2_slam.launch.py.
+        Node(
+            package='mecanum_navigation', executable='goal_pose_adapter',
+            name='goal_pose_adapter', output='screen',
+            parameters=[{'use_sim_time': use_sim_time}],
+        ),
+        Node(
+            package='nav2_lifecycle_manager', executable='lifecycle_manager',
+            name='lifecycle_manager_navigation', output='screen',
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'autostart': autostart,
+                'node_names': LIFECYCLE_NODES,
+            }],
+        ),
+    ]
+
+    return LaunchDescription([*args, *nodes])

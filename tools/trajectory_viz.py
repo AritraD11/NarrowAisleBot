@@ -264,6 +264,41 @@ class TrajectoryViz(Node):
 
         self._summarize()
 
+    @staticmethod
+    def _leg_stats(samples, ax, ay, bx, by):
+        """Path length, straight-line, efficiency, endpoint error, and max
+        perpendicular deviation for ONE leg (samples[0] -> samples[-1]),
+        against the reference segment A->B."""
+        path_len = 0.0
+        for p, q in zip(samples, samples[1:]):
+            path_len += math.hypot(q[1] - p[1], q[2] - p[2])
+        ex, ey = samples[-1][1], samples[-1][2]
+        endpoint_err = math.hypot(ex - bx, ey - by)
+        worst, worst_t = 0.0, 0.0
+        for (t, x, y, _) in samples:
+            dev = point_line_distance(x, y, ax, ay, bx, by)
+            if dev > worst:
+                worst, worst_t = dev, t
+        straight = math.hypot(bx - ax, by - ay)
+        eff = (straight / path_len) if path_len > 1e-6 else 0.0
+        return path_len, endpoint_err, worst, worst_t, eff
+
+    def _print_leg(self, label, samples, ax, ay, bx, by):
+        if len(samples) < 2:
+            print('  {}: too few samples'.format(label))
+            return
+        path_len, endpoint_err, worst, worst_t, eff = self._leg_stats(
+            samples, ax, ay, bx, by)
+        print('  {} ({} samples, {:.1f}s -> {:.1f}s)'.format(
+            label, len(samples), samples[0][0], samples[-1][0]))
+        print('    path travelled   {:.4f} m'.format(path_len))
+        print('    path efficiency  {:.3f}   (1.000 = a perfect straight line)'
+              .format(eff))
+        print('    endpoint error   {:.4f} m  (vs. this leg\'s target)'
+              .format(endpoint_err))
+        print('    MAX DEVIATION    {:.4f} m from this leg\'s line '
+              '(at t={:.1f}s)'.format(worst, worst_t))
+
     def _summarize(self):
         if len(self.samples) < 2:
             print('\nToo few samples to summarize ({}).'.format(len(self.samples)))
@@ -272,34 +307,40 @@ class TrajectoryViz(Node):
         sx, sy, _ = self.start
         ex, ey = self.samples[-1][1], self.samples[-1][2]
 
-        path_len = 0.0
-        for a, b in zip(self.samples, self.samples[1:]):
-            path_len += math.hypot(b[1] - a[1], b[2] - a[2])
-        straight = math.hypot(ex - sx, ey - sy)
-
         print()
         print('=' * 68)
         print('TRAJECTORY SUMMARY   ({} samples over {:.1f} s)'.format(
             len(self.samples), self.samples[-1][0]))
-        print('  start            ({:+.4f}, {:+.4f})'.format(sx, sy))
-        print('  end              ({:+.4f}, {:+.4f})'.format(ex, ey))
-        print('  straight-line    {:.4f} m'.format(straight))
-        print('  path travelled   {:.4f} m'.format(path_len))
-        if path_len > 1e-6:
-            print('  path efficiency  {:.3f}   (1.000 = a perfect straight line)'
-                  .format(straight / path_len))
+        print('  overall start    ({:+.4f}, {:+.4f})'.format(sx, sy))
+        print('  overall end      ({:+.4f}, {:+.4f})'.format(ex, ey))
 
-        if self.goal:
+        if not self.goal:
+            path_len, _, _, _, eff = self._leg_stats(
+                self.samples, sx, sy, ex, ey)
+            print('  path travelled   {:.4f} m'.format(path_len))
+            print('  straight-line    {:.4f} m'.format(
+                math.hypot(ex - sx, ey - sy)))
+        else:
+            # repeatability_test.py and every driving script here always
+            # do an OUT-AND-BACK -- reporting one straight-line/endpoint
+            # number across the whole recording is meaningless once start
+            # and end are (nearly) the same point, sec 17.24's discussion.
+            # Split at the sample closest to the goal instead, so each leg
+            # gets judged against what it was actually trying to reach.
             gx, gy = self.goal
-            worst, worst_t = 0.0, 0.0
-            for (t, x, y, _) in self.samples:
-                dev = point_line_distance(x, y, sx, sy, gx, gy)
-                if dev > worst:
-                    worst, worst_t = dev, t
+            turn_i = min(range(len(self.samples)),
+                        key=lambda i: math.hypot(
+                            self.samples[i][1] - gx, self.samples[i][2] - gy))
+            outbound = self.samples[:turn_i + 1]
+            inbound = self.samples[turn_i:]
             print('  goal             ({:+.4f}, {:+.4f})'.format(gx, gy))
-            print('  endpoint error   {:.4f} m'.format(math.hypot(ex - gx, ey - gy)))
-            print('  MAX DEVIATION    {:.4f} m from the reference line '
-                  '(at t={:.1f}s)'.format(worst, worst_t))
+            print('  closest approach to goal at t={:.1f}s -- treated as '
+                  'the turnaround point'.format(self.samples[turn_i][0]))
+            print()
+            self._print_leg('OUTBOUND leg', outbound, sx, sy, gx, gy)
+            if len(inbound) >= 2:
+                print()
+                self._print_leg('RETURN leg  ', inbound, gx, gy, sx, sy)
 
         ts = datetime.now().strftime('%Y%m%d_%H%M%S')
         log_dir = os.path.expanduser('~/aislebot_logs')

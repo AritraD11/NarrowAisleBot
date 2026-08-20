@@ -11,108 +11,122 @@ or in the repo itself (`docs/Research_Journal.md`, `docs/Navigation_Theory.md`,
 
 > Continue work on AritraD11/NarrowAisleBot, branch
 > `claude/mapping-autonomous-nav-695glw`. Read `docs/Research_Journal.md`
-> §17.25–§17.28 and `docs/Next_Session_Kickoff.md` in full before doing
+> §17.28–§17.29 and `docs/Next_Session_Kickoff.md` in full before doing
 > anything else — don't re-derive what's already documented there.
 >
-> The robot is parked at the physical zero mark right now, SLAM already
-> running. Today's goal is diagnostic, not the full mapping drive yet: the
-> last drive (§17.28) showed repeated large pose jumps while commanding
-> pure forward motion — perceptual aliasing / spurious loop closure is
-> suspected but not confirmed. Capture a short drive with BOTH the Foxglove
-> trajectory plot AND the raw `slam_toolbox` terminal log running together,
-> correlate them by timestamp, and tell me whether a bad loop-closure match
-> is actually what's firing. Walk me through it step by step on hardware —
-> I'll report back what each command prints and paste terminal output; don't
+> We have one hardware-confirmed pose jump (25.5 cm / 2.41° at epoch
+> `1787233020.150`) with a rosbag (`~/slam_tests/slam_test_02`) that fully
+> covers it. `tools/bag_tf_diff.py` is on the Pi and already validated.
+> Today's task: run it against that bag for `map→odom` around the jump
+> timestamp, and separately for `odom→base_link` in a narrow window around
+> the same timestamp (NOT a full dump — see the caution below), then judge
+> whether the correction looks like a physically plausible fix or an
+> inconsistent snap. Walk me through it step by step on hardware — I'll
+> report back what each command prints and paste terminal output; don't
 > assume a step succeeded.
 
 ---
 
 ## What's true right now (don't re-derive this)
 
-- **Robot is parked at the physical zero mark, SLAM already running** —
-  this session doesn't need to start from scratch. If in doubt whether the
-  current `map→odom` is trustworthy, `sudo systemctl restart aislebot.service`
-  while parked there re-zeroes cleanly (costs nothing, cheap insurance).
-- **Suspected, unconfirmed issue (§17.28): perceptual aliasing.** A clean
-  controlled test (§17.27: rotate 90°, drive ~2m out, drive back, rotate
-  back) read ≈2cm/0.17° error — loop closure working correctly, a single
-  clean correction. The very next drive — pure forward, no rotation
-  commanded — showed the robot's displayed pose (not the map, which stayed
-  correctly fixed) jumping repeatedly through large, inconsistent positions
-  and headings. Working hypothesis: today's loop-closure tuning (`635e4b6`,
-  §17.25) loosened match-acceptance thresholds to fix closures not firing at
-  all, and that same loosening may now accept spurious matches in this map's
-  self-similar corridor-junction shape (flagged as a risk back in §17.13/
-  §17.15, before the numbers were ever chosen). **This is a hypothesis, not
-  a diagnosis** — nothing has been re-tuned on the strength of it. The
-  point of today's session is to get the evidence that confirms or kills it.
-- `twist_mux` and `navigation.launch.py` (map_server + amcl) were built and
-  pushed (`bd4fb1a`, `129150d`) but have **zero hardware confirmation**.
-  Not today's priority — they need a saved map first, and no map exists yet.
-- `docs/Navigation_Theory.md` and `docs/SLAM_Theory.md` are current and
-  cross-referenced against the actual deployed config (MPPI, not DWB;
-  AMCL's real role) as of the prior session.
-- ROS 2 distro is confirmed **Jazzy** (Ubuntu 24.04), not the Foxy the
-  reference tutorials were filmed on — use `ros-jazzy-*` package names.
-- Front two encoders were swapped to GTK08 (186,264 CPR); rear keep the
-  original RMCS-2086 (93,132 CPR) — firmware v3.0 carries this as a
-  per-motor array. Lives in `odometry_publisher.py`/ESP32 firmware,
-  untouched by anything above.
+- **The direct "was it an accepted loop closure" question is a dead end on
+  this hardware — confirmed, not assumed.** The installed `slam_toolbox`
+  (`ros-jazzy-slam-toolbox 2.8.5-1noble.20260614.104642`, confirmed via
+  `apt-cache policy`) registers **no listener at all** for automatic
+  loop-closure accept/reject events — verified against `2.8.5`'s actual
+  source (`slam_toolbox_common.cpp`) and against the live node's own
+  `ros2 topic list -t | grep slam_toolbox` output (only `feedback`,
+  `graph_visualization`, `scan_visualization`, `transition_event`, `update`
+  exist — no `loop_closure_event`, which is a newer version's topic).
+  Console log grepping was tried thoroughly and correctly came back empty —
+  **don't repeat that approach**, it cannot work on this build regardless of
+  verbosity or search cleverness.
+- **The fallback approach, not yet executed:** compare `map→odom`'s
+  correction against `odom→base_link` over the same window at the jump
+  instant, using `tools/bag_tf_diff.py` (already on the Pi, already
+  validated against `slam_test_01`). A correction that's consistent with
+  what the wheels were actually doing is more likely genuine; one that
+  isn't is more consistent with perceptual aliasing. This is indirect
+  evidence, not a definitive yes/no — say so honestly in the writeup either
+  way.
+- **One clean, fully-instrumented jump exists to analyse right now — no new
+  driving needed to start.** `~/slam_tests/slam_test_02` (epoch
+  `1787232864`–`1787233119`) covers the jump at epoch `1787233020.150`
+  (25.5 cm / 2.41°, single sample, `t=130.95s` into the recording). The CSV
+  is `~/aislebot_logs/trajectory_20260820_190828.csv`. The SLAM log from
+  that session is `~/aislebot_logs/slam_20260820_190313.log` (won't help
+  with loop-closure specifically, per above, but has everything else).
+- **A second jump happened later the same drive (return leg) with nothing
+  recording** — no bag, no CSV. Not analysable. Don't confuse it with the
+  one above when reading screenshots from that session.
+- **`tools/bag_tf_diff.py` exists and works, but has one real trap:** it
+  prints every DISTINCT value change for whatever TF pair you give it.
+  For `map→odom` that's a short, readable list (corrections are
+  infrequent). For `odom→base_link` it is NOT — wheel odometry updates
+  continuously, so a full dump is ~1000 rows of normal driving noise. If
+  checking `odom→base_link`, filter to a narrow epoch window first (a
+  couple seconds around the jump), don't dump the whole run.
+- **`tools/trajectory_viz.py`'s crash-on-exit bug is fixed and pushed**
+  (`8e943fc`) — the version on GitHub and the version on the Pi
+  (`~/ros2_ws/tools/trajectory_viz.py`) both have the fix as of last
+  session's end. No redeploy needed unless the Pi's copy is somehow reverted
+  — worth a quick `sha256sum` check against the repo if in doubt, expected
+  `b1e8e626e8062ab8c8c88e70a1da2e81f27c44aba0d863d94fc6eb331eb930b1`.
+- **Robot was returned to the physical zero mark at the end of last
+  session.** Whether the mapping stack (Terminal 1, `mapping_full.launch.py`)
+  was left running or the Pi itself was powered off is not confirmed —
+  check `ps aux` before assuming either way, same discipline as always.
+  If it's down, the re-zero procedure is unchanged: park on the mark,
+  `sudo systemctl restart aislebot.service`, then start
+  `mapping_full.launch.py` fresh (see command below) — this also means
+  today's map starts empty again, so if the analysis below doesn't settle
+  the question, reproducing a third jump will need territory rebuilt first,
+  same lesson as last session.
+- **`phone_dashboard.py`'s Map button discards `slam_toolbox`'s console
+  output** (`stdout=subprocess.DEVNULL` in `start_mapping()`) — fine for
+  normal driving, but don't use it if today's work ends up needing the
+  terminal log for anything. Use the manual tee'd launch instead (below).
 
-## Today's actual task: capture a correlated trajectory + raw-log record
+## Today's actual task: judge the one captured jump, from data already on disk
 
-`tools/trajectory_viz.py` now writes an `epoch_s` column (wall-clock,
-`time.time()` — the same clock ROS 2's own console output uses) alongside
-its CSV, added specifically for this. The plan is to run it side-by-side
-with a captured `slam_toolbox` terminal log, so a jump visible in the plot
-can be looked up directly in the log at the same wall-clock second.
-
-**1. Confirm nothing Nav2-related is running** (shouldn't be, but check):
+**1. Confirm nothing Nav2-related is running, and check whether the mapping
+stack survived from last session:**
 ```bash
 ps aux | grep -E "controller_server|planner_server|bt_navigator" | grep -v grep   # should print nothing
+ps aux | grep -E "slam_toolbox|mapping_full" | grep -v grep   # tells you whether Terminal 1 is still up
 ```
 
-**2. If `mapping_full.launch.py` isn't already running this session, start it
-capturing its own output to a timestamped log file:**
+**2. If the mapping stack is down, robot must be confirmed still on the
+mark before restarting it** (ask the user directly, don't assume) — then:
 ```bash
+sudo systemctl restart aislebot.service   # only if odometry's zero is in doubt
+mkdir -p ~/aislebot_logs
 cd ~/ros2_ws && ros2 launch mecanum_robot mapping_full.launch.py 2>&1 | \
   tee ~/aislebot_logs/slam_$(date +%Y%m%d_%H%M%S).log
 ```
-If it's already running from before, that's fine too — just note it wasn't
-tee'd from the start, so this run's log will only cover the drive itself,
-which is what actually matters here.
+If it's still running from last night, leave it alone — the existing bag
+analysis below doesn't need it at all, only a potential third drive would.
 
-**3. In a second terminal, the trajectory recorder** — same "graph plotter"
-setup as before (Fixed Frame = `zero_point` in Foxglove, plus a Grid
-display), now with the epoch column:
+**3. Run `bag_tf_diff.py` against the map→odom correction at the jump:**
 ```bash
-python3 ~/ros2_ws/tools/trajectory_viz.py --no-reference --map-frame zero_point
+python3 ~/ros2_ws/tools/bag_tf_diff.py ~/slam_tests/slam_test_02 --parent map --child odom
 ```
-It prints its start epoch on launch — note it, or just use the CSV's own
-`epoch_s` column afterward.
+Look specifically at the entry near epoch `1787233020.150` and what came
+immediately before/after it — is it one isolated snap, or several
+corrections in the same direction (the §17.27 healthy-closure signature)?
 
-**4. Drive a short, simple pattern** — doesn't need to be the full
-wall-hugging loop yet, just enough to either reproduce the jumping or
-confirm it doesn't happen again under the same conditions. Pure forward is
-what triggered it last time; repeat that first.
+**4. Then odom→base_link, narrow window only** — don't dump the whole
+run (see the trap above). Easiest: pipe through `awk` filtering to epoch
+`1787233015`–`1787233025`, or add a quick `--start-epoch`/`--end-epoch`
+flag to the tool if that's cleaner (small change, do it if it saves a
+painful wall of text again).
 
-**5. The moment a jump is visible in Foxglove** (or afterward, from the
-CSV), note the `epoch_s` value at that row, then:
-```bash
-grep -A5 -B5 "<epoch or nearby wall-clock time>" ~/aislebot_logs/slam_*.log
-```
-Look specifically for loop-closure-related lines — candidate matches,
-accept/reject decisions, correlation response scores. That's the evidence
-that either confirms perceptual aliasing (a low-confidence match got
-accepted) or points somewhere else entirely (e.g. a TF timing issue would
-look different in the log).
-
-**6. Report back** what the log shows at that timestamp — that decides the
-next step: if it's confirmed as a bad loop closure, the fix is a partial
-re-tightening of `loop_match_minimum_chain_size` and
-`loop_match_minimum_response_coarse`/`_fine` (not a full revert — the
-original §17.25 problem was real too), tuned to find a middle ground rather
-than guessed.
+**5. Judge and report back:** does the `map→odom` jump line up with real
+wheel motion (physically plausible, more likely a genuine correction) or
+does it look inconsistent with what the wheels were doing (more consistent
+with perceptual aliasing)? This is the honest limit of what this hardware
+can tell us directly — say so either way, don't overclaim certainty the
+evidence doesn't support.
 
 ## After the aliasing question is settled — the original mapping-drive plan
 
@@ -146,5 +160,14 @@ the next real milestone, unchanged from before:
   <token>"`. **Only works from a Claude Code session on the SAME machine as
   Foxglove Desktop** — a remote/cloud session (like the one that wrote this
   file) cannot reach `127.0.0.1` on the user's laptop.
+- **A network-switch deploy note worth remembering:** switching the Pi's
+  radio to eduroam drops every SSH session on it, including one running the
+  mapping stack in the foreground — it will very likely die (no
+  `nohup`/`tmux`), taking any built-up map territory with it. Last session
+  worked around this by pasting smaller files directly (`cat > file <<
+  'EOF'`) when the file was small enough for the terminal to paste
+  reliably, and accepted the tradeoff (curl via eduroam, then rebuild
+  territory) when it wasn't. Worth deciding upfront which matters more for
+  whatever's being deployed that day.
 - Full Phase 1 tape-measured manual-drive validation (straight/strafe/
   diagonal vs. physical tape, Nav2 off) — still open from the original plan.

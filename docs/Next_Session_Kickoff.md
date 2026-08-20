@@ -29,10 +29,14 @@ or in the repo itself (`docs/Research_Journal.md`, `docs/Navigation_Theory.md`,
   `navigation.launch.py` (map_server + amcl) were built and pushed
   (`bd4fb1a`, `129150d`) but **have zero hardware confirmation**. Neither
   has been deployed to the Pi.
-- `system/slam_nodom.yaml` got its first-ever loop-closure/scan-matcher
-  tuning block (`635e4b6`) — also **not yet hardware-tested**.
+- `system/slam_nodom.yaml`'s loop-closure/scan-matcher tuning (`635e4b6`)
+  **is now hardware-confirmed** (§17.27): a controlled rotate-90°/drive-out/
+  drive-back/rotate-back test on the physical mark read back ≈2 cm / 0.17°,
+  down from ≈50 cm pre-tuning. `twist_mux` is still untested.
 - No map has ever been saved. `navigation.launch.py` cannot be usefully run
-  until one exists.
+  until one exists. The full wall-hugging drive below is still worth doing
+  before saving — §17.27's test was short and controlled, a good sanity
+  check but not the richer loop-closure exercise a real map needs.
 - `docs/Navigation_Theory.md` and `docs/SLAM_Theory.md` are current and
   cross-referenced against the actual deployed config (MPPI, not DWB;
   AMCL's real role) as of this session.

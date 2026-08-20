@@ -147,7 +147,7 @@ class TrajectoryViz(Node):
         self.marker_pub = self.create_publisher(
             MarkerArray, '/trajectory_markers', latched)
 
-        self.samples = []      # (t, x, y, yaw)
+        self.samples = []      # (t, x, y, yaw, epoch_s)
         self.start = None      # (x, y, yaw)
         self.goal = None       # (x, y) or None
 
@@ -296,7 +296,7 @@ class TrajectoryViz(Node):
         ex, ey = samples[-1][1], samples[-1][2]
         endpoint_err = math.hypot(ex - bx, ey - by)
         worst, worst_t = 0.0, 0.0
-        for (t, x, y, _) in samples:
+        for (t, x, y, _yaw, _epoch) in samples:
             dev = point_line_distance(x, y, ax, ay, bx, by)
             if dev > worst:
                 worst, worst_t = dev, t

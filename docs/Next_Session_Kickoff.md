@@ -119,16 +119,23 @@ time.
 
 ## Also worth doing this session, lower priority than the drive above
 
-- **Foxglove + MCP.** No existing "Foxglove MCP server" was found on npm (a
-  quick PyPI check was inconclusive, worth a second look). The concrete,
-  buildable path: a custom MCP server that connects to `foxglove_bridge`
-  (already running on the Pi, port 8765, `aislebot_full.launch.py`) over its
-  WebSocket protocol, and exposes ROS 2 topics/TF/services as MCP
-  tools/resources — so a Claude session could query live robot state
-  directly instead of the user pasting terminal output and screenshots. This
-  is a real, scoped project on its own; use the `mcp-builder` skill and
-  treat it as its own piece of work, not something to bolt onto the mapping
-  drive above.
+- **Foxglove + MCP — solved, no custom server needed.** Foxglove Desktop
+  ships a built-in local MCP server (Settings → Personal → Agents & MCP →
+  Local MCP server), documented at
+  https://docs.foxglove.dev/docs/agents/mcp-server. It listens on
+  `127.0.0.1:7333`, local-only, gated behind a developer seat + Pro/
+  Enterprise/Academic plan and a generated access token; connect with
+  `claude mcp add --transport http foxglove http://127.0.0.1:7333/mcp
+  --header "Authorization: Bearer <token>"`.
+  **This only works from a Claude Code session running on the SAME machine
+  as Foxglove Desktop.** A remote/cloud Claude Code session (like the one
+  that wrote this file) cannot reach `127.0.0.1` on the user's laptop —
+  that loopback address means something different inside the cloud
+  container. If robot-diagnosis-via-Foxglove-MCP is wanted, it has to
+  happen in a **local** Claude Code CLI session on the machine actually
+  running Foxglove Desktop, not here. Worth confirming which kind of
+  session is picking this file up before assuming the MCP tools are
+  available.
 - Full Phase 1 tape-measured manual-drive validation (straight/strafe/
   diagonal vs. physical tape, Nav2 off) — still open from the original plan,
   and this session's mapping drive doubles as a good moment to also collect

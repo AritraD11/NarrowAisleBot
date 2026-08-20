@@ -200,11 +200,35 @@ vectorized, so this is a question of measurement, not a foregone conclusion —
 but it is a question that must be *answered with a CPU measurement* rather than
 assumed either way.
 
-**Decision for this project: start with DWB, instrument the CPU, and treat MPPI
-as a measured upgrade.** DWB is already configured, is far lighter, and is
-sufficient to prove the whole autonomy chain works. Swapping the controller
-later is a config change confined to one block, not an architectural commitment.
-Deciding otherwise now would be choosing on aesthetics rather than evidence.
+**Decision when written: start with DWB, instrument the CPU, treat MPPI as a
+measured upgrade. Superseded — this project now runs MPPI** (`motion_model:
+Omni`, `nav2_params.yaml`, decided and deployed in Research_Journal.md §17.23).
+Worth recording *why* the original "start conservative" reasoning above turned
+out wrong in practice, not just the new conclusion: DWB's `RotateToGoalCritic`
+has a bit-exact rejection mechanism (`dwb_critics/rotate_to_goal.cpp`) that
+throws out every candidate trajectory once the robot is near a goal but not yet
+exactly aligned — read from source, not inferred from symptoms, after DWB
+repeatedly failed rotation-only goals on hardware (§17.21–§17.22). That failure
+mode is structural: DWB's critics can individually **reject** a trajectory
+(reduce the candidate set to zero — "No valid trajectories!"), where MPPI's
+critics only ever **add cost** to a trajectory (`data.costs += ...`, verified
+directly against `nav2_mppi_controller`'s critic source for every critic this
+robot enables). A weighted sum over K sampled trajectories cannot reach zero
+candidates the way a sequence of hard admissibility filters can. The §3.2
+tradeoff above — MPPI's per-cycle cost being the open question, "answered with
+a CPU measurement, not assumed" — was answered on hardware: `batch_size: 500`
+at `20 Hz` with full-footprint collision-checking held the Pi 5's control loop
+rate with no `Control loop missed its desired rate` warnings (§17.23), so the
+GPU-oriented origin of the algorithm (Williams et al. ran it on GPU) did not
+turn out to be the binding constraint on this platform after all.
+
+Two stock MPPI critics — `PathAngleCritic` and `PreferForwardCritic` — are
+deliberately **not** enabled here. Both assume the robot's `+X` axis is its
+forward direction (REP-103). This robot's `base_link` is not REP-103 by design
+(see the AXES note in `nav2_params.yaml`), so either critic would silently
+penalize the robot's actual forward motion as if it were sideways travel — the
+same axis-convention bug class that has recurred five times on this project
+(§17.14, §17.17, §17.19, §17.23).
 
 ---
 
@@ -271,6 +295,9 @@ tracked in B.6.
 
 ## 5. Putting it together — the autonomy stack for this robot
 
+Two localization sources, never run together — see §6.3 for why. Everything
+below `/cmd_vel_nav_out` is shared by both.
+
 ```
 /scan (best-effort, from ydlidar driver)
    │
@@ -279,7 +306,9 @@ tracked in B.6.
    │                                        sectors — one node, already in
    │                                        the path, already touching every scan)
    │
-   ├─► slam_toolbox ──► /map + map→odom TF
+   ├─► EITHER slam_toolbox ──► /map + map→odom TF     (mapping.launch.py)
+   │      OR  map_server + amcl ──► /map + map→odom   (navigation.launch.py,
+   │                                                     §6.3, frozen map)
    │
    └─► nav2_costmap_2d (obstacle layer, both costmaps)
 
@@ -287,9 +316,23 @@ tracked in B.6.
               │
               └─► planner_server (NavFn A*) ──► path
                                                  │
-local_costmap (obstacle + inflation, rolling) ──►┴─► controller_server (DWB)
-                                                        │
-                                                        └─► /cmd_vel
+local_costmap (obstacle + inflation, rolling) ──►┴─► controller_server (MPPI, §3.2)
+                                                        │  + behavior_server (Spin/BackUp/Wait)
+                                                        └─► velocity_smoother
+                                                              │
+                                                        collision_monitor (obstacle
+                                                              │            avoidance, §6.2)
+                                                        cmd_vel_axis_adapter (TF axes
+                                                              │               → wheel axes)
+                                                              ▼
+                                                        /cmd_vel_nav_out
+                                                              │
+                          /cmd_vel_manual (joystick/phone) ──┤
+                                                              ▼
+                                                          twist_mux (manual
+                                                              │       wins while active)
+                                                              ▼
+                                                           /cmd_vel
                                                               │
                                             teleop_asym ──► /wheel_speeds
                                                               │
@@ -305,11 +348,146 @@ a trusted controller, never the reverse.**
 transform; running both means two nodes fighting over the same TF edge, and the
 resulting pose estimate is meaningless. AMCL is for *localizing against a
 previously-saved map*; slam_toolbox in mapping mode does both jobs at once. Pick
-one per run.
+one per run — `mapping_full.launch.py` for the former, `navigation.launch.py`
+for the latter, never both.
+
+---
+
+---
+
+## 6. Concepts from the reference tutorials, checked against this project
+
+A set of introductory SLAM/Nav2 tutorial scripts was reviewed this session
+(Research_Journal.md §17.26) alongside `SLAM_Theory.md` and the sections
+above. Six concepts recur across that material: SLAM, frontier exploration,
+cost-map pathfinding, pure pursuit, obstacle avoidance, and Monte Carlo
+localization. Three of the six are already covered in depth elsewhere in this
+pair of documents — SLAM in `SLAM_Theory.md` in full, cost-map pathfinding in
+§1–2 above. This section covers the remaining three, each checked against
+what this project actually runs rather than restated as a generic summary.
+None of the three landmark papers below (Yamauchi 1997; Coulter 1992; Thrun,
+Fox, Burgard & Dellaert 1999/2001) is yet in `research_articles/` — they are
+well-established, widely-cited references, cited here by author/year in the
+same spirit as the rest of this document, and worth adding to the local
+library if this section's reasoning is built on further.
+
+### 6.1 Frontier exploration — logical, and deliberately not used
+
+Yamauchi (1997) frames autonomous mapping as a repeated choice: find the
+boundaries between known-free and unknown space (*frontiers*), pick one to
+drive to (commonly weighted by frontier size and travel distance — bigger
+frontiers reveal more unmapped area, closer ones cost less to reach), and
+repeat until no frontier remains. It is the standard way to make SLAM
+*autonomous* rather than manually driven.
+
+**Not used here, and not a gap — a deliberate scope decision.** This project's
+mapping stage (Research_Journal.md §17.25's Stage 1, `mapping_full.launch.py`)
+is driven manually from the dashboard, specifically because manual driving
+lets a human apply domain knowledge frontier selection can't: hug the walls
+rather than the aisle centreline (§17.13 — centreline driving produced thin,
+poorly-defined "flower petal" map edges instead of solid walls), and translate
+rather than rotate wherever possible (§17.20 — pure rotation gives the scan
+matcher almost nothing to work with). Automating frontier selection would
+have to re-encode both of those hard-won findings as an algorithm before it
+could safely replace a person driving. Worth revisiting once a good map exists
+and repeated-remapping-of-known-territory becomes the actual cost driver —
+not before.
+
+### 6.2 Pure pursuit and obstacle avoidance — both present, neither as a named standalone algorithm
+
+**Pure pursuit** (Coulter, 1992, CMU-RI-TR-92-01) picks a look-ahead point
+some distance down the reference path and steers the robot toward it; as the
+robot advances, the look-ahead point advances with it. Its entire behaviour
+is governed by one tuning knob, the look-ahead distance: too short and the
+controller chases small path-tracking errors and oscillates, too long and it
+cuts corners. It is a **geometric** path tracker — it has no model of dynamics
+or of nearby obstacles; it assumes both are handled elsewhere.
+
+This project's controller is MPPI (§3.2), which is a different mathematical
+family (sampling-based stochastic optimal control, not geometric path
+following) but **subsumes pure pursuit's actual job as one term in its cost
+function.** `PathAlignCritic` and `PathFollowCritic` (`nav2_params.yaml`)
+together penalize a sampled trajectory for straying from the reference path
+and for making no progress along it — the same "stay near the path, keep
+advancing along it" objective pure pursuit encodes geometrically, but folded
+into a weighted sum alongside collision cost, goal distance, and heading, and
+evaluated over many sampled trajectories rather than one hand-picked
+look-ahead point. Pure pursuit is not missing; it's not present as a
+separately-named module because MPPI's critic architecture generalizes it.
+A standalone pure-pursuit controller would be a reasonable *simpler* fallback
+if MPPI's per-cycle cost ever became the binding constraint on the Pi 5 — it
+has not (§3.2) — but would need the same non-REP-103 axis handling
+`cmd_vel_axis_adapter` provides MPPI today; it does not sidestep that problem,
+it inherits it.
+
+**Obstacle avoidance** is not one component either — it is layered, matching
+Video 1's description of a live-updated cost gradient around detected
+obstacles almost exactly:
+
+1. The **obstacle + inflation costmap layers** (§1.2) mark live LiDAR returns
+   and expand them into a cost gradient, so the *planner* routes around
+   obstacles before the robot gets close.
+2. **`collision_monitor`** (`nav2_slam.launch.py` / `navigation.launch.py`,
+   last node before the wheel-axis adapter) is the hard safety layer: it
+   forward-simulates the commanded velocity against the true footprint
+   polygon in real time and can veto or slow a command the planner already
+   approved, independent of costmap staleness. This is the node the §17.20
+   comment calls "the one thing on this robot that must not be subtly
+   wrong" — it is what `Spin`/`BackUp` recovery behaviours were found
+   bypassing in §17.20/§17.21, and fixed to route through.
+
+Both layers were already built before this review; nothing new was needed
+here beyond confirming the tutorial's description matches what's deployed.
+
+### 6.3 Monte Carlo localization — AMCL, the Stage-3 localization source
+
+Thrun, Fox, Burgard & Dellaert (1999, extended 2001) formulate localization
+as recursive Bayesian state estimation, approximated by a **particle
+filter**: a set of $N$ weighted samples (particles), each a hypothesis
+$(x, y, \theta)$ for the robot's pose, standing in for the full posterior
+$p(x_t \mid z_{1:t}, u_{1:t})$ over poses given all sensor observations $z$
+and controls $u$ so far. Each cycle:
+
+1. **Motion update (prediction).** Every particle is moved forward by the
+   commanded/measured motion, plus sampled noise drawn from a motion model —
+   this is where `alpha1`–`alpha4` (`nav2_params.yaml`'s `amcl:` block)
+   enter: they scale how much rotation-from-rotation, rotation-from-
+   translation, translation-from-translation, and translation-from-rotation
+   noise gets injected per particle, i.e. how much the filter distrusts the
+   odometry it's given.
+2. **Sensor update (reweighting).** Each particle's weight is scaled by how
+   well its hypothesized pose predicts the actual LiDAR scan — `laser_model_
+   type: likelihood_field` computes this by comparing each beam endpoint
+   against the precomputed distance-to-nearest-obstacle field of the static
+   map, over `max_beams` beams per scan.
+3. **Resampling.** Particles are redrawn proportional to weight — low-weight
+   hypotheses die out, high-weight ones multiply — so the cloud concentrates
+   around the pose(s) best supported by the scan. `min_particles`/
+   `max_particles` bound the cloud size; `recovery_alpha_slow`/`_fast` inject
+   a small fraction of random particles when average weight drops sharply,
+   the filter's built-in recovery from "the cloud converged to the wrong
+   place."
+
+**Configured but not yet hardware-tested here.** `nav2_params.yaml`'s `amcl:`
+block predates this session and is the intended Stage-3 (§17.25/§17.26)
+localization source — `robot_model_type: omnidirectional` (correct for
+mecanum, where lateral motion carries its own noise character distinct from
+forward motion), and `initial_pose`'s `yaw: -1.5708` already accounts for
+this robot's non-REP-103 `base_link` convention (a robot facing forward along
+map `+X` has base_link yaw `-90°` here, not `0°` — get this wrong and the
+first scan match starts from a hypothesis rotated 90° from reality). It was
+exercised for the first time this session, in the sense that
+`navigation.launch.py` was rewritten to actually launch it correctly
+(§17.26) — but no map has been saved yet for it to load, so the block remains
+unverified against real particle convergence, real drift-under-motion, and
+real recovery behaviour. That is the concrete next hardware milestone this
+document's theory feeds into.
 
 ---
 
 ## References
 
 See `research_articles/README.md` for the full citation list with DOIs and
-per-paper relevance notes.
+per-paper relevance notes. Landmark papers cited in §6 (Yamauchi 1997;
+Coulter 1992; Thrun, Fox, Burgard & Dellaert 1999/2001) are not yet in that
+list — add them there before building further on §6's reasoning.

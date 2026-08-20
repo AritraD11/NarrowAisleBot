@@ -48,6 +48,12 @@ USAGE -- run this in its own terminal BEFORE starting the drive, Ctrl-C after
     # or just record, with no reference line to compare against
     python3 trajectory_viz.py --no-reference
 
+    # the "graph plotter" manual-mapping-drive use case (sec 17.27): record
+    # against zero_point instead of map, so the recorded trajectory reads
+    # against a fixed origin even while /map itself is still being built.
+    # Start this BEFORE driving, right after re-zeroing at the physical mark.
+    python3 trajectory_viz.py --no-reference --map-frame zero_point
+
 Writes the sampled path to ~/aislebot_logs/trajectory_<timestamp>.csv.
 
 Pure rclpy + stdlib, matching the rest of the on-Pi tooling.
@@ -236,10 +242,16 @@ class TrajectoryViz(Node):
                     self.goal[0], self.goal[1], self.args.side, d))
 
         print()
-        print('Recording. Foxglove: 3D panel, Fixed frame = map, enable')
-        print('  /reference_path      (the straight line it SHOULD follow)')
+        print('Recording. Foxglove: 3D panel, Fixed frame = {}, enable'.format(
+            self.args.map_frame))
+        if not self.args.no_reference:
+            print('  /reference_path      (the straight line it SHOULD follow)')
         print('  /actual_path         (where it really goes)')
         print('  /trajectory_markers  (start / goal / actual-end labels)')
+        if self.args.map_frame == 'zero_point':
+            print('Add a Grid display too (default XY plane through the '
+                  "origin) -- with Fixed frame = zero_point that grid IS the "
+                  "fixed x/y axes this drive is being plotted against.")
         print('Ctrl-C when the run is finished to get the summary.')
         print()
 

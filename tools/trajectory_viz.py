@@ -54,7 +54,13 @@ USAGE -- run this in its own terminal BEFORE starting the drive, Ctrl-C after
     # Start this BEFORE driving, right after re-zeroing at the physical mark.
     python3 trajectory_viz.py --no-reference --map-frame zero_point
 
-Writes the sampled path to ~/aislebot_logs/trajectory_<timestamp>.csv.
+Writes the sampled path to ~/aislebot_logs/trajectory_<timestamp>.csv,
+including an epoch_s column (wall-clock, same clock ROS 2's own console
+logs use) -- to correlate a jump in the plot against what slam_toolbox was
+doing at that moment, capture its terminal too:
+    ros2 launch mecanum_robot mapping_full.launch.py 2>&1 | \
+        tee ~/aislebot_logs/slam_$(date +%Y%m%d_%H%M%S).log
+then grep the log around the epoch_s of interest.
 
 Pure rclpy + stdlib, matching the rest of the on-Pi tooling.
 """
@@ -257,6 +263,9 @@ class TrajectoryViz(Node):
 
         period = 1.0 / self.args.rate
         t0 = time.monotonic()
+        print('Recording started at epoch {:.2f} ({}) -- use this to line up '
+              'CSV rows against slam_toolbox / ros2 log timestamps.'.format(
+                  time.time(), datetime.now().strftime('%H:%M:%S')))
         next_sample = t0
         try:
             while rclpy.ok():
@@ -269,7 +278,7 @@ class TrajectoryViz(Node):
                     x, y, yaw = self.measure_pose(timeout=0.5)
                 except RuntimeError:
                     continue
-                self.samples.append((now - t0, x, y, yaw))
+                self.samples.append((now - t0, x, y, yaw, time.time()))
                 self.publish_all()
         except KeyboardInterrupt:
             pass
@@ -360,12 +369,16 @@ class TrajectoryViz(Node):
         csv_path = os.path.join(log_dir, 'trajectory_{}.csv'.format(ts))
         with open(csv_path, 'w', newline='') as f:
             w = csv.writer(f)
-            w.writerow(['t_s', 'map_x', 'map_y', 'yaw_deg', 'dev_from_ref_m'])
-            for (t, x, y, yaw) in self.samples:
+            # epoch_s is wall-clock (time.time()), the same clock ROS 2's own
+            # console logs and `ros2 topic echo`/`tf2_echo` timestamps use --
+            # line this column up against a terminal log to find out what
+            # slam_toolbox was doing at the moment of any jump in x/y/yaw.
+            w.writerow(['t_s', 'epoch_s', 'map_x', 'map_y', 'yaw_deg', 'dev_from_ref_m'])
+            for (t, x, y, yaw, epoch) in self.samples:
                 dev = ('' if not self.goal else '{:.4f}'.format(
                     point_line_distance(x, y, sx, sy, self.goal[0], self.goal[1])))
-                w.writerow(['{:.2f}'.format(t), '{:.4f}'.format(x),
-                            '{:.4f}'.format(y),
+                w.writerow(['{:.2f}'.format(t), '{:.3f}'.format(epoch),
+                            '{:.4f}'.format(x), '{:.4f}'.format(y),
                             '{:.2f}'.format(math.degrees(yaw)), dev])
         print()
         print('  CSV: {}'.format(csv_path))

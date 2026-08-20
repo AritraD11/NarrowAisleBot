@@ -11,136 +11,140 @@ or in the repo itself (`docs/Research_Journal.md`, `docs/Navigation_Theory.md`,
 
 > Continue work on AritraD11/NarrowAisleBot, branch
 > `claude/mapping-autonomous-nav-695glw`. Read `docs/Research_Journal.md`
-> §17.25–§17.26 and `docs/Next_Session_Kickoff.md` in full before doing
+> §17.25–§17.28 and `docs/Next_Session_Kickoff.md` in full before doing
 > anything else — don't re-derive what's already documented there.
 >
-> Today's goal: run the manual mapping drive that's been planned but not yet
-> executed. SLAM only, Nav2 completely off. Fixed origin (`zero_point`),
-> wall-hugging manual drive, return to the physical mark, and read the
-> loop-closure number. Walk me through it step by step on hardware — I'll
-> report back what each command prints and you decide what's next from
-> there. Don't assume a step succeeded; ask me to paste the output.
+> The robot is parked at the physical zero mark right now, SLAM already
+> running. Today's goal is diagnostic, not the full mapping drive yet: the
+> last drive (§17.28) showed repeated large pose jumps while commanding
+> pure forward motion — perceptual aliasing / spurious loop closure is
+> suspected but not confirmed. Capture a short drive with BOTH the Foxglove
+> trajectory plot AND the raw `slam_toolbox` terminal log running together,
+> correlate them by timestamp, and tell me whether a bad loop-closure match
+> is actually what's firing. Walk me through it step by step on hardware —
+> I'll report back what each command prints and paste terminal output; don't
+> assume a step succeeded.
 
 ---
 
 ## What's true right now (don't re-derive this)
 
-- `twist_mux` (manual-override arbitration) and a rewritten
-  `navigation.launch.py` (map_server + amcl) were built and pushed
-  (`bd4fb1a`, `129150d`) but **have zero hardware confirmation**. Neither
-  has been deployed to the Pi.
-- `system/slam_nodom.yaml`'s loop-closure/scan-matcher tuning (`635e4b6`)
-  **is now hardware-confirmed** (§17.27): a controlled rotate-90°/drive-out/
-  drive-back/rotate-back test on the physical mark read back ≈2 cm / 0.17°,
-  down from ≈50 cm pre-tuning. `twist_mux` is still untested.
-- No map has ever been saved. `navigation.launch.py` cannot be usefully run
-  until one exists. The full wall-hugging drive below is still worth doing
-  before saving — §17.27's test was short and controlled, a good sanity
-  check but not the richer loop-closure exercise a real map needs.
+- **Robot is parked at the physical zero mark, SLAM already running** —
+  this session doesn't need to start from scratch. If in doubt whether the
+  current `map→odom` is trustworthy, `sudo systemctl restart aislebot.service`
+  while parked there re-zeroes cleanly (costs nothing, cheap insurance).
+- **Suspected, unconfirmed issue (§17.28): perceptual aliasing.** A clean
+  controlled test (§17.27: rotate 90°, drive ~2m out, drive back, rotate
+  back) read ≈2cm/0.17° error — loop closure working correctly, a single
+  clean correction. The very next drive — pure forward, no rotation
+  commanded — showed the robot's displayed pose (not the map, which stayed
+  correctly fixed) jumping repeatedly through large, inconsistent positions
+  and headings. Working hypothesis: today's loop-closure tuning (`635e4b6`,
+  §17.25) loosened match-acceptance thresholds to fix closures not firing at
+  all, and that same loosening may now accept spurious matches in this map's
+  self-similar corridor-junction shape (flagged as a risk back in §17.13/
+  §17.15, before the numbers were ever chosen). **This is a hypothesis, not
+  a diagnosis** — nothing has been re-tuned on the strength of it. The
+  point of today's session is to get the evidence that confirms or kills it.
+- `twist_mux` and `navigation.launch.py` (map_server + amcl) were built and
+  pushed (`bd4fb1a`, `129150d`) but have **zero hardware confirmation**.
+  Not today's priority — they need a saved map first, and no map exists yet.
 - `docs/Navigation_Theory.md` and `docs/SLAM_Theory.md` are current and
   cross-referenced against the actual deployed config (MPPI, not DWB;
-  AMCL's real role) as of this session.
+  AMCL's real role) as of the prior session.
 - ROS 2 distro is confirmed **Jazzy** (Ubuntu 24.04), not the Foxy the
-  reference tutorials were filmed on — use `ros-jazzy-*` package names, not
-  the tutorials' `ros-foxy-*`.
+  reference tutorials were filmed on — use `ros-jazzy-*` package names.
 - Front two encoders were swapped to GTK08 (186,264 CPR); rear keep the
   original RMCS-2086 (93,132 CPR) — firmware v3.0 carries this as a
-  per-motor array. This lives in `odometry_publisher.py`/ESP32 firmware,
-  untouched by anything above. Worth knowing before trusting `/odom` blindly.
+  per-motor array. Lives in `odometry_publisher.py`/ESP32 firmware,
+  untouched by anything above.
 
-## Hardware prerequisite — deploy today's code first
+## Today's actual task: capture a correlated trajectory + raw-log record
 
+`tools/trajectory_viz.py` now writes an `epoch_s` column (wall-clock,
+`time.time()` — the same clock ROS 2's own console output uses) alongside
+its CSV, added specifically for this. The plan is to run it side-by-side
+with a captured `slam_toolbox` terminal log, so a jump visible in the plot
+can be looked up directly in the log at the same wall-clock second.
+
+**1. Confirm nothing Nav2-related is running** (shouldn't be, but check):
 ```bash
-# on eduroam or wherever the Pi has internet, THEN switch to AisleBot-Pi AP
-sudo apt install ros-jazzy-twist-mux
-
-# pull the branch onto the Pi (adjust to however this repo is normally synced there)
-cd ~/ros2_ws/src/NarrowAisleBot && git pull origin claude/mapping-autonomous-nav-695glw
-
-# redeploy the tuned SLAM config if it isn't already on this exact hash
-curl -sSL -o ~/ros2_ws/slam_nodom.yaml \
-  https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/mapping-autonomous-nav-695glw/system/slam_nodom.yaml
-sha256sum ~/ros2_ws/slam_nodom.yaml
-# expected: 68437ea90fb028fd124010680a8d501561650c93cb1b55a5397a2c1b644678e0
-```
-
-## The mapping drive itself
-
-**1. Confirm nothing Nav2-related is running:**
-```bash
-pkill -f 'controller_server|planner_server|bt_navigator|behavior_server|collision_monitor|velocity_smoother|waypoint_follower|smoother_server|lifecycle_manager'
-sleep 2
 ps aux | grep -E "controller_server|planner_server|bt_navigator" | grep -v grep   # should print nothing
 ```
 
-**2. Park on the physical zero mark, then re-zero and start mapping:**
+**2. If `mapping_full.launch.py` isn't already running this session, start it
+capturing its own output to a timestamped log file:**
 ```bash
-sudo systemctl restart aislebot.service
-cd ~/ros2_ws && ros2 launch mecanum_robot mapping_full.launch.py
+cd ~/ros2_ws && ros2 launch mecanum_robot mapping_full.launch.py 2>&1 | \
+  tee ~/aislebot_logs/slam_$(date +%Y%m%d_%H%M%S).log
 ```
+If it's already running from before, that's fine too — just note it wasn't
+tee'd from the start, so this run's log will only cover the drive itself,
+which is what actually matters here.
 
-**3. In a second terminal, start the trajectory recorder** — this is the
-"graph plotter" piece: it samples `zero_point → base_link` continuously and
-publishes a growing `/actual_path`, so the drive is visible as a line on a
-fixed set of axes rather than something you have to infer from a moving dot.
+**3. In a second terminal, the trajectory recorder** — same "graph plotter"
+setup as before (Fixed Frame = `zero_point` in Foxglove, plus a Grid
+display), now with the epoch column:
 ```bash
 python3 ~/ros2_ws/tools/trajectory_viz.py --no-reference --map-frame zero_point
 ```
-Leave it running for the entire drive; Ctrl-C only at the very end.
+It prints its start epoch on launch — note it, or just use the CSV's own
+`epoch_s` column afterward.
 
-**4. In Foxglove:**
-- 3D panel → **Fixed Frame = `zero_point`**, not `map` and not `odom`. This
-  is what makes the origin stop appearing to jump — `zero_point` is a static
-  child of `map`, so the *view* stays anchored even while `map→odom` is
-  being corrected underneath it.
-- Add a **Grid** display (default XY plane through the origin). With Fixed
-  Frame = `zero_point`, that grid *is* the fixed x/y axes.
-- Enable `/map`, `/actual_path`, `/trajectory_markers`.
+**4. Drive a short, simple pattern** — doesn't need to be the full
+wall-hugging loop yet, just enough to either reproduce the jumping or
+confirm it doesn't happen again under the same conditions. Pure forward is
+what triggered it last time; repeat that first.
 
-**5. Drive manually from the dashboard.** Two things that matter for map
-quality, both already paid for in hardware sessions — don't re-learn them:
-- **Hug the walls**, out close to one side, back close to the other.
-  Centreline driving produced thin, ill-defined map edges (§17.13).
-- **Translate, don't spin.** Pure rotation gives the scan matcher almost
-  nothing to work with (§17.20).
-
-**6. Drive back onto the physical zero mark**, then read the number that
-actually matters:
+**5. The moment a jump is visible in Foxglove** (or afterward, from the
+CSV), note the `epoch_s` value at that row, then:
 ```bash
-ros2 run tf2_ros tf2_echo zero_point base_link
+grep -A5 -B5 "<epoch or nearby wall-clock time>" ~/aislebot_logs/slam_*.log
 ```
-Near-zero (a few cm) → loop closure is working, proceed to save the map.
-Off by tens of centimetres → the §17.25 tuning wasn't enough; don't save,
-come back and diagnose before trying again.
+Look specifically for loop-closure-related lines — candidate matches,
+accept/reject decisions, correlation response scores. That's the evidence
+that either confirms perceptual aliasing (a low-confidence match got
+accepted) or points somewhere else entirely (e.g. a TF timing issue would
+look different in the log).
 
-**7. Ctrl-C the trajectory recorder** — it prints a path-length/efficiency
-summary and writes a CSV to `~/aislebot_logs/`, real numbers for the APS.
+**6. Report back** what the log shows at that timestamp — that decides the
+next step: if it's confirmed as a bad loop closure, the fix is a partial
+re-tightening of `loop_match_minimum_chain_size` and
+`loop_match_minimum_response_coarse`/`_fine` (not a full revert — the
+original §17.25 problem was real too), tuned to find a middle ground rather
+than guessed.
 
-**8. If the loop-closure check passed, save the map** (SLAM Toolbox's Save
-Map panel in Foxglove, or the CLI equivalent) before stopping `slam_toolbox`.
-That saved map is what `navigation.launch.py` needs to run for the first
-time.
+## After the aliasing question is settled — the original mapping-drive plan
 
-## Also worth doing this session, lower priority than the drive above
+Once confirmed fixed (or confirmed not an issue after all), this is still
+the next real milestone, unchanged from before:
+- Wall-hug the walls, translate rather than rotate (§17.13, §17.20).
+- Return to the physical zero mark, `ros2 run tf2_ros tf2_echo zero_point
+  base_link` — near-zero passes, tens of centimetres means stop and
+  diagnose rather than save.
+- Ctrl-C the trajectory recorder for its summary + CSV — real numbers for
+  the APS.
+- If the loop-closure check passes, save the map (SLAM Toolbox's Save Map
+  panel/service) before stopping `slam_toolbox` — that's what
+  `navigation.launch.py` needs to run for the first time.
 
+## Also worth doing, lower priority than the above
+
+- **Hardware prerequisite for `navigation.launch.py`/`twist_mux`, whenever
+  they're actually tried:**
+  ```bash
+  # on eduroam or wherever the Pi has internet, THEN switch to AisleBot-Pi AP
+  sudo apt install ros-jazzy-twist-mux
+  cd ~/ros2_ws/src/NarrowAisleBot && git pull origin claude/mapping-autonomous-nav-695glw
+  ```
 - **Foxglove + MCP — solved, no custom server needed.** Foxglove Desktop
   ships a built-in local MCP server (Settings → Personal → Agents & MCP →
   Local MCP server), documented at
-  https://docs.foxglove.dev/docs/agents/mcp-server. It listens on
-  `127.0.0.1:7333`, local-only, gated behind a developer seat + Pro/
-  Enterprise/Academic plan and a generated access token; connect with
-  `claude mcp add --transport http foxglove http://127.0.0.1:7333/mcp
-  --header "Authorization: Bearer <token>"`.
-  **This only works from a Claude Code session running on the SAME machine
-  as Foxglove Desktop.** A remote/cloud Claude Code session (like the one
-  that wrote this file) cannot reach `127.0.0.1` on the user's laptop —
-  that loopback address means something different inside the cloud
-  container. If robot-diagnosis-via-Foxglove-MCP is wanted, it has to
-  happen in a **local** Claude Code CLI session on the machine actually
-  running Foxglove Desktop, not here. Worth confirming which kind of
-  session is picking this file up before assuming the MCP tools are
-  available.
+  https://docs.foxglove.dev/docs/agents/mcp-server. Listens on
+  `127.0.0.1:7333`, local-only; connect with `claude mcp add --transport
+  http foxglove http://127.0.0.1:7333/mcp --header "Authorization: Bearer
+  <token>"`. **Only works from a Claude Code session on the SAME machine as
+  Foxglove Desktop** — a remote/cloud session (like the one that wrote this
+  file) cannot reach `127.0.0.1` on the user's laptop.
 - Full Phase 1 tape-measured manual-drive validation (straight/strafe/
-  diagonal vs. physical tape, Nav2 off) — still open from the original plan,
-  and this session's mapping drive doubles as a good moment to also collect
-  those numbers if time allows.
+  diagonal vs. physical tape, Nav2 off) — still open from the original plan.

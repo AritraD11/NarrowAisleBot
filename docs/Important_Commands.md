@@ -306,6 +306,31 @@ opt in**. In the 3D panel settings, set the publish pose topic to:
 | `/goal_pose` (old) | where the robot's **right side** faces — drag 90° clockwise of the heading you want |
 | `/goal_pose_click` (adapter) | where the robot's **nose** faces — drag where you actually mean |
 
+**The exact click-path, because none of it is discoverable** (first made to
+work 21 Aug 2026, §17.31 — three things must all be right and each one fails
+*silently*):
+
+1. Open the 3D panel's settings (gear icon), scroll past **Topics** and
+   **Custom layers** to the **Publish** section. It holds *three independent
+   tools with three independent topic fields* — this is not the topic list.
+2. The one that sends a goal is **"2D pose (geometry_msgs/PoseStamped)"**.
+   Not "2D pose estimate" (that's `/initialpose`, for AMCL localisation), and
+   not "2D point" (that's `/clicked_point`, which Nav2 ignores entirely).
+3. Its Topic field is **free text with no dropdown** — type `/goal_pose_click`
+   exactly and press Enter.
+4. Click the **publish tool icon** in the 3D view's top-right toolbar, then
+   pick **"Publish 2D pose (/goal_pose_click)"** from the flyout menu. The
+   toolbar defaults to the *point* tool, so this step is mandatory.
+5. On the map: **press and hold** at the target, **drag** to set the heading,
+   **release** to send. A quick click may not fire — the arrow updates while
+   held and only sends on release.
+
+**Failure signature to recognise:** a yellow dot appears on the map, the robot
+doesn't move, and nothing errors anywhere. That is the *point* tool still
+armed (step 4 skipped) publishing a position-only `PointStamped`. Confirm a
+real goal went out by watching Terminal 2 for `goal_pose_adapter: goal (x, y)
+nose … -> base_link yaw …`.
+
 Only the goal's *orientation* was ever affected; position always came from
 the click point. That's why the old workaround was survivable — a mis-drag
 sent the robot to the right place facing the wrong way, not to the wrong

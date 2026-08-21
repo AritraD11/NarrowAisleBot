@@ -1,157 +1,244 @@
 # Next Session Kickoff — paste this to start
 
-This is the self-contained prompt for the next Claude Code session. It assumes
-no memory of this conversation — everything it needs is either in this file
-or in the repo itself (`docs/Research_Journal.md`, `docs/Production_Architecture.md`,
-`docs/Navigation_Theory.md`, `docs/SLAM_Theory.md`).
+Self-contained prompt for the next Claude Code session. It assumes no memory of
+the previous conversation — everything needed is either here or in the repo
+(`docs/Dashboard_Map_System.md`, `docs/Research_Journal.md`,
+`docs/Production_Architecture.md`, `docs/Important_Commands.md`).
 
 ---
 
 ## Paste this as the first message of the new session
 
 > Continue work on AritraD11/NarrowAisleBot, branch
-> `claude/mapping-autonomous-nav-695glw`. Read `docs/Research_Journal.md`
-> §17.29–§17.30 and this file in full before doing anything else — don't
-> re-derive what's already documented here.
+> `claude/mapping-autonomous-nav-695glw`. Read `docs/Dashboard_Map_System.md`
+> in full, plus `docs/Research_Journal.md` §17.31, before doing anything else
+> — the plan for today is already written there and reasoned through. Don't
+> re-derive it.
 >
-> Today (21 Aug 2026) we ran the first-ever hardware-confirmed, tape-measured
-> Nav2 goal round trip: forward 0.5m, then back. Forward/backward accuracy is
-> now genuinely good — three independent measurements (TF math, tape measure,
-> and `trajectory_viz.py`'s own summary) all converge on the same ~1.2cm net
-> round-trip error. **Lateral drift is the open problem now** — same round
-> trip left the robot ~1-3cm off to the side of where it started, and that's
-> today's actual focus, not more forward/backward testing. Walk me through
-> it step by step on hardware — I'll report back what each command prints
-> and paste terminal output; don't assume a step succeeded.
+> Today we build the robot's own map system. The goal is one clean saved map
+> plus AMCL localising on it, which is what unblocks the dashboard product
+> (map in the browser, click-to-goal, named locations — no Foxglove).
+>
+> Start with the pre-flight audit in this file — I want to know what's
+> actually on the Pi before we touch anything, because it has drifted from the
+> repo before. Then Stage A, and don't skip it: three sessions have suspected
+> loop closure without measuring it.
+>
+> Walk me through it on hardware step by step — I'll run each command and
+> paste the output. Don't assume a step succeeded.
 
 ---
 
-## IMPORTANT: the user's coordinate convention for this session
+## The user's coordinate convention
 
-Starting this session, the user reports positions in **their own convention**,
-not raw map-frame TF numbers:
+The user reports positions in **their own body-frame convention**, not raw
+map-frame TF numbers:
 
-- **Origin is `base_link`** (the robot itself), not the map frame origin.
-- **Robot moving forward = positive Y.**
-- **Robot moving right = positive X.**
-- **Values are given in cm.**
+- **Origin is the robot** (`base_link`), not the map origin
+- **Forward = positive Y**, **right = positive X**
+- **Values in cm**
 
-This is a body-frame, forward/right convention — different from the map-frame
-`(x, y)` pairs `nav_goal.py` and the action feedback report. When the user
-gives a number like "we are at 3,0 (cm)", that means ~3cm to the robot's
-right and 0cm forward/back from where it started, **not** a map-frame
-coordinate. Translate carefully between the two when explaining TF-derived
-numbers back to the user — don't assume they mean map frame just because
-that's what the tools print natively.
+"We are at 3,0" means ~3 cm to the robot's right, 0 cm forward — *not* a
+map-frame coordinate. Translate explicitly in both directions and always say
+which frame a number is in. The tools (`nav_goal.py`, action feedback,
+`tf2_echo`) all print map frame natively.
 
-## What's true right now (don't re-derive this)
+## Working style that has been productive
 
-- **Forward/backward accuracy: confirmed good, from three independent
-  sources.** Sequence run: robot at map-frame `(0.4853, -0.0697, -91.10°)` →
-  commanded `+0.5m` forward via `nav_goal.py --forward 0.5` → goal
-  `(0.9852, -0.0793)` → landed at `(0.9744, -0.0626)`, tape-measured at
-  **0.48m** (vs 0.5m commanded). Then commanded back to the original pose →
-  landed at `(0.4885, -0.0814)`.
-  - TF math: outbound displacement ≈0.489m (vs 0.48m tape) — agree to ~1cm.
-  - `trajectory_viz.py --no-reference --map-frame map`'s own summary over
-    the whole round trip (8873 samples, 1141.3s): overall start
-    `(0.4853, -0.0697)`, overall end `(0.4878, -00.0816)`, path travelled
-    `1.0049m` (≈2×0.5m, correct for there-and-back), **straight-line (net)
-    displacement 0.0122m**.
-  - That 1.22cm figure from the recorder matches the TF-computed ~1.2cm
-    return-target miss almost exactly. Three measurements, same number.
-    This is a solid, well-triangulated result — treat forward/backward
-    tracking as validated for now, don't re-test it without a reason.
-- **Lateral drift is real and is the open problem.** The same round trip
-  left the robot measurably off to the side — the user's tape/visual
-  estimate was ~3cm, TF math from the return-target miss says ~1.2cm side
-  component. Both point the same direction; the exact magnitude is fuzzy at
-  this precision, so report it as a **range (roughly 1-3cm per meter of
-  travel)**, not a single number.
-- **One unexplained anomaly from today, not yet investigated:** the
-  **return leg's** action feedback showed `number_of_recoveries: 1`; the
-  **forward leg** showed `0`. Something triggered a Nav2 recovery behavior
-  (backup / spin / clear-costmap — feedback doesn't say which) on the way
-  back that didn't happen going out. **This has not been checked yet** —
-  next session should grep Terminal 2's (`nav2_slam.launch.py`) console
-  output or its log file for `behavior_tree`/recovery-related lines around
-  that run and find out what fired and why. This could plausibly be related
-  to the lateral drift — don't assume it is, but don't ignore it either.
-- **A small mid-return pose discontinuity was also observed:** around
-  `navigation_time ≈ 15.8s` into the return leg, the feedback jumped from
-  `y=-0.0949` to `y=-0.0826` (≈1.2cm) in a single tick, with a small
-  heading shift alongside it. Small-scale version of the same category of
-  event (a discrete correction rather than smooth tracking) that originally
-  motivated this whole investigation, just ~20x smaller than the 25cm jumps
-  that kicked it off. Worth knowing about, not worth chasing right now —
-  low priority relative to the lateral-drift work.
-- **Dashboard vs. manual launch:** the phone dashboard's Map button only
-  replaces Terminal 1 (`mapping_full.launch.py`) and discards its console
-  output (`stdout=DEVNULL` in `phone_dashboard.py`'s `start_mapping()`) —
-  fine for casual driving, but loses the SLAM log if debugging needs it.
-  It does not touch Nav2, the trajectory recorder, or Foxglove's rendering
-  load — switching to it will **not** fix Foxglove lag, which is a
-  network/rendering issue independent of what launched the ROS nodes.
-- **Physical/service state as of end of this session:** the user was in the
-  process of (1) restarting Terminal 1 (`mapping_full.launch.py`) fresh —
-  only the initial `[INFO] [launch]:` line was seen before this session
-  ended, **configure/active status not yet confirmed**, check before
-  assuming it's up; (2) placing the robot back on the physical zero floor
-  mark; (3) planning to restart `aislebot.service`. **Verify all three
-  actually happened** (ask directly, don't assume) before running any new
-  goal — same discipline as always on this project.
+Hands-on-hardware, one command at a time, user pastes every output, nothing
+assumed to have succeeded. Keep doing that. When something looks wrong, say so
+plainly rather than narrating around it — and when the user's own analysis is
+right (it often is), say so and build on it rather than re-deriving.
 
-## Today's actual task: characterize and reduce lateral drift
+---
 
-**1. Confirm the environment is actually in the state described above**
-before doing anything else:
+## Pre-flight — what's actually on the Pi
+
+The user asked for this explicitly, and it is not ceremony: a full deploy audit
+on 21 Aug found the Pi had drifted from the repo in **nine files**, including
+the SLAM config and the entire manual-override layer, plus `esp32_bridge`
+pinning a CPU core at 99.9 % since boot (`Production_Architecture.md` §7).
+
 ```bash
-ps aux | grep -E "slam_toolbox|mapping_full" | grep -v grep   # Terminal 1 up and configured?
-ps aux | grep -E "controller_server|planner_server|bt_navigator" | grep -v grep   # Nav2 up?
+ssh aritra@10.42.0.1
+
+# 1. What's running right now
+ros2 node list
+ps aux | grep -E "slam_toolbox|mapping_full|controller_server|bt_navigator" | grep -v grep
+systemctl is-active aislebot.service
+
+# 2. CPU headroom — §17.25 killed slam_toolbox outright by starvation
+top -bn1 | head -15
+
+# 3. The live SLAM config (workspace ROOT, not in a package)
+cat ~/ros2_ws/slam_nodom.yaml | grep -E "loop_|max_laser|minimum_travel"
+
+# 4. Does the deployed code match the repo?
+ls -la ~/ros2_ws/src/mecanum_robot/mecanum_robot/
+ls -la ~/ros2_ws/src/mecanum_navigation/mecanum_navigation/
+sha256sum ~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py
+
+# 5. What maps and logs already exist
+ls -la ~/aislebot_logs/ | tail -20
 ```
-Ask the user to confirm: is the robot physically on the zero mark right now?
-Was `aislebot.service` actually restarted?
 
-**2. Check the outstanding recovery-event anomaly** from today's return leg
-— grep Terminal 2's log/console for recovery/behavior-tree activity. This
-is a loose thread from the previous session, worth closing before adding
-new variables.
+Compare (3) against `system/slam_nodom.yaml` in the repo and (4) against local
+`sha256sum` of the same files. **Report differences before changing anything.**
 
-**3. Design a test that isolates lateral drift specifically**, rather than
-re-running the same forward/back test. Options to consider with the user:
-- Repeat the same forward+return test 2-3 times and check if the lateral
-  offset is **consistent in direction and magnitude** each time (systematic
-  → likely a mecanum kinematics/wheel-calibration scaling issue, tunable in
-  software) vs. **random** each time (→ more likely wheel slip or a
-  mechanical issue, not fixable by retuning gains).
-- A pure lateral (strafe) command, if the mecanum drive supports commanding
-  pure sideways motion, to directly measure strafe accuracy in isolation
-  rather than inferring it as a side-effect of a forward move.
-- Whichever test is chosen, use the user's coordinate convention (see above)
-  when reporting results back to them, and be explicit about which frame
-  any given number is in.
+---
 
-**4. If a systematic pattern emerges**, the likely places to look are the
-mecanum inverse-kinematics matrix / wheel calibration constants (wherever
-`cmd_vel` gets converted to individual wheel velocities) and
-`cmd_vel_axis_adapter.py`'s axis handling — but don't go looking there
-until the test data actually points to a systematic (not random) cause.
+## What's true right now — don't re-derive this
 
-## After lateral drift is characterized — the original build-order plan
+### Drive accuracy: validated, and not today's problem
 
-Unchanged from `docs/Production_Architecture.md` §7 — once drive accuracy
-(now including lateral) is judged good enough:
-- Wall-hug mapping drive, return to zero mark, tape-measure the error.
-- Save the map (first one this project has ever produced).
-- First hardware run of `navigation.launch.py` (saved map + AMCL).
-- Then, and only then, the dashboard/UI work described in
-  `docs/Production_Architecture.md`.
+- **Forward/back:** 0.5 m round trip, ~1.2 cm net error, confirmed three
+  independent ways — TF math, tape measure, and `trajectory_viz.py`'s own
+  summary (§17.29 kickoff, §17.30).
+- **Pure lateral:** 0.5 m round trip, 1.63 cm net — same tier. §17.30's
+  conclusion: **lateral motion is as accurate as forward motion.** The original
+  "lateral drift" framing is closed.
+- Final resting error sits at 1.97–1.99 cm regardless of recovery count. That
+  is `SimpleGoalChecker`'s tuned `xy_goal_tolerance: 0.02` doing its job, not
+  drift. Don't chase it.
+
+**Do not spend today re-testing drive accuracy.** It passes.
+
+### The actual open problem: live-SLAM pose jumps
+
+§17.31 captured the strongest dataset yet — 4,818 samples, and re-derived
+independently from the raw CSV rather than trusting the recorder's summary:
+
+- **16 single-sample steps > 5 cm**, totalling 3.04 m = **27.6 % of the entire
+  reported path length**
+- Largest: **31.1 cm in one 0.10 s sample** ≈ 3.1 m/s apparent, against a
+  0.15 m/s dashboard cap and a 0.48 m/s kinematic cap — **6–20× physically
+  impossible**, so these are corrections, not motion
+- Roughly one correction per ~18 s of driving
+
+Four properties that identify it as pose-graph re-optimisation rather than
+noise: every jump carries a yaw change (one hits 12.8°); directions are bimodal
+(early ~+28…+93°, late ~−38…−143°) rather than uniform; magnitude grows
+monotonically through the run; and two "doublets" fire 0.10 s apart.
+
+Cause, near-certain but **not yet measured**: §17.25 relaxed exactly the
+parameters that reject a bad loop closure, in an environment that is a junction
+of similar-looking aisles with a permanent 90° rear blind sector.
+`slam_nodom.yaml`'s own comment predicted this in writing. **Stage A measures
+it before anything is tuned.**
+
+### The reframe that makes this tractable
+
+**Live SLAM is not what the product navigates on.** `map_server` + AMCL is
+(`Production_Architecture.md` §3.1). AMCL localises against a *fixed* map and
+never re-optimises a pose graph, so this failure mode doesn't exist there.
+
+> Live SLAM doesn't need to be perfect. It needs to build **one clean map, once.**
+
+That is today's actual goal. See `docs/Dashboard_Map_System.md` §0.
+
+### Consequence: stop chaining goals under live SLAM
+
+§17.31's compound four-waypoint test failed on leg 4 with 5 progress-checker
+stalls, a **timed-out `Spin`** and a **timed-out `BackUp`** — the first
+behaviour-server recovery failures in this project's history — and never
+reached its goal. Legs 2 and 4 targeted the *same pose*; leg 2 was clean. That
+comparison rules out goal tolerance and points at the state the stack was in.
+Chaining goals through a pose estimate that snaps every ~18 s is measuring the
+estimate, not the drive stack.
+
+### Foxglove click-to-goal now works — and how, because it isn't discoverable
+
+Reached for the first time 21 Aug. Three things must all be right, and each one
+fails silently:
+
+1. 3D panel settings → **Publish** section (below Topics/Custom layers) →
+   **"2D pose (geometry_msgs/PoseStamped)"** — *not* "2D pose estimate"
+   (`/initialpose`), *not* "2D point" (`/clicked_point`)
+2. Its Topic field is **free text, no dropdown** — type `/goal_pose_click`
+3. Then **select that tool** from the toolbar flyout. The toolbar defaults to
+   the point tool, which publishes a `PointStamped` Nav2 ignores — a yellow dot
+   appears, nothing moves, nothing errors anywhere
+
+Foxglove stays a debugging instrument. Nothing in the product may depend on it.
+
+### Physical/service state at session end (21 Aug)
+
+Everything was **left running and healthy** after a full clean restart:
+`aislebot.service` restarted on the mark (`odom→base_link` = `[0,0,0] @ -90°`
+confirmed), `mapping_full.launch.py` up with LiDAR + SLAM, `nav2_slam.launch.py`
+up to `Managed nodes are active`, no errors. It has since been left overnight —
+**verify, don't assume.** Robot position on the mark is unconfirmed after the
+last click-to-goal drive.
+
+---
+
+## Today's plan
+
+Full detail, with parameter-level reasoning and the code shapes for the
+dashboard build, is in **`docs/Dashboard_Map_System.md`**. Summary:
+
+| Stage | What | Time | Gate |
+|---|---|---|---|
+| **A** | Split the jump: `map→odom` vs `odom→base_link` | 20 min | Pre-committed decision tree — decide before looking |
+| **B** | Tune 3 params: `loop_search_maximum_distance 5.0→2.0`, `loop_match_minimum_chain_size 5→8`, `max_laser_range 12.0→10.0` | 20 min | Only if A says SLAM. Only these three |
+| **C** | Commissioning drive: one wall-hugging circuit, return to mark, save the map | 60 min | 3-part acceptance gate before saving |
+| **D** | AMCL first run on the saved map | 45 min | Fix suspected `robot_model_type` bug first |
+| **E** | Dashboard map rendering | hours | Not gated on A–D; pure software |
+
+**If the day ends after Stage C with one good saved map, that is a success.**
+It would be the first stable coordinate frame this project has ever had, and
+every product feature depends on it.
+
+### Three things to get right
+
+1. **Don't tune before Stage A.** §17.28 already recorded the lesson: changing
+   loop-closure parameters without evidence repeats the exact mistake being
+   diagnosed. Three sessions have now suspected loop closure without measuring
+   it. `tools/bag_tf_diff.py` was built for this and has never been run.
+2. **This `slam_toolbox` build (2.8.5) has no loop-closure signal at all** — no
+   console output, no topic, verified against both source and the live node's
+   topic list (§17.29). Don't grep for it. TF differencing is the only
+   observation available.
+3. **Nothing that stores a coordinate may be built before Stage D.** Live-SLAM
+   coordinates don't survive a restart (§17.12/§17.18), so a location taught
+   today points at a different floor tile tomorrow.
+
+### Two code traps found by reading (§17.31)
+
+- **`src/mecanum_robot/resource/dashboard.html` is never read by anything.**
+  The served page is the `DASHBOARD_HTML` constant at `phone_dashboard.py:112`.
+  Editing the `.html` file does nothing.
+- **The dashboard WebSocket is client→server only.** No broadcast path exists;
+  building it is the first step of Stage E and everything else depends on it.
+
+---
+
+## After today — the product build order
+
+Unchanged from `Production_Architecture.md` §7, with today's stages mapped on:
+
+```
+0. Drive accuracy          ✅ PASSED (§17.30)
+1. Mapping drive             <- Stage C
+2. Save the map              <- Stage C
+3. AMCL localization         <- Stage D
+4. Location library + teach flow
+5. Map rendering in dashboard  <- Stage E (parallelisable)
+6. Goal sending from dashboard
+7. UI rework — map-first, overlay controls
+```
 
 ## Lower priority, worth remembering
 
-- Full Phase 1 tape-measured manual-drive validation (straight/strafe/
-  diagonal vs. physical tape, Nav2 off) — still open from the original plan,
-  may now be directly useful for isolating the lateral drift's source.
-- The original perceptual-aliasing jump investigation (`bag_tf_diff.py`
-  against `slam_test_02`) is still technically open but superseded by this
-  reliability-first work — don't resume it unless the user asks.
+- Test whether a pure-*forward* move introduces a small lateral component —
+  §17.30's candidate explanation for the original 1–3 cm side offset, never
+  tested directly.
+- The recovery-count cold-start pattern (worst on the first lateral goal after
+  a fresh bringup): stiction vs. MPPI warm-up, undistinguished. Low priority —
+  final accuracy is unaffected.
+- The `base_link` non-REP-103 axis convention is "the stack's deepest open
+  issue" per `nav2_params.yaml`'s own header, and has bitten the project five
+  times. The permanent fix (move the −90° into the URDF's `laser_joint`) is a
+  large cross-cutting refactor — deliberately deferred, but every new component
+  that carries a notion of "forward" needs checking against it. The dashboard
+  canvas is the next such component.

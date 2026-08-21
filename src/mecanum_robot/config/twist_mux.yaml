@@ -23,6 +23,16 @@
 # commands, at which point Nav2 (if still running) regains control.
 twist_mux:
   ros__parameters:
+    # Every publisher/subscriber in this codebase (joy_to_aislebot.py,
+    # phone_dashboard.py, keyboard_teleop.py, cmd_vel_axis_adapter.py,
+    # mecanum_teleop_asymmetric.py) uses plain geometry_msgs/Twist. This
+    # ros-teleop/twist_mux release (ros-jazzy-twist-mux 4.5.0) defaults
+    # toward TwistStamped absent this flag -- Foxglove's Problems panel
+    # caught the resulting schema mismatch live on /cmd_vel_manual,
+    # /cmd_vel_nav_out, and /cmd_vel on this exact install (21 Aug 2026,
+    # first-ever twist_mux run on hardware). Set explicitly rather than
+    # trust whichever default this version ships with.
+    use_stamped: false
     topics:
       manual:
         topic: cmd_vel_manual

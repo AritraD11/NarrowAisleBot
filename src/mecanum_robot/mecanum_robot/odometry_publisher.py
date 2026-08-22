@@ -44,7 +44,7 @@ PUBLISHED-FRAME ROTATION (added 11 Aug 2026, Research_Journal.md §17.10).
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Empty, Float64MultiArray
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import TransformStamped, Quaternion
 from tf2_ros import TransformBroadcaster
@@ -135,12 +135,39 @@ class OdometryPublisher(Node):
 
         self.odom_pub = self.create_publisher(Odometry, 'wheel_odom', 50)
 
+        # ── Re-zero without a service restart (§17.32) ────────────────────
+        # Setting the zero point used to mean `systemctl restart
+        # aislebot.service`, because x/y/theta are only ever zeroed in
+        # __init__. That works from a terminal, but it also tears down
+        # phone_dashboard -- which is the thing that would be asking for the
+        # re-zero in the first place -- so the dashboard could never own the
+        # §8 procedure. This topic zeroes the same three numbers in place.
+        #
+        # ORDERING STILL MATTERS, and is enforced by the caller, not here:
+        # slam_toolbox pins map->odom to identity at its first scan, so a
+        # re-zero must happen BEFORE mapping starts or map (0,0) lands on
+        # the old origin. phone_dashboard refuses the request while mapping
+        # is active for exactly this reason (Important_Commands.md §8).
+        self.create_subscription(Empty, 'odom/reset', self._reset_cb, 10)
+
         if self.publish_tf:
             self.tf_broadcaster = TransformBroadcaster(self)
 
         self.get_logger().info(
             f'Odometry publisher started | '
             f'K_out={self.K_outer:.4f} K_in={self.K_inner:.4f}')
+
+    def _reset_cb(self, _msg):
+        """Zero the integrated pose in place — the robot's current physical
+        spot becomes odom's origin, exactly as a fresh node start would."""
+        self.x = 0.0
+        self.y = 0.0
+        self.theta = 0.0
+        # Integration is dt-based off the previous callback; without this the
+        # first post-reset sample would integrate the whole idle gap since the
+        # last wheel message and immediately walk the new origin off zero.
+        self.last_time = self.get_clock().now()
+        self.get_logger().info('Odometry re-zeroed: this spot is now odom (0, 0, 0)')
 
     def velocity_cb(self, msg):
         if len(msg.data) < 4:

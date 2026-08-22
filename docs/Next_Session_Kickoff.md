@@ -5,27 +5,29 @@ the previous conversation — everything needed is either here or in the repo
 (`docs/Dashboard_Map_System.md`, `docs/Research_Journal.md`,
 `docs/Production_Architecture.md`, `docs/Important_Commands.md`).
 
+**Rewritten 22 Aug 2026 (§17.32).** The 21 Aug version of this file is
+superseded: Stage A has now been run, Stage B is deployed, and the whole
+workflow has moved off the terminal and into the dashboard.
+
 ---
 
 ## Paste this as the first message of the new session
 
 > Continue work on AritraD11/NarrowAisleBot, branch
-> `claude/mapping-autonomous-nav-695glw`. Read `docs/Dashboard_Map_System.md`
-> in full, plus `docs/Research_Journal.md` §17.31, before doing anything else
-> — the plan for today is already written there and reasoned through. Don't
-> re-derive it.
+> `claude/mapping-autonomous-nav-695glw`. Read this file and
+> `docs/Research_Journal.md` §17.32 in full before doing anything else.
 >
-> Today we build the robot's own map system. The goal is one clean saved map
-> plus AMCL localising on it, which is what unblocks the dashboard product
-> (map in the browser, click-to-goal, named locations — no Foxglove).
+> Today's goal: **one clean commissioned map with real walls in it, saved,
+> then AMCL localising on it.** Stage A and B are done — don't redo them.
 >
-> Start with the pre-flight audit in this file — I want to know what's
-> actually on the Pi before we touch anything, because it has drifted from the
-> repo before. Then Stage A, and don't skip it: three sessions have suspected
-> loop closure without measuring it.
+> I want to run the whole thing **from the dashboard, not the terminal**.
+> The MAP button brings the stack up and saves the map on stop; the joystick
+> drives; VIEW shows the map live; ZERO re-zeros. All of that is built but
+> **none of it has run on hardware once** — expect first-run bugs and help me
+> work through them.
 >
-> Walk me through it on hardware step by step — I'll run each command and
-> paste the output. Don't assume a step succeeded.
+> Walk me through it step by step — I'll do each thing and report back.
+> Don't assume a step succeeded.
 
 ---
 
@@ -40,205 +42,268 @@ map-frame TF numbers:
 
 "We are at 3,0" means ~3 cm to the robot's right, 0 cm forward — *not* a
 map-frame coordinate. Translate explicitly in both directions and always say
-which frame a number is in. The tools (`nav_goal.py`, action feedback,
-`tf2_echo`) all print map frame natively.
+which frame a number is in.
 
-## Working style that has been productive
+## Working style
 
-Hands-on-hardware, one command at a time, user pastes every output, nothing
-assumed to have succeeded. Keep doing that. When something looks wrong, say so
-plainly rather than narrating around it — and when the user's own analysis is
-right (it often is), say so and build on it rather than re-deriving.
+Hands-on-hardware, one step at a time, nothing assumed to have succeeded.
+**Never mark a step done without seeing its actual output.** When something
+looks wrong, say so plainly. When the user's own analysis is right (it often
+is), say so and build on it rather than re-deriving it.
 
----
-
-## Pre-flight — what's actually on the Pi
-
-The user asked for this explicitly, and it is not ceremony: a full deploy audit
-on 21 Aug found the Pi had drifted from the repo in **nine files**, including
-the SLAM config and the entire manual-override layer, plus `esp32_bridge`
-pinning a CPU core at 99.9 % since boot (`Production_Architecture.md` §7).
-
-```bash
-ssh aritra@10.42.0.1
-
-# 1. What's running right now
-ros2 node list
-ps aux | grep -E "slam_toolbox|mapping_full|controller_server|bt_navigator" | grep -v grep
-systemctl is-active aislebot.service
-
-# 2. CPU headroom — §17.25 killed slam_toolbox outright by starvation
-top -bn1 | head -15
-
-# 3. The live SLAM config (workspace ROOT, not in a package)
-cat ~/ros2_ws/slam_nodom.yaml | grep -E "loop_|max_laser|minimum_travel"
-
-# 4. Does the deployed code match the repo?
-ls -la ~/ros2_ws/src/mecanum_robot/mecanum_robot/
-ls -la ~/ros2_ws/src/mecanum_navigation/mecanum_navigation/
-sha256sum ~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py
-
-# 5. What maps and logs already exist
-ls -la ~/aislebot_logs/ | tail -20
-```
-
-Compare (3) against `system/slam_nodom.yaml` in the repo and (4) against local
-`sha256sum` of the same files. **Report differences before changing anything.**
+The user is moving deliberately away from the terminal. Prefer a dashboard
+path over an SSH command wherever one exists, and when one doesn't, say so
+rather than quietly falling back to SSH.
 
 ---
 
-## What's true right now — don't re-derive this
+## THE BIG FINDING OF 22 AUG — read this before trusting any earlier entry
 
-### Drive accuracy: validated, and not today's problem
+**`system/slam_nodom.yaml`'s loop-closure tuning was committed on 19 Aug and
+never reached the robot.** `install.sh:228` is the only mechanism that copies
+it to `~/ros2_ws/slam_nodom.yaml`, `mapping_full.launch.py:62` loads the Pi's
+copy, and that copy's mtime was **26 June** — i.e. the last time `install.sh`
+ran. Every drive from 19–21 Aug ran on `slam_toolbox` **stock defaults**.
 
-- **Forward/back:** 0.5 m round trip, ~1.2 cm net error, confirmed three
-  independent ways — TF math, tape measure, and `trajectory_viz.py`'s own
-  summary (§17.29 kickoff, §17.30).
-- **Pure lateral:** 0.5 m round trip, 1.63 cm net — same tier. §17.30's
-  conclusion: **lateral motion is as accurate as forward motion.** The original
-  "lateral drift" framing is closed.
-- Final resting error sits at 1.97–1.99 cm regardless of recovery count. That
-  is `SimpleGoalChecker`'s tuned `xy_goal_tolerance: 0.02` doing its job, not
-  drift. Don't chase it.
+Consequences for the journal:
 
-**Do not spend today re-testing drive accuracy.** It passes.
+- §17.28–§17.31's hypothesis — "§17.25 over-relaxed the closure gate, causing
+  false positives" — was diagnosing **parameters that were never active**.
+  Stock is *stricter* than §17.25's values, not looser.
+- §17.27's "first hardware confirmation of the tuning, 50 cm → 2 cm" cannot
+  have been the tuning. **What did cause it is an open question, not a
+  settled one.** The user confirms the robot was physically parked on the
+  mark and returned to it, so the naive "it was a re-zero artefact"
+  explanation does not fit either. Leave it open; don't invent a cause.
 
-### The actual open problem: live-SLAM pose jumps
+**Lesson worth keeping:** a value in the repo is not a value on the robot.
+Verify deployed config with `ros2 param get` against the *live node*, not by
+reading a file — that is what caught this.
 
-§17.31 captured the strongest dataset yet — 4,818 samples, and re-derived
-independently from the raw CSV rather than trusting the recorder's summary:
+---
 
-- **16 single-sample steps > 5 cm**, totalling 3.04 m = **27.6 % of the entire
-  reported path length**
-- Largest: **31.1 cm in one 0.10 s sample** ≈ 3.1 m/s apparent, against a
-  0.15 m/s dashboard cap and a 0.48 m/s kinematic cap — **6–20× physically
-  impossible**, so these are corrections, not motion
-- Roughly one correction per ~18 s of driving
+## What's true right now — don't re-derive
 
-Four properties that identify it as pose-graph re-optimisation rather than
-noise: every jump carries a yaw change (one hits 12.8°); directions are bimodal
-(early ~+28…+93°, late ~−38…−143°) rather than uniform; magnitude grows
-monotonically through the run; and two "doublets" fire 0.10 s apart.
+### Drive accuracy: validated, closed
 
-Cause, near-certain but **not yet measured**: §17.25 relaxed exactly the
-parameters that reject a bad loop closure, in an environment that is a junction
-of similar-looking aisles with a permanent 90° rear blind sector.
-`slam_nodom.yaml`'s own comment predicted this in writing. **Stage A measures
-it before anything is tuned.**
+0.5 m forward/back ≈ 1.2 cm net; 0.5 m pure lateral ≈ 1.63 cm. Final resting
+error 1.97–1.99 cm is `SimpleGoalChecker`'s `xy_goal_tolerance: 0.02` doing
+its job, not drift. **Do not spend time re-testing this.**
 
-### The reframe that makes this tractable
+### Stage A: RUN, and it answered the question
 
-**Live SLAM is not what the product navigates on.** `map_server` + AMCL is
-(`Production_Architecture.md` §3.1). AMCL localises against a *fixed* map and
-never re-optimises a pose graph, so this failure mode doesn't exist there.
+`tools/bag_tf_diff.py`'s first-ever run, on a 233.8 s drive:
 
-> Live SLAM doesn't need to be perfect. It needs to build **one clean map, once.**
+| Pair | Distinct changes | Behaviour |
+|---|---|---|
+| `map→odom` | **3** | flat all run, then **39.57 cm / −13.80°**, then **39.00 cm / +13.80°** 12.5 s later, landing back within 0.7 cm |
+| `odom→base_link` | 787 | smooth, ~2.3 mm per tick — **including at both jump instants** |
 
-That is today's actual goal. See `docs/Dashboard_Map_System.md` §0.
+Wheel odometry did not blink at the moment `map` moved 40 cm. That is row 1 of
+the pre-committed decision tree: **SLAM pose-graph correction, not odometry.**
+Settled. Don't re-measure it.
 
-### Consequence: stop chaining goals under live SLAM
+### Stage B: DEPLOYED and verified live
 
-§17.31's compound four-waypoint test failed on leg 4 with 5 progress-checker
-stalls, a **timed-out `Spin`** and a **timed-out `BackUp`** — the first
-behaviour-server recovery failures in this project's history — and never
-reached its goal. Legs 2 and 4 targeted the *same pose*; leg 2 was clean. That
-comparison rules out goal tolerance and points at the state the stack was in.
-Chaining goals through a pose estimate that snaps every ~18 s is measuring the
-estimate, not the drive stack.
+`system/slam_nodom_stageB.yaml` is on the Pi as `~/ros2_ws/slam_nodom.yaml`
+(sha256 `7ec7904a…0093ba`), confirmed by `ros2 param get` on the running node:
 
-### Foxglove click-to-goal now works — and how, because it isn't discoverable
+| Parameter | Was | Now |
+|---|---|---|
+| `loop_search_maximum_distance` | 5.0 | **2.0** |
+| `loop_match_minimum_chain_size` | 5 | **8** |
+| `max_laser_range` | 12.0 | **10.0** |
 
-Reached for the first time 21 Aug. Three things must all be right, and each one
-fails silently:
+Baseline backed up at `~/ros2_ws/slam_nodom_baseline_<stamp>.yaml`.
 
-1. 3D panel settings → **Publish** section (below Topics/Custom layers) →
-   **"2D pose (geometry_msgs/PoseStamped)"** — *not* "2D pose estimate"
-   (`/initialpose`), *not* "2D point" (`/clicked_point`)
-2. Its Topic field is **free text, no dropdown** — type `/goal_pose_click`
-3. Then **select that tool** from the toolbar flyout. The toolbar defaults to
-   the point tool, which publishes a `PointStamped` Nav2 ignores — a yellow dot
-   appears, nothing moves, nothing errors anywhere
+### Stage B's measured effect — real, partial
 
-Foxglove stays a debugging instrument. Nothing in the product may depend on it.
+Two drives on Stage B, both from a verified `[0,0,0] @ -90°` re-zero:
 
-### Physical/service state at session end (21 Aug)
+| Drive | Path | Final `map→base_link` | Steps > 10 cm |
+|---|---|---|---|
+| out-and-back over the same line (confounded) | — | **36.3 cm**, 5° off | 9, spread throughout |
+| a closed box, each leg new ground | 3.4 m / 223 s | **5.0 cm**, 0.75° off | 5, **all in the last 30 s** |
 
-Everything was **left running and healthy** after a full clean restart:
-`aislebot.service` restarted on the mark (`odom→base_link` = `[0,0,0] @ -90°`
-confirmed), `mapping_full.launch.py` up with LiDAR + SLAM, `nav2_slam.launch.py`
-up to `Managed nodes are active`, no errors. It has since been left overnight —
-**verify, don't assume.** Robot position on the mark is unconfirmed after the
-last click-to-goal drive.
+Before Stage B the jumps came roughly every 18 s throughout a run. On the box
+drive the first 185 s had **zero**. The remaining 5 cluster exactly where
+loop closure first becomes eligible.
+
+**Probable explanation, not yet confirmed:** `minimum_travel_distance: 0.2`
+puts a graph node every 20 cm, and chain size 8 needs 8 consecutive nodes
+≈ **1.6 m of driving** before closure can fire at all. On a 3.4 m drive that
+lands in the back half — which is where the jumps are. So the clustering may
+be eligibility, not aliasing.
+
+**Evidence they are *correct* closures:** the map came out visibly clean (no
+fold, tear, doubled wall, or forked corridor) and the robot landed 5 cm from
+truth. A wrong closure gives you neither.
+
+### Consequence: the acceptance gate needs a fix
+
+`Dashboard_Map_System.md` §3 says "no single-sample step > 10 cm". That
+criterion was written to catch bad closures, **but it cannot tell a good
+closure from a bad one** — a legitimate correction of accumulated drift trips
+it just as hard. The two criteria that actually discriminate are **map
+integrity** and **return-to-mark accuracy**. Judge on those.
+
+**Do not raise `loop_match_minimum_response_coarse`/`_fine` to 0.30/0.40.**
+That lever is explicitly gated on "if the map visibly folds" and it did not.
+
+---
+
+## What was built 22 Aug — all code-complete, NONE hardware-tested
+
+### The dashboard is now the whole workflow
+
+`phone_dashboard.py` gained, in one session:
+
+- **Server → client WebSocket broadcast.** The socket was client → server only
+  before; this was the single largest missing piece. ROS callbacks write plain
+  node attributes, one async task reads them on a timer and pushes — one
+  writer, one reader, no locks, no cross-thread asyncio.
+- **Live map + pose in the browser** (`VIEW` button). Occupancy grid streamed
+  raw and rendered client-side; robot drawn as its **real 1.12 × 0.48 m
+  footprint**, not a dot, so "does it fit this aisle" is answerable.
+- **Click-to-goal** with a two-tap arm, publishing `/goal_pose_click`.
+- **`ZERO` button** — re-zero without a terminal. This needed a new
+  `/odom/reset` topic in `odometry_publisher.py`, because the old route
+  (`systemctl restart aislebot.service`) also kills the dashboard.
+  **It refuses while mapping is active**, enforcing §8's ordering.
+- **Pose CSV** written automatically for the duration of every mapping run
+  (`run_<stamp>_pose.csv`, columns `epoch_s, map_x, map_y, yaw_deg`), so jump
+  analysis no longer needs a separately-launched terminal tool.
+
+### Already there, discovered by reading — don't rebuild
+
+- **`stop_mapping()` already saves the map** via `map_saver_cli`, to
+  `~/aislebot_logs/run_<stamp>.pgm/.yaml`. The MAP button is already a full
+  start-stack / stop-stack-and-save cycle. There is no separate save button
+  and none is needed.
+- The dashboard's telemetry CSV is the 13-column motor format
+  `telemetry_analyzer.html` expects. That pairing was always intended.
+
+### `docs/tools/map_viewer.html` — new
+
+`telemetry_analyzer.html`'s map dropzone only unlocks after loading a valid
+13-column run, so it cannot open a bare map. `map_viewer.html` takes just the
+`.pgm` + `.yaml` pair. Parses P5/P2 PGM and `map_saver_cli`'s YAML entirely
+client-side; verified against a synthetic file before shipping.
 
 ---
 
 ## Today's plan
 
-Full detail, with parameter-level reasoning and the code shapes for the
-dashboard build, is in **`docs/Dashboard_Map_System.md`**. Summary:
+### 1. Pre-flight (short — most of it was settled 22 Aug)
 
-| Stage | What | Time | Gate |
-|---|---|---|---|
-| **A** | Split the jump: `map→odom` vs `odom→base_link` | 20 min | Pre-committed decision tree — decide before looking |
-| **B** | Tune 3 params: `loop_search_maximum_distance 5.0→2.0`, `loop_match_minimum_chain_size 5→8`, `max_laser_range 12.0→10.0` | 20 min | Only if A says SLAM. Only these three |
-| **C** | Commissioning drive: one wall-hugging circuit, return to mark, save the map | 60 min | 3-part acceptance gate before saving |
-| **D** | AMCL first run on the saved map | 45 min | Fix suspected `robot_model_type` bug first |
-| **E** | Dashboard map rendering | hours | Not gated on A–D; pure software |
+```bash
+ros2 node list                                    # expect the full 11-node set
+ros2 param get /slam_toolbox loop_search_maximum_distance   # MUST read 2.0
+ros2 param get /slam_toolbox loop_match_minimum_chain_size  # MUST read 8
+ros2 param get /slam_toolbox max_laser_range                # MUST read 10.0
+```
 
-**If the day ends after Stage C with one good saved map, that is a success.**
-It would be the first stable coordinate frame this project has ever had, and
-every product feature depends on it.
+Then **deploy the new dashboard**, which has not run once:
 
-### Three things to get right
+```bash
+cd ~/ros2_ws && colcon build --packages-select mecanum_robot
+sudo systemctl restart aislebot.service     # robot need not be on the mark yet
+```
 
-1. **Don't tune before Stage A.** §17.28 already recorded the lesson: changing
-   loop-closure parameters without evidence repeats the exact mistake being
-   diagnosed. Three sessions have now suspected loop closure without measuring
-   it. `tools/bag_tf_diff.py` was built for this and has never been run.
-2. **This `slam_toolbox` build (2.8.5) has no loop-closure signal at all** — no
-   console output, no topic, verified against both source and the live node's
-   topic list (§17.29). Don't grep for it. TF differencing is the only
-   observation available.
-3. **Nothing that stores a coordinate may be built before Stage D.** Live-SLAM
-   coordinates don't survive a restart (§17.12/§17.18), so a location taught
-   today points at a different floor tile tomorrow.
+Open `http://10.42.0.1:8080` on the phone. **Expect first-run bugs** in the
+map view, the broadcast loop, or the ZERO button — none of it has hardware
+time. Budget for that; don't treat a failure there as a SLAM problem.
 
-### Two code traps found by reading (§17.31)
+### 2. Stage C — the real commissioning drive
 
-- **`src/mecanum_robot/resource/dashboard.html` is never read by anything.**
-  The served page is the `DASHBOARD_HTML` constant at `phone_dashboard.py:112`.
-  Editing the `.html` file does nothing.
-- **The dashboard WebSocket is client→server only.** No broadcast path exists;
-  building it is the first step of Stage E and everything else depends on it.
+Everything below is dashboard-only:
+
+1. Park physically on the mark.
+2. **ZERO** (two taps). Must happen *before* MAP — the button enforces it.
+3. **MAP** — brings up LiDAR + `scan_relay` + `slam_toolbox`, starts both CSVs.
+4. **VIEW** — watch the map build live. This is the new instrument: a fold is
+   visible *the moment it happens*, which no after-the-fact screenshot gives.
+5. Drive the **perimeter** with the joystick: **0.5–1.5 m off the walls**,
+   slow, one direction, full loop, back to the mark. The rear 90° is
+   permanently blind (mast), so walls register only to the front/left/right.
+   *This is what 22 Aug's test drives lacked — they were open-floor boxes and
+   produced free space with no wall geometry.*
+6. **MAP** again to stop — this saves the map automatically.
+
+**Acceptance (revised — see above):**
+
+| Check | Pass condition |
+|---|---|
+| Return-to-mark | VIEW's HUD reads ≈ `(0, 0)`, nose ≈ `-90°` |
+| Map integrity | no folds, tears, doubled walls — check in `map_viewer.html` |
+| Walls present | the map actually contains occupied cells, not just free space |
+
+Single-sample step size is **diagnostic, not pass/fail**.
+
+### 3. Stage D — AMCL, never run on hardware
+
+**Verify the suspected bug first** (`nav2_params.yaml:57` has
+`robot_model_type: "omnidirectional"`; on Jazzy this is a pluginlib class
+name, so it likely needs `"nav2_amcl::OmniMotionModel"`):
+
+```bash
+grep -rn "OmniMotionModel" /opt/ros/jazzy/share/nav2_amcl/*.xml
+```
+
+Change it only if the plugin XML confirms. Getting it wrong means AMCL refuses
+to configure and `lifecycle_manager` aborts the entire bringup.
+
+Then: stop mapping completely (`ros2 node list | grep slam_toolbox` must come
+back empty — AMCL and slam_toolbox both publish `map→odom` and must never run
+together), park on the mark, launch `navigation.launch.py` against the saved
+map, and confirm `map→base_link` ≈ `(0,0) @ -90°` **with no SLAM running**.
+
+That is the first time this robot will know where it is on a remembered map.
+
+### 4. First autonomous goal + the obstacle test the user has been waiting for
+
+Once AMCL holds: send **one** goal from the dashboard (tap GOAL, tap the map,
+drag to aim the nose). One goal, not a chain.
+
+Then the obstacle-avoidance demo, which needs no extra work — it is already
+configured and independent of pose accuracy:
+
+- **Soft layer:** the local costmap inflates live LiDAR returns
+  (`inflation_radius: 0.65`) and MPPI plans around them. This is what
+  re-routes around a pallet that was not there when the map was made.
+- **Hard layer:** `collision_monitor` forward-simulates the padded 1.12 × 0.48 m
+  footprint along the commanded velocity and intervenes only if that path
+  actually collides within 1.2 s. It is **velocity-aware, not a static zone** —
+  a stationary robot near an obstacle correctly does nothing.
+
+Put an obstacle in the path of a goal and watch both. This is safe to try
+before Stage D if the user wants it early, since neither layer depends on the
+global pose estimate.
 
 ---
 
-## After today — the product build order
+## Standing traps
 
-Unchanged from `Production_Architecture.md` §7, with today's stages mapped on:
+- **`base_link` is NOT REP-103: `+X` = RIGHT, `+Y` = NOSE.** Sixth place it
+  has bitten the project. Any new component with a notion of "forward" needs
+  checking against it — the dashboard canvas now does (verified numerically:
+  at −90° the 1.12 m long axis lies along map `+X`, the nose direction).
+- **This `slam_toolbox` build (2.8.5) has no loop-closure signal** — no
+  console output, no topic. Verified against source *and* the live node. TF
+  differencing is the only observation available. Don't grep for it.
+- **`src/mecanum_robot/resource/dashboard.html` is dead code.** The served
+  page is the `DASHBOARD_HTML` constant at `phone_dashboard.py:112`.
+- **Nothing that stores a coordinate before Stage D.** Live-SLAM coordinates
+  don't survive a restart, so a location taught today points at a different
+  floor tile tomorrow.
+- **Never run AMCL and `slam_toolbox` together.** Both publish `map→odom`.
+- **A repo value is not a robot value.** Check the live node.
 
-```
-0. Drive accuracy          ✅ PASSED (§17.30)
-1. Mapping drive             <- Stage C
-2. Save the map              <- Stage C
-3. AMCL localization         <- Stage D
-4. Location library + teach flow
-5. Map rendering in dashboard  <- Stage E (parallelisable)
-6. Goal sending from dashboard
-7. UI rework — map-first, overlay controls
-```
+## Deferred, still worth remembering
 
-## Lower priority, worth remembering
-
-- Test whether a pure-*forward* move introduces a small lateral component —
-  §17.30's candidate explanation for the original 1–3 cm side offset, never
-  tested directly.
-- The recovery-count cold-start pattern (worst on the first lateral goal after
-  a fresh bringup): stiction vs. MPPI warm-up, undistinguished. Low priority —
-  final accuracy is unaffected.
-- The `base_link` non-REP-103 axis convention is "the stack's deepest open
-  issue" per `nav2_params.yaml`'s own header, and has bitten the project five
-  times. The permanent fix (move the −90° into the URDF's `laser_joint`) is a
-  large cross-cutting refactor — deliberately deferred, but every new component
-  that carries a notion of "forward" needs checking against it. The dashboard
-  canvas is the next such component.
+- Location library + teach flow (gated on Stage D)
+- Delete or wire up the dead `dashboard.html` — not during map work
+- Whether a pure-*forward* move introduces a small lateral component (§17.30's
+  untested candidate explanation for the original 1–3 cm side offset)
+- The recovery-count cold-start pattern (stiction vs. MPPI warm-up)
+- Moving the −90° into the URDF's `laser_joint` — large cross-cutting refactor

@@ -75,7 +75,7 @@ from rclpy.qos import (QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile,
                        QoSReliabilityPolicy)
 from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import OccupancyGrid
-from std_msgs.msg import String, Float64MultiArray
+from std_msgs.msg import Empty, String, Float64MultiArray
 import tf2_ros
 from tf2_ros import TransformException
 
@@ -343,6 +343,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
         <button class="mt-btn" id="btnZoomOut">&minus;</button>
         <button class="mt-btn" id="btnFollow">CTR</button>
         <button class="mt-btn" id="btnGoal">GOAL</button>
+        <button class="mt-btn" id="btnZero">ZERO</button>
       </div>
       <div class="map-hint" id="mapHint">DRAG TO PAN &middot; PINCH TO ZOOM</div>
     </div>
@@ -440,6 +441,9 @@ let goalArmed  = false;
 let goalDrag   = null;   // {wx,wy,yaw} while placing a goal
 const ptrs     = new Map();
 let pinchBase  = null;
+let zeroArmed  = false;
+let zeroTimer  = null;
+let noticeTimer = null;
 
 // ── WEBSOCKET ─────────────────────────────────────────────────────
 function connect() {
@@ -454,7 +458,11 @@ function connect() {
   ws.onmessage = (ev) => {
     let m;
     try { m = JSON.parse(ev.data); } catch (e) { return; }
-    if (m.type === 'pose') {
+    if (m.type === 'notice') {
+      goalHint(m.text, /FIRST|CANNOT/.test(m.text));
+      clearTimeout(noticeTimer);
+      noticeTimer = setTimeout(() => goalHint(defaultHint(), false), 4000);
+    } else if (m.type === 'pose') {
       robotPose = { x: m.x, y: m.y, yaw: m.yaw };
       if (mapFollow) { camX = m.x; camY = m.y; }
       if (mapView) drawMap();
@@ -1175,6 +1183,7 @@ document.getElementById('btnFollow').addEventListener('click', () => {
 // Two-tap arm, exactly like CALIBRATE: one stray tap must never start a
 // 45 kg robot. Gesture then matches Foxglove's 2D Pose tool, which the
 // operator already knows: tap to place, drag to aim the NOSE, release.
+function defaultHint() { return 'DRAG TO PAN · PINCH TO ZOOM'; }
 function goalHint(txt, armed) {
   const h = document.getElementById('mapHint');
   h.textContent = txt;
@@ -1183,7 +1192,7 @@ function goalHint(txt, armed) {
 function goalDisarm() {
   goalArmed = false; goalDrag = null;
   document.getElementById('btnGoal').classList.remove('armed');
-  goalHint('DRAG TO PAN · PINCH TO ZOOM', false);
+  goalHint(defaultHint(), false);
   if (mapView) drawMap();
 }
 document.getElementById('btnGoal').addEventListener('click', () => {
@@ -1191,7 +1200,28 @@ document.getElementById('btnGoal').addEventListener('click', () => {
   goalArmed = !goalArmed;
   document.getElementById('btnGoal').classList.toggle('armed', goalArmed);
   goalHint(goalArmed ? 'TAP MAP TO PLACE · DRAG TO AIM NOSE'
-                     : 'DRAG TO PAN · PINCH TO ZOOM', goalArmed);
+                     : defaultHint(), goalArmed);
+});
+
+// ── Re-zero (Important_Commands.md §8, without a terminal) ─────────
+// Two-tap armed like CALIBRATE and GOAL. It doesn't move the robot, but it
+// redefines what every coordinate on this map means, so a stray tap must
+// not do it.
+function zeroDisarm() {
+  zeroArmed = false;
+  clearTimeout(zeroTimer);
+  document.getElementById('btnZero').classList.remove('armed');
+}
+document.getElementById('btnZero').addEventListener('click', () => {
+  if (!zeroArmed) {
+    zeroArmed = true;
+    document.getElementById('btnZero').classList.add('armed');
+    goalHint('TAP ZERO AGAIN — MAKES THIS SPOT MAP (0,0)', true);
+    zeroTimer = setTimeout(() => { zeroDisarm(); goalHint(defaultHint(), false); }, 5000);
+    return;
+  }
+  zeroDisarm();
+  send({ type: 'rezero' });   // server replies over the notice channel
 });
 
 // ── Pointer handling: pan, pinch, or place-a-goal ──────────────────
@@ -1316,6 +1346,7 @@ class PhoneDashboard(Node):
         # exactly how the §17.19 axis bug happened. Yaw sent here means "point
         # the NOSE this way", in the map frame.
         self.goal_pub      = self.create_publisher(PoseStamped, '/goal_pose_click', 10)
+        self.odom_reset_pub = self.create_publisher(Empty, '/odom/reset', 10)
 
         # ── Subscribers ───────────────────────────────────────────
         self.create_subscription(
@@ -1369,6 +1400,20 @@ class PhoneDashboard(Node):
         self.latest_map:  Optional[dict] = None
         self.latest_pose: Optional[dict] = None
         self.map_dirty = False
+
+        # map->base_link log, written alongside the motor-telemetry CSV for
+        # the duration of a mapping run. The telemetry CSV answers "what did
+        # the wheels do"; this one answers "what did SLAM think the robot's
+        # pose was", which is the series every jump analysis so far has had
+        # to get from a separately-launched terminal tool.
+        self._pose_csv_file   = None
+        self._pose_csv_writer = None
+        self._pose_path       = ''
+
+        # One-line status pushed to the browser. Seq (not text) is what marks
+        # it new, so repeating the same message twice still reaches the page.
+        self.notice     = ''
+        self.notice_seq = 0
 
         self.tf_buffer   = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
@@ -1439,6 +1484,53 @@ class PhoneDashboard(Node):
             'y':   tf.transform.translation.y,
             'yaw': yaw,
         }
+
+        if self._pose_csv_writer is not None:
+            try:
+                self._pose_csv_writer.writerow([
+                    '{:.3f}'.format(time.time()),
+                    '{:.4f}'.format(self.latest_pose['x']),
+                    '{:.4f}'.format(self.latest_pose['y']),
+                    '{:.2f}'.format(math.degrees(yaw)),
+                ])
+            except Exception:
+                # A logging failure must never take down the pose sampler the
+                # live dashboard map is drawn from.
+                pass
+
+    # ── Status line to the browser ────────────────────────────────
+
+    def say(self, text: str):
+        self.notice = text
+        self.notice_seq += 1
+
+    # ── Re-zero (Important_Commands.md §8, from the dashboard) ────
+
+    def rezero(self) -> str:
+        """Make the robot's current spot odom's origin.
+
+        Returns '' on success, or a refusal reason.
+
+        REFUSES WHILE MAPPING IS ACTIVE, and that is the whole point of the
+        guard: slam_toolbox pins map->odom to identity at its first scan, so
+        re-zeroing underneath a live session moves odom's origin without
+        moving map's, silently breaking the "map (0,0) is the floor mark"
+        property the whole commissioning procedure rests on. §17.17-§17.19
+        were spent on that exact confusion. Stop mapping, re-zero, then
+        start mapping — in that order, every time.
+        """
+        if self.mapping_active:
+            reason = 'STOP MAPPING FIRST — RE-ZERO MUST COME BEFORE THE MAP RUN'
+            self.say(reason)
+            return reason
+        if self.calib_active:
+            reason = 'CALIBRATION RUNNING — CANNOT RE-ZERO'
+            self.say(reason)
+            return reason
+        self.odom_reset_pub.publish(Empty())
+        self.say('RE-ZEROED — THIS SPOT IS NOW (0, 0)')
+        self.get_logger().info('Re-zero requested — odom origin moved to this spot')
+        return ''
 
     # ── Goal ──────────────────────────────────────────────────────
 
@@ -1528,6 +1620,19 @@ class PhoneDashboard(Node):
             return ''
         self.mapping_active = True
         path = self.start_recording()
+
+        # Pose log, named off the same run so the two CSVs and the saved map
+        # are obviously one artefact set.
+        try:
+            self._pose_path = os.path.splitext(path)[0] + '_pose.csv' if path else ''
+            if self._pose_path:
+                self._pose_csv_file = open(self._pose_path, 'w', newline='')
+                self._pose_csv_writer = csv.writer(self._pose_csv_file)
+                self._pose_csv_writer.writerow(['epoch_s', 'map_x', 'map_y', 'yaw_deg'])
+        except Exception as e:
+            self.get_logger().warn(f'Could not open pose log: {e}')
+            self._pose_csv_file = self._pose_csv_writer = None
+
         self.get_logger().info(
             f'Mapping started (pid {self._mapping_proc.pid}) + recording → {path}'
         )
@@ -1565,6 +1670,19 @@ class PhoneDashboard(Node):
         self.mapping_active = False
         proc, self._mapping_proc = self._mapping_proc, None
         run_path = self._run_path
+
+        # Close the pose log before the launch tree dies — once slam_toolbox
+        # is gone map->base_link stops resolving and the sampler goes quiet
+        # anyway, but leaving the handle open would risk a truncated file.
+        writer, self._pose_csv_writer = self._pose_csv_writer, None
+        pose_file, self._pose_csv_file = self._pose_csv_file, None
+        del writer
+        if pose_file is not None:
+            try:
+                pose_file.close()
+                self.get_logger().info(f'Pose log written → {self._pose_path}')
+            except Exception:
+                pass
 
         map_prefix = os.path.splitext(run_path)[0] if run_path else ''
         map_saved = bool(map_prefix) and self._save_map(map_prefix)
@@ -1848,12 +1966,16 @@ async def _start_broadcast():
 
 async def _broadcast_loop():
     tick = 0
+    last_notice = 0
     while True:
         await asyncio.sleep(0.1)
         if _node is None or not _node.ws_clients:
             continue
 
         payloads = []
+        if _node.notice_seq != last_notice:
+            last_notice = _node.notice_seq
+            payloads.append({'type': 'notice', 'text': _node.notice})
         # Pose is small and wants to look smooth: every tick, 10 Hz.
         if _node.latest_pose:
             payloads.append({'type': 'pose', **_node.latest_pose})
@@ -1947,6 +2069,11 @@ def _dispatch(msg: dict):
         if _node.calib_active:
             _node.stop_calibration(graceful=False)
         _node.stop_mapping()
+
+    elif t == 'rezero':
+        reason = _node.rezero()
+        if reason:
+            _node.get_logger().info(f'Dashboard: re-zero refused — {reason}')
 
     elif t == 'goal':
         # Client already applied the two-tap arm; this is a committed goal.

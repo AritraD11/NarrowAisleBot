@@ -71,16 +71,24 @@
 
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist
+from rclpy.qos import (QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile,
+                       QoSReliabilityPolicy)
+from geometry_msgs.msg import PoseStamped, Twist
+from nav_msgs.msg import OccupancyGrid
 from std_msgs.msg import String, Float64MultiArray
+import tf2_ros
+from tf2_ros import TransformException
 
 import threading
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
+import asyncio
+import base64
 import json
 import csv
+import math
 import os
 import signal
 import subprocess
@@ -149,6 +157,31 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
 
 /* ── LAYOUT ── */
 .body{display:flex;height:calc(100vh - 44px - 18px - 72px)}
+
+/* ── MAP VIEW (overlays the joystick area; E-STOP stays visible below) ── */
+.view-btn{padding:3px 8px;border-radius:4px;font-size:10px;font-weight:700;
+          border:1.5px solid #1e3a5f;background:transparent;color:#4b5563;
+          cursor:pointer;letter-spacing:.5px;font-family:inherit;
+          touch-action:manipulation;white-space:nowrap}
+.view-btn.on{background:#0c2a43;color:#7dd3fc;border-color:#38bdf8}
+.map-view{position:absolute;inset:0;background:#060a12;display:none;z-index:6}
+.map-view.show{display:block}
+#mapCanvas{width:100%;height:100%;display:block;touch-action:none}
+.map-hud{position:absolute;top:6px;left:8px;font-size:9px;color:#38bdf8;
+         letter-spacing:1px;pointer-events:none;text-shadow:0 0 4px #000;
+         line-height:1.5}
+.map-hud .dim{color:#475569}
+.map-tools{position:absolute;top:6px;right:8px;display:flex;flex-direction:column;gap:5px}
+.mt-btn{width:38px;height:28px;border-radius:4px;font-size:9px;font-weight:700;
+        border:1.5px solid #1e3a5f;background:#0c1220cc;color:#7dd3fc;
+        font-family:inherit;letter-spacing:.5px;touch-action:manipulation}
+.mt-btn.armed{background:#431407;color:#f59e0b;border-color:#f59e0b;
+              animation:pulse 1s infinite}
+.map-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+          font-size:9px;letter-spacing:1px;padding:4px 10px;border-radius:4px;
+          background:#0c1220dd;color:#7dd3fc;border:1px solid #1e3a5f;
+          pointer-events:none;white-space:nowrap;max-width:92%;text-align:center}
+.map-hint.armed{background:#431407ee;color:#f59e0b;border-color:#f59e0b}
 
 /* ── JOYSTICK AREA ── */
 .joy-area{flex:1;position:relative;display:flex;align-items:center;
@@ -275,6 +308,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
     <button class="spd-btn" id="spd2">FAST</button>
   </div>
   <div class="hdr-right">
+    <button class="view-btn" id="viewBtn">VIEW</button>
     <span class="map-badge" id="mapBadge">MAP</span>
     <span class="status-dot" id="dot"></span>
   </div>
@@ -298,6 +332,19 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
       <span class="jlbl l">LEFT</span>
       <span class="jlbl r">RIGHT</span>
       <div class="joy-thumb" id="joyThumb"></div>
+    </div>
+    <!-- Map overlays the joystick area only, so the right panel and the
+         bottom bar (E-STOP) stay reachable in every mode. -->
+    <div class="map-view" id="mapView">
+      <canvas id="mapCanvas"></canvas>
+      <div class="map-hud" id="mapHud">WAITING FOR /map</div>
+      <div class="map-tools">
+        <button class="mt-btn" id="btnZoomIn">+</button>
+        <button class="mt-btn" id="btnZoomOut">&minus;</button>
+        <button class="mt-btn" id="btnFollow">CTR</button>
+        <button class="mt-btn" id="btnGoal">GOAL</button>
+      </div>
+      <div class="map-hint" id="mapHint">DRAG TO PAN &middot; PINCH TO ZOOM</div>
     </div>
   </div>
 
@@ -373,6 +420,27 @@ let estopped  = false;
 let mapping   = false;
 let armInterval = null;
 
+// ── MAP STATE ─────────────────────────────────────────────────────
+// base_link on this robot is NOT REP-103: +X is the robot's RIGHT and +Y is
+// its NOSE (§17.10). So in nav2_params.yaml's footprint polygon
+//   [[0.24, 0.56], [0.24, -0.56], [-0.24, -0.56], [-0.24, 0.56]]
+// the 0.24 is half the WIDTH and the 0.56 is half the LENGTH — the long axis
+// runs along +Y. Getting this backwards draws the robot sideways in its own
+// aisle, and this is the sixth place the convention has bitten the project.
+const FOOT_HALF_X = 0.24;   // half width  (left..right)
+const FOOT_HALF_Y = 0.56;   // half length (tail..nose)
+
+let mapView    = false;
+let mapGrid    = null;   // {w,h,res,ox,oy}
+let mapBitmap  = null;   // offscreen canvas holding the rendered cells
+let robotPose  = null;   // {x,y,yaw} in the map frame
+let camX = 0, camY = 0, camScale = 55;   // camScale = screen px per metre
+let mapFollow  = true;
+let goalArmed  = false;
+let goalDrag   = null;   // {wx,wy,yaw} while placing a goal
+const ptrs     = new Map();
+let pinchBase  = null;
+
 // ── WEBSOCKET ─────────────────────────────────────────────────────
 function connect() {
   const url = 'ws://' + location.host + '/ws';
@@ -382,6 +450,18 @@ function connect() {
     document.getElementById('dot').classList.add('on');
     // FIX: Auto-enable arm on every connection so we never need a manual ENABLE button
     send({ type: 'arm', cmd: 'ENABLE' });
+  };
+  ws.onmessage = (ev) => {
+    let m;
+    try { m = JSON.parse(ev.data); } catch (e) { return; }
+    if (m.type === 'pose') {
+      robotPose = { x: m.x, y: m.y, yaw: m.yaw };
+      if (mapFollow) { camX = m.x; camY = m.y; }
+      if (mapView) drawMap();
+    } else if (m.type === 'map') {
+      ingestMap(m);
+      if (mapView) drawMap();
+    }
   };
   ws.onclose = () => {
     wsOk = false;
@@ -903,6 +983,293 @@ window.addEventListener('blur', () => {
   kbApplyYaw();
   sendDrive();
 });
+// ═══════════════════════════════════════════════════════════════════
+//  MAP VIEW  (§17.32 — replaces Foxglove for seeing the map + pose)
+// ═══════════════════════════════════════════════════════════════════
+
+const mapCanvas = document.getElementById('mapCanvas');
+const mctx      = mapCanvas.getContext('2d');
+let   cssW = 0, cssH = 0;
+
+function sizeCanvas() {
+  const r = mapCanvas.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  const dpr = window.devicePixelRatio || 1;
+  cssW = r.width; cssH = r.height;
+  mapCanvas.width  = Math.round(cssW * dpr);
+  mapCanvas.height = Math.round(cssH * dpr);
+  mctx.setTransform(dpr, 0, 0, dpr, 0, 0);   // draw in CSS pixels
+}
+window.addEventListener('resize', () => { sizeCanvas(); if (mapView) drawMap(); });
+
+function w2s(wx, wy) {
+  return { x: cssW / 2 + (wx - camX) * camScale,
+           y: cssH / 2 - (wy - camY) * camScale };   // canvas y grows DOWN
+}
+function s2w(sx, sy) {
+  return { x: camX + (sx - cssW / 2) / camScale,
+           y: camY - (sy - cssH / 2) / camScale };
+}
+
+// ── Decode one OccupancyGrid into an offscreen bitmap ──────────────
+function ingestMap(m) {
+  const bin = atob(m.data);
+  const n   = bin.length;
+  mapGrid = { w: m.w, h: m.h, res: m.res, ox: m.ox, oy: m.oy };
+
+  const img = new ImageData(m.w, m.h);
+  const px  = img.data;
+  for (let gy = 0; gy < m.h; gy++) {
+    // OccupancyGrid row 0 is the LOWEST y; ImageData row 0 is the TOP.
+    const irow = m.h - 1 - gy;
+    for (let gx = 0; gx < m.w; gx++) {
+      const v = bin.charCodeAt(gy * m.w + gx);   // int8 shipped raw: -1 -> 255
+      const o = (irow * m.w + gx) * 4;
+      let r, g, b;
+      if (v === 255)     { r =  16; g =  22; b =  36; }   // unknown
+      else if (v >= 65)  { r = 226; g = 232; b = 240; }   // occupied
+      else if (v <= 25)  { r =  12; g =  40; b =  64; }   // free
+      else               { r =  70; g =  92; b = 122; }   // uncertain
+      px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255;
+    }
+  }
+  const off = document.createElement('canvas');
+  off.width = m.w; off.height = m.h;
+  off.getContext('2d').putImageData(img, 0, 0);
+  mapBitmap = off;
+}
+
+// ── Draw ───────────────────────────────────────────────────────────
+function drawMap() {
+  if (!cssW || !cssH) { sizeCanvas(); if (!cssW) return; }
+  mctx.fillStyle = '#060a12';
+  mctx.fillRect(0, 0, cssW, cssH);
+
+  if (mapBitmap && mapGrid) {
+    // info.origin is the pose of cell (0,0). It is generally NOT (0,0) —
+    // slam_toolbox grows the grid in every direction — so the image is
+    // anchored through it, never assumed to start at the world origin.
+    const tl = w2s(mapGrid.ox, mapGrid.oy + mapGrid.h * mapGrid.res);
+    mctx.imageSmoothingEnabled = false;
+    mctx.drawImage(mapBitmap, tl.x, tl.y,
+                   mapGrid.w * mapGrid.res * camScale,
+                   mapGrid.h * mapGrid.res * camScale);
+  }
+
+  drawGrid();
+
+  if (goalDrag) drawGoal(goalDrag);
+  if (robotPose) drawRobot(robotPose);
+
+  updateHud();
+}
+
+function drawGrid() {
+  // 1 m reference grid, so distances are readable without a ruler.
+  if (camScale < 12) return;
+  const tl = s2w(0, 0), br = s2w(cssW, cssH);
+  mctx.strokeStyle = 'rgba(56,189,248,.10)';
+  mctx.lineWidth = 1;
+  mctx.beginPath();
+  for (let x = Math.floor(tl.x); x <= Math.ceil(br.x); x++) {
+    const s = w2s(x, 0); mctx.moveTo(s.x, 0); mctx.lineTo(s.x, cssH);
+  }
+  for (let y = Math.floor(br.y); y <= Math.ceil(tl.y); y++) {
+    const s = w2s(0, y); mctx.moveTo(0, s.y); mctx.lineTo(cssW, s.y);
+  }
+  mctx.stroke();
+
+  // The commissioned zero mark: map (0,0) is the physical floor mark.
+  const o = w2s(0, 0);
+  mctx.strokeStyle = '#f59e0b'; mctx.lineWidth = 1.5;
+  mctx.beginPath();
+  mctx.moveTo(o.x - 7, o.y); mctx.lineTo(o.x + 7, o.y);
+  mctx.moveTo(o.x, o.y - 7); mctx.lineTo(o.x, o.y + 7);
+  mctx.stroke();
+}
+
+function drawRobot(p) {
+  const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+  const corners = [[ FOOT_HALF_X,  FOOT_HALF_Y], [ FOOT_HALF_X, -FOOT_HALF_Y],
+                   [-FOOT_HALF_X, -FOOT_HALF_Y], [-FOOT_HALF_X,  FOOT_HALF_Y]];
+  mctx.beginPath();
+  corners.forEach(([bx, by], i) => {
+    // base_link -> map: standard rotation. bx is RIGHT, by is NOSE.
+    const pt = w2s(p.x + bx * c - by * s, p.y + bx * s + by * c);
+    i ? mctx.lineTo(pt.x, pt.y) : mctx.moveTo(pt.x, pt.y);
+  });
+  mctx.closePath();
+  mctx.fillStyle   = 'rgba(56,189,248,.28)';
+  mctx.strokeStyle = '#38bdf8';
+  mctx.lineWidth   = 2;
+  mctx.fill(); mctx.stroke();
+
+  // Nose indicator: base_link +Y rotated into the map frame.
+  const ctr  = w2s(p.x, p.y);
+  const nose = w2s(p.x - s * (FOOT_HALF_Y + 0.22),
+                   p.y + c * (FOOT_HALF_Y + 0.22));
+  mctx.beginPath();
+  mctx.moveTo(ctr.x, ctr.y); mctx.lineTo(nose.x, nose.y);
+  mctx.strokeStyle = '#f8fafc'; mctx.lineWidth = 2.5; mctx.stroke();
+  mctx.beginPath(); mctx.arc(nose.x, nose.y, 3.5, 0, 6.2832);
+  mctx.fillStyle = '#f8fafc'; mctx.fill();
+}
+
+function drawGoal(g) {
+  const a = w2s(g.wx, g.wy);
+  mctx.beginPath(); mctx.arc(a.x, a.y, 8, 0, 6.2832);
+  mctx.strokeStyle = '#f59e0b'; mctx.lineWidth = 2.5; mctx.stroke();
+  const b = w2s(g.wx + Math.cos(g.yaw) * 0.6, g.wy + Math.sin(g.yaw) * 0.6);
+  mctx.beginPath(); mctx.moveTo(a.x, a.y); mctx.lineTo(b.x, b.y); mctx.stroke();
+}
+
+function updateHud() {
+  const hud = document.getElementById('mapHud');
+  if (!mapGrid && !robotPose) { hud.innerHTML = 'WAITING FOR /map'; return; }
+  let t = '';
+  if (robotPose) {
+    // Map frame, stated explicitly — this is not the body-relative
+    // convention used when talking about offsets by hand.
+    t += 'MAP x ' + robotPose.x.toFixed(3) + '  y ' + robotPose.y.toFixed(3) +
+         '<br>NOSE ' + (robotPose.yaw * 180 / Math.PI).toFixed(1) + '&deg;';
+  } else {
+    t += '<span class="dim">NO POSE (map&rarr;base_link)</span>';
+  }
+  if (mapGrid) {
+    t += '<br><span class="dim">' + mapGrid.w + '&times;' + mapGrid.h +
+         ' @ ' + mapGrid.res.toFixed(2) + 'm</span>';
+  }
+  hud.innerHTML = t;
+}
+
+// ── View toggle ────────────────────────────────────────────────────
+function setMapView(on) {
+  mapView = on;
+  document.getElementById('mapView').classList.toggle('show', on);
+  document.getElementById('viewBtn').classList.toggle('on', on);
+  document.getElementById('viewBtn').textContent = on ? 'DRIVE' : 'VIEW';
+  if (on) {
+    if (mapFollow && robotPose) { camX = robotPose.x; camY = robotPose.y; }
+    sizeCanvas(); drawMap();
+  } else {
+    goalDisarm();
+  }
+}
+document.getElementById('viewBtn').addEventListener('click',
+  () => setMapView(!mapView));
+
+// ── Zoom / centre ──────────────────────────────────────────────────
+function zoom(f) {
+  camScale = Math.max(6, Math.min(400, camScale * f));
+  drawMap();
+}
+document.getElementById('btnZoomIn').addEventListener('click',  () => zoom(1.35));
+document.getElementById('btnZoomOut').addEventListener('click', () => zoom(1 / 1.35));
+document.getElementById('btnFollow').addEventListener('click', () => {
+  mapFollow = true;
+  if (robotPose) { camX = robotPose.x; camY = robotPose.y; }
+  drawMap();
+});
+
+// ── Click-to-goal ──────────────────────────────────────────────────
+// Two-tap arm, exactly like CALIBRATE: one stray tap must never start a
+// 45 kg robot. Gesture then matches Foxglove's 2D Pose tool, which the
+// operator already knows: tap to place, drag to aim the NOSE, release.
+function goalHint(txt, armed) {
+  const h = document.getElementById('mapHint');
+  h.textContent = txt;
+  h.classList.toggle('armed', !!armed);
+}
+function goalDisarm() {
+  goalArmed = false; goalDrag = null;
+  document.getElementById('btnGoal').classList.remove('armed');
+  goalHint('DRAG TO PAN · PINCH TO ZOOM', false);
+  if (mapView) drawMap();
+}
+document.getElementById('btnGoal').addEventListener('click', () => {
+  if (estopped) { goalHint('E-STOP ACTIVE — CLEAR FIRST', true); return; }
+  goalArmed = !goalArmed;
+  document.getElementById('btnGoal').classList.toggle('armed', goalArmed);
+  goalHint(goalArmed ? 'TAP MAP TO PLACE · DRAG TO AIM NOSE'
+                     : 'DRAG TO PAN · PINCH TO ZOOM', goalArmed);
+});
+
+// ── Pointer handling: pan, pinch, or place-a-goal ──────────────────
+mapCanvas.addEventListener('pointerdown', (e) => {
+  mapCanvas.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (goalArmed && ptrs.size === 1) {
+    const r = mapCanvas.getBoundingClientRect();
+    const w = s2w(e.clientX - r.left, e.clientY - r.top);
+    goalDrag = { wx: w.x, wy: w.y, yaw: robotPose ? robotPose.yaw : 0 };
+    drawMap();
+  } else if (ptrs.size === 2) {
+    const p = [...ptrs.values()];
+    pinchBase = { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), s: camScale };
+  }
+});
+
+mapCanvas.addEventListener('pointermove', (e) => {
+  if (!ptrs.has(e.pointerId)) return;
+  const prev = ptrs.get(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (goalDrag && ptrs.size === 1) {
+    const r = mapCanvas.getBoundingClientRect();
+    const w = s2w(e.clientX - r.left, e.clientY - r.top);
+    const dx = w.x - goalDrag.wx, dy = w.y - goalDrag.wy;
+    if (Math.hypot(dx, dy) > 0.05) goalDrag.yaw = Math.atan2(dy, dx);
+    drawMap();
+    return;
+  }
+
+  if (ptrs.size === 2 && pinchBase) {
+    const p = [...ptrs.values()];
+    const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+    if (pinchBase.d > 0) {
+      camScale = Math.max(6, Math.min(400, pinchBase.s * (d / pinchBase.d)));
+      drawMap();
+    }
+    return;
+  }
+
+  if (ptrs.size === 1) {                     // pan
+    mapFollow = false;
+    camX -= (e.clientX - prev.x) / camScale;
+    camY += (e.clientY - prev.y) / camScale;
+    drawMap();
+  }
+});
+
+function endPtr(e) {
+  if (goalDrag && ptrs.size === 1) {
+    if (estopped) {
+      goalHint('E-STOP ACTIVE — GOAL NOT SENT', true);
+    } else {
+      // yaw here is where the NOSE should end up; goal_pose_adapter
+      // applies the -90 deg base_link conversion on the robot side.
+      send({ type: 'goal', x: goalDrag.wx, y: goalDrag.wy, yaw: goalDrag.yaw });
+      goalHint('GOAL SENT → ' + goalDrag.wx.toFixed(2) + ', ' +
+               goalDrag.wy.toFixed(2), false);
+    }
+    goalDrag = null;
+    goalArmed = false;
+    document.getElementById('btnGoal').classList.remove('armed');
+    drawMap();
+  }
+  ptrs.delete(e.pointerId);
+  if (ptrs.size < 2) pinchBase = null;
+}
+mapCanvas.addEventListener('pointerup', endPtr);
+mapCanvas.addEventListener('pointercancel', endPtr);
+
+// Desktop convenience; harmless on touch.
+mapCanvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  zoom(e.deltaY < 0 ? 1.12 : 1 / 1.12);
+}, { passive: false });
+
 </script>
 </body>
 </html>
@@ -943,6 +1310,13 @@ class PhoneDashboard(Node):
         self.arm_pub       = self.create_publisher(String,            '/arm/command',   10)
         self.esp32_cmd_pub = self.create_publisher(String,            '/esp32/command', 10)
 
+        # /goal_pose_click, NOT /goal_pose. goal_pose_adapter already owns the
+        # -90 deg nose-vs-base_link conversion (§17.20); publishing straight to
+        # /goal_pose would duplicate that rule in a second place, which is
+        # exactly how the §17.19 axis bug happened. Yaw sent here means "point
+        # the NOSE this way", in the map frame.
+        self.goal_pub      = self.create_publisher(PoseStamped, '/goal_pose_click', 10)
+
         # ── Subscribers ───────────────────────────────────────────
         self.create_subscription(
             Float64MultiArray, '/motor_telemetry',
@@ -975,6 +1349,31 @@ class PhoneDashboard(Node):
         # for as long as the robot takes to drive home.
         self.create_timer(1.0, self._calib_watchdog)
 
+        # ── Map + live pose streaming (§17.32, Dashboard_Map_System §E) ────
+        # /map is LATCHED. A default (volatile) subscription silently receives
+        # nothing at all, because slam_toolbox published its last grid before
+        # this node ever subscribed. transient_local + reliable is not
+        # optional here.
+        map_qos = QoSProfile(
+            depth       = 1,
+            history     = QoSHistoryPolicy.KEEP_LAST,
+            reliability = QoSReliabilityPolicy.RELIABLE,
+            durability  = QoSDurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        self.create_subscription(OccupancyGrid, '/map', self._map_callback, map_qos)
+
+        # Written by ROS callbacks, read by the FastAPI broadcast task. Whole
+        # objects are replaced rather than mutated, so a reader either sees the
+        # old dict or the new one and never a half-updated one — no lock
+        # needed, and no cross-thread asyncio scheduling from a ROS callback.
+        self.latest_map:  Optional[dict] = None
+        self.latest_pose: Optional[dict] = None
+        self.map_dirty = False
+
+        self.tf_buffer   = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.create_timer(0.1, self._pose_timer)      # 10 Hz
+
         self.ws_clients: Set[WebSocket] = set()
 
         self.get_logger().info(f'Phone Dashboard v2.4 — port {self.port}')
@@ -988,6 +1387,73 @@ class PhoneDashboard(Node):
         msg.linear.y  = float(vy)
         msg.angular.z = float(wz)
         self.cmd_vel_pub.publish(msg)
+
+    # ── Map / pose streaming ──────────────────────────────────────
+
+    def _map_callback(self, msg: OccupancyGrid):
+        """Cache /map as a base64 blob the browser can render directly.
+
+        OccupancyGrid.data is int8: -1 unknown, 0 free, 100 occupied. It is
+        shipped as raw bytes, so -1 arrives in the browser as 255 — the client
+        maps it back. Sending the grid rather than a server-rendered PNG keeps
+        the Pi's CPU out of it (§17.25 killed slam_toolbox by starvation) and
+        lets the client redraw on pan/zoom without a round trip.
+        """
+        data = msg.data
+        try:
+            raw = data.tobytes()          # array.array('b') — two's complement
+        except AttributeError:
+            raw = bytes((v & 0xFF) for v in data)
+
+        self.latest_map = {
+            'w':    msg.info.width,
+            'h':    msg.info.height,
+            'res':  msg.info.resolution,
+            # Pose of cell (0,0) in the map frame. Generally NOT (0,0) —
+            # slam_toolbox grows the grid in all directions, so every
+            # world<->pixel conversion has to go through this.
+            'ox':   msg.info.origin.position.x,
+            'oy':   msg.info.origin.position.y,
+            'data': base64.b64encode(raw).decode('ascii'),
+        }
+        self.map_dirty = True
+
+    def _pose_timer(self):
+        """Sample map -> base_link at 10 Hz.
+
+        The transform legitimately does not exist before SLAM or AMCL is up,
+        so a failed lookup is skipped silently rather than logged — the
+        dashboard must not spam or crash while the map stack is down.
+        """
+        try:
+            tf = self.tf_buffer.lookup_transform('map', 'base_link',
+                                                 rclpy.time.Time())
+        except (TransformException, Exception):
+            return
+
+        q = tf.transform.rotation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                         1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        self.latest_pose = {
+            'x':   tf.transform.translation.x,
+            'y':   tf.transform.translation.y,
+            'yaw': yaw,
+        }
+
+    # ── Goal ──────────────────────────────────────────────────────
+
+    def publish_goal(self, x: float, y: float, yaw: float):
+        """Send one navigation goal. `yaw` is where the NOSE should end up."""
+        msg = PoseStamped()
+        msg.header.frame_id = 'map'
+        msg.header.stamp    = self.get_clock().now().to_msg()
+        msg.pose.position.x = float(x)
+        msg.pose.position.y = float(y)
+        msg.pose.orientation.z = math.sin(float(yaw) / 2.0)
+        msg.pose.orientation.w = math.cos(float(yaw) / 2.0)
+        self.goal_pub.publish(msg)
+        self.get_logger().info(
+            f'Goal sent (map frame): x={x:.3f} y={y:.3f} nose={math.degrees(yaw):.1f} deg')
 
     # ── Arm ───────────────────────────────────────────────────────
 
@@ -1364,11 +1830,66 @@ async def calib_status():
     }
 
 
+# ═══════════════════════════════════════════════════════════════════
+#  SERVER -> CLIENT BROADCAST
+#
+#  Until §17.32 this socket was client -> server only. The ROS node spins on
+#  its own thread while uvicorn owns the asyncio loop, so pushing directly
+#  from a ROS callback would mean cross-thread asyncio — a known source of
+#  subtle breakage. Instead ROS callbacks write plain node attributes and
+#  this single task reads them on a timer: one writer, one reader, no locks,
+#  no cross-thread scheduling.
+# ═══════════════════════════════════════════════════════════════════
+
+@app.on_event('startup')
+async def _start_broadcast():
+    asyncio.create_task(_broadcast_loop())
+
+
+async def _broadcast_loop():
+    tick = 0
+    while True:
+        await asyncio.sleep(0.1)
+        if _node is None or not _node.ws_clients:
+            continue
+
+        payloads = []
+        # Pose is small and wants to look smooth: every tick, 10 Hz.
+        if _node.latest_pose:
+            payloads.append({'type': 'pose', **_node.latest_pose})
+
+        # The map is large and changes slowly (map_update_interval: 1.0), so
+        # it goes at 1 Hz AND only when it actually changed.
+        tick += 1
+        if tick % 10 == 0 and _node.map_dirty and _node.latest_map:
+            payloads.append({'type': 'map', **_node.latest_map})
+            _node.map_dirty = False
+
+        for p in payloads:
+            dead = []
+            for client in list(_node.ws_clients):
+                try:
+                    await client.send_json(p)
+                except Exception:
+                    dead.append(client)
+            for client in dead:
+                _node.ws_clients.discard(client)
+
+
 @app.websocket('/ws')
 async def ws_endpoint(websocket: WebSocket):
     await websocket.accept()
     if _node:
         _node.ws_clients.add(websocket)
+        # Send the current map straight to THIS client. The broadcast loop
+        # only fires on map_dirty, so a browser that connects (or reloads)
+        # after the last grid arrived would otherwise sit blank until
+        # slam_toolbox happened to publish again.
+        if _node.latest_map:
+            try:
+                await websocket.send_json({'type': 'map', **_node.latest_map})
+            except Exception:
+                pass
         # FIX: Auto-enable arm on every new browser connection from the server side.
         # This is the server-side counterpart to the client-side send on ws.onopen.
         # Ensures arm is enabled even if the client-side message is lost during connect.
@@ -1426,6 +1947,10 @@ def _dispatch(msg: dict):
         if _node.calib_active:
             _node.stop_calibration(graceful=False)
         _node.stop_mapping()
+
+    elif t == 'goal':
+        # Client already applied the two-tap arm; this is a committed goal.
+        _node.publish_goal(msg.get('x', 0.0), msg.get('y', 0.0), msg.get('yaw', 0.0))
 
     elif t == 'calib_start':
         reason = _node.start_calibration()

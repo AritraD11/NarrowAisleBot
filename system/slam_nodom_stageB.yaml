@@ -1,0 +1,156 @@
+# ══════════════════════════════════════════════════════════════════════
+# STAGE B VARIANT — anti-aliasing tuning. DO NOT DEPLOY UNTIL STAGE A SAYS SO.
+#
+# This is system/slam_nodom.yaml with exactly THREE values changed. It exists
+# as a separate file so the §17.27 hardware-validated baseline stays intact
+# and the comparison stays attributable — §17.25 changed six parameters at
+# once and that is part of why its side effect took three sessions to find.
+#
+# Apply ONLY if Stage A returns row 1 of the decision tree in
+# docs/Dashboard_Map_System.md §1: map->odom stepping 10-30 cm while
+# odom->base_link stays smooth. If BOTH step together the problem is
+# upstream (odometry/encoders) and this file is the wrong fix.
+#
+#   1. loop_search_maximum_distance   5.0 -> 2.0
+#   2. loop_match_minimum_chain_size    5 -> 8
+#   3. max_laser_range               12.0 -> 10.0
+#
+# Deliberately NOT changed: loop_match_minimum_response_coarse/_fine stay at
+# 0.25/0.35. They are the parameters that fixed §17.25's total closure
+# failure, and raising them risks going straight back to 50 cm of
+# uncorrected drift. If the map STILL folds after this file, raise them to
+# 0.30/0.40 next — one step, not both at once.
+# ══════════════════════════════════════════════════════════════════════
+# Verified working slam_toolbox config for the current (no external
+# odometry, scan-matching only) LiDAR mapping bringup — pulled directly
+# from the Pi on 8 July 2026. Confirmed exact match with the copy at
+# ~/ros2_ws/slam_nodom.yaml.
+#
+# Lives directly in the ROS2 workspace ROOT on the Pi (NOT inside any
+# package's config/ folder), and is launched with an absolute path:
+#   ros2 launch slam_toolbox online_async_launch.py \
+#     slam_params_file:=/home/aritra/ros2_ws/slam_nodom.yaml
+# (a `~` there silently fails — see docs/LiDAR_SLAM_Bringup.md)
+#
+# This is a different, simpler file from
+# src/mecanum_navigation/config/slam_params.yaml, which targets the
+# future Phase 4 EKF-fused-odometry setup and is not what's actually
+# running today.
+slam_toolbox:
+  ros__parameters:
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan_reliable
+    mode: mapping
+
+    use_scan_matching: true
+    use_scan_barycenter: true
+    minimum_travel_distance: 0.2
+    minimum_travel_heading: 0.2
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+    minimum_time_interval: 0.5
+    transform_timeout: 0.2
+    tf_buffer_duration: 30.0
+    resolution: 0.05
+    # STAGE B: 12.0 -> 10.0. A correctness fix independent of the loop
+    # closure work, already an open item in Appendix B (§17.6): 12.0 was
+    # inherited from the originally-planned RPLiDAR A1 and exceeds the
+    # YDLIDAR X4 Pro's actual 10 m maximum. Telling the matcher to use
+    # returns beyond the sensor's rated range feeds it noise as if it were
+    # geometry.
+    max_laser_range: 10.0
+    transform_publish_period: 0.02
+    map_update_interval: 1.0
+    # Interactive mode lets you drag pose-graph nodes by hand in rviz. We
+    # never do that, and it keeps extra state alive for the whole session
+    # on a Pi that ran out of CPU and killed slam_toolbox outright on
+    # 19 Aug 2026 (sec 17.25). Off.
+    enable_interactive_mode: false
+
+    # ── LOOP CLOSURE (sec 17.25) ─────────────────────────────────────────
+    # THE ACCEPTANCE TEST THIS BLOCK EXISTS TO PASS: park on the physical
+    # zero mark, drive anywhere, drive back to the same physical mark, and
+    # read map->base_link ~ (0,0). On 19 Aug 2026 that read (0.5033,
+    # -0.0445) -- half a metre of accumulated drift that was never
+    # corrected. Loop closure is the mechanism that is supposed to snap
+    # that back, and none of its parameters had ever been set here: the
+    # file ran entirely on slam_toolbox's stock defaults, which assume a
+    # feature-rich environment and a full 360 deg scan. This robot has
+    # neither.
+    #
+    # Two conditions make matching unusually hard here, both measured
+    # rather than assumed:
+    #   1. 107 of 430 beams are masked NaN -- the 90 deg rear blind sector
+    #      behind the mast (sec 17.15). A quarter of every scan is absent,
+    #      permanently, in a fixed body-relative direction.
+    #   2. The space is a junction with several radiating aisles that look
+    #      alike (sec 17.13's "flower" map shape), so scan matching has
+    #      genuinely ambiguous constraints, not just noisy ones.
+    #
+    # do_loop_closing defaults to true and was already active -- stated
+    # explicitly here so nobody has to go and check the default again.
+    do_loop_closing: true
+
+    # STAGE B: 5 -> 8. This buys DISCRIMINATION, which is different from
+    # strictness. The response thresholds ask "does this one scan look like
+    # that one place?" -- a question a self-similar corridor answers wrongly
+    # all the time. Chain size asks "do N CONSECUTIVE nodes match N
+    # consecutive nodes over there?" A single false match is easy; one
+    # sustained over a chain of 8 is much harder, because the geometry has
+    # to alias continuously rather than momentarily. At
+    # minimum_travel_distance 0.2 m a chain of 8 needs ~1.6 m of driving --
+    # still reachable in this workspace, unlike stock 10's ~2 m.
+    loop_match_minimum_chain_size: 8
+
+    # STAGE B: 5.0 -> 2.0. The §17.25 reasoning (radius must exceed the
+    # drift it corrects) was right as far as it went, but ignored the other
+    # side of the trade. The explored workspace is only a few metres across
+    # (§17.31's recording spans ~1.0 x 1.15 m), so a 5 m radius makes
+    # essentially EVERY node in the map a loop-closure candidate for every
+    # new scan -- precisely the condition under which look-alike aisles
+    # produce false matches. 2.0 m is still 4x the measured 0.5 m drift
+    # while excluding the far side of the junction.
+    loop_search_maximum_distance: 2.0
+
+    # Match-quality gates, both RELAXED from stock (coarse 0.35, fine
+    # 0.45). With a quarter of the scan permanently missing, a genuine
+    # revisit legitimately scores lower than it would on a full scan, so
+    # stock thresholds reject real loop closures as if they were bad
+    # matches. Relaxing these trades a higher risk of a WRONG closure for
+    # any closure at all -- the right trade when the current measured
+    # state is zero closures and half a metre of drift.
+    # >> If the map ever visibly folds or tears, these two are the first
+    #    thing to raise back, before anything else in this file. <<
+    loop_match_minimum_response_coarse: 0.25
+    loop_match_minimum_response_fine: 0.35
+
+    # ── SCAN MATCHER ─────────────────────────────────────────────────────
+    # Search window for matching each new scan against the running map.
+    # Widened from stock 0.5 m because the odometry prior feeding this is
+    # itself imperfect -- mecanum lateral slip is corrected but not
+    # eliminated (lateral_scale, sec 17.21), and residual cross-coupling
+    # of ~0.6 cm per 0.25 m nudge was measured and deliberately left
+    # unmodelled. The matcher needs room to find the true pose beyond
+    # where the prior says it should be.
+    correlation_search_space_dimension: 0.7
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    # How much the matcher is allowed to disagree with the odometry prior.
+    # Both RAISED from stock (0.5 / 1.0) = trusting odometry LESS. This is
+    # the deliberate consequence of sec 17.21's finding: wheel odometry on
+    # a mecanum base over-reported strafe by 25% before correction, and
+    # the correction is a single empirical scale factor for one floor, not
+    # a model. Where scan geometry and wheel odometry disagree here, the
+    # scan is more likely to be right.
+    distance_variance_penalty: 0.7
+    angle_variance_penalty: 1.2

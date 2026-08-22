@@ -12,6 +12,45 @@ one assumes it.
 
 ---
 
+> ## ⚠ Status as of 22 Aug 2026 (§17.32) — read before using §1–§3
+>
+> This plan was executed the day after it was written. Three corrections,
+> in descending order of how badly they would mislead you:
+>
+> 1. **§2's stated *reason* for the parameter changes is falsified.**
+>    `system/slam_nodom.yaml`'s §17.25 tuning **never reached the robot** —
+>    `install.sh:228` is the only thing that copies it to
+>    `~/ros2_ws/slam_nodom.yaml`, and the Pi's copy dated from 26 June. So
+>    every drive from 19–21 Aug ran on `slam_toolbox` **stock defaults**, and
+>    §2's premise — "§17.25 over-relaxed the closure gate" — was reasoning
+>    about parameters that were never active. **The three changes below were
+>    still made and still measurably helped; the argument given for making
+>    them is not why.** Don't repeat the causal claim. See §17.32.
+>
+> 2. **§3's trajectory acceptance criterion is wrong and must not be used.**
+>    "No single-sample step > 10 cm" was written to catch bad loop closures,
+>    but it cannot distinguish a bad closure from a good one — a legitimate
+>    correction of accumulated drift trips it just as hard. Judge on **map
+>    integrity** and **return-to-mark accuracy** instead. Step size is
+>    diagnostic, not pass/fail. Corrected inline in §3 below.
+>
+> 3. **§1 (Stage A) is done. Don't re-run it.** `bag_tf_diff.py`'s first-ever
+>    run: `map→odom` made 3 distinct changes (flat, then 39.57 cm / −13.80°,
+>    then 39.00 cm / +13.80° twelve seconds later) while `odom→base_link`
+>    stayed smooth at ~2.3 mm/tick **through both jump instants**. That is
+>    row 1 of the pre-committed decision tree: **SLAM pose-graph correction,
+>    not odometry.** Settled.
+>
+> **The lesson worth carrying forward:** a value in the repo is not a value on
+> the robot. Verify deployed config with `ros2 param get` against the *live
+> node*, never by reading a file. That is what caught this, and it is the
+> single most useful thing in this banner.
+>
+> Current session state and today's plan live in `Next_Session_Kickoff.md`,
+> which was rewritten 22 Aug and takes precedence over §6's sequencing here.
+
+---
+
 ## 0. The reframe this plan is built on
 
 Read §17.31 before anything else here. The short version:
@@ -107,9 +146,19 @@ magnitude, 0.1 s doublets) are pose-graph signatures, not odometry ones.
 
 ## 2. Stage B — tune for one clean map
 
-Only if Stage A returns row 1. **Change these three and nothing else**, so the
-result stays attributable — the §17.25 tuning changed six parameters at once
-and that is part of why its side effect took three sessions to characterise.
+**Done and deployed 22 Aug — this section is kept for its reasoning, not as an
+instruction.** All three changes below are live on the Pi and verified with
+`ros2 param get` against the running node.
+
+**Read the banner at the top of this file first.** The framing below — that
+these values were being walked back from §17.25's over-relaxation — is
+**false**: §17.25's file never reached the robot, so the robot was on stock
+defaults the whole time. The *changes* were right and measurably helped; the
+*story* about what they were correcting was not. Where an argument below rests
+on "§17.25 set X", treat the geometric reasoning as sound and the historical
+premise as void.
+
+Change three and nothing else, so the result stays attributable.
 
 All three live in `system/slam_nodom.yaml` on the Pi at `~/ros2_ws/slam_nodom.yaml`.
 
@@ -208,9 +257,22 @@ aliasing many chances to fire; a deliberate single-circuit path gives it few.
 
 | Check | Pass condition |
 |---|---|
-| Return-to-mark | `tf2_echo map base_link` ≈ `(0, 0) @ -90°` — same test §17.27 passed at 2 cm |
-| Trajectory | `trajectory_viz.py`'s Ctrl-C summary shows **no** single-sample steps > 10 cm |
+| Return-to-mark | `tf2_echo map base_link` ≈ `(0, 0) @ -90°` |
 | Map integrity | No folds, tears, or doubled walls |
+| Walls present | The map contains actual occupied cells, not just swept free space |
+
+**Corrected 22 Aug (§17.32).** This table originally carried a third gate —
+*"no single-sample step > 10 cm"* — and it has been removed rather than
+softened. It was written to catch false loop closures, but it **cannot tell a
+false closure from a correct one**: a legitimate correction of accumulated
+drift produces exactly the same signature. On 22 Aug a drive that tripped it
+five times also came out visibly clean and landed 5 cm from truth — a wrong
+closure gives you neither. **Step size is diagnostic, not pass/fail.**
+
+"Walls present" replaced it because it caught a real failure the step gate
+never would have: 22 Aug's open-floor test drives produced maps of swept free
+space with almost no wall geometry in them, which is useless for AMCL to
+localise against no matter how smooth the trajectory looked.
 
 For the third: save the map, then drag the `.pgm` + `.yaml` pair into
 `docs/tools/telemetry_analyzer.html` — that tool already renders occupancy

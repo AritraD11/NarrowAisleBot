@@ -26,7 +26,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 sz() { du -sh "$1" 2>/dev/null | cut -f1; }
 
 printf '### AisleBot Pi audit  %s\n' "$(date -Is 2>/dev/null)"
-printf '### script rev 1  branch %s  online=%s\n' "$BRANCH" "$ONLINE"
+printf '### script rev 2  branch %s  online=%s\n' "$BRANCH" "$ONLINE"
 
 sec "1 IDENTITY"
 echo "host    : $(hostname)  (mDNS: $(hostname).local)"
@@ -42,13 +42,19 @@ sec "2 CLOCK"
 have timedatectl && timedatectl 2>/dev/null | sed -n '1,8p'
 
 sec "3 THERMAL / POWER"
-if have vcgencmd; then
-  echo "temp      : $(vcgencmd measure_temp 2>/dev/null)"
+# sysfs first: it always works. vcgencmd needs /dev/vcio, which Ubuntu on the
+# Pi 5 does not always create - and when it is missing vcgencmd still exists,
+# it just fails, so "have vcgencmd" is not a usable test.
+t=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)
+[ -n "$t" ] && echo "temp      : $((t/1000)) C  (sysfs)" || echo "temp      : unreadable"
+for f in /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq; do
+  [ -r "$f" ] && echo "cpu freq  : $(( $(cat "$f") / 1000 )) MHz"
+done
+if have vcgencmd && [ -e /dev/vcio ]; then
   echo "throttled : $(vcgencmd get_throttled 2>/dev/null)   (0x0 = clean)"
 else
-  t=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)
-  [ -n "$t" ] && echo "temp      : $((t/1000)) C"
-  echo "throttled : vcgencmd unavailable"
+  echo "throttled : UNAVAILABLE - no /dev/vcio, so undervolt/thermal-cap"
+  echo "            flags cannot be read on this install. See section 3 notes."
 fi
 
 sec "4 MEMORY"
@@ -112,7 +118,9 @@ find "$WS/src" -type f \( -name '*.py' -o -name '*.yaml' -o -name '*.xml' -o -na
 done
 
 sec "11 PI-SIDE CONFIG (the files launch loads by absolute path)"
-for f in "$WS/slam_nodom.yaml" "$WS/src/ydlidar_ros2_driver/params/ydlidar_params.yaml" "$HOME/start_aislebot.sh"; do
+# NB: install.sh copies system/ydlidar_params.yaml to params/ydlidar.yaml -
+# it renames on the way in. mapping_full.launch.py loads params/ydlidar.yaml.
+for f in "$WS/slam_nodom.yaml" "$WS/src/ydlidar_ros2_driver/params/ydlidar.yaml" "$HOME/start_aislebot.sh"; do
   if [ -f "$f" ]; then
     printf '%s\n  mtime %s   lines %s   sha256 %s\n' "$f" "$(date -r "$f" +%F' '%T)" "$(wc -l < "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"
   else
@@ -196,11 +204,12 @@ sec "16 DEPLOYED CODE vs GITHUB (branch $BRANCH)"
     "$WS/src/mecanum_navigation/config/nav2_params.yaml:src/mecanum_navigation/config/nav2_params.yaml" \
     "$WS/src/mecanum_navigation/config/ekf_params.yaml:src/mecanum_navigation/config/ekf_params.yaml" \
     "$WS/src/scan_relay/scan_relay.py:src/scan_relay/scan_relay.py" \
-    "$WS/slam_nodom.yaml:system/slam_nodom_stageB.yaml"
+    "$WS/slam_nodom.yaml:system/slam_nodom_stageB.yaml" \
+    "$WS/src/ydlidar_ros2_driver/params/ydlidar.yaml:system/ydlidar_params.yaml"
   for pair in "$@"; do
     pi="${pair%%:*}"; repo="${pair#*:}"
     out="$tmp/$(echo "$repo" | tr / _)"
-    if curl -fsSL -o "$out" "$RAW/$repo" 2>/dev/null; then
+    if curl -fsSL --retry 3 --retry-delay 1 --retry-all-errors -o "$out" "$RAW/$repo" 2>/dev/null; then
       if [ ! -f "$pi" ]; then
         printf 'MISSING-ON-PI  %s\n' "$repo"
       elif cmp -s "$pi" "$out"; then
@@ -214,11 +223,22 @@ sec "16 DEPLOYED CODE vs GITHUB (branch $BRANCH)"
     fi
   done
   echo "-- files on the Pi that the repo does not have (possible dead code) --"
-  find "$WS/src" -type f -name '*.py' -not -path '*/build/*' -not -path '*/install/*' \
-    -not -path '*ydlidar*' 2>/dev/null | sort | while read -r f; do
-    rel="src/${f#"$WS/src/"}"
-    curl -fsI "$RAW/$rel" >/dev/null 2>&1 || echo "  EXTRA: ${f#"$WS/src/"}"
-  done
+  # One tree listing, compared locally. HEAD requests against
+  # raw.githubusercontent lie under rate limiting - rev 1 of this script
+  # reported files as EXTRA that it had matched two lines earlier.
+  if curl -fsSL --retry 3 --retry-delay 1 --retry-all-errors -o "$tmp/tree.json" \
+       "https://api.github.com/repos/AritraD11/NarrowAisleBot/git/trees/${BRANCH}?recursive=1" 2>/dev/null \
+     && python3 -c "import json,sys; d=json.load(open('$tmp/tree.json')); sys.exit(0 if d.get('truncated') is False else 1)" 2>/dev/null; then
+    python3 -c "import json; d=json.load(open('$tmp/tree.json')); print('\n'.join(x['path'] for x in d['tree'] if x['type']=='blob'))" > "$tmp/repo_paths"
+    echo "  (repo tree: $(wc -l < "$tmp/repo_paths") files)"
+    find "$WS/src" -type f -name '*.py' -not -path '*/build/*' -not -path '*/install/*' \
+      -not -path '*ydlidar*' -not -path '*rf2o*' 2>/dev/null | sort | while read -r f; do
+      grep -qxF "src/${f#"$WS/src/"}" "$tmp/repo_paths" || echo "  EXTRA: ${f#"$WS/src/"}"
+    done
+    echo "  (ydlidar_ros2_driver and rf2o_laser_odometry excluded - third-party)"
+  else
+    echo "  SKIPPED: could not fetch a complete repo tree listing"
+  fi
   rm -rf "$tmp"
 fi
 

@@ -16,7 +16,33 @@ already hold to.
 
 ## Tier 1 — concrete, cross-referenced, buildable soon
 
-### 1. IMU-assisted scan matching → precisely scopes the unfinished Phase 2 work
+### 1. IMU-assisted scan matching → precisely scopes the unfinished Phase 2 work (decided against ordering, for now)
+
+**Decision made 22 Aug, closing this out for now:** the user considered
+ordering an MPU-6000/6050 breakout (cheap, no magnetometer) as a shortcut
+into this. Rejected — checked the PDF datasheet against this project's own
+`ekf_params.yaml` and found it wouldn't actually deliver what's needed. The
+whole point of this item is an *absolute, non-drifting* heading reference to
+narrow the scan-matcher's search window; the MPU-6050 has no magnetometer, so
+its yaw drifts exactly like odometry does, and `ekf_params.yaml`'s
+`imu0_config` fuses IMU yaw as ground truth (`roll, pitch, yaw: true, true,
+true`) — feeding it a drifting signal on that assumption would actively hurt,
+not help. The BNO055 (already assumed everywhere in the codebase — the
+firmware protocol, the launch file comment, the EKF config) remains correct
+if IMU work is ever prioritized. **For now: no IMU purchase, orientation
+continues from wheel odometry + SLAM alone, as it already does.** Don't
+re-open this question next session unless the user raises it.
+
+**One real config finding from that review, not yet applied (harmless to
+leave until IMU work actually happens):** `ekf_params.yaml`'s `imu0_config`
+fuses `roll, pitch` from the IMU (`true, true`) at the same time
+`two_d_mode: true` is independently forcing those same states toward zero via
+its own pseudo-measurements. Redundant, not wrong — `two_d_mode` will still
+dominate — but the cleaner config is `roll, pitch: false, false`, keeping
+`yaw: true`, and letting `two_d_mode` own roll/pitch entirely. Apply whenever
+this file is next touched for real hardware, not urgent on its own.
+
+Original reasoning, kept for whenever an IMU is actually purchased:
 
 MATLAB's docs state plainly: IMU data can constrain the rotation-angle search
 window in grid-based scan matching, which directly narrows the ambiguity

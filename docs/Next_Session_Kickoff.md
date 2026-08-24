@@ -3,7 +3,8 @@
 Self-contained prompt for the next Claude Code session. It assumes no memory of
 the previous conversation — everything needed is either here or in the repo
 (`docs/Dashboard_Map_System.md`, `docs/Research_Journal.md`,
-`docs/Production_Architecture.md`, `docs/Important_Commands.md`).
+`docs/Production_Architecture.md`, `docs/Important_Commands.md`,
+`docs/MATLAB_Navigation_Reference.md`).
 
 **Rewritten 22 Aug 2026 (§17.32).** The 21 Aug version of this file is
 superseded: Stage A has now been run, Stage B is deployed, and the whole
@@ -307,3 +308,17 @@ global pose estimate.
   untested candidate explanation for the original 1–3 cm side offset)
 - The recovery-count cold-start pattern (stiction vs. MPPI warm-up)
 - Moving the −90° into the URDF's `laser_joint` — large cross-cutting refactor
+- **IMU: decided against for now (22 Aug).** Considered an MPU-6000/6050 as a
+  cheap route in; rejected — no magnetometer means no absolute heading
+  reference, which is the entire point, and `ekf_params.yaml` fuses IMU yaw
+  as ground truth, so a drifting signal there would actively hurt. Orientation
+  continues from wheel odometry + SLAM alone, same as today. BNO055 remains
+  the right part if this is ever prioritized — full reasoning in
+  `docs/MATLAB_Navigation_Reference.md` §1. **Don't re-open this unless the
+  user raises it.**
+- `docs/MATLAB_Navigation_Reference.md` has one more small, harmless-to-defer
+  finding: `ekf_params.yaml`'s `imu0_config` fuses `roll, pitch` from the IMU
+  while `two_d_mode: true` already forces those same states toward zero
+  independently — redundant, not broken. Clean up to `roll, pitch: false,
+  false` (keep `yaw: true`) whenever this file is next touched for real
+  hardware.

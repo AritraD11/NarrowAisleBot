@@ -1698,9 +1698,73 @@ class PhoneDashboard(Node):
 
     # ── Map: stop ────────────────────────────────────────────────
 
+    def _write_map_from_cache(self, map_prefix: str) -> bool:
+        """Write .pgm + .yaml straight from the cached /map grid.
+
+        §17.34: map_saver_cli is a separate process that SUBSCRIBES to /map,
+        so it only works while slam_toolbox is still alive to publish. On a
+        `systemctl restart` systemd SIGTERMs the whole control group at once
+        — slam_toolbox is dying at the same instant map_saver_cli is trying
+        to read from it — and the save times out. A 30-second test drive was
+        lost that way even after the shutdown handler itself was fixed.
+
+        This has no such dependency. _map_callback already caches every grid
+        for the live view, so the bytes are sitting in memory and need no IPC,
+        no subprocess, and nothing else in the launch tree to still be
+        running. Output is byte-compatible with map_saver_cli's trinary mode.
+        """
+        m = self.latest_map
+        if not m:
+            self.get_logger().warn('no /map cached — nothing to write')
+            return False
+        try:
+            w, h, res = m['w'], m['h'], m['res']
+            raw = base64.b64decode(m['data'])
+            # int8 arrives unsigned here: 255 == -1 == unknown.
+            # map_saver_cli trinary: occupied -> 0, free -> 254, unknown -> 205.
+            lut = bytes(
+                0   if (v <= 100 and v >= 65) else
+                254 if (v <= 25)              else
+                205
+                for v in range(256)
+            )
+            cells = raw.translate(lut)
+            # OccupancyGrid row 0 is the LOWEST y; PGM row 0 is the TOP.
+            rows = [cells[y * w:(y + 1) * w] for y in range(h)]
+            body = b''.join(reversed(rows))
+            with open(f'{map_prefix}.pgm', 'wb') as fh:
+                fh.write(b'P5\n# CREATOR: phone_dashboard from cached /map\n')
+                fh.write(f'{w} {h}\n255\n'.encode())
+                fh.write(body)
+            with open(f'{map_prefix}.yaml', 'w') as fh:
+                fh.write(
+                    f'image: {os.path.basename(map_prefix)}.pgm\n'
+                    f'mode: trinary\n'
+                    f'resolution: {res:.3f}\n'
+                    f'origin: [{m["ox"]:.3f}, {m["oy"]:.3f}, 0]\n'
+                    f'negate: 0\n'
+                    f'occupied_thresh: 0.65\n'
+                    f'free_thresh: 0.196\n')
+            self.get_logger().info(
+                f'map written from cache → {map_prefix}.pgm ({w}x{h})')
+            return True
+        except Exception as e:
+            self.get_logger().error(f'writing map from cache failed: {e}')
+            return False
+
     def _save_map(self, map_prefix: str) -> bool:
-        """Save the live /map via map_saver_cli. Must run before the launch
-        tree is killed — slam_toolbox (and therefore /map) dies with it."""
+        """Save the live /map. Prefers map_saver_cli, which is the canonical
+        producer, and falls back to writing the cached grid directly when it
+        fails — which it reliably does during a signal-driven shutdown, since
+        its publisher is being killed alongside it."""
+        if self._save_map_via_cli(map_prefix):
+            return True
+        self.get_logger().warn('falling back to writing the map from cache')
+        return self._write_map_from_cache(map_prefix)
+
+    def _save_map_via_cli(self, map_prefix: str) -> bool:
+        """Save via map_saver_cli. Must run before the launch tree is killed —
+        slam_toolbox (and therefore /map) dies with it."""
         try:
             result = subprocess.run(
                 ['ros2', 'run', 'nav2_map_server', 'map_saver_cli', '-f', map_prefix],

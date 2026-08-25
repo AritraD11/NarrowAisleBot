@@ -2165,6 +2165,35 @@ def _dispatch(msg: dict):
 #  ENTRY POINT
 # ═══════════════════════════════════════════════════════════════════
 
+def _shutdown_cleanly(reason):
+    """Stop the scan and SAVE THE MAP. Safe to call more than once —
+    stop_mapping() and stop_calibration() both no-op when inactive.
+
+    §17.34: this used to live only after uvicorn.run() returned, and under
+    systemd it never ran. `systemctl restart` sends SIGTERM to the whole
+    control group; uvicorn catches it and begins a *graceful* shutdown,
+    which waits for open connections — and the dashboard's whole point is
+    that a phone is holding a WebSocket open. ros2 launch and systemd
+    SIGKILL the process before that wait finishes, so uvicorn.run() never
+    returned and every line after it was dead code. A 24-minute mapping run
+    was lost that way, with no map written and nothing in the log between
+    the previous run stopping and the next process starting.
+
+    Saving here, straight out of the signal handler, does not depend on
+    uvicorn unwinding at all."""
+    if _node is None:
+        return
+    try:
+        _node.get_logger().info(f'Shutting down ({reason}) — saving map if one is open')
+        _node.stop_calibration(graceful=False)
+        _node.stop_mapping()
+    except Exception as exc:                      # never block exit on this
+        try:
+            _node.get_logger().error(f'Shutdown cleanup failed: {exc}')
+        except Exception:
+            pass
+
+
 def main(args=None):
     global _node
 
@@ -2174,18 +2203,59 @@ def main(args=None):
     ros_thread = threading.Thread(target=rclpy.spin, args=(_node,), daemon=True)
     ros_thread.start()
 
-    uvicorn.run(
-        app,
-        host      = '0.0.0.0',
-        port      = _node.port,
-        log_level = 'warning',
-    )
+    # Own the signals rather than letting uvicorn own them. uvicorn installs
+    # its own SIGTERM/SIGINT handlers inside run(); ours has to survive that,
+    # so drive the Server object directly and disable its installer.
+    #
+    # Guarded, because this uses more of uvicorn's API than uvicorn.run()
+    # does and it could not be verified against the version on the robot
+    # before shipping. If any of it is missing, fall back to the old call —
+    # that loses the map on restart exactly as before, which is bad, but a
+    # dashboard that does not start at all is far worse.
+    _node.get_logger().info(f'uvicorn {getattr(uvicorn, "__version__", "?")}')
+    server = None
+    try:
+        config = uvicorn.Config(
+            app,
+            host      = '0.0.0.0',
+            port      = _node.port,
+            log_level = 'warning',
+        )
+        server = uvicorn.Server(config)
+        for attr in ('install_signal_handlers', 'should_exit', 'run'):
+            if not hasattr(server, attr):
+                raise AttributeError(f'uvicorn.Server has no {attr}')
+        server.install_signal_handlers = lambda: None
+    except Exception as exc:
+        _node.get_logger().warn(
+            f'uvicorn Server API unavailable ({exc}) — falling back to '
+            'uvicorn.run(). MAP WILL NOT SURVIVE A RESTART; press STOP MAP '
+            'before restarting or rebooting.')
+        server = None
 
-    # Dashboard is going away, so nothing would be left watching a moving
-    # robot — kill the scan outright rather than letting it drive home
-    # unsupervised, and cancel Nav2's goal with it.
-    _node.stop_calibration(graceful=False)
-    _node.stop_mapping()
+    if server is not None:
+        def _on_signal(signum, _frame):
+            # Save FIRST, exit second. map_saver_cli takes a couple of
+            # seconds and systemd's default TimeoutStopSec (90 s) leaves
+            # ample room; the old path spent that budget waiting on a
+            # WebSocket that a connected phone never closes.
+            _shutdown_cleanly(f'signal {signum}')
+            server.should_exit = True
+
+        signal.signal(signal.SIGTERM, _on_signal)
+        signal.signal(signal.SIGINT,  _on_signal)
+        server.run()
+    else:
+        uvicorn.run(
+            app,
+            host      = '0.0.0.0',
+            port      = _node.port,
+            log_level = 'warning',
+        )
+
+    # Still called for a normal (non-signal) exit. Idempotent, so a signal
+    # shutdown that already ran it does no work here.
+    _shutdown_cleanly('server exit')
     _node.destroy_node()
     rclpy.shutdown()
 

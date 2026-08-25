@@ -14,11 +14,25 @@ the robot is up and running. For the *why* behind any of these, see
 ssh aritra@10.42.0.1
 ```
 
-**On eduroam instead** — DHCP hands out a different address every time, so
-use the mDNS hostname rather than hunting for an IP:
+**On eduroam instead** — DHCP hands out a different address every time.
+`aritra-desktop.local` is the documented route, but **Windows' mDNS
+resolver fails on it often enough not to rely on it** (25 Aug: four
+consecutive `Could not resolve hostname` from PowerShell while the Pi was
+up and reachable by IP). Get the real address from the Pi and use it:
+
 ```bash
-ssh aritra@aritra-desktop.local
+ip -4 -br addr          # on the Pi — read the wlan0 line
 ```
+```bash
+ssh aritra@<that-address>          # from the PC
+ssh aritra@aritra-desktop.local    # mDNS, when it feels like working
+```
+
+**Check this at the start of every session.** The Pi's eduroam lease moved
+twice in two days (`10.53.1.167` → `10.53.3.143`), and reusing yesterday's
+address gives a `Connection timed out` that looks exactly like the Pi being
+down. So does using `10.42.0.1` while the Pi is on eduroam — that address
+only exists when it is hosting its own AP.
 
 **Switching the Pi's network** (each switch drops your current SSH session —
 expected, reconnect on the new one):
@@ -46,11 +60,44 @@ This needs the repo reachable — either the repo is public, or the Pi is on
 a network with GitHub access (eduroam, not the AisleBot-Pi AP, which has no
 internet uplink).
 
+**`--retry` alone is not enough.** curl does not retry TLS handshake
+failures — only transient HTTP responses and timeouts. eduroam has twice
+produced repeated `curl: (35) OpenSSL … wrong version number` on this Pi
+(a middlebox answering port 443 with something that is not TLS), and
+`--retry 5` sailed straight past all five. Always include
+`--retry-all-errors`:
+
+```bash
+curl -sSL --retry 5 --retry-delay 2 --retry-all-errors -o <dest> <url>
+```
+
+### 2.1 When the Pi cannot reach GitHub at all — relay via the PC
+
+If the TLS errors persist rather than clearing on retry, stop fighting the
+Pi's network. The PC downloads the file and hands it over; this works on
+either network as long as both machines are on the same one.
+
+```powershell
+# On the PC
+cd $HOME\Documents
+curl.exe -sSL -o <file>.py https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/main/<path-in-repo>
+Get-FileHash <file>.py -Algorithm SHA256
+scp <file>.py aritra@<pi-address>:~/ros2_ws/src/mecanum_robot/mecanum_robot/<file>.py
+```
+
+Use `curl.exe` with the extension — bare `curl` in PowerShell is an alias
+for `Invoke-WebRequest`, which takes different arguments and fails
+confusingly. `Get-FileHash` prints uppercase; the hash is the same.
+
 **Verify the copy landed correctly** before trusting it — compare against
 the hash of the file in the repo (`sha256sum <path-in-your-local-checkout>`):
 ```bash
 sha256sum ~/ros2_ws/src/mecanum_robot/mecanum_robot/<file>.py
 ```
+
+A truncated download that still compiles is how you get a mystery at 5pm.
+On 25 Aug a failed fetch left the *old* file in place and the hash check
+caught it immediately, before a build made it look deployed.
 
 **Rebuild and restart** (always do this after any change, even a pure
 Python file — a `setup.py` change needs the rebuild to register new

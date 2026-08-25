@@ -78,6 +78,48 @@ Single-sample step size is **diagnostic, not pass/fail** (§17.32).
   (video is derived from what the Pi already logged, and lossier), but the
   implementation has never been read. Owed a proper look.
 
+### Making mapping *measurably* reliable — the MATLAB lever, decided
+
+Reviewed `docs/MATLAB_Navigation_Reference.md` against the current system.
+Verdict: **one item is worth building, one needs a check first, one waits
+for a map, and nothing should be removed** — the doc's "Not applicable"
+list already excluded 3-D octrees, MPNet, Frenet lanes and factor-graph VIO
+with reasons.
+
+**The real gap is that map quality is unmeasured.** §17.29 proved this
+`slam_toolbox` build has *zero* observable per-closure signal — no console
+output, no topic, verified against source and the live node. So §17.32's
+acceptance gate falls back to "does the map visibly fold", which is a human
+eyeballing a grid. That is the weakest link in calling mapping reliable.
+
+**Build this once one clean map exists — Tier 1 #2, pose-graph residual
+analysis.** MATLAB's `trimLoopClosures` does not watch closures as they
+happen; it computes `edgeResidualErrors` across the *solved* graph and flags
+statistical outliers. That sidesteps the missing-signal limitation entirely.
+`slam_toolbox` already publishes `/slam_toolbox/graph_visualization`, so the
+nodes and edges are on the wire — a subscriber computing per-edge residuals
+would replace "it looks clean" with a number, and would finally give real
+evidence on §17.32's still-open question of what caused the jumps.
+
+**Check before assuming — Tier 1 #3, occupancy-grid saturation.** This is
+the *other* half of the pipeline: Stage A/B tuned pose-graph correction,
+this is grid construction. MATLAB's `ProbabilitySaturation` caps log-odds
+drift so a cell observed occupied 50 times does not need 50 contrary
+observations to flip back — directly relevant to a warehouse where pallets
+move. **Parameter names are NOT verified against this build.** Run
+`ros2 param list /slam_toolbox | grep -iE "thresh|pass"` against the live
+node first; treat it as a lead, not a fact.
+
+**Wait for a map — Tier 1 #4, path clearance.** Minimum distance from the
+driven path to the nearest obstacle. For a robot whose whole premise is
+narrow aisles, "how close did it come to the shelf" is more mission-relevant
+than anything `trajectory_viz.py` reports today. Cheap: sample the saved map
+at each recorded pose, report the minimum.
+
+**Ordering, and it matters:** none of these is a prerequisite for one clean
+saved map. Get the map, verify it, get AMCL localising. *Then* item 2 turns
+map acceptance from a judgement into a measurement.
+
 ### Traps that bit on 25 Aug
 
 - **`curl --retry` does not retry TLS failures.** Use

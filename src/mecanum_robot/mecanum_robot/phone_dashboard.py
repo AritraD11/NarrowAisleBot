@@ -1034,10 +1034,21 @@ function ingestMap(m) {
       const v = bin.charCodeAt(gy * m.w + gx);   // int8 shipped raw: -1 -> 255
       const o = (irow * m.w + gx) * 4;
       let r, g, b;
-      if (v === 255)     { r =  16; g =  22; b =  36; }   // unknown
-      else if (v >= 65)  { r = 226; g = 232; b = 240; }   // occupied
-      else if (v <= 25)  { r =  12; g =  40; b =  64; }   // free
-      else               { r =  70; g =  92; b = 122; }   // uncertain
+      // Palette rule: luminance rises with occupancy probability, so the
+      // map reads darkest-is-emptiest at a glance. UNKNOWN is deliberately
+      // OFF-HUE (neutral slate, no blue) because it is not a low
+      // probability of occupancy — it is the absence of a measurement, a
+      // different kind of thing, and should not sit on the same ramp.
+      //
+      // The old palette put free at rgb(12,40,64) against unknown at
+      // rgb(16,22,36): a WCAG contrast ratio of 1.20:1, which is why
+      // drivable space and never-seen space looked identical on a phone in
+      // daylight. Ratios now: free/unknown 3.8:1, occupied/free 3.6:1,
+      // occupied/unknown 13.6:1.
+      if (v === 255)     { r =  26; g =  29; b =  36; }   // unknown  - neutral slate
+      else if (v >= 65)  { r = 232; g = 238; b = 246; }   // occupied - near white
+      else if (v <= 25)  { r =  56; g = 124; b = 184; }   // free     - mid blue
+      else               { r = 120; g = 150; b = 185; }   // uncertain- between the two
       px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255;
     }
   }

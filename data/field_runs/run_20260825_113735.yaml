@@ -1,0 +1,7 @@
+image: run_20260825_113735.pgm
+mode: trinary
+resolution: 0.050
+origin: [-1.781, -5.538, 0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196

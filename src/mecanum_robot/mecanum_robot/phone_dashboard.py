@@ -201,7 +201,20 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
 
 /* ── RIGHT PANEL ── */
 .right-panel{width:120px;display:flex;flex-direction:column;
-             border-left:1.5px solid #1e3a5f;background:#0c1220;flex-shrink:0}
+             border-left:1.5px solid #1e3a5f;background:#0c1220;flex-shrink:0;
+             transition:width .18s ease}
+
+/* MAP MODE: the arm and lift controls have no role in a mapping run, and on
+   a phone they were eating roughly two thirds of the right panel's height
+   and 120px of width the map could have had. Hidden while the map is up;
+   the yaw slider stays, because rotating in place is part of driving a
+   perimeter. Reverts the instant you leave map view - nothing is removed,
+   only hidden, so no control is ever permanently lost. */
+body.map-mode .right-panel{width:64px}
+body.map-mode .arm-section,
+body.map-mode .lift-section{display:none}
+body.map-mode .yaw-wrap{flex:1;border-bottom:none;padding:14px 0}
+body.map-mode .yaw-track{max-height:none}
 
 /* YAW SLIDER */
 .yaw-wrap{flex:2;display:flex;flex-direction:column;align-items:center;
@@ -529,6 +542,14 @@ function getJoyOffset(touch) {
 
 joyArea.addEventListener('touchstart', e => {
   e.preventDefault();
+  // #mapView is a CHILD of #joyArea, so every touch on the map canvas
+  // bubbles here. z-index makes the map cover the joystick visually; it
+  // does NOT stop event propagation. Without this guard, panning the map
+  // drove the robot — confirmed on phone and desktop. The map handlers
+  // also stopPropagation(); this is the second line of defence, and the
+  // one that cannot be defeated by event-ordering quirks between
+  // pointer* and touch* on a given browser.
+  if (mapView) return;
   if (joyActive) return;
   const t = e.changedTouches[0];
   joyTouchId = t.identifier;
@@ -541,6 +562,7 @@ joyArea.addEventListener('touchstart', e => {
 
 joyArea.addEventListener('touchmove', e => {
   e.preventDefault();
+  if (mapView) return;
   for (const t of e.changedTouches) {
     if (t.identifier !== joyTouchId) continue;
     const p = getJoyOffset(t);
@@ -564,6 +586,7 @@ joyArea.addEventListener('touchend', e => {
 // never collide with a real touch.identifier (always numeric), so we can
 // safely reuse joyActive/joyTouchId from the touch code above unchanged.
 joyArea.addEventListener('mousedown', e => {
+  if (mapView) return;          // see the touchstart guard above
   if (joyActive) return;
   joyTouchId = 'mouse';
   joyActive  = true;
@@ -1164,6 +1187,18 @@ function updateHud() {
 // ── View toggle ────────────────────────────────────────────────────
 function setMapView(on) {
   mapView = on;
+  document.body.classList.toggle('map-mode', on);
+  if (on) {
+    // Entering map view with a drag in flight would otherwise leave the
+    // joystick latched at its last value and the robot rolling.
+    if (joyActive || yawActive) {
+      joyActive = false; joyTouchId = null; joyX = 0; joyY = 0;
+      yawActive = false; yawTouchId = null; yawVal = 0;
+      joyThumb.classList.remove('active');
+      joyThumb.style.transform = 'translate(-50%, -50%)';
+      sendDrive();
+    }
+  }
   document.getElementById('mapView').classList.toggle('show', on);
   document.getElementById('viewBtn').classList.toggle('on', on);
   document.getElementById('viewBtn').textContent = on ? 'DRIVE' : 'VIEW';
@@ -1237,6 +1272,7 @@ document.getElementById('btnZero').addEventListener('click', () => {
 
 // ── Pointer handling: pan, pinch, or place-a-goal ──────────────────
 mapCanvas.addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
   mapCanvas.setPointerCapture(e.pointerId);
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -1252,6 +1288,7 @@ mapCanvas.addEventListener('pointerdown', (e) => {
 });
 
 mapCanvas.addEventListener('pointermove', (e) => {
+  e.stopPropagation();
   if (!ptrs.has(e.pointerId)) return;
   const prev = ptrs.get(e.pointerId);
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -1284,6 +1321,7 @@ mapCanvas.addEventListener('pointermove', (e) => {
 });
 
 function endPtr(e) {
+  e.stopPropagation();
   if (goalDrag && ptrs.size === 1) {
     if (estopped) {
       goalHint('E-STOP ACTIVE — GOAL NOT SENT', true);
@@ -1304,6 +1342,14 @@ function endPtr(e) {
 }
 mapCanvas.addEventListener('pointerup', endPtr);
 mapCanvas.addEventListener('pointercancel', endPtr);
+
+// A pointerdown that calls preventDefault() does NOT suppress the touch*
+// events that follow it, so the pointer handlers above cannot close the
+// touch path on their own. These do, at the map-view boundary.
+['touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(evt => {
+  document.getElementById('mapView').addEventListener(
+    evt, e => e.stopPropagation(), { passive: false });
+});
 
 // Desktop convenience; harmless on touch.
 mapCanvas.addEventListener('wheel', (e) => {

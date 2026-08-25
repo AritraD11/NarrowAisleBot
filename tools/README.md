@@ -10,7 +10,66 @@ analysis tools.)
 | Script | What it does |
 |---|---|
 | `nab_pid_logger.py` | Drives a scripted bench test on the ESP32 and writes the result to a CSV in `~/aislebot_logs/`. Replaces the serial-monitor copy-paste workflow. |
+| `map_corpus.py` | Compares every mapping run in a folder side by side — size, occupied/free/unknown, metres of wall against the bounding perimeter. Answers "is this map better than the last one" across the archive instead of one run at a time. |
+| `map_integrity.py` | Measures whether a saved map **folded**. Doubled walls, skeleton forks, wall thickness, orientation coherence, free-space connectivity — the §17.32 acceptance gate as numbers rather than an eyeball. Writes an annotated PNG. |
+| `graph_residuals.py` | Live per-edge residual analysis of `slam_toolbox`'s pose graph, from `/slam_toolbox/graph_visualization`. The one Tier 1 MATLAB item worth building (`MATLAB_Navigation_Reference.md`). |
 | `pi_audit.sh` | Read-only inventory of the Pi — disk, network, services, deployed code, run data, cleanup candidates. Deletes nothing. With `--online`, diffs every deployed source file against GitHub. |
+
+---
+
+## `map_integrity.py`
+
+Answers the question §17.34 closed on: **did this map fold?** — without
+requiring anyone to stare at a grid and decide.
+
+```bash
+./tools/map_integrity.py data/field_runs/run_20260825_151713.pgm
+./tools/map_integrity.py --corpus data/field_runs --csv integrity.csv
+./tools/map_integrity.py run_20260825_151713.pgm --png annotated.png
+./tools/map_integrity.py --selftest
+```
+
+Needs the `.pgm` and its `.yaml` side by side. Pure standard library — no
+numpy, no PIL, no PyYAML — so it runs on the Pi and on the Windows laptop
+without installing anything.
+
+### What it measures
+
+| | Detector | Signature it is looking for |
+|---|---|---|
+| D1 | wall thickness | a fold that lands nearly on itself **fattens** the wall instead of duplicating it |
+| D2 | **doubled walls** | two near-parallel walls with **free** space between them, across a gap narrower than the robot |
+| D3 | forks | branch points on the thinned wall skeleton — a corridor that splits where the real one does not |
+| D4 | orientation | a chunk rotated a few degrees puts a satellite peak beside the dominant wall axis |
+| D5 | free space | a fold can strand free space outside the room outline |
+
+**D2 is the one that carries the verdict.** Its argument: free cells between
+two walls mean the LiDAR returned through that space, so something stood
+between them and saw both faces — but the gap is under the robot's own
+0.48 m width, so that something cannot have been this robot. Two walls whose
+far faces were both observed across a gap nothing could occupy is the
+geometry a false loop closure leaves when it fuses two poses that are not
+the same pose.
+
+The known hole in the argument: a genuine narrow gap between shelves, seen
+end-on down its length, looks the same. That is why flagged cells are
+**clustered and reported with map coordinates** rather than only counted —
+a real end-on gap is one place you can walk to, a fold is a whole wall
+duplicated. `--png` writes the map with those cells in red, so the number
+and the picture can be checked against each other.
+
+### Thresholds
+
+Provisional, and labelled as such in the output. They stop being guesses
+when `--corpus` is run over the archived runs: the same room mapped 70 times
+gives a distribution, and the percentiles it prints are what a threshold
+should be set from.
+
+`--selftest` builds five synthetic rooms with known answers — a clean
+rectangle, a planted 0.35 m ghost wall, two walls that close with
+**unknown** between them, a real 0.85 m aisle, and a genuinely thick wall —
+and asserts that the fold is caught and the other four are not. Run it after
+touching any of the geometry.
 
 ---
 

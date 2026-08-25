@@ -54,7 +54,21 @@ amcl:
     max_particles: 2000
     min_particles: 500
     odom_frame_id: "odom"
-    robot_model_type: "omnidirectional"    # Mecanum = omnidirectional
+    # ⚠ THIS IS A PLUGINLIB CLASS NAME, NOT A DESCRIPTIVE WORD. It was
+    #   "omnidirectional" until 26 Aug, which is not a class anyone exports.
+    #   Verified against upstream nav2_amcl (jazzy AND humble), not guessed:
+    #     - plugins.xml declares exactly two classes,
+    #       nav2_amcl::DifferentialMotionModel and nav2_amcl::OmniMotionModel
+    #     - amcl_node.cpp's default is the fully-qualified
+    #       "nav2_amcl::DifferentialMotionModel", not "differential"
+    #     - amcl_node.cpp does `plugin_loader_.createSharedInstance(
+    #       robot_model_type_)` with NO string translation, no legacy-name
+    #       shim, and no try/catch, on the on_configure path
+    #   So the old value threw out of on_configure, AMCL never reached
+    #   ACTIVE, and lifecycle_manager would have aborted the ENTIRE
+    #   navigation bringup — not just localisation. Never run on hardware,
+    #   so it had never announced itself.
+    robot_model_type: "nav2_amcl::OmniMotionModel"   # mecanum = omni, strafes
     set_initial_pose: true
     # ⚠ BOTH NUMBERS HERE WERE WRONG UNTIL §17.18, and this block has never
     #   been run, so treat the corrected values as derived rather than

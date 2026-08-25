@@ -255,11 +255,11 @@ aliasing many chances to fire; a deliberate single-circuit path gives it few.
 
 ### Acceptance gate — all three, or the map is not saved
 
-| Check | Pass condition |
-|---|---|
-| Return-to-mark | `tf2_echo map base_link` ≈ `(0, 0) @ -90°` |
-| Map integrity | No folds, tears, or doubled walls |
-| Walls present | The map contains actual occupied cells, not just swept free space |
+| Check | Pass condition | How it is checked |
+|---|---|---|
+| Return-to-mark | `tf2_echo map base_link` ≈ `(0, 0) @ -90°` | the dashboard HUD, or `tf2_echo` |
+| Map integrity | no folds, tears, or doubled walls | **`tools/map_integrity.py` reports `CLEAN`** |
+| Walls present | actual occupied cells, not just swept free space | the same tool's occupied count, or `map_corpus.py` |
 
 **Corrected 22 Aug (§17.32).** This table originally carried a third gate —
 *"no single-sample step > 10 cm"* — and it has been removed rather than
@@ -274,11 +274,39 @@ never would have: 22 Aug's open-floor test drives produced maps of swept free
 space with almost no wall geometry in them, which is useless for AMCL to
 localise against no matter how smooth the trajectory looked.
 
-For the third: save the map, then drag the `.pgm` + `.yaml` pair into
-`docs/tools/telemetry_analyzer.html` — that tool already renders occupancy
-grids and needs no server. A doubled wall or a corridor at two angles is a
-false closure made visible, and means Stage B needs its second step (raise the
-response thresholds to `0.30` / `0.40`).
+**Map integrity stopped being a judgement on 26 Aug (§17.35).** It was "does
+it look folded", which is a person staring at a grid — the weakest link in
+calling mapping reliable. `tools/map_integrity.py` measures the fold
+signature instead:
+
+```bash
+./tools/map_integrity.py ~/aislebot_logs/run_<stamp>.pgm --png check.png
+```
+
+Its headline detector flags two near-parallel walls with **free** space
+between them across a gap narrower than the robot's own 0.48 m: free cells
+mean the LiDAR returned through that space, so something saw both faces
+across a gap nothing could occupy. Flagged cells come with **map
+coordinates**, so a flag is a place to go and look, and `--png` writes the
+grid with them in red — check the number against the picture, and against
+`docs/tools/map_viewer.html`, rather than letting either replace the other.
+(`map_viewer.html`, not `telemetry_analyzer.html`: the latter's map dropzone
+only unlocks after loading a valid 13-column run, so it cannot open a bare
+map.)
+
+Its thresholds are provisional and the output says so. `--corpus` over the
+archive prints the percentiles that should replace them.
+
+A `FOLDED` verdict means Stage B needs its second step — raise the response
+thresholds to `0.30` / `0.40`. That lever is still gated on the map actually
+folding, and now the gate has a number behind it.
+
+**Run `tools/graph_residuals.py --watch` during the drive** to catch the same
+thing from the other side. It differences successive publications of
+`/slam_toolbox/graph_visualization` and names the closure that moved the
+graph, with the map coordinates where it happened. A false closure strains
+the graph when it fires and puts a doubled wall where it strained it — the
+two tools agreeing on a location is much stronger than either alone.
 
 ### Save it
 

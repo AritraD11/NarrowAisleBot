@@ -116,21 +116,83 @@ sharing one timestamp: `run_*.csv`, `run_*.pgm`, `run_*.yaml`,
 
 ---
 
-## 5. Viewing a map
+## 5. Saving and viewing a map
 
-Don't open the raw `.pgm`. Use `docs/tools/telemetry_analyzer.html` — a
-single self-contained file, no server or install needed:
+### 5.1 Saving a map — there is no separate save button
 
-1. Download it once (it lives in this repo, not on the Pi):
+**Pressing STOP MAP on the dashboard saves the map.** `stop_mapping()` in
+`phone_dashboard.py` shells out to `map_saver_cli` before it tears the
+mapping stack down, so the save is part of stopping and always has been.
+If you kill the stack any other way — `systemctl restart`, a reboot, a
+crash — **the map is gone**, because it lived only in `slam_toolbox`'s
+memory. STOP MAP is the only path that persists it.
+
+One mapping run produces four files in `~/aislebot_logs/`, all sharing one
+timestamp:
+
+| File | What it is |
+|---|---|
+| `run_<stamp>.pgm` | the occupancy grid itself |
+| `run_<stamp>.yaml` | its metadata — resolution, origin, thresholds |
+| `run_<stamp>.csv` | 13-column per-wheel motor telemetry |
+| `run_<stamp>_pose.csv` | `epoch_s, map_x, map_y, yaw_deg` (only on the post-`0bea474` dashboard) |
+
+Confirm it actually landed before you power anything down:
+
+```bash
+ls -lt ~/aislebot_logs/ | head -6
+```
+
+### 5.2 Pulling it to the PC
+
+Run on the **PC**, in a new PowerShell — not inside the SSH session.
+Substitute the run's timestamp:
+
+```powershell
+scp aritra@10.42.0.1:~/aislebot_logs/run_<stamp>.* "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
+```
+
+On eduroam, swap `10.42.0.1` for the Pi's DHCP address. `aritra-desktop.local`
+often fails to resolve from Windows — get the real address with
+`ip -4 -br addr` on the Pi and use it directly rather than fighting mDNS.
+
+### 5.3 Viewing it — use `map_viewer.html`, not the telemetry analyzer
+
+**`telemetry_analyzer.html` cannot open a bare map.** Its map dropzone only
+unlocks after it has loaded a valid 13-column run CSV, so it is the wrong
+tool when all you want is to look at a `.pgm`. `docs/tools/map_viewer.html`
+exists for exactly that (§17.32) and takes just the `.pgm` + `.yaml` pair.
+
+1. Download it once — it lives in this repo, not on the Pi:
    ```powershell
-   # save-as from a browser, or:
-   curl -sSL -o telemetry_analyzer.html ^
-     https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/main/docs/tools/telemetry_analyzer.html
+   curl -sSL -o map_viewer.html https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/main/docs/tools/map_viewer.html
    ```
-2. Double-click to open it in any browser.
-3. Drag in that run's `.csv`, then its `.pgm` + `.yaml` pair together onto
-   the Map tab. It renders the occupancy grid and shows the same
-   coverage/quality findings that get logged on the Pi automatically.
+2. Double-click it. Any browser, no server, no install, works offline.
+3. Drag the **`.pgm` and `.yaml` together** onto it. Both at once — the
+   `.yaml` carries the resolution and origin, without which the grid has no
+   scale and no world position.
+
+Use `telemetry_analyzer.html` instead when you want the map *alongside* the
+wheel telemetry for the same run — drop the `run_<stamp>.csv` in first,
+then the map pair.
+
+### 5.4 What to look for — the acceptance gate
+
+§17.32 retired the old "no single-sample step > 10 cm" criterion: it cannot
+tell a *correct* loop closure from a bad one, because a legitimate
+correction of accumulated drift trips it just as hard as a false match. Step
+size is a diagnostic now, not a pass/fail. Judge a commissioning map on
+these three instead:
+
+| Check | Pass condition |
+|---|---|
+| **Walls present** | the grid contains real occupied cells, not just free space and unknown. An open-floor drive produces a map with no wall geometry and is useless to AMCL. |
+| **Map integrity** | no folds, tears, doubled walls, or forked corridors in `map_viewer.html`. This is the criterion that actually catches a bad closure. |
+| **Return-to-mark** | drive back to the physical zero mark; the dashboard HUD should read ≈ `(0, 0)` and nose ≈ `-90°` |
+
+A doubled wall or a corridor that forks into two parallel copies of itself
+means a false loop closure fused two places that are not the same place.
+That map cannot be used for localisation and the run has to be repeated.
 
 ---
 

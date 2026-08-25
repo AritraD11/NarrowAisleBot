@@ -92,7 +92,58 @@ citation list, motivating nothing concrete) into a scoped task list:**
 Not urgent — gated on a purchase — but now a precise, four-step list instead
 of an open-ended aspiration.
 
-### 2. Pose-graph residual analysis — the direct answer to the still-open jump question
+### 2. Pose-graph residual analysis — BUILT 26 Aug as `tools/graph_residuals.py`
+
+**Status: built, self-tested, never run against the live node.** What follows
+is the original reasoning, kept because it was right about the target and
+wrong about the mechanism, and the correction is the useful part.
+
+**The mechanism this item assumed does not exist.** `publishGraph()` in
+`loop_closure_assistant.cpp` was read before any code was written, and
+`/slam_toolbox/graph_visualization` carries less than "nodes and edges are
+already on the wire" implies:
+
+| | |
+|---|---|
+| published | node id → solved `(x, y)`, one SPHERE marker per vertex |
+| | edges as two `LINE_LIST` markers whose points are pairs of endpoint **coordinates** |
+| not published | node **orientation** — `toMarker()` hardcodes `orientation.w = 1` |
+| | edge node **ids** — the line list is geometry, not topology |
+| | the edge **measurement** — the relative transform the scan matcher computed |
+| | the information matrix |
+
+A true SE(2) chi-squared residual, which is what `edgeResidualErrors`
+computes, needs the measurement and the information matrix. Neither is
+published. **This item as literally specified is not implementable against
+this topic**, and `SerializePoseGraph` — which does hold them — writes
+Karto's own binary serialisation with no Python reader.
+
+**What replaced it is stronger, not weaker.** The graph is republished every
+`map_update_interval` (1.0 s), so successive messages can be differenced, and
+a node that moves between two publications was moved by the optimiser.
+Differencing the *edge sets* over the same two messages names which edge
+arrived in the update that moved things. A closure appearing in the same
+update as a 40 cm shift is that shift's cause — which is the per-closure
+signal §17.29 concluded did not exist. It does not exist as an event; it
+exists as a difference. This is Stage A's TF-differencing method at per-node
+resolution with the cause attached.
+
+It also gives the acceptance criterion §17.32 lacked, because the difference
+can be judged where a raw jump size cannot:
+
+```
+implied drift rate = shift / metres driven since the closed-on node
+```
+
+A legitimate closure cancels drift accumulated since the robot was last at
+that spot, so the implied rate should sit near this project's own measured
+odometry error — 1.5% over §17.32's 3.4 m box drive, 2.4% forward/back, 3.3%
+lateral (§17.30). A closure implying 20% corrected drift that never
+accumulated. `--max-drift-rate` defaults to 10%, three to four times the
+worst measured rate, and it is the single judgement call in the tool.
+
+Original reasoning, kept:
+
 
 MATLAB's `trimLoopClosures` (§17.32's docs, Graduated Non-Convexity + Truncated
 Least Squares) doesn't watch for bad closures as they happen — it computes
@@ -217,6 +268,14 @@ localization work is done — switching now would confound two variables.
 
 Nothing here should preempt `Dashboard_Map_System.md`'s A→B→C→D sequence —
 none of Tier 1's items are prerequisites for getting one clean saved map.
-Item 2 (pose-graph residual analysis) is the one worth picking up first once
-that sequence is stable, since it directly targets the still-open "what
-caused the jumps" question that §17.32 explicitly left unresolved.
+
+**Item 2 is built** (`tools/graph_residuals.py`, 26 Aug) and self-tested, but
+has never seen the live node. Run it with `--watch` alongside the next
+commissioning drive: it costs nothing, it does not touch the mapping stack,
+and it is the instrument that turns the still-open "what caused the jumps"
+question from §17.32 into a per-closure number.
+
+Item 3 (occupancy-grid saturation) still needs its parameter names checked
+against the live node before anything is assumed — `ros2 param list
+/slam_toolbox | grep -iE "thresh|pass"`. Item 4 (path clearance) still waits
+on one accepted map.

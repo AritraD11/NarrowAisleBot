@@ -297,23 +297,46 @@ deliberately-commissioned map this project has produced.
 Nothing here has ever run on hardware. `navigation.launch.py` was rewritten in
 §17.26 and has zero hardware confirmation.
 
-### D.1 Fix the suspected `robot_model_type` bug first
+### D.1 `robot_model_type` — confirmed and fixed 26 Aug, still verify on the Pi
 
-`nav2_params.yaml:57` has `robot_model_type: "omnidirectional"`. On Nav2 Jazzy
-this parameter is a **pluginlib class name**; the bare strings are the
-pre-Galactic form. Expected value: `"nav2_amcl::OmniMotionModel"`.
+**The suspicion was right.** `nav2_params.yaml` now reads
+`robot_model_type: "nav2_amcl::OmniMotionModel"`. It said `"omnidirectional"`,
+which is not a class anyone exports, and the check was run against upstream
+`nav2_amcl` source on both `jazzy` and `humble` rather than reasoned from
+version history:
 
-Verify before changing — do not edit on my say-so:
+- `plugins.xml` declares exactly two classes,
+  `nav2_amcl::DifferentialMotionModel` and `nav2_amcl::OmniMotionModel`.
+  There is no alias for the bare strings anywhere in the package.
+- `amcl_node.cpp`'s own default is the **fully-qualified**
+  `"nav2_amcl::DifferentialMotionModel"`, not `"differential"` — the upstream
+  default tells you the expected form.
+- `amcl_node.cpp` calls
+  `plugin_loader_.createSharedInstance(robot_model_type_)` with **no string
+  translation, no legacy-name shim and no try/catch**, on the `on_configure`
+  path.
+
+So the old value threw out of `on_configure`, AMCL never reached ACTIVE, and
+`lifecycle_manager` would have aborted the **entire** navigation bringup, not
+just localisation — the same all-or-nothing failure mode §17.17 hit with
+`docking_server`. It had never announced itself because this block has never
+run on hardware.
+
+Still check the installed package before the first bringup, because a repo
+value is not a robot value (§17.32) and the installed `nav2_amcl` is the only
+authority on what it exports:
 
 ```bash
 ros2 pkg xml nav2_amcl | grep -i version
 grep -rn "OmniMotionModel" /opt/ros/jazzy/share/nav2_amcl/*.xml
 ```
 
-If the plugin XML lists `nav2_amcl::OmniMotionModel`, change the parameter to
-match. Getting this wrong means AMCL refuses to configure and
-`lifecycle_manager` aborts the whole bringup — the same all-or-nothing failure
-mode §17.17 hit with `docking_server`.
+Then, once AMCL is up, confirm the value actually bound — reading the file
+proves nothing:
+
+```bash
+ros2 param get /amcl robot_model_type
+```
 
 ### D.2 Never run AMCL and slam_toolbox together
 

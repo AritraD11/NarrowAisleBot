@@ -1,0 +1,270 @@
+#!/usr/bin/env python3
+"""
+nav2_slam.launch.py — Nav2 autonomous navigation WHILE slam_toolbox is mapping.
+
+This is the "drive autonomously in a space you haven't mapped yet" mode:
+you send the robot a goal, Nav2 plans and drives to it, and slam_toolbox
+keeps building the map from the scans collected on the way.
+
+WHY THIS STARTS NODES EXPLICITLY INSTEAD OF INCLUDING nav2_bringup
+    The first version included nav2_bringup's navigation_launch.py. On this
+    Nav2 build that also starts route_server and opennav_docking — neither
+    of which existed in the Nav2 generation nav2_params.yaml was written
+    against, and neither of which this robot has any use for. docking_server
+    then refused to configure ("Charging dock plugins not given!"), and
+    because lifecycle_manager brings nodes up as an all-or-nothing set, ONE
+    unconfigurable node it never needed aborted the entire bringup
+    (Research_Journal.md §17.17).
+
+    Configuring a full charging-dock stack for a robot with no charging dock
+    would be pure ceremony, and would leave the same trap set for whatever
+    node the next Nav2 release adds. Starting exactly the nodes this robot
+    uses is both smaller and more honest about what is actually running.
+
+    Deliberately NOT started, and why:
+      route_server     — route-graph planning from a GeoJSON file. No graph
+                         exists; the default behaviour tree never calls it.
+      docking_server   — autonomous charging-dock approach. No dock exists.
+
+WHAT THIS STARTS
+    controller_server   DWB local planner + local costmap
+    planner_server      NavFn/A* global planner + global costmap
+    smoother_server     path smoothing
+    behavior_server     spin / backup / wait recoveries
+    bt_navigator        the behaviour tree that sequences all of the above
+    waypoint_follower   multi-goal sequencing
+    velocity_smoother   acceleration limiting
+    collision_monitor   the hard safety layer, last before the wheels
+    lifecycle_manager   brings the above up in order
+
+HOW THIS DIFFERS FROM navigation.launch.py
+    navigation.launch.py starts map_server + AMCL — the "navigate on a
+    previously-saved, finished map" mode. AMCL and slam_toolbox BOTH publish
+    map->odom, so running that file while mapping corrupts the pose estimate
+    (nav2_params.yaml's own AMCL warning). This file has no localization at
+    all: it comes from the already-running slam_toolbox.
+
+PREREQUISITES — all three must already be up, in this order:
+    1. aislebot.service          (odometry_publisher -> odom->base_link TF,
+                                  teleop_asym -> consumes /cmd_vel)
+    2. mapping_full.launch.py    (LiDAR + scan_relay + slam_toolbox ->
+                                  /scan_reliable, /map, map->odom TF)
+    3. This file.
+
+    Nav2's costmaps need /map and the TF tree to exist, or they sit inactive
+    waiting for a transform that never arrives.
+
+Usage:
+    ros2 launch mecanum_navigation nav2_slam.launch.py
+
+Then send a goal from Foxglove (or `ros2 action send_goal /navigate_to_pose
+...`) and the robot drives there on its own.
+
+AXES: base_link on this robot is NOT REP-103 (+X=right, +Y=forward,
+Research_Journal.md §17.10). Every x/y-labelled velocity and footprint
+parameter lives in nav2_params.yaml and is already swapped to match — see
+the AXES note at the top of that file before touching any of them.
+
+cmd_vel CHAIN, wired by the remappings below:
+    controller_server -> /cmd_vel_nav ─┐
+    behavior_server   -> /cmd_vel_nav ─┤   (Spin / BackUp / Wait recoveries)
+                                       ↓
+      -> velocity_smoother -> /cmd_vel_smoothed
+        -> collision_monitor -> /cmd_vel_baselink      (base_link TF axes)
+          -> cmd_vel_axis_adapter -> /cmd_vel_nav_out  (wheel-kinematics axes)
+            -> twist_mux -> /cmd_vel                   (arbitrated against manual)
+/cmd_vel_nav_out, not /cmd_vel, is where the axis adapter's output lands —
+twist_mux (aislebot_full.launch.py, config/twist_mux.yaml) picks between
+this and /cmd_vel_manual and republishes the winner as /cmd_vel, which is
+what teleop_asym actually consumes. Before this existed, the adapter wrote
+straight to /cmd_vel and had no way to lose an arbitration to a human
+grabbing manual control mid-drive. Note that collision_monitor is wired by
+PARAMETERS (cmd_vel_in_topic / cmd_vel_out_topic in nav2_params.yaml), not
+by remapping, which is how that node expects to be configured.
+
+The adapter on the end is not decoration. Nav2 reads the robot's pose in
+base_link's TF axes and writes velocity in those same axes, but the wheel
+kinematics read /cmd_vel as standard REP-103 — a 90° disagreement that
+sent the first-ever autonomous goal 0.956 m sideways (§17.19). See
+cmd_vel_axis_adapter.py for the derivation and why it sits last in the
+chain rather than earlier.
+"""
+
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+
+
+# Order matters: lifecycle_manager configures and activates these in
+# sequence, and later nodes assume earlier ones are already up.
+LIFECYCLE_NODES = [
+    'controller_server',
+    'smoother_server',
+    'planner_server',
+    'behavior_server',
+    'velocity_smoother',
+    'collision_monitor',
+    'bt_navigator',
+    'waypoint_follower',
+]
+
+
+def generate_launch_description():
+    nav_dir = get_package_share_directory('mecanum_navigation')
+    default_params = os.path.join(nav_dir, 'config', 'nav2_params.yaml')
+
+    # bt_navigator's default_nav_to_pose_bt_xml / default_nav_through_poses_bt_xml
+    # are supplied HERE, not in nav2_params.yaml. An explicit empty string in
+    # the YAML does not trigger Nav2's built-in fallback on this Nav2 build —
+    # confirmed on hardware 14 Aug 2026 (Research_Journal.md §17.19): the
+    # first-ever goal came back "Empty Tree. Exiting with failure" because
+    # bt_navigator had a real (if empty) filename and never substituted
+    # anything for it. Resolving the actual installed file path here removes
+    # the guess rather than trusting that fallback a second time.
+    bt_nav_dir = get_package_share_directory('nav2_bt_navigator')
+    default_nav_to_pose_bt = os.path.join(
+        bt_nav_dir, 'behavior_trees',
+        'navigate_to_pose_w_replanning_and_recovery.xml')
+    default_nav_through_poses_bt = os.path.join(
+        bt_nav_dir, 'behavior_trees',
+        'navigate_through_poses_w_replanning_and_recovery.xml')
+
+    params_file = LaunchConfiguration('params_file')
+    use_sim_time = LaunchConfiguration('use_sim_time')
+    autostart = LaunchConfiguration('autostart')
+
+    args = [
+        DeclareLaunchArgument(
+            'params_file',
+            default_value=default_params,
+            description='Nav2 parameters (footprint/velocity axes already '
+                        'swapped for this robot — see the file header)',
+        ),
+        DeclareLaunchArgument(
+            'use_sim_time',
+            default_value='false',
+            description='false on the real robot; true only under Gazebo',
+        ),
+        DeclareLaunchArgument(
+            'autostart',
+            default_value='true',
+            description='Auto-transition the lifecycle nodes to active',
+        ),
+    ]
+
+    common = [params_file, {'use_sim_time': use_sim_time}]
+
+    nodes = [
+        Node(
+            package='nav2_controller', executable='controller_server',
+            name='controller_server', output='screen', parameters=common,
+            # DWB publishes cmd_vel; hand it to the smoother rather than
+            # straight to the wheels, so nothing reaches the base without
+            # passing the smoother and then the collision monitor.
+            remappings=[('cmd_vel', 'cmd_vel_nav')],
+        ),
+        Node(
+            package='nav2_smoother', executable='smoother_server',
+            name='smoother_server', output='screen', parameters=common,
+        ),
+        Node(
+            package='nav2_planner', executable='planner_server',
+            name='planner_server', output='screen', parameters=common,
+        ),
+        Node(
+            package='nav2_behaviors', executable='behavior_server',
+            name='behavior_server', output='screen', parameters=common,
+            # Closes the open item flagged in §17.20. Without this remap
+            # behavior_server publishes STRAIGHT to /cmd_vel, skipping both
+            # collision_monitor and cmd_vel_axis_adapter — so Spin/BackUp
+            # would reach the wheels unmonitored AND in the wrong axis
+            # convention, reproducing §17.19's 88° miss.
+            #
+            # It was left unfixed on the theory that nothing calls those
+            # behaviours. That theory is wrong: bt_navigator's default tree
+            # (navigate_to_pose_w_replanning_and_recovery.xml, supplied
+            # explicitly above) runs Spin/BackUp AUTOMATICALLY as recovery
+            # whenever a goal fails. Nothing has to ask for them. BackUp's
+            # 0.30 m reverse is aimed squarely into this robot's measured 90°
+            # rear blind sector (§17.15), which is the one direction the
+            # LiDAR cannot see — so bypassing collision_monitor there is the
+            # worst possible place to bypass it.
+            #
+            # cmd_vel_nav is velocity_smoother's input, so behaviours now
+            # take the same smoother -> collision_monitor -> axis-adapter
+            # path the controller does. This is also exactly what upstream
+            # nav2_bringup's navigation_launch.py does; the explicit-nodes
+            # rewrite in §17.17 dropped it by omission, not by decision.
+            remappings=[('cmd_vel', 'cmd_vel_nav')],
+        ),
+        Node(
+            package='nav2_velocity_smoother', executable='velocity_smoother',
+            name='velocity_smoother', output='screen', parameters=common,
+            # Input side only. Its output stays on the default
+            # cmd_vel_smoothed, which collision_monitor reads by parameter.
+            remappings=[('cmd_vel', 'cmd_vel_nav')],
+        ),
+        Node(
+            package='nav2_collision_monitor', executable='collision_monitor',
+            name='collision_monitor', output='screen', parameters=common,
+            # No remappings: cmd_vel_in_topic / cmd_vel_out_topic are set in
+            # nav2_params.yaml, which is how this node is meant to be wired.
+        ),
+        Node(
+            package='nav2_bt_navigator', executable='bt_navigator',
+            name='bt_navigator', output='screen',
+            # Real, resolved BT xml paths appended after the common params
+            # file — see the comment above generate_launch_description's
+            # bt_nav_dir lookup for why these can't just live in the yaml.
+            parameters=common + [{
+                'default_nav_to_pose_bt_xml': default_nav_to_pose_bt,
+                'default_nav_through_poses_bt_xml': default_nav_through_poses_bt,
+            }],
+        ),
+        Node(
+            package='nav2_waypoint_follower', executable='waypoint_follower',
+            name='waypoint_follower', output='screen', parameters=common,
+        ),
+        # NOT a lifecycle node, and deliberately outside LIFECYCLE_NODES: a
+        # plain rclpy node that is up the moment the process starts. It must
+        # already be translating before collision_monitor is ever activated,
+        # or the first commands out of the stack reach the wheels rotated
+        # 90°. Nothing to configure or activate, so there is nothing for
+        # lifecycle_manager to manage.
+        Node(
+            package='mecanum_navigation', executable='cmd_vel_axis_adapter',
+            name='cmd_vel_axis_adapter', output='screen',
+            # output_topic overridden from the node's own default ('cmd_vel')
+            # to 'cmd_vel_nav_out' so twist_mux — not this node — is the one
+            # writing the final /cmd_vel. See the cmd_vel CHAIN comment above.
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'output_topic': 'cmd_vel_nav_out',
+            }],
+        ),
+        # Also not a lifecycle node. INERT by default: it listens on
+        # /goal_pose_click, which nothing publishes until Foxglove's 3D
+        # panel is deliberately pointed at it. Leave the panel on
+        # /goal_pose and this node simply never fires, preserving the
+        # existing "drag 90° clockwise" behaviour (§17.20).
+        Node(
+            package='mecanum_navigation', executable='goal_pose_adapter',
+            name='goal_pose_adapter', output='screen',
+            parameters=[{'use_sim_time': use_sim_time}],
+        ),
+        Node(
+            package='nav2_lifecycle_manager', executable='lifecycle_manager',
+            name='lifecycle_manager_navigation', output='screen',
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'autostart': autostart,
+                'node_names': LIFECYCLE_NODES,
+            }],
+        ),
+    ]
+
+    return LaunchDescription([*args, *nodes])

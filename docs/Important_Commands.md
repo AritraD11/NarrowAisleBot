@@ -116,21 +116,83 @@ sharing one timestamp: `run_*.csv`, `run_*.pgm`, `run_*.yaml`,
 
 ---
 
-## 5. Viewing a map
+## 5. Saving and viewing a map
 
-Don't open the raw `.pgm`. Use `docs/tools/telemetry_analyzer.html` — a
-single self-contained file, no server or install needed:
+### 5.1 Saving a map — there is no separate save button
 
-1. Download it once (it lives in this repo, not on the Pi):
+**Pressing STOP MAP on the dashboard saves the map.** `stop_mapping()` in
+`phone_dashboard.py` shells out to `map_saver_cli` before it tears the
+mapping stack down, so the save is part of stopping and always has been.
+If you kill the stack any other way — `systemctl restart`, a reboot, a
+crash — **the map is gone**, because it lived only in `slam_toolbox`'s
+memory. STOP MAP is the only path that persists it.
+
+One mapping run produces four files in `~/aislebot_logs/`, all sharing one
+timestamp:
+
+| File | What it is |
+|---|---|
+| `run_<stamp>.pgm` | the occupancy grid itself |
+| `run_<stamp>.yaml` | its metadata — resolution, origin, thresholds |
+| `run_<stamp>.csv` | 13-column per-wheel motor telemetry |
+| `run_<stamp>_pose.csv` | `epoch_s, map_x, map_y, yaw_deg` (only on the post-`0bea474` dashboard) |
+
+Confirm it actually landed before you power anything down:
+
+```bash
+ls -lt ~/aislebot_logs/ | head -6
+```
+
+### 5.2 Pulling it to the PC
+
+Run on the **PC**, in a new PowerShell — not inside the SSH session.
+Substitute the run's timestamp:
+
+```powershell
+scp aritra@10.42.0.1:~/aislebot_logs/run_<stamp>.* "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
+```
+
+On eduroam, swap `10.42.0.1` for the Pi's DHCP address. `aritra-desktop.local`
+often fails to resolve from Windows — get the real address with
+`ip -4 -br addr` on the Pi and use it directly rather than fighting mDNS.
+
+### 5.3 Viewing it — use `map_viewer.html`, not the telemetry analyzer
+
+**`telemetry_analyzer.html` cannot open a bare map.** Its map dropzone only
+unlocks after it has loaded a valid 13-column run CSV, so it is the wrong
+tool when all you want is to look at a `.pgm`. `docs/tools/map_viewer.html`
+exists for exactly that (§17.32) and takes just the `.pgm` + `.yaml` pair.
+
+1. Download it once — it lives in this repo, not on the Pi:
    ```powershell
-   # save-as from a browser, or:
-   curl -sSL -o telemetry_analyzer.html ^
-     https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/main/docs/tools/telemetry_analyzer.html
+   curl -sSL -o map_viewer.html https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/main/docs/tools/map_viewer.html
    ```
-2. Double-click to open it in any browser.
-3. Drag in that run's `.csv`, then its `.pgm` + `.yaml` pair together onto
-   the Map tab. It renders the occupancy grid and shows the same
-   coverage/quality findings that get logged on the Pi automatically.
+2. Double-click it. Any browser, no server, no install, works offline.
+3. Drag the **`.pgm` and `.yaml` together** onto it. Both at once — the
+   `.yaml` carries the resolution and origin, without which the grid has no
+   scale and no world position.
+
+Use `telemetry_analyzer.html` instead when you want the map *alongside* the
+wheel telemetry for the same run — drop the `run_<stamp>.csv` in first,
+then the map pair.
+
+### 5.4 What to look for — the acceptance gate
+
+§17.32 retired the old "no single-sample step > 10 cm" criterion: it cannot
+tell a *correct* loop closure from a bad one, because a legitimate
+correction of accumulated drift trips it just as hard as a false match. Step
+size is a diagnostic now, not a pass/fail. Judge a commissioning map on
+these three instead:
+
+| Check | Pass condition |
+|---|---|
+| **Walls present** | the grid contains real occupied cells, not just free space and unknown. An open-floor drive produces a map with no wall geometry and is useless to AMCL. |
+| **Map integrity** | no folds, tears, doubled walls, or forked corridors in `map_viewer.html`. This is the criterion that actually catches a bad closure. |
+| **Return-to-mark** | drive back to the physical zero mark; the dashboard HUD should read ≈ `(0, 0)` and nose ≈ `-90°` |
+
+A doubled wall or a corridor that forks into two parallel copies of itself
+means a false loop closure fused two places that are not the same place.
+That map cannot be used for localisation and the run has to be repeated.
 
 ---
 
@@ -183,3 +245,182 @@ ros2 run tf2_ros tf2_echo odom base_link    # odom TF alive and tracking?
 ros2 topic hz /map                          # SLAM producing a map? (~1 Hz is normal)
 ps aux | grep mapping_full | grep -v grep   # confirm no orphaned mapping launch after stopping
 ```
+
+---
+
+## 8. Setting the zero point (re-zeroing on the floor mark)
+
+**This is the procedure that makes map `(0,0)` mean the physical floor mark.**
+Do it whenever the mark is moved, re-taped, or you want a fresh base map.
+
+### Why it works — the part that is not obvious
+
+Pressing **Map** does *not* set the zero point. `slam_toolbox` sets its
+`map -> odom` link to *identity* at a mapping session's first scan — it does
+**not** put the map origin under the robot. So map `(0,0)` lands on whatever
+odometry's origin is, and odometry's origin is set **only when
+`odometry_publisher` starts**, i.e. when `aislebot.service` last started.
+
+Two sessions (§17.17–§17.19) were spent assuming otherwise. If the drive
+stack started at 10:42 and you press Map at 10:56, map `(0,0)` is the
+10:42 parking spot, not the mark.
+
+### The procedure
+
+```bash
+# 1. Park the robot physically ON the floor mark.
+# 2. Stop the mapping session (dashboard Map button) — do this BEFORE the
+#    restart, so slam_toolbox isn't running while its TF parent vanishes.
+# 3. Re-zero odometry at the mark:
+sudo systemctl restart aislebot.service
+
+# 4. Wait ~10 s, then verify. MUST read [0,0,0] and -90.000 degrees:
+ros2 run tf2_ros tf2_echo odom base_link
+
+# 5. Press Map to start a fresh mapping session.
+# 6. Verify the map inherited it — also [0,0,0] @ -90 deg:
+ros2 run tf2_ros tf2_echo map base_link
+```
+
+The `-90.000` is **correct, not an error**. `base_link` on this robot has
+`+X` = right and `+Y` = nose (§17.10), so a perfectly-placed robot reads
+−90° against the map grid. It will never read 0.
+
+### Checking whether you are back home
+
+The floor mark is underneath the chassis, so you cannot see it while
+standing on it. Two ways that don't need eyes on the floor:
+
+```bash
+# Numeric: home is [0,0,0] @ -90 deg, same as step 6 above.
+ros2 run tf2_ros tf2_echo map base_link
+```
+
+**Visual (Foxglove):** `mapping_full.launch.py` publishes a permanent
+`zero_point` frame at the map origin, carrying the same −90° twist
+`base_link` has. Enable both frames in the 3D panel's **Transforms** list.
+When the two axis triads sit exactly on top of each other, you are home.
+The marker is fixed to the map, so it stays put while you drive.
+
+### Driving home automatically
+
+Once the zero point is real, "return to zero" is a *constant* command — it
+no longer has to be computed per-run the way `nav_goal.py` does. Requires
+Nav2 running:
+
+```bash
+ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
+  "{pose: {header: {frame_id: map}, pose: {position: {x: 0.0, y: 0.0, z: 0.0}, \
+   orientation: {x: 0.0, y: 0.0, z: -0.7071068, w: 0.7071068}}}}"
+```
+
+The `z: -0.7071068, w: 0.7071068` quaternion is just −90° yaw written the
+way ROS wants it — the same rotation `tf2_echo` prints as `[0, 0, -0.707,
+0.707]`.
+
+---
+
+## 9. Autonomous base-map scan (the CALIBRATE button)
+
+**Order of operations: MAP → launch Nav2 → CALIBRATE.**
+
+```bash
+# Nav2 must be up before CALIBRATE will do anything.
+ros2 launch mecanum_navigation nav2_slam.launch.py
+```
+
+Then on the dashboard: **CALIBRATE** → **TAP AGAIN** to confirm.
+
+It runs `tools/zero_point_scan.py`: at each of four 90° headings it checks
+whether `/map` actually grew, nudges ≤ 0.15 m *only if it didn't*, and
+returns to the exact start pose as its final action.
+
+**Why 90° steps, i.e. four headings.** Not a round number — the rear
+self-occlusion mask is a *measured* 90° wedge (§17.15), and a 360° LiDAR
+already sees everything else from any single heading. Four headings sweep
+that blind wedge across the full circle exactly once. Finer steps cost time
+without covering more.
+
+**Stopping it:**
+- **CALIBRATE again** → SIGINT. The script traps it and *drives home* first.
+- **E-STOP** → SIGKILL + cancel-all on `/navigate_to_pose`. Killing the
+  script alone is not enough: Nav2 holds the last accepted goal and would
+  resume the moment the E-STOP latch cleared.
+
+**If the button is greyed out:** mapping isn't running. If it refuses on
+tap, check the log — `ros2 node list | grep bt_navigator` (Nav2 down) is the
+usual cause.
+
+**Run log:** `~/aislebot_logs/calib_<timestamp>.log`, with the last lines
+mirrored onto the phone while it runs.
+
+```bash
+tail -f ~/aislebot_logs/calib_*.log      # full detail from the terminal
+```
+
+### Foxglove click-to-goal
+
+`nav2_slam.launch.py` starts `goal_pose_adapter`, which is **inert until you
+opt in**. In the 3D panel settings, set the publish pose topic to:
+
+| Topic | Drag arrow means |
+|---|---|
+| `/goal_pose` (old) | where the robot's **right side** faces — drag 90° clockwise of the heading you want |
+| `/goal_pose_click` (adapter) | where the robot's **nose** faces — drag where you actually mean |
+
+**The exact click-path, because none of it is discoverable** (first made to
+work 21 Aug 2026, §17.31 — three things must all be right and each one fails
+*silently*):
+
+1. Open the 3D panel's settings (gear icon), scroll past **Topics** and
+   **Custom layers** to the **Publish** section. It holds *three independent
+   tools with three independent topic fields* — this is not the topic list.
+2. The one that sends a goal is **"2D pose (geometry_msgs/PoseStamped)"**.
+   Not "2D pose estimate" (that's `/initialpose`, for AMCL localisation), and
+   not "2D point" (that's `/clicked_point`, which Nav2 ignores entirely).
+3. Its Topic field is **free text with no dropdown** — type `/goal_pose_click`
+   exactly and press Enter.
+4. Click the **publish tool icon** in the 3D view's top-right toolbar, then
+   pick **"Publish 2D pose (/goal_pose_click)"** from the flyout menu. The
+   toolbar defaults to the *point* tool, so this step is mandatory.
+5. On the map: **press and hold** at the target, **drag** to set the heading,
+   **release** to send. A quick click may not fire — the arrow updates while
+   held and only sends on release.
+
+**Failure signature to recognise:** a yellow dot appears on the map, the robot
+doesn't move, and nothing errors anywhere. That is the *point* tool still
+armed (step 4 skipped) publishing a position-only `PointStamped`. Confirm a
+real goal went out by watching Terminal 2 for `goal_pose_adapter: goal (x, y)
+nose … -> base_link yaw …`.
+
+Only the goal's *orientation* was ever affected; position always came from
+the click point. That's why the old workaround was survivable — a mis-drag
+sent the robot to the right place facing the wrong way, not to the wrong
+place.
+
+### Restricting goals to mapped (white) space
+
+`nav2_params.yaml`'s planner sets `allow_unknown: true`, so it will route
+through grey/unknown cells. That is deliberate — early maps were ~85%
+unknown (§17.4) and `false` would make almost every goal unreachable. Once a
+complete base map exists it is reasonable to flip it, but note that a single
+unknown pixel across a corridor makes A* fail outright. Editable on the Pi
+without internet:
+
+```bash
+nano ~/ros2_ws/src/mecanum_navigation/config/nav2_params.yaml   # allow_unknown
+cd ~/ros2_ws && colcon build --packages-select mecanum_navigation
+```
+
+Until then, safety comes from the local costmap, the footprint check, and
+`collision_monitor` — not from refusing to enter unmapped space
+(`Navigation_Theory.md` §2).
+
+---
+
+**Caveat on the zero point, stated honestly:** `slam_toolbox` keeps correcting its own pose
+estimate as it scan-matches, so after heavy driving with wheel slip the map
+origin and the physical mark can separate (§17.19 measured 0.44 m after a
+crash). The marker shows where the map *believes* zero is. Good enough to
+navigate home to; not a survey monument. Re-run the procedure above if the
+two visibly disagree.

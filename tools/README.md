@@ -10,6 +10,33 @@ analysis tools.)
 | Script | What it does |
 |---|---|
 | `nab_pid_logger.py` | Drives a scripted bench test on the ESP32 and writes the result to a CSV in `~/aislebot_logs/`. Replaces the serial-monitor copy-paste workflow. |
+| `pi_audit.sh` | Read-only inventory of the Pi — disk, network, services, deployed code, run data, cleanup candidates. Deletes nothing. With `--online`, diffs every deployed source file against GitHub. |
+
+---
+
+## `pi_audit.sh`
+
+Answers "what is actually on this robot, and is any of it stale?" in one
+paste. It **only reads** — nothing is deleted, moved, or restarted.
+
+```bash
+curl -sSL -o /tmp/pi_audit.sh \
+  https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/mapping-autonomous-nav-695glw/tools/pi_audit.sh
+bash /tmp/pi_audit.sh --online
+```
+
+`--online` adds section 16, which fetches each deployed source file from
+GitHub and reports `match` / `DIFFERS` / `MISSING-ON-PI` / `EXTRA`. That is
+the direct check for §17.32's lesson — **a value in the repo is not a value
+on the robot** — and it needs the Pi on a network with internet (eduroam,
+not the `aislebot-ap` AP, which has no uplink). Without the flag the rest of
+the audit still runs offline.
+
+Override the branch with `AISLEBOT_BRANCH=<branch> bash /tmp/pi_audit.sh --online`.
+
+Section 13 and 14 list cleanup candidates with sizes. Read them before
+deleting anything — `~/ros2_ws/build`, `~/.ros/log` and old rosbags are
+usually where the space went.
 
 ---
 

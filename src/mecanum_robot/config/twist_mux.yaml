@@ -1,0 +1,44 @@
+# twist_mux — arbitrates manual (joystick/phone) vs autonomous (Nav2) drive
+# commands so exactly one of them reaches teleop_asym at any moment.
+#
+# WHY THIS EXISTS
+#   Before this file, THREE independent publishers wrote straight to
+#   /cmd_vel with no arbitration at all: joy_to_aislebot.py, phone_dashboard.py,
+#   and (whenever Nav2 was running) cmd_vel_axis_adapter.py. Whichever one's
+#   callback fired last won, with no priority and no way to reliably grab
+#   manual control back from Nav2 mid-drive. That is exactly the gap that
+#   made the SLAM-crash collision harder to stop than it should have been —
+#   there was no clean manual override path while Nav2 was driving blind.
+#
+#   Now: joy_to_aislebot.py and phone_dashboard.py publish to /cmd_vel_manual;
+#   Nav2's fully-adapted output (cmd_vel_axis_adapter) publishes to
+#   /cmd_vel_nav_out (see nav2_slam.launch.py / navigation.launch.py). This
+#   node picks whichever is both PRESENT (published within its timeout) and
+#   HIGHER PRIORITY, and republishes it as /cmd_vel — the one topic
+#   teleop_asym has always subscribed to. teleop_asym itself is untouched.
+#
+# PRIORITY: manual always wins over autonomous while it is actively
+# publishing. This is deliberate — you should never have to fight the
+# planner for control. It stops winning ~0.5s after you stop sending manual
+# commands, at which point Nav2 (if still running) regains control.
+twist_mux:
+  ros__parameters:
+    # Every publisher/subscriber in this codebase (joy_to_aislebot.py,
+    # phone_dashboard.py, keyboard_teleop.py, cmd_vel_axis_adapter.py,
+    # mecanum_teleop_asymmetric.py) uses plain geometry_msgs/Twist. This
+    # ros-teleop/twist_mux release (ros-jazzy-twist-mux 4.5.0) defaults
+    # toward TwistStamped absent this flag -- Foxglove's Problems panel
+    # caught the resulting schema mismatch live on /cmd_vel_manual,
+    # /cmd_vel_nav_out, and /cmd_vel on this exact install (21 Aug 2026,
+    # first-ever twist_mux run on hardware). Set explicitly rather than
+    # trust whichever default this version ships with.
+    use_stamped: false
+    topics:
+      manual:
+        topic: cmd_vel_manual
+        timeout: 0.5
+        priority: 100
+      navigation:
+        topic: cmd_vel_nav_out
+        timeout: 0.5
+        priority: 10

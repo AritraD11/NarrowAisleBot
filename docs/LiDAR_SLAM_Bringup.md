@@ -100,18 +100,55 @@ ttyUSB2 = lidar (port 2-2).
 ## Confirmed X4 Pro parameters
 
 These are read off the hardware, not copied from a forum. They live in
-`~/ros2_ws/src/ydlidar_ros2_driver/params/ydlidar.yaml` already:
+`~/ros2_ws/src/ydlidar_ros2_driver/params/ydlidar.yaml`, and the repo's
+copy of record is `system/ydlidar_params.yaml`, which `install.sh:220`
+copies to that path (renaming it on the way in).
 
+**Reproduce the file exactly as shown, wrapper included.** An earlier
+version of this section listed only the values, without the
+`ydlidar_ros2_driver_node: / ros__parameters:` nesting they sit under. On
+13 Aug 2026 that listing was transcribed verbatim into
+`system/ydlidar_params.yaml` as a flat file — and a flat parameter file
+does not half-work in ROS 2, it binds nothing at all. The driver would
+have fallen back to its compiled defaults (wrong `baudrate`, wrong
+`lidar_type`, wrong `isSingleChannel` for an X4 Pro) with no obvious
+error pointing at the cause. It never fired only because `install.sh` had
+not run since 26 June. Corrected 24 Aug 2026, verified byte-identical to
+the Pi's working copy (sha256 `049fbbe7bff9…`, 561 bytes).
+
+```yaml
+ydlidar_ros2_driver_node:
+  ros__parameters:
+    port: /dev/ydlidar
+    frame_id: laser_frame
+    ignore_array: ""
+    baudrate: 128000
+    lidar_type: 1
+    device_type: 0
+    isSingleChannel: true
+    intensity: false
+    intensity_bit: 0
+    sample_rate: 5
+    abnormal_check_count: 4
+    fixed_resolution: true
+    reversion: false
+    inverted: false
+    auto_reconnect: true
+    support_motor_dtr: false
+    angle_max: 180.0
+    angle_min: -180.0
+    range_max: 12.0
+    range_min: 0.1
+    frequency: 10.0
+    invalid_range_is_inf: false
+    debug: false
 ```
-port: /dev/ydlidar
-baudrate: 128000
-lidar_type: 1
-device_type: 0
-sample_rate: 5
-isSingleChannel: true
-intensity: false
-frequency: 10.0
-```
+
+`range_max: 12.0` here is the **driver's** publishing limit and is
+deliberately not the same number as `slam_nodom.yaml`'s
+`max_laser_range: 10.0` (Stage B). The driver publishes returns out to
+12 m; slam_toolbox chooses to ignore anything past 10 m when building the
+graph. Both are correct as written.
 
 ---
 

@@ -4,7 +4,10 @@ aislebot_full.launch.py — bring up the entire AisleBot stack.
 
 Nodes started:
     joy_node               (USB gamepad → /joy)
-    joy_to_aislebot        (/joy → /cmd_vel, /arm/cmd_vel, /arm/command)
+    joy_to_aislebot        (/joy → /cmd_vel_manual, /arm/cmd_vel, /arm/command)
+    twist_mux               (/cmd_vel_manual + /cmd_vel_nav_out → /cmd_vel,
+                             priority-arbitrated — see config/twist_mux.yaml.
+                             Always running, whether or not Nav2 is up.)
     teleop_asym            (/cmd_vel → /wheel_speeds)
     esp32_bridge           (/wheel_speeds → ESP32 serial)   /dev/esp32 CP2102
     odom_pub               (encoder feedback → /odom)
@@ -23,6 +26,9 @@ Usage:
     ros2 launch mecanum_robot aislebot_full.launch.py use_foxglove:=false
 """
 
+import os
+
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.substitutions import LaunchConfiguration
@@ -31,6 +37,14 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
+
+    urdf_path = os.path.join(
+        get_package_share_directory('mecanum_robot'), 'urdf', 'aislebot.urdf')
+    with open(urdf_path, 'r') as f:
+        robot_description = f.read()
+
+    twist_mux_params = os.path.join(
+        get_package_share_directory('mecanum_robot'), 'config', 'twist_mux.yaml')
 
     args = [
         DeclareLaunchArgument('esp32_port',   default_value='/dev/esp32',
@@ -100,6 +114,26 @@ def generate_launch_description():
     )
 
     # ── DRIVE PIPELINE ───────────────────────────────────────────
+    # twist_mux arbitrates manual (/cmd_vel_manual, from joy_to_aislebot /
+    # phone_dashboard / keyboard_teleop) against Nav2's fully axis-adapted
+    # output (/cmd_vel_nav_out, published only while nav2_slam.launch.py or
+    # navigation.launch.py is running) and republishes the winner on
+    # /cmd_vel — the one topic teleop_asym has always subscribed to.
+    #
+    # Runs unconditionally, not gated behind use_joystick/use_phone: manual
+    # override must exist even if this particular launch started with
+    # neither input node, and it is a no-op (nothing to arbitrate) when
+    # Nav2 isn't running either. See config/twist_mux.yaml for priorities —
+    # manual always wins over autonomous while actively publishing, which
+    # is the safety gap that made the SLAM-crash collision harder to
+    # interrupt than it should have been (no clean override path existed).
+    twist_mux = Node(
+        package='twist_mux', executable='twist_mux', name='twist_mux',
+        parameters=[twist_mux_params],
+        remappings=[('cmd_vel_out', 'cmd_vel')],
+        output='screen',
+    )
+
     teleop = Node(
         package='mecanum_robot', executable='teleop_asym',
         name='teleop_asym',
@@ -177,12 +211,37 @@ def generate_launch_description():
         output='screen',
     )
 
+    # ── ROBOT MODEL ──────────────────────────────────────────────
+    # Publishes /robot_description and the URDF's fixed-joint TFs, so
+    # Foxglove draws the actual 36 x 100 cm chassis, four wheels and LiDAR
+    # instead of a bare set of axes — the robot is a body, not a point, and
+    # the 6 cm cushion only means something against a body.
+    #
+    # This OWNS base_link -> laser_frame. The vendor ydlidar_launch.py used
+    # to publish a competing hardcoded (0, 0, 0.02) placeholder for the same
+    # transform; mapping_full.launch.py now starts the driver node directly
+    # and leaves that publisher out, so there is exactly one source and it
+    # carries the measured mount (§17.12).
+    #
+    # URDF is read at launch-time into a parameter rather than passed as a
+    # path: robot_state_publisher wants the XML itself, and reading it here
+    # fails loudly at launch if the file is missing rather than leaving the
+    # node up with an empty description.
+    robot_state_pub = Node(
+        package='robot_state_publisher', executable='robot_state_publisher',
+        name='robot_state_publisher',
+        parameters=[{'robot_description': robot_description}],
+        output='screen',
+    )
+
     return LaunchDescription([
         *args,
         banner,
         joy_node, joy_translator, phone,
+        twist_mux,
         teleop, esp32_bridge, odom_pub,
         arm_bridge,
         lcd,
         foxglove,
+        robot_state_pub,
     ])

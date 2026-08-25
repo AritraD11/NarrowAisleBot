@@ -44,7 +44,7 @@ PUBLISHED-FRAME ROTATION (added 11 Aug 2026, Research_Journal.md §17.10).
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Empty, Float64MultiArray
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import TransformStamped, Quaternion
 from tf2_ros import TransformBroadcaster
@@ -65,6 +65,51 @@ class OdometryPublisher(Node):
         self.declare_parameter('publish_tf', True)
         self.declare_parameter('odom_frame', 'odom')
         self.declare_parameter('base_frame', 'base_link')
+
+        # ── LATERAL SLIP CORRECTION (measured on hardware 15 Aug 2026) ──
+        # Mecanum rollers scrub sideways across the floor during a strafe, so
+        # the wheels turn further than the chassis actually travels. The ideal
+        # kinematics below cannot know this and over-report lateral distance.
+        #
+        # Measured directly, tape measure vs this node's own output, robot
+        # driven manually with no rotation:
+        #     forward 1.00 m -> reported 1.009 m   (+0.9%,  no correction needed)
+        #     strafe  1.00 m -> reported 1.248 m   (+24.8%)
+        #     strafe  1.00 m -> reported 1.245 m   (+24.5%)   repeat run
+        # -> true lateral distance = 0.80 x reported.
+        #
+        # Longitudinal is left at 1.0 deliberately: it measured accurate, and
+        # scaling an axis that isn't wrong only adds a second thing to doubt.
+        #
+        # Why this matters beyond tidiness: slam_toolbox takes odom as its
+        # motion prior and then scan-matches against it. A 25% lie on every
+        # sideways move forces a correction each time, which is what produced
+        # the 6.7-18.2 cm pose jumps seen during zero_point_scan.py's first
+        # working run, and why its nudges never landed where it aimed them.
+        #
+        # A PARAMETER, not a constant, and READ LIVE rather than cached at
+        # startup. Surface dependence is not a footnote here, it is the main
+        # result -- two floors in the same building measured, same procedure,
+        # same robot, same session:
+        #     floor A:  raw 1.248 / 1.245 per 1.00 m tape  -> scale 0.80
+        #     floor B:  raw 1.080 / 1.089 per 1.00 m tape  -> scale 0.92
+        # A single compiled-in constant is therefore wrong somewhere by
+        # construction. Reading the parameter inside the callback makes
+        #     ros2 param set /odometry_publisher lateral_scale 0.92
+        # take effect immediately, so recalibrating for a new floor is a
+        # strafe, a tape measure and one command -- no edit, no rebuild, no
+        # service restart that would throw away the zero point.
+        #
+        # Repeatability on a single surface is excellent (an out-and-back of
+        # ~1.74 m closed to 2.6 cm, 1.5%), so this is a scale factor worth
+        # measuring, not noise to be averaged away.
+        # DEFAULT IS FLOOR B, the surface the zero mark sits on and therefore
+        # the one every mapping and navigation run actually starts from.
+        # Confirmed twice by independent routes: an uncorrected strafe read
+        # 1.080 m per 1.00 m tape, and a 0.80-corrected strafe read 0.868 m
+        # per 1.00 m tape (raw 1.085). Both give 0.92.
+        # On floor A use 0.80 — see the surface table above.
+        self.declare_parameter('lateral_scale', 0.92)
 
         self.r = self.get_parameter('wheel_radius').value
         self.l1 = self.get_parameter('l1').value
@@ -90,12 +135,39 @@ class OdometryPublisher(Node):
 
         self.odom_pub = self.create_publisher(Odometry, 'wheel_odom', 50)
 
+        # ── Re-zero without a service restart (§17.32) ────────────────────
+        # Setting the zero point used to mean `systemctl restart
+        # aislebot.service`, because x/y/theta are only ever zeroed in
+        # __init__. That works from a terminal, but it also tears down
+        # phone_dashboard -- which is the thing that would be asking for the
+        # re-zero in the first place -- so the dashboard could never own the
+        # §8 procedure. This topic zeroes the same three numbers in place.
+        #
+        # ORDERING STILL MATTERS, and is enforced by the caller, not here:
+        # slam_toolbox pins map->odom to identity at its first scan, so a
+        # re-zero must happen BEFORE mapping starts or map (0,0) lands on
+        # the old origin. phone_dashboard refuses the request while mapping
+        # is active for exactly this reason (Important_Commands.md §8).
+        self.create_subscription(Empty, 'odom/reset', self._reset_cb, 10)
+
         if self.publish_tf:
             self.tf_broadcaster = TransformBroadcaster(self)
 
         self.get_logger().info(
             f'Odometry publisher started | '
             f'K_out={self.K_outer:.4f} K_in={self.K_inner:.4f}')
+
+    def _reset_cb(self, _msg):
+        """Zero the integrated pose in place — the robot's current physical
+        spot becomes odom's origin, exactly as a fresh node start would."""
+        self.x = 0.0
+        self.y = 0.0
+        self.theta = 0.0
+        # Integration is dt-based off the previous callback; without this the
+        # first post-reset sample would integrate the whole idle gap since the
+        # last wheel message and immediately walk the new origin off zero.
+        self.last_time = self.get_clock().now()
+        self.get_logger().info('Odometry re-zeroed: this spot is now odom (0, 0, 0)')
 
     def velocity_cb(self, msg):
         if len(msg.data) < 4:
@@ -112,7 +184,12 @@ class OdometryPublisher(Node):
 
         # Forward kinematics (asymmetric)
         vx = (self.r / 4.0) * (w_fr + w_fl + w_rr + w_rl)
-        vy = (self.r / 4.0) * (w_fr - w_fl - w_rr + w_rl)
+        # lateral_scale corrects roller scrub — see the parameter's comment in
+        # __init__ for the tape-measured derivation. Applied here, at the one
+        # place vy is produced, so the integrated position, the published
+        # twist, and anything downstream all inherit the same correction.
+        lateral_scale = self.get_parameter('lateral_scale').value
+        vy = (self.r / 4.0) * (w_fr - w_fl - w_rr + w_rl) * lateral_scale
 
         # For rotation, use weighted formula accounting for asymmetry
         wz = (self.r / 4.0) * (

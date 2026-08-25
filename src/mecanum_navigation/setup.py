@@ -23,6 +23,11 @@ setup(
     license='MIT',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': [],
+        'console_scripts': [
+            'cmd_vel_axis_adapter ='
+            ' mecanum_navigation.cmd_vel_axis_adapter:main',
+            'goal_pose_adapter ='
+            ' mecanum_navigation.goal_pose_adapter:main',
+        ],
     },
 )

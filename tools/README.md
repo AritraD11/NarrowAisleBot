@@ -73,6 +73,92 @@ touching any of the geometry.
 
 ---
 
+## `graph_residuals.py`
+
+The one Tier 1 item from `docs/MATLAB_Navigation_Reference.md` worth
+building, and the answer to a limitation §17.29 established: this
+`slam_toolbox` build emits **no per-closure signal at all** — no console
+line, no topic, no service. So "was that a good closure?" cannot be answered
+by watching for the event.
+
+```bash
+source /opt/ros/jazzy/setup.bash
+./tools/graph_residuals.py --watch                # run this during the drive
+./tools/graph_residuals.py --watch --log g.jsonl  # ... and keep the record
+./tools/graph_residuals.py --save g.json          # capture on the Pi
+./tools/graph_residuals.py --load g.json          # analyse on the laptop
+./tools/graph_residuals.py --selftest             # no ROS needed
+```
+
+### What the topic carries — and what it does not
+
+Verified against `loop_closure_assistant.cpp`'s `publishGraph()`, not
+assumed:
+
+| | |
+|---|---|
+| **published** | node id → solved `(x, y)`, one SPHERE marker per vertex |
+| | edges as two `LINE_LIST` markers whose points are pairs of endpoint **coordinates** |
+| | republished every `map_update_interval` — 1.0 s here |
+| **not published** | node **orientation** (`toMarker()` hardcodes `orientation.w = 1`) |
+| | edge node **ids** — the line list carries geometry, not topology |
+| | the edge **measurement**, which is what a true residual is measured against |
+| | the information matrix |
+
+So a true SE(2) chi-squared residual **is not computable from this topic**.
+Topology is recovered by matching each line-list endpoint back to a node
+marker by position — exact match, since both are the same doubles from the
+same message, with a tolerance fallback and an unresolved count so a
+mis-match cannot silently invent an edge.
+
+### Where the signal actually is
+
+The graph is republished every second, so successive messages can be
+differenced. **A node that moves between two publications was moved by the
+optimiser.** That is Stage A's method — §17.32 caught a 39.57 cm `map→odom`
+jump by differencing TF — but at per-node resolution, and with the cause
+attached: comparing edge sets across the same two messages says *which edge
+arrived in the update that moved things*. A closure that appears in the same
+update as a 40 cm shift is that shift's cause.
+
+**This is the per-closure signal §17.29 concluded did not exist.** It does
+not exist as an event. It exists as a difference.
+
+And unlike a raw jump size, the difference can be judged:
+
+```
+implied drift rate  =        how far the graph moved
+                      ---------------------------------------
+                      metres driven since the closed-on node
+```
+
+A legitimate closure cancels drift accumulated since the robot was last at
+that spot, so its implied rate should land near this robot's measured
+odometry error — 1.5% over §17.32's 3.4 m box drive, 2.4% on 0.5 m
+forward/back, 3.3% lateral (§17.30). A closure implying 20% corrected drift
+that never accumulated. The `--max-drift-rate` ceiling defaults to 10%,
+three to four times the worst measured rate, and it is **the one judgement
+call in the tool** — everything else is measured.
+
+`--watch` prints one line per update, marked `.` baseline, blank quiet,
+`~` shift, `+` closure, `!` suspect closure, with map coordinates on every
+closure so the location can be checked in `map_integrity.py --png`. A false
+closure puts a doubled wall exactly where it strained the chain; the two
+tools agreeing on a location is much stronger evidence than either alone.
+
+A single snapshot has nothing to difference against, so snapshot mode
+reports structure only — chain-edge length outliers by modified z-score
+(the `trimLoopClosures` analogue on a solved graph) and the loop-edge
+table — and says as much in its output.
+
+`--selftest` needs no ROS. It plants a legitimate closure (8 m driven,
+15 cm cancelled, 1.9%), a false one (3 m driven, 60 cm yanked, 20%), an
+unchanged graph, and a stretched chain link, and asserts each is called
+correctly — including that the topology is recovered from coordinates alone
+every time.
+
+---
+
 ## `pi_audit.sh`
 
 Answers "what is actually on this robot, and is any of it stale?" in one

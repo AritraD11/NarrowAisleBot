@@ -90,6 +90,7 @@ import json
 import csv
 import math
 import os
+import contextlib
 import signal
 import subprocess
 import time
@@ -2222,10 +2223,22 @@ def main(args=None):
             log_level = 'warning',
         )
         server = uvicorn.Server(config)
-        for attr in ('install_signal_handlers', 'should_exit', 'run'):
+        for attr in ('should_exit', 'run'):
             if not hasattr(server, attr):
                 raise AttributeError(f'uvicorn.Server has no {attr}')
-        server.install_signal_handlers = lambda: None
+        # uvicorn renamed this. Up to ~0.29 it was install_signal_handlers(),
+        # a plain method; newer versions (0.46 on the robot) use
+        # capture_signals(), a context manager wrapped around serve().
+        # Stubbing the wrong one silently leaves uvicorn owning SIGTERM,
+        # which is the whole bug, so require one of them explicitly.
+        if hasattr(server, 'capture_signals'):
+            server.capture_signals = lambda: contextlib.nullcontext()
+        elif hasattr(server, 'install_signal_handlers'):
+            server.install_signal_handlers = lambda: None
+        else:
+            raise AttributeError(
+                'uvicorn.Server exposes neither capture_signals nor '
+                'install_signal_handlers')
     except Exception as exc:
         _node.get_logger().warn(
             f'uvicorn Server API unavailable ({exc}) — falling back to '

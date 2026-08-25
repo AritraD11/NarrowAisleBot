@@ -12,122 +12,164 @@ workflow has moved off the terminal and into the dashboard.
 
 ---
 
-## ⏸ RESUME HERE — 25 Aug 2026 (§17.34)
+## ⏸ RESUME HERE — 26 Aug 2026 (§17.35)
 
-**The platform is fixed and verified. The map integrity check is the only
-thing standing between you and Stage D.**
+**Map acceptance is now a command, not a judgement. Run it first — it needs
+no robot.** The platform was verified 25 Aug; 26 Aug built the two
+instruments that were missing. Neither has seen real data.
 
-### State of the robot — verified, not assumed
+### Step 1 — the integrity check, on the laptop, no hardware
 
-- **All 30 deployed files hash-match `main` byte-for-byte**, including
-  `~/ros2_ws/slam_nodom.yaml` (`7ec7904aa3ab…`, Stage B) and
-  `params/ydlidar.yaml` (`049fbbe7bff9…`). First fully known state this
-  project has had.
-- `phone_dashboard.py` is `b920e6652ab7c92f…` (103,005 B).
-- **A map now survives a restart**, confirmed on hardware:
-  `run_20260825_151713.pgm`, 27,383 B, header stamped
-  `# CREATOR: phone_dashboard from cached /map`.
-- The map view no longer drives the robot when you touch it.
-- Pi boots to `multi-user.target`; 2 GB reclaimed; journald capped.
-
-### THE ONE OPEN QUESTION — do this first
-
-**Is any of today's maps clean enough for AMCL?** Nobody has looked at the
-grid itself. Numbers alone cannot settle it and have already pointed both
-ways on the same map:
-
-| | `run_20260825_113735` | `run_20260825_151713` |
-|---|---|---|
-| Size | 26,011 B, 134×194 | **27,383 B, 138×198** |
-| Occupied | 540 cells (2.08%) | not yet measured |
-| Unknown | 80.95% — its report says *"not yet a usable map for navigation"* | not yet measured |
-| Wall vs bounding perimeter | **27 m / 32.8 m = 0.82** — the drive got round most of the room | — |
-
-Those two readings disagree. "81% unknown" measures how much of a
-*bounding box* is unmapped, and if the space is L-shaped or has shelving,
-most of that box was never floor. The wall ratio is the more meaningful
-number. **Settle it by looking:**
+The `.pgm` files are on the Windows machine, not in the repo, so this is the
+one step that has to start there.
 
 ```powershell
-curl.exe -sSL -o map_viewer.html https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/main/docs/tools/map_viewer.html
+cd C:\Users\aritradas\Documents\data\field_runs
+python map_integrity.py run_20260825_151713.pgm --png 151713.png
+python map_integrity.py run_20260825_113735.pgm --png 113735.png
+python map_integrity.py --corpus . --csv integrity.csv
 ```
 
-Double-click it, drag in the `.pgm` **and** `.yaml` together. Judge on
-§17.32's revised gate — **walls present / map integrity / return-to-mark**:
+(`tools/map_integrity.py` from the repo; pure standard library, so nothing to
+install. `--selftest` first if you want to see it prove itself on five
+synthetic rooms with known answers.)
 
-- **Continuous, single-thickness walls** → good, proceed to Stage D.
-- **A doubled wall, a fork, a corridor appearing twice** → a false loop
-  closure fused two places that are not the same place. That map cannot
-  localise and the run has to be repeated.
+**Read it like this:**
 
-Single-sample step size is **diagnostic, not pass/fail** (§17.32).
+| Verdict | What to do |
+|---|---|
+| `CLEAN` | integrity half of §17.32's gate passed — go to Stage D |
+| `SUSPECT` | open the `--png` and look at the red cells before deciding |
+| `FOLDED` | redo the drive; that map cannot localise |
 
-### Also worth knowing
+The headline number is **D2, doubled walls**. Its argument: free cells
+between two near-parallel walls mean the LiDAR returned through that space,
+so something saw both faces — but the gap is under the robot's own 0.48 m
+width, so it cannot have been this robot. The clusters come with **map
+coordinates**, so a flag is a place you can go and look at rather than a
+score. Open the same coordinates in `map_viewer.html` and decide with both.
 
-- **Best return-to-mark ever: 1.9 cm / 0.2°** on a ~30 s drive
-  (`MAP x 0.018 y -0.006`, `NOSE -90.2°`). One drive, not a repeatability
-  claim — and its map was lost to the very bug fixed later that day.
-- `tools/map_corpus.py` compares every run in a folder at once. Needs the
-  files gathered in one place; ~20 of them are already in
-  `C:\Users\aritradas\Documents\data\field_runs`.
-- **Never analysed as a corpus:** 70+ maps, 73 run reports, 124 telemetry
-  CSVs, and three `.mcap` rosbags in `~/slam_tests` (two of which have
-  never been opened). Every finding in Part XVII comes from reading exactly
-  one run.
-- **`AISLEBOT_VIDEO_DECODER_APP`** — recommended against on reasoning
-  (video is derived from what the Pi already logged, and lossier), but the
-  implementation has never been read. Owed a proper look.
+**The corpus run matters as much as the two maps.** Every threshold in the
+tool is a guess and says so; `--corpus` over the archive prints the
+percentiles that should replace them. That is the first use anyone has made
+of the 70-map corpus §17.33 recorded as never analysed.
 
-### Making mapping *measurably* reliable — the MATLAB lever, decided
+### Step 2a — if the maps are CLEAN: Stage D
 
-Reviewed `docs/MATLAB_Navigation_Reference.md` against the current system.
-Verdict: **one item is worth building, one needs a check first, one waits
-for a map, and nothing should be removed** — the doc's "Not applicable"
-list already excluded 3-D octrees, MPNet, Frenet lanes and factor-graph VIO
-with reasons.
+`nav2_params.yaml:57` **is fixed** — it read `robot_model_type:
+"omnidirectional"`, which is not a class anyone exports. Confirmed against
+upstream `nav2_amcl` on `jazzy` and `humble`: `plugins.xml` declares only
+`nav2_amcl::DifferentialMotionModel` and `nav2_amcl::OmniMotionModel`,
+`amcl_node.cpp` defaults to the *fully-qualified* name, and it passes the
+string straight to `createSharedInstance` with no legacy shim and no
+try/catch on the `on_configure` path. The old value would have aborted the
+**entire** bringup, not just localisation.
 
-**The real gap is that map quality is unmeasured.** §17.29 proved this
-`slam_toolbox` build has *zero* observable per-closure signal — no console
-output, no topic, verified against source and the live node. So §17.32's
-acceptance gate falls back to "does the map visibly fold", which is a human
-eyeballing a grid. That is the weakest link in calling mapping reliable.
+Still verify on the Pi before the first bringup, because the repo is not the
+robot:
 
-**Build this once one clean map exists — Tier 1 #2, pose-graph residual
-analysis.** MATLAB's `trimLoopClosures` does not watch closures as they
-happen; it computes `edgeResidualErrors` across the *solved* graph and flags
-statistical outliers. That sidesteps the missing-signal limitation entirely.
-`slam_toolbox` already publishes `/slam_toolbox/graph_visualization`, so the
-nodes and edges are on the wire — a subscriber computing per-edge residuals
-would replace "it looks clean" with a number, and would finally give real
-evidence on §17.32's still-open question of what caused the jumps.
+```bash
+grep -rn "OmniMotionModel" /opt/ros/jazzy/share/nav2_amcl/*.xml
+ros2 node list | grep slam_toolbox      # MUST come back empty
+```
 
-**Check before assuming — Tier 1 #3, occupancy-grid saturation.** This is
-the *other* half of the pipeline: Stage A/B tuned pose-graph correction,
-this is grid construction. MATLAB's `ProbabilitySaturation` caps log-odds
-drift so a cell observed occupied 50 times does not need 50 contrary
-observations to flip back — directly relevant to a warehouse where pallets
-move. **Parameter names are NOT verified against this build.** Run
-`ros2 param list /slam_toolbox | grep -iE "thresh|pass"` against the live
-node first; treat it as a lead, not a fact.
+`slam_toolbox` must be completely gone before AMCL starts — both publish
+`map→odom`. Then park on the mark, launch `navigation.launch.py` against the
+saved map, and confirm the value actually bound:
 
-**Wait for a map — Tier 1 #4, path clearance.** Minimum distance from the
-driven path to the nearest obstacle. For a robot whose whole premise is
-narrow aisles, "how close did it come to the shelf" is more mission-relevant
-than anything `trajectory_viz.py` reports today. Cheap: sample the saved map
-at each recorded pose, report the minimum.
+```bash
+ros2 param get /amcl robot_model_type
+```
 
-**Ordering, and it matters:** none of these is a prerequisite for one clean
-saved map. Get the map, verify it, get AMCL localising. *Then* item 2 turns
-map acceptance from a judgement into a measurement.
+Then one goal from the dashboard, then the obstacle test.
+
+### Step 2b — if they are not CLEAN: one more commissioning drive
+
+Apply what 25 Aug showed: **longer beats shorter** (the 20-minute run had 10×
+the wall cells of the 5-minute one), perimeter, 0.5–1.5 m off the walls, one
+direction, closing at the mark. The rear 90° is permanently blind behind the
+mast.
+
+**Run the new instrument alongside it** — it costs nothing and does not touch
+the mapping stack:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+./tools/graph_residuals.py --watch --log ~/aislebot_logs/graph.jsonl
+```
+
+### What `graph_residuals.py` does, and the correction behind it
+
+§17.29 proved this `slam_toolbox` build emits **no per-closure signal** — no
+console line, no topic, no service. The MATLAB item assumed
+`/slam_toolbox/graph_visualization` carried enough to compute
+`edgeResidualErrors` anyway. Reading `publishGraph()` first showed it does
+not: node positions and edge endpoint **coordinates** only, with no
+orientation, no node ids, **no edge measurement and no information matrix**.
+A true χ² residual is not computable from that topic.
+
+What is computable is better. The graph is republished every second, so
+**a node that moves between two publications was moved by the optimiser**,
+and differencing the *edge sets* over the same two messages names which
+closure arrived in the update that moved things. That is the per-closure
+signal §17.29 said did not exist — not as an event, as a difference. It is
+Stage A's TF-differencing method at per-node resolution, with the cause
+attached.
+
+And it can be judged, which a raw jump size cannot:
+
+```
+implied drift rate = shift / metres driven since the closed-on node
+```
+
+A legitimate closure cancels drift accumulated since the robot was last
+there, so the rate should land near this robot's measured 1.5% (§17.32's
+3.4 m box drive), 2.4% forward/back, 3.3% lateral (§17.30). 20% means it
+corrected drift that never accumulated. The 10% ceiling is the one judgement
+call in the tool and it is a parameter.
+
+**The two tools corroborate each other.** A false closure strains the graph
+when it fires and puts a doubled wall where it strained it.
+`graph_residuals.py --watch` gives the time and the map coordinates;
+`map_integrity.py --png` gives the location on the saved grid. The two
+agreeing on a location is the first evidence here that would not rest on a
+single reading.
+
+### Still true from 25 Aug
+
+- **All 30 deployed files hash-match `main`**, including
+  `~/ros2_ws/slam_nodom.yaml` (`7ec7904aa3ab…`, Stage B) and
+  `params/ydlidar.yaml` (`049fbbe7bff9…`). First fully known state this
+  project has had — but that was 25 Aug, and nothing has been deployed since.
+- A map survives a restart: `run_20260825_151713.pgm`, 27,383 B, header
+  stamped `# CREATOR: phone_dashboard from cached /map`.
+- The map view no longer drives the robot when you touch it.
+- **Best return-to-mark ever: 1.9 cm / 0.2°** on a ~30 s drive. One drive,
+  not a repeatability claim.
+- `run_20260825_113735`: 81% unknown, yet ~27 m of wall against a 32.8 m
+  bounding perimeter (0.82). Those two readings disagree, and `map_integrity`
+  is what settles it.
+
+### Not yet touched
+
+- **70+ maps, 73 run reports, 124 telemetry CSVs, three `.mcap` rosbags** in
+  `~/slam_tests`, two never opened. `--corpus` is the first tool built to
+  consume the map half of that.
+- **`AISLEBOT_VIDEO_DECODER_APP`** — recommended against on reasoning, but
+  the implementation has never been read. Still owed a proper look.
+- MATLAB Tier 1 #3 (occupancy-grid saturation): parameter names still
+  unverified. `ros2 param list /slam_toolbox | grep -iE "thresh|pass"` before
+  assuming anything. Tier 1 #4 (path clearance) still waits on one accepted
+  map.
 
 ### Traps that bit on 25 Aug
 
-- **`curl --retry` does not retry TLS failures.** Use
-  `--retry-all-errors`. When eduroam blocks HTTPS from the Pi entirely,
-  relay through the PC — `Important_Commands.md` §2.1.
+- **`curl --retry` does not retry TLS failures.** Use `--retry-all-errors`.
+  When eduroam blocks HTTPS from the Pi entirely, relay through the PC —
+  `Important_Commands.md` §2.1.
 - **Check the Pi's address every session** (`ip -4 -br addr`). Its eduroam
-  lease moved twice in two days, and `aritra-desktop.local` fails to
-  resolve from Windows often enough not to trust.
+  lease moved twice in two days, and `aritra-desktop.local` fails to resolve
+  from Windows often enough not to trust.
 - **`10.42.0.1` only exists while the Pi hosts its own AP.** On eduroam it
   gives a timeout that looks exactly like the robot being down.
 
@@ -135,21 +177,28 @@ map acceptance from a judgement into a measurement.
 
 ## Paste this as the first message of the new session
 
-> Continue work on AritraD11/NarrowAisleBot, branch
-> `claude/mapping-autonomous-nav-695glw`. Read this file and
-> `docs/Research_Journal.md` §17.32 in full before doing anything else.
+> Continue work on AritraD11/NarrowAisleBot. Read this file — start with the
+> RESUME HERE block — and `docs/Research_Journal.md` §17.35 before doing
+> anything else.
 >
-> Today's goal: **one clean commissioned map with real walls in it, saved,
-> then AMCL localising on it.** Stage A and B are done — don't redo them.
+> Today's goal: **settle whether either existing map is usable, then either
+> get AMCL localising on it or redo the drive.**
 >
-> I want to run the whole thing **from the dashboard, not the terminal**.
-> The MAP button brings the stack up and saves the map on stop; the joystick
-> drives; VIEW shows the map live; ZERO re-zeros. All of that is built but
-> **none of it has run on hardware once** — expect first-run bugs and help me
-> work through them.
+> Step 1 needs no hardware: run `tools/map_integrity.py` on
+> `run_20260825_151713` and `run_20260825_113735` in
+> `C:\Users\aritradas\Documents\data\field_runs`, plus `--corpus` over the
+> whole folder. It was written 26 Aug, self-tests clean and **has never seen
+> real data** — if its output looks wrong against the `--png` or against
+> `map_viewer.html`, the map is right and the tool is wrong, say so.
 >
+> Then Stage D if clean, or one more commissioning drive if not — with
+> `graph_residuals.py --watch` running alongside it, which also has never met
+> the live node.
+>
+> I want to run the drive itself **from the dashboard, not the terminal**.
 > Walk me through it step by step — I'll do each thing and report back.
-> Don't assume a step succeeded.
+> Don't assume a step succeeded. Verify deployed config with `ros2 param get`
+> against the live node, never by reading a file.
 
 ---
 
@@ -364,16 +413,19 @@ Single-sample step size is **diagnostic, not pass/fail**.
 
 ### 3. Stage D — AMCL, never run on hardware
 
-**Verify the suspected bug first** (`nav2_params.yaml:57` has
-`robot_model_type: "omnidirectional"`; on Jazzy this is a pluginlib class
-name, so it likely needs `"nav2_amcl::OmniMotionModel"`):
+**The suspected bug is confirmed and fixed** (26 Aug). `nav2_params.yaml:57`
+now reads `robot_model_type: "nav2_amcl::OmniMotionModel"`; it said
+`"omnidirectional"`, which is not a class anyone exports. Verified against
+upstream `nav2_amcl` source on `jazzy` and `humble` — see
+`Dashboard_Map_System.md` §D.1 for the three findings. It would have aborted
+the entire `lifecycle_manager` bringup, not just localisation.
+
+Still check the installed package, and the live node afterward:
 
 ```bash
 grep -rn "OmniMotionModel" /opt/ros/jazzy/share/nav2_amcl/*.xml
+ros2 param get /amcl robot_model_type      # after bringup — the repo is not the robot
 ```
-
-Change it only if the plugin XML confirms. Getting it wrong means AMCL refuses
-to configure and `lifecycle_manager` aborts the entire bringup.
 
 Then: stop mapping completely (`ros2 node list | grep slam_toolbox` must come
 back empty — AMCL and slam_toolbox both publish `map→odom` and must never run

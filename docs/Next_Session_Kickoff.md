@@ -12,94 +12,82 @@ workflow has moved off the terminal and into the dashboard.
 
 ---
 
-## ⏸ RESUME HERE — session paused mid-deploy, 24 Aug 2026 (§17.33)
+## ⏸ RESUME HERE — 25 Aug 2026 (§17.34)
 
-**The robot has not moved since 22 Aug. No map was made on 24 Aug.** The
-session was spent auditing and cleaning the Pi before driving, which found
-two real defects. Full detail in §17.33; what you need to restart is here.
+**The platform is fixed and verified. The map integrity check is the only
+thing standing between you and Stage D.**
 
-### One command resumes the work
+### State of the robot — verified, not assumed
 
-SSH in (`ssh aritra@10.42.0.1` if the Pi rebooted onto its own AP, else
-`ssh aritra@<eduroam-ip>`) and paste this **single line** — it re-verifies
-both files and only builds if they are correct:
+- **All 30 deployed files hash-match `main` byte-for-byte**, including
+  `~/ros2_ws/slam_nodom.yaml` (`7ec7904aa3ab…`, Stage B) and
+  `params/ydlidar.yaml` (`049fbbe7bff9…`). First fully known state this
+  project has had.
+- `phone_dashboard.py` is `b920e6652ab7c92f…` (103,005 B).
+- **A map now survives a restart**, confirmed on hardware:
+  `run_20260825_151713.pgm`, 27,383 B, header stamped
+  `# CREATOR: phone_dashboard from cached /map`.
+- The map view no longer drives the robot when you touch it.
+- Pi boots to `multi-user.target`; 2 GB reclaimed; journald capped.
 
+### THE ONE OPEN QUESTION — do this first
+
+**Is any of today's maps clean enough for AMCL?** Nobody has looked at the
+grid itself. Numbers alone cannot settle it and have already pointed both
+ways on the same map:
+
+| | `run_20260825_113735` | `run_20260825_151713` |
+|---|---|---|
+| Size | 26,011 B, 134×194 | **27,383 B, 138×198** |
+| Occupied | 540 cells (2.08%) | not yet measured |
+| Unknown | 80.95% — its report says *"not yet a usable map for navigation"* | not yet measured |
+| Wall vs bounding perimeter | **27 m / 32.8 m = 0.82** — the drive got round most of the room | — |
+
+Those two readings disagree. "81% unknown" measures how much of a
+*bounding box* is unmapped, and if the space is L-shaped or has shelving,
+most of that box was never floor. The wall ratio is the more meaningful
+number. **Settle it by looking:**
+
+```powershell
+curl.exe -sSL -o map_viewer.html https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/main/docs/tools/map_viewer.html
 ```
-cd ~/ros2_ws/src/mecanum_robot/mecanum_robot && printf '336764e83c193b0869ce3cbe4ec66a860e0884984d155331ebd599a99e56231d  phone_dashboard.py\n143702e8511f7d8bed64811abb61a6903c2d10da8e60f1e61d6bcbe9ccd1860b  odometry_publisher.py\n' | sha256sum -c - && cd ~/ros2_ws && colcon build --packages-select mecanum_robot && sudo systemctl restart aislebot.service && sleep 10 && (ros2 topic list | grep -E 'odom/reset|goal_pose_click' ; echo '--- nodes ---' ; ros2 node list)
-```
 
-Success looks like: two `: OK` lines, `1 package finished`, **`/odom/reset`
-present in the topic list**, and 11 nodes. `/odom/reset` is the ZERO
-button's plumbing and the clearest single proof the new dashboard is live.
+Double-click it, drag in the `.pgm` **and** `.yaml` together. Judge on
+§17.32's revised gate — **walls present / map integrity / return-to-mark**:
 
-If `sha256sum -c` says FAILED for `phone_dashboard.py`, re-fetch it. Note
-that **`curl --retry` does not retry TLS handshake errors** — it only
-retries transient HTTP responses and timeouts, so `--retry-all-errors` is
-required. That bit us once already on 24 Aug:
+- **Continuous, single-thickness walls** → good, proceed to Stage D.
+- **A doubled wall, a fork, a corridor appearing twice** → a false loop
+  closure fused two places that are not the same place. That map cannot
+  localise and the run has to be repeated.
 
-```
-curl -sSL --retry 5 --retry-delay 2 --retry-all-errors -o phone_dashboard.py https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/mapping-autonomous-nav-695glw/src/mecanum_robot/mecanum_robot/phone_dashboard.py
-```
+Single-sample step size is **diagnostic, not pass/fail** (§17.32).
 
-This needs internet, so it must happen on eduroam, not the AisleBot-Pi AP.
+### Also worth knowing
 
-### Exact deploy state — do not assume either way
+- **Best return-to-mark ever: 1.9 cm / 0.2°** on a ~30 s drive
+  (`MAP x 0.018 y -0.006`, `NOSE -90.2°`). One drive, not a repeatability
+  claim — and its map was lost to the very bug fixed later that day.
+- `tools/map_corpus.py` compares every run in a folder at once. Needs the
+  files gathered in one place; ~20 of them are already in
+  `C:\Users\aritradas\Documents\data\field_runs`.
+- **Never analysed as a corpus:** 70+ maps, 73 run reports, 124 telemetry
+  CSVs, and three `.mcap` rosbags in `~/slam_tests` (two of which have
+  never been opened). Every finding in Part XVII comes from reading exactly
+  one run.
+- **`AISLEBOT_VIDEO_DECODER_APP`** — recommended against on reasoning
+  (video is derived from what the Pi already logged, and lossier), but the
+  implementation has never been read. Owed a proper look.
 
-| File | State |
-|---|---|
-| `odometry_publisher.py` | **Verified deployed** — `143702e8511f7d8b…`, 12,425 B |
-| `phone_dashboard.py` | **Probable, unverified.** Correct hash appeared in a scrambled terminal paste. Treat as unknown until `sha256sum -c` says OK. |
-| `colcon build` | **NOT RUN** |
-| `systemctl restart` | **NOT RUN** |
+### Traps that bit on 25 Aug
 
-So the robot is still executing the old `install/` tree — the running
-dashboard is `fe2c3be`, with **no ZERO button and no save-on-stop**. The
-`src/` tree is in a mixed state. Build before drawing any conclusion from
-dashboard behaviour.
-
-### What changed on the Pi on 24 Aug
-
-- **2.0 GB reclaimed**, 58% → 51%. journald vacuumed and capped at 100 MB;
-  `~/.ros/log`'s 5,269 run dirs, `~/.vscode`, the YDLidar SDK build tree,
-  the superseded kernel, and eight snaps (firefox, thunderbird, snap-store
-  and bases) all removed.
-- **The Pi now boots to `multi-user.target`, not GNOME.** ~250 MB RAM and a
-  core handed back to the ROS stack during mapping — §17.25 is a recorded
-  case of CPU starvation killing SLAM outright. Reverse with
-  `sudo systemctl set-default graphical.target`; start a desktop on demand
-  with `sudo systemctl isolate graphical.target`.
-- **Dead code removed**, tarballed first to `~/aislebot_deadcode_<stamp>.tar.gz`:
-  `phone_dashboard.bak.py`, `arm_bridge.bak.py`, `hardware.launch.py`, and
-  `rf2o_laser_odometry` (a dead end recorded in §13.5).
-- **`system/ydlidar_params.yaml` was a live landmine and is fixed.** It was
-  committed flat, with no `ros__parameters` nesting, so ROS 2 would have
-  bound none of it and dropped the X4 Pro to compiled defaults.
-  `install.sh:220` would have overwritten the Pi's working copy. It never
-  fired only because install.sh has not run since 26 June. **Do not
-  "simplify" that file back to a flat list.**
-
-### Data now safely off the Pi — and unanalysed
-
-`~/aislebot_logs` (192 MB, 369 files) and `~/slam_tests` (133 MB) are both
-copied to the PC and to Drive. `~/slam_tests` holds three **MCAP rosbags**:
-`slam_test_01` (94.4 MB, 20 Aug), `slam_test_02` (27.4 MB, 20 Aug) and
-`jump_154512` (11.8 MB, 22 Aug — Stage A's recording). **The two from 20 Aug
-have never been opened.**
-
-Open workstream, not started: **no finding in Part XVII has ever come from
-more than one run.** 70 maps, 73 run reports and 124 telemetry CSVs have
-never been analysed as a corpus. Three questions are answerable offline
-without driving — map repeatability across 70 grids of the same space
-(which *is* Stage C's integrity criterion), whether §17.30's cold-start
-recovery pattern survives 73 reports rather than the four goals it was
-inferred from, and whether per-wheel behaviour has drifted over three weeks.
-
-### Then pick up the plan below at "Today's plan"
-
-Skip step 1's `colcon build` line — the command above does it. Everything
-from **Stage C** onward is unchanged and still the goal: park on the mark,
-ZERO, MAP, VIEW, drive the perimeter 0.5–1.5 m off the walls, MAP to stop
-and save.
+- **`curl --retry` does not retry TLS failures.** Use
+  `--retry-all-errors`. When eduroam blocks HTTPS from the Pi entirely,
+  relay through the PC — `Important_Commands.md` §2.1.
+- **Check the Pi's address every session** (`ip -4 -br addr`). Its eduroam
+  lease moved twice in two days, and `aritra-desktop.local` fails to
+  resolve from Windows often enough not to trust.
+- **`10.42.0.1` only exists while the Pi hosts its own AP.** On eduroam it
+  gives a timeout that looks exactly like the robot being down.
 
 ---
 

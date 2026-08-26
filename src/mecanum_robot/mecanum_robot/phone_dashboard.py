@@ -1021,18 +1021,47 @@ window.addEventListener('blur', () => {
 
 const mapCanvas = document.getElementById('mapCanvas');
 const mctx      = mapCanvas.getContext('2d');
-let   cssW = 0, cssH = 0;
+let   cssW = 0, cssH = 0, dpr = window.devicePixelRatio || 1;
 
 function sizeCanvas() {
   const r = mapCanvas.getBoundingClientRect();
   if (!r.width || !r.height) return;
-  const dpr = window.devicePixelRatio || 1;
+  dpr = window.devicePixelRatio || 1;
   cssW = r.width; cssH = r.height;
   mapCanvas.width  = Math.round(cssW * dpr);
   mapCanvas.height = Math.round(cssH * dpr);
-  mctx.setTransform(dpr, 0, 0, dpr, 0, 0);   // draw in CSS pixels
+  // Transform reset ONLY (no rotation here) -- drawMap() re-applies the
+  // rotated transform every frame from this same baseline, since setTransform
+  // replaces the matrix outright rather than composing with what came before.
+  mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 window.addEventListener('resize', () => { sizeCanvas(); if (mapView) drawMap(); });
+
+// ── Display rotation: screen "up" means "the way the robot was facing at
+//    ZERO", not "map +Y" ─────────────────────────────────────────────────
+// base_link on this robot is +X = RIGHT, +Y = NOSE (not REP-103 -- see the
+// AXES note atop nav2_params.yaml, "the stack's deepest open issue"). ZERO
+// fixes the reference pose at frame yaw -90 deg, at which the nose points
+// along map's own +X axis (verified: nose = (-sin th, cos th), th=-90 deg
+// -> (1, 0)). w2s() draws map +X as screen-RIGHT with no rotation, so at
+// the moment mapping starts the robot's physical forward is drawn sideways
+// -- correct data, coherent-looking picture only by accident of which way
+// the robot happened to be pointed when SLAM planted the map frame.
+//
+// This constant rotates the CANVAS, not the data: w2s/s2w keep computing
+// exactly the coordinates they always did ("local" space); a single
+// mctx.rotate() in drawMap() turns local-space into final pixels for every
+// draw call in one pass (bitmap, grid, robot, goal -- canvas transforms
+// apply uniformly to drawImage same as moveTo/lineTo, so nothing per-call
+// needs touching). Raw pointer events arrive in un-rotated DOM pixel space
+// regardless, so unrotatePtr() below undoes the same rotation before any
+// tap/drag reaches s2w, which still expects local-space input.
+//
+// Fixed, not user-adjustable: DISPLAY_ROT = -90 deg turns "local +X"
+// (screen-right, pre-rotation) into "screen-up" -- see the derivation in
+// docs/Research_Journal.md's session note if this ever needs re-deriving
+// for a different reference yaw.
+const DISPLAY_ROT = -Math.PI / 2;
 
 function w2s(wx, wy) {
   return { x: cssW / 2 + (wx - camX) * camScale,
@@ -1041,6 +1070,18 @@ function w2s(wx, wy) {
 function s2w(sx, sy) {
   return { x: camX + (sx - cssW / 2) / camScale,
            y: camY - (sy - cssH / 2) / camScale };
+}
+// Raw pointer coords (canvas-relative) -> the local space w2s/s2w assume.
+// Undoes DISPLAY_ROT around the canvas centre. Rotation is linear, so the
+// same formula applied to a DELTA (no centre offset) undoes it for that too
+// -- used for pan-dragging, where only the difference between two points
+// matters.
+function unrotatePtr(sx, sy) {
+  const dx = sx - cssW / 2, dy = sy - cssH / 2;
+  return { x: cssW / 2 - dy, y: cssH / 2 + dx };
+}
+function unrotateDelta(dx, dy) {
+  return { x: -dy, y: dx };
 }
 
 // ── Decode one OccupancyGrid into an offscreen bitmap ──────────────
@@ -1085,6 +1126,14 @@ function ingestMap(m) {
 // ── Draw ───────────────────────────────────────────────────────────
 function drawMap() {
   if (!cssW || !cssH) { sizeCanvas(); if (!cssW) return; }
+  // Reset to the plain per-frame baseline before rotating -- setTransform
+  // REPLACES the matrix, so this is not cumulative across frames the way an
+  // unconditional mctx.rotate() every drawMap() call would be.
+  mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  mctx.translate(cssW / 2, cssH / 2);
+  mctx.rotate(DISPLAY_ROT);
+  mctx.translate(-cssW / 2, -cssH / 2);
+
   mctx.fillStyle = '#060a12';
   mctx.fillRect(0, 0, cssW, cssH);
 
@@ -1291,7 +1340,8 @@ mapCanvas.addEventListener('pointerdown', (e) => {
 
   if (goalArmed && ptrs.size === 1) {
     const r = mapCanvas.getBoundingClientRect();
-    const w = s2w(e.clientX - r.left, e.clientY - r.top);
+    const p = unrotatePtr(e.clientX - r.left, e.clientY - r.top);
+    const w = s2w(p.x, p.y);
     goalDrag = { wx: w.x, wy: w.y, yaw: robotPose ? robotPose.yaw : 0 };
     drawMap();
   } else if (ptrs.size === 2) {
@@ -1308,7 +1358,8 @@ mapCanvas.addEventListener('pointermove', (e) => {
 
   if (goalDrag && ptrs.size === 1) {
     const r = mapCanvas.getBoundingClientRect();
-    const w = s2w(e.clientX - r.left, e.clientY - r.top);
+    const p = unrotatePtr(e.clientX - r.left, e.clientY - r.top);
+    const w = s2w(p.x, p.y);
     const dx = w.x - goalDrag.wx, dy = w.y - goalDrag.wy;
     if (Math.hypot(dx, dy) > 0.05) goalDrag.yaw = Math.atan2(dy, dx);
     drawMap();
@@ -1327,8 +1378,9 @@ mapCanvas.addEventListener('pointermove', (e) => {
 
   if (ptrs.size === 1) {                     // pan
     mapFollow = false;
-    camX -= (e.clientX - prev.x) / camScale;
-    camY += (e.clientY - prev.y) / camScale;
+    const d = unrotateDelta(e.clientX - prev.x, e.clientY - prev.y);
+    camX -= d.x / camScale;
+    camY += d.y / camScale;
     drawMap();
   }
 });

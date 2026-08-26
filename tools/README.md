@@ -15,6 +15,7 @@ analysis tools.)
 | `map_corpus.py` | Pi or PC | Compares every mapping run in a folder side by side — size, occupied/free/unknown, metres of wall against the bounding perimeter. Answers "is this map better than the last one" across the archive instead of one run at a time. |
 | `map_integrity.py` | Pi or PC | Measures whether a saved map **folded**. Doubled walls, skeleton forks, wall thickness, orientation coherence, free-space connectivity — the §17.32 acceptance gate as numbers rather than an eyeball. Writes an annotated PNG. |
 | `run_analyzer.py` | Pi or PC | **One report for one drive.** Map integrity + SLAM path + wheel odometry + per-wheel telemetry, read together, with the cross-checks between them. Writes an annotated PNG. |
+| `scan_quality.py` | Pi (needs ROS) | **Measures what the LiDAR actually gives the scan matcher** — return quality, geometric conditioning (can this scan pin a pose down at all), and stationary stability. The test that separates "the space/sensor" from "the SLAM tuning" as the cause of a correction. |
 | `graph_residuals.py` | Pi (needs ROS) | Differences successive publications of `slam_toolbox`'s pose graph and names the closure that moved it. The one Tier 1 MATLAB item worth building (`MATLAB_Navigation_Reference.md`). |
 | `pi_audit.sh` | Pi | Read-only inventory — disk, network, services, deployed code, run data, cleanup candidates. Deletes nothing. With `--online`, diffs every deployed source file against GitHub. |
 | `pi_clean.sh` | Pi | Removes accumulated waste (journald, `~/.ros/log`, stale snaps, old kernels, dead workspace code). **Dry run by default**; `--apply` to execute. |
@@ -147,6 +148,56 @@ planted 0.40 m correction while odometry steps smoothly, a planted wheel
 sign-mismatch at the same instant, and a pre-26-Aug 4-column pose CSV, and
 asserts each is read correctly — including that the legacy file loads and
 says odometry is unavailable rather than inventing it.
+
+---
+
+## `scan_quality.py`
+
+Everything else here measures an *output* — the map, the odometry, the
+corrections, the wheels, the pose graph. This measures the scan matcher's
+one **input**, which had never been looked at.
+
+```bash
+source /opt/ros/jazzy/setup.bash
+./tools/scan_quality.py                    # 10 s, ROBOT PARKED
+./tools/scan_quality.py --seconds 30 --save scan.json
+./tools/scan_quality.py --load scan.json   # analyse later, no ROS
+./tools/scan_quality.py --selftest
+```
+
+### Why it exists
+
+`run_20260826_120314` produced 19 correction events, and **every one fired
+while wheel odometry showed 0.004–0.016 m of motion** — the robot was
+standing still and the pose graph moved anyway. A parked robot's scan should
+be near-identical frame to frame, so either the scan is unstable or the
+geometry is ambiguous. Both are measurable; neither had been measured.
+
+### What it measures
+
+| | |
+|---|---|
+| **Return quality** | The X4 Pro reports to 12 m but `max_laser_range: 10.0` means `slam_toolbox` **discards** everything past 10 m before matching — a scan can look full and be mostly waste. `invalid_range_is_inf: false` also means dead rays arrive as `0.0`, and a tool checking only for `inf` counts them as obstacles sitting on the sensor. |
+| **Geometric conditioning** | The important one, and not a heuristic. A scan constrains translation only along the directions its surfaces face. Build `M = Σ nnᵀ` over surface normals; the eigenvalue ratio `λmin/λmax` says how well the weakest axis is pinned. Two parallel walls put every normal on one axis, so the scan **slides freely along the other** — textbook perceptual aliasing, and the matcher has nothing to stop it. Reported with the bearing of the weak axis so it can be checked against the floor plan. |
+| **Stationary stability** | The discriminator. Parked, nothing moving, per-ray range variation across scans is the sensor's own noise floor. Steady to a few mm → the sensor is fine and the problem is the matcher or the geometry. Wandering centimetres, or rays flickering valid/invalid → the matcher is being fed a moving target, and no parameter fixes that. |
+
+### Reading the verdict
+
+- **OK** — sensor steady, geometry constrains a pose. A jump here is the
+  matcher or its parameters, not its input.
+- **UNSTABLE** — the scan changes while the robot does not. Fix that first;
+  no tuning compensates for an input that will not sit still.
+- **POORLY CONSTRAINED** — the geometry does not pin the pose down.
+  Corrections are the matcher sliding along a free axis. That is a property
+  of the **space**, not a bug, and the answer is different structure or
+  driving close enough that near surfaces dominate.
+
+`--selftest` needs no ROS or hardware. It builds five synthetic scans with
+known answers: a square room (must read well-conditioned, 1.00), a corridor
+of two parallel walls (**must** read poorly constrained, and must name the
+weak axis as along the corridor), random scatter (no real surfaces, must not
+read as conditioned), a 1 mm-noise sensor (must read stable) and a 50 mm-noise
+one (must read unstable).
 
 ---
 

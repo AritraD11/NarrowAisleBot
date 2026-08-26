@@ -1159,7 +1159,25 @@ function drawMap() {
 function drawGrid() {
   // 1 m reference grid, so distances are readable without a ruler.
   if (camScale < 12) return;
-  const tl = s2w(0, 0), br = s2w(cssW, cssH);
+  // BUG (found 26 Aug on real hardware, live during a drive): this used to
+  // read `s2w(0, 0), s2w(cssW, cssH)` directly -- the RAW screen corners --
+  // but s2w expects local (pre-rotation) input, same as pointer events do.
+  // Pointer handling already accounts for this via unrotatePtr(); this
+  // function didn't, and was the one place in drawMap() that needed to,
+  // because it's the one place that computes a BOUNDING BOX rather than
+  // just drawing at a single point (a single w2s()/s2w() call is rotation-
+  // agnostic -- the canvas transform places it correctly regardless -- but
+  // "which world coordinates are visible" depends on where the screen's
+  // actual corners land in local space, which is exactly what a rotation
+  // changes). On a square viewport this silently canceled out; on any real
+  // phone (never square) it iterated the wrong coordinate range, so the 1 m
+  // gridlines packed into a band near one edge instead of tiling the visible
+  // area -- the striping the user saw live, mid-drive.
+  const corners = [unrotatePtr(0, 0), unrotatePtr(cssW, 0),
+                   unrotatePtr(0, cssH), unrotatePtr(cssW, cssH)];
+  const lx = corners.map(c => c.x), ly = corners.map(c => c.y);
+  const tl = s2w(Math.min(...lx), Math.min(...ly));
+  const br = s2w(Math.max(...lx), Math.max(...ly));
   mctx.strokeStyle = 'rgba(56,189,248,.10)';
   mctx.lineWidth = 1;
   mctx.beginPath();

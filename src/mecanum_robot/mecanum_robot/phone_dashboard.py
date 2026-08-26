@@ -1238,8 +1238,16 @@ function updateHud() {
   if (!mapGrid && !robotPose) { hud.innerHTML = 'WAITING FOR /map'; return; }
   let t = '';
   if (robotPose) {
-    // Map frame, stated explicitly — this is not the body-relative
-    // convention used when talking about offsets by hand.
+    // DISPLAYED x/y, requested 26 Aug: relabel slam_toolbox's raw map frame
+    // so it reads like ordinary graph paper (right=+X, forward/screen-up=
+    // +Y) instead of its own start-heading-dependent naming. Forward-at-
+    // ZERO is raw +X (see the DISPLAY_ROT derivation above), so this is
+    // just dispX=-raw_y, dispY=raw_x -- a fixed 90 deg relabeling, nothing
+    // else. Display-only: goals, camera-follow, and the pose CSV all still
+    // use robotPose.x/y (raw) untouched below and elsewhere in this file --
+    // only the two numbers printed to the human change.
+    const dispX = -robotPose.y;
+    const dispY =  robotPose.x;
     // NOSE is base_link +Y (§17.10), so its map bearing is the frame yaw
     // PLUS 90 deg -- not the frame yaw itself. This line printed the raw
     // yaw under a NOSE label until 26 Aug, which put it in direct
@@ -1248,27 +1256,13 @@ function updateHud() {
     // showed the nose pointing along map +X while the text said -90 deg.
     // Parked on the mark now reads NOSE 0, which is what a human standing
     // next to the robot sees. The frame yaw is kept in brackets because
-    // every log entry before this date recorded THAT number.
+    // every log entry before this date recorded THAT (raw, unrelabeled)
+    // number.
     const noseDeg = ((robotPose.yaw * 180 / Math.PI + 90 + 180) % 360 + 360) % 360 - 180;
-    t += 'MAP x ' + robotPose.x.toFixed(3) + '  y ' + robotPose.y.toFixed(3) +
+    t += 'MAP x ' + dispX.toFixed(3) + '  y ' + dispY.toFixed(3) +
          '<br>NOSE ' + noseDeg.toFixed(1) + '&deg;' +
          '<span class="dim">  (frame yaw ' +
          (robotPose.yaw * 180 / Math.PI).toFixed(1) + '&deg;)</span>';
-    // Screen-relative readout: matches what your eyes see move on the
-    // rotated canvas above (UP = same direction as the nose arrow at your
-    // ZERO mark, RIGHT = 90 deg clockwise from that) -- fixed screen
-    // directions, NOT the robot's current heading, so they stay meaningful
-    // even after the robot has turned. Raw MAP x/y above is slam_toolbox's
-    // own frame, whose X/Y axis *names* are just an artifact of which way
-    // the robot happened to be facing when mapping started -- "up on
-    // screen" landing on the map's X axis rather than its Y axis is not a
-    // bug, it only looks that way if you assume X=sideways, Y=forward.
-    // Derivation: w2s() + the DISPLAY_ROT=-90 deg canvas rotation compose to
-    // screenUp = map +X, screenRight = map -Y (see Research_Journal.md).
-    const scrUp    = robotPose.x;
-    const scrRight = -robotPose.y;
-    t += '<br><span class="dim">screen (fixed, not heading):</span>' +
-         '  UP ' + scrUp.toFixed(3) + 'm  RIGHT ' + scrRight.toFixed(3) + 'm';
   } else {
     t += '<span class="dim">NO POSE (map&rarr;base_link)</span>';
   }

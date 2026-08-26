@@ -170,7 +170,7 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e
 #mapCanvas{width:100%;height:100%;display:block;touch-action:none}
 .map-hud{position:absolute;top:6px;left:8px;font-size:9px;color:#38bdf8;
          letter-spacing:1px;pointer-events:none;text-shadow:0 0 4px #000;
-         line-height:1.5}
+         line-height:1.5;max-width:calc(100% - 64px)}
 .map-hud .dim{color:#475569}
 .map-tools{position:absolute;top:6px;right:8px;display:flex;flex-direction:column;gap:5px}
 .mt-btn{width:38px;height:28px;border-radius:4px;font-size:9px;font-weight:700;
@@ -1254,6 +1254,21 @@ function updateHud() {
          '<br>NOSE ' + noseDeg.toFixed(1) + '&deg;' +
          '<span class="dim">  (frame yaw ' +
          (robotPose.yaw * 180 / Math.PI).toFixed(1) + '&deg;)</span>';
+    // Screen-relative readout: matches what your eyes see move on the
+    // rotated canvas above (UP = same direction as the nose arrow at your
+    // ZERO mark, RIGHT = 90 deg clockwise from that) -- fixed screen
+    // directions, NOT the robot's current heading, so they stay meaningful
+    // even after the robot has turned. Raw MAP x/y above is slam_toolbox's
+    // own frame, whose X/Y axis *names* are just an artifact of which way
+    // the robot happened to be facing when mapping started -- "up on
+    // screen" landing on the map's X axis rather than its Y axis is not a
+    // bug, it only looks that way if you assume X=sideways, Y=forward.
+    // Derivation: w2s() + the DISPLAY_ROT=-90 deg canvas rotation compose to
+    // screenUp = map +X, screenRight = map -Y (see Research_Journal.md).
+    const scrUp    = robotPose.x;
+    const scrRight = -robotPose.y;
+    t += '<br><span class="dim">screen (fixed, not heading):</span>' +
+         '  UP ' + scrUp.toFixed(3) + 'm  RIGHT ' + scrRight.toFixed(3) + 'm';
   } else {
     t += '<span class="dim">NO POSE (map&rarr;base_link)</span>';
   }

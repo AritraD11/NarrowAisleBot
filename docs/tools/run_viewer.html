@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AisleBot Run Viewer</title>
+<style>
+  /* House style follows map_viewer.html / telemetry_analyzer.html so this
+     reads as the same toolkit. Series colours are the validated dark-surface
+     categorical steps; red and amber are STATUS roles, never series, and both
+     carry a legend label plus their own geometry so colour is never alone. */
+  :root {
+    --bg:#0a0e17; --panel:#111827; --panel2:#0c1220; --line:#1e3a5f;
+    --ink:#e2e8f0; --ink2:#94a3b8; --ink3:#475569; --accent:#38bdf8;
+    --s1:#3987e5;            /* SLAM / primary series */
+    --s2:#199e70;            /* wheel odometry */
+    --s3:#c98500;            /* secondary series in facets */
+    --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { background:var(--bg); color:var(--ink);
+              font-family:'Courier New',monospace; font-size:13px; }
+  body { padding-bottom:60px; }
+  .hdr { position:sticky; top:0; z-index:20; padding:10px 16px; background:var(--panel);
+         border-bottom:1.5px solid var(--line); font-weight:700; color:var(--accent);
+         letter-spacing:1px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .hdr span.sub { color:var(--ink3); font-weight:400; letter-spacing:0; }
+  .hdr .spacer { flex:1; }
+  .btn { background:var(--panel2); color:var(--accent); border:1.5px solid var(--line);
+         border-radius:4px; padding:5px 12px; cursor:pointer; font-family:inherit;
+         font-size:11px; font-weight:700; letter-spacing:.5px; }
+  .btn:hover { border-color:var(--accent); }
+  .dropzone { margin:12px; min-height:60vh; display:flex; align-items:center;
+              justify-content:center; flex-direction:column; gap:10px;
+              border:2px dashed var(--line); border-radius:8px; cursor:pointer; }
+  .dropzone.is-over { border-color:var(--accent); background:var(--panel2); }
+  .dropzone strong { font-size:15px; color:#7dd3fc; }
+  .dropzone small { font-size:11px; color:var(--ink3); max-width:520px;
+                    text-align:center; line-height:1.7; }
+  #stage { display:none; padding:12px; }
+  #stage.show { display:block; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+            padding:14px 16px; margin-bottom:12px; }
+  h2 { font-size:11px; letter-spacing:1.4px; color:var(--accent); font-weight:700;
+       margin-bottom:4px; text-transform:uppercase; }
+  .note { font-size:11px; color:var(--ink3); line-height:1.6; margin-bottom:12px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .tile { background:var(--panel2); border:1px solid var(--line); border-radius:6px;
+          padding:10px 12px; }
+  .tile .k { font-size:10px; color:var(--ink3); letter-spacing:.8px; text-transform:uppercase; }
+  .tile .v { font-size:22px; font-weight:700; color:var(--ink); margin-top:4px;
+             line-height:1.1; }
+  .tile .u { font-size:12px; color:var(--ink2); font-weight:400; }
+  .tile .x { font-size:10px; color:var(--ink3); margin-top:3px; line-height:1.4; }
+  .badge { display:inline-flex; align-items:center; gap:6px; border-radius:4px;
+           padding:3px 9px; font-size:11px; font-weight:700; letter-spacing:.6px; }
+  .badge b { font-size:12px; }
+  .b-good { background:#0ca30c22; color:var(--good); border:1px solid #0ca30c66; }
+  .b-warn { background:#fab21922; color:var(--warn); border:1px solid #fab21966; }
+  .b-crit { background:#d03b3b22; color:var(--crit); border:1px solid #d03b3b66; }
+  .b-none { background:#47556922; color:var(--ink2); border:1px solid var(--line); }
+  #mapWrap { position:relative; height:min(70vh,620px); overflow:hidden;
+             background:var(--panel2); border:1px solid var(--line); border-radius:6px;
+             cursor:grab; touch-action:none; }
+  #mapWrap.grabbing { cursor:grabbing; }
+  #mapCanvas { position:absolute; image-rendering:pixelated; }
+  #overlay { position:absolute; left:0; top:0; pointer-events:none; }
+  .maptools { position:absolute; top:8px; right:8px; display:flex; flex-direction:column; gap:5px; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:10px; color:var(--ink2);
+            margin-top:10px; }
+  .legend i { display:inline-block; width:10px; height:10px; margin-right:5px;
+              vertical-align:-1px; border-radius:2px; }
+  .legend i.ln { height:3px; border-radius:2px; vertical-align:2px; }
+  table { width:100%; border-collapse:collapse; font-size:11px; }
+  th { text-align:right; color:var(--ink3); font-weight:700; padding:6px 8px;
+       border-bottom:1px solid var(--line); letter-spacing:.5px; white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  td { padding:5px 8px; border-bottom:1px solid #1e293b; text-align:right;
+       white-space:nowrap; }
+  tr:hover td { background:var(--panel2); }
+  .facets { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
+  .facet { background:var(--panel2); border:1px solid var(--line); border-radius:6px;
+           padding:8px 10px; }
+  .facet h3 { font-size:11px; color:var(--ink); letter-spacing:1px; margin-bottom:2px; }
+  .facet .sub { font-size:10px; color:var(--ink3); margin-bottom:6px; }
+  pre.verdict { background:var(--panel2); border:1px solid var(--line); border-radius:6px;
+                padding:12px 14px; font-size:11.5px; line-height:1.75; color:var(--ink);
+                white-space:pre-wrap; word-break:break-word; }
+  .tip { position:fixed; z-index:50; pointer-events:none; display:none;
+         background:#0f172af2; border:1px solid var(--accent); border-radius:5px;
+         padding:6px 9px; font-size:11px; color:var(--ink); line-height:1.55;
+         box-shadow:0 4px 14px #0008; }
+  .tip.show { display:block; }
+  .tip b { color:var(--accent); }
+  .err { margin:12px; background:var(--panel); border:1px solid var(--crit);
+         border-radius:8px; padding:16px 18px; color:#fca5a5; font-size:12px;
+         line-height:1.6; display:none; }
+  .err.show { display:block; }
+  .missing { font-size:11px; color:var(--ink3); font-style:italic; }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  AISLEBOT RUN VIEWER
+  <span class="sub" id="hdrSub">drop a _bundle.json from run_bundle.py</span>
+  <span class="spacer"></span>
+  <button class="btn" id="copyBtn" style="display:none">COPY REPORT</button>
+  <button class="btn" id="reloadBtn" style="display:none">LOAD ANOTHER</button>
+</div>
+
+<div class="dropzone" id="dropzone">
+  <strong>Drop run_&lt;stamp&gt;_bundle.json here</strong>
+  <small>
+    Made on the Pi with <b>run_bundle.py</b>, which packages one whole drive —
+    map, SLAM pose, wheel odometry, per-wheel telemetry and the analysis — into
+    a single file. Everything below is rendered in this page; nothing is
+    uploaded anywhere and no server is involved.
+  </small>
+</div>
+
+<div class="err" id="err"></div>
+<div class="tip" id="tip"></div>
+
+<div id="stage">
+  <section>
+    <h2>Run</h2>
+    <div class="note" id="runNote"></div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section id="mapSec">
+    <h2>Map</h2>
+    <div class="note">
+      Drag to pan, scroll to zoom. The two paths are the whole point: where blue
+      and green separate is where SLAM overruled the wheels. A correction marker
+      sitting on a doubled wall is the same event seen by two instruments.
+    </div>
+    <div id="mapWrap">
+      <canvas id="mapCanvas"></canvas>
+      <canvas id="overlay"></canvas>
+      <div class="maptools">
+        <button class="btn" id="zin">+</button>
+        <button class="btn" id="zout">−</button>
+        <button class="btn" id="zfit">FIT</button>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i style="background:#f8fafc"></i>free</span>
+      <span><i style="background:#1e293b;border:1px solid #64748b"></i>wall</span>
+      <span><i style="background:#1a2332"></i>unknown</span>
+      <span><i style="background:var(--crit)"></i>doubled wall (suspect fold)</span>
+      <span><i class="ln" style="background:var(--s1)"></i>SLAM path</span>
+      <span><i class="ln" style="background:var(--s2)"></i>wheel path (odometry)</span>
+      <span><i style="background:var(--warn);border-radius:50%"></i>correction event</span>
+    </div>
+  </section>
+
+  <section id="corrSec">
+    <h2>Correction applied by SLAM</h2>
+    <div class="note">
+      How far SLAM has moved the estimate away from raw wheel odometry, over the
+      run. Flat means the wheels were trusted. A step means the pose graph
+      pulled. Wheel odometry cannot jump, so a step here with normal wheel
+      motion means the graph moved and the robot did not.
+    </div>
+    <div id="corrChart"></div>
+  </section>
+
+  <section id="evSec">
+    <h2>Correction events</h2>
+    <div class="note" id="evNote"></div>
+    <div id="evTable"></div>
+  </section>
+
+  <section id="wheelSec">
+    <h2>Wheels — commanded vs actual</h2>
+    <div class="note">
+      One panel per wheel rather than eight lines on one axis. Amber is what the
+      controller asked for, blue is what the encoder reported. Persistent gaps
+      mean the wheel is not doing what it was told, and odometry is computed
+      from all four.
+    </div>
+    <div class="facets" id="facets"></div>
+  </section>
+
+  <section id="arcSec">
+    <h2>Distance each wheel rolled</h2>
+    <div class="note">
+      Encoder arc length per wheel. On a flat lap these should be comparable;
+      one wheel well below the others is slip or a mechanical fault, and it
+      corrupts the map through the pose estimate.
+    </div>
+    <div id="arcChart"></div>
+  </section>
+
+  <section>
+    <h2>Verdict</h2>
+    <pre class="verdict" id="verdict"></pre>
+  </section>
+</div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const S1='#3987e5', S2='#199e70', S3='#c98500', CRIT='#d03b3b', WARN='#fab219';
+const INK='#e2e8f0', INK2='#94a3b8', INK3='#475569', GRID='#1e293b';
+let B = null;
+
+/* ══ helpers ═══════════════════════════════════════════════════════════ */
+const fmt = (v, n=2) => (v === null || v === undefined || Number.isNaN(v)) ? '—' : (+v).toFixed(n);
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function col(block, name) {
+  if (!block) return -1;
+  return block.columns.indexOf(name);
+}
+/* Decimate by keeping the EXTREME of each bucket, not every Nth point — a
+   stride would step straight over the one-sample jumps this page exists to
+   show. */
+function decimate(pts, target) {
+  if (pts.length <= target) return pts;
+  const bucket = Math.ceil(pts.length / target), out = [];
+  for (let i = 0; i < pts.length; i += bucket) {
+    const slice = pts.slice(i, i + bucket);
+    let best = slice[0];
+    for (const p of slice) if (Math.abs(p[1]) > Math.abs(best[1])) best = p;
+    out.push(best);
+  }
+  return out;
+}
+function showErr(msg) {
+  $('err').innerHTML = '<b>Could not read that file.</b><br>' + esc(msg);
+  $('err').classList.add('show');
+}
+
+/* ══ file intake ═══════════════════════════════════════════════════════ */
+const dz = $('dropzone');
+dz.addEventListener('click', () => {
+  const i = document.createElement('input');
+  i.type = 'file'; i.accept = '.json,application/json';
+  i.onchange = e => e.target.files[0] && readFile(e.target.files[0]);
+  i.click();
+});
+['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => {
+  e.preventDefault(); dz.classList.add('is-over');
+}));
+['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => {
+  e.preventDefault(); dz.classList.remove('is-over');
+}));
+dz.addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0];
+  if (f) readFile(f);
+});
+$('reloadBtn').onclick = () => location.reload();
+
+function readFile(file) {
+  $('err').classList.remove('show');
+  const r = new FileReader();
+  r.onload = () => {
+    let b;
+    try { b = JSON.parse(r.result); }
+    catch (ex) { return showErr('That is not valid JSON. ' + ex.message); }
+    if (!b || !b.analysis) {
+      return showErr('No "analysis" section. This page reads the _bundle.json '
+        + 'written by run_bundle.py, not a raw .pgm, .csv or _report.json.');
+    }
+    B = b;
+    try { render(); }
+    catch (ex) { showErr(ex.message + '\n' + ex.stack); }
+  };
+  r.onerror = () => showErr('The browser could not read that file.');
+  r.readAsText(file);
+}
+
+/* ══ render ════════════════════════════════════════════════════════════ */
+function render() {
+  dz.style.display = 'none';
+  $('stage').classList.add('show');
+  $('reloadBtn').style.display = '';
+  $('copyBtn').style.display = '';
+  const a = B.analysis;
+  $('hdrSub').textContent = B.stamp + '  ·  ' + fmt(B.duration_s, 0) + ' s';
+
+  renderTiles(a);
+  renderMap(a);
+  renderCorrection(a);
+  renderEvents(a);
+  renderWheels(a);
+  renderArcs(a);
+  $('verdict').textContent = (a.verdict || []).join('\n');
+  $('copyBtn').onclick = () => navigator.clipboard.writeText(reportText(a))
+    .then(() => { $('copyBtn').textContent = 'COPIED';
+                  setTimeout(() => $('copyBtn').textContent = 'COPY REPORT', 1400); });
+}
+
+function badge(text, cls) {
+  return '<span class="badge ' + cls + '"><b>' + esc(text) + '</b></span>';
+}
+
+function renderTiles(a) {
+  const m = a.map || {}, p = a.pose || {}, w = a.wheels || {};
+  const mv = m.verdict;
+  const mvCls = mv === 'CLEAN' ? 'b-good' : mv === 'SUSPECT' ? 'b-warn'
+              : mv ? 'b-crit' : 'b-none';
+  $('runNote').innerHTML =
+    'Files in this bundle: ' +
+    Object.entries(B.artefacts || {}).map(([k, v]) =>
+      '<span style="color:' + (v ? INK2 : INK3) + '">' + (v ? '✓ ' : '✗ ') + esc(k) + '</span>'
+    ).join(' &nbsp; ') +
+    '<br>Bundled ' + esc(B.created_utc || '') + ' · map integrity ' +
+    badge(mv || 'not analysed', mvCls);
+
+  const t = [];
+  const tile = (k, v, u, x) => t.push(
+    '<div class="tile"><div class="k">' + esc(k) + '</div><div class="v">' +
+    esc(v) + (u ? ' <span class="u">' + esc(u) + '</span>' : '') + '</div>' +
+    (x ? '<div class="x">' + x + '</div>' : '') + '</div>');
+
+  tile('Duration', fmt(B.duration_s, 0), 's');
+  tile('Return to mark', fmt(p.return_to_mark_m, 3), 'm',
+       'only meaningful if the robot was physically parked back on it');
+  if (p.has_odom) {
+    tile('Wheel drift', fmt(p.odom_closure_m, 3), 'm',
+         'odometry closure over the whole run, separate from SLAM');
+    tile('SLAM correction', fmt(p.final_correction_m, 3), 'm',
+         'net; ' + fmt((p.correction_step || {}).total_m, 2) + ' m cumulative');
+  }
+  tile('SLAM path', fmt(p.map_path_m, 2), 'm',
+       p.has_odom ? 'wheels said ' + fmt(p.odom_path_m, 2) + ' m' : '');
+  tile('Corrections', p.jump_count === undefined ? '—' : p.jump_count, '',
+       p.has_odom ? '' : 'not separable — run predates odometry logging');
+  tile('Wall mapped', fmt(m.wall_m, 1), 'm',
+       m.doubled_cells !== undefined
+         ? fmt(100 * (m.doubled_frac || 0), 1) + '% of it doubled' : '');
+  const sp = (w.arc_spread || {}).ratio;
+  tile('Wheel spread', sp === null || sp === undefined ? '—' : fmt(sp, 2), '×',
+       (w.arc_spread || {}).least ? 'laziest ' + esc(w.arc_spread.least) : '');
+  $('tiles').innerHTML = t.join('');
+}
+
+/* ── map ─────────────────────────────────────────────────────────────── */
+let mapState = null;
+function renderMap(a) {
+  const M = B.map;
+  if (!M) {
+    $('mapSec').innerHTML = '<h2>Map</h2><div class="missing">No map in this bundle '
+      + '(no .pgm, or map_integrity.py was unavailable when it was built).</div>';
+    return;
+  }
+  const bin = atob(M.cells), w = M.w, h = M.h;
+  const cells = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) cells[i] = bin.charCodeAt(i);
+  const dbl = new Set(M.doubled || []);
+
+  const cv = $('mapCanvas'), ctx = cv.getContext('2d');
+  cv.width = w; cv.height = h;
+  const img = ctx.createImageData(w, h);
+  const PAL = [[248,250,252], [10,14,23], [26,35,50]];
+  const CR = [208,59,59];
+  for (let i = 0; i < w * h; i++) {
+    const c = dbl.has(i) ? CR : PAL[cells[i]] || PAL[2];
+    img.data[i*4] = c[0]; img.data[i*4+1] = c[1]; img.data[i*4+2] = c[2];
+    img.data[i*4+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const pose = B.pose;
+  const ix = col(pose,'map_x'), iy = col(pose,'map_y');
+  const ox = col(pose,'odom_x'), oy = col(pose,'odom_y');
+  const events = ((a.pose || {}).jump_events) || [];
+  mapState = { w, h, res: M.res, ox: M.origin_x, oy: M.origin_y,
+               pose, ix, iy, oxi: ox, oyi: oy, events, scale: 1, px: 0, py: 0 };
+  fitMap();
+}
+
+function w2px(s, x, y) {                       // map metres -> grid pixel
+  return [ (x - s.ox) / s.res, (s.h - 1) - (y - s.oy) / s.res ];
+}
+function fitMap() {
+  const s = mapState, wrap = $('mapWrap');
+  const r = wrap.getBoundingClientRect();
+  s.scale = Math.max(1, Math.min(r.width / s.w, r.height / s.h) * 0.92);
+  s.px = (r.width - s.w * s.scale) / 2;
+  s.py = (r.height - s.h * s.scale) / 2;
+  drawMap();
+}
+function drawMap() {
+  const s = mapState; if (!s) return;
+  const cv = $('mapCanvas'), ov = $('overlay'), wrap = $('mapWrap');
+  const r = wrap.getBoundingClientRect();
+  cv.style.width = (s.w * s.scale) + 'px';
+  cv.style.height = (s.h * s.scale) + 'px';
+  cv.style.left = s.px + 'px'; cv.style.top = s.py + 'px';
+
+  ov.width = r.width; ov.height = r.height;
+  ov.style.width = r.width + 'px'; ov.style.height = r.height + 'px';
+  const c = ov.getContext('2d');
+  c.clearRect(0, 0, r.width, r.height);
+  const P = (x, y) => { const q = w2px(s, x, y);
+                        return [q[0] * s.scale + s.px, q[1] * s.scale + s.py]; };
+
+  const path = (xi, yi, colr) => {
+    if (xi < 0 || yi < 0 || !s.pose) return;
+    c.beginPath(); c.strokeStyle = colr; c.lineWidth = 2;
+    c.lineJoin = 'round'; c.lineCap = 'round';
+    let started = false;
+    for (const row of s.pose.rows) {
+      const x = row[xi], y = row[yi];
+      if (x === null || y === null) { started = false; continue; }
+      const q = P(x, y);
+      if (started) c.lineTo(q[0], q[1]); else { c.moveTo(q[0], q[1]); started = true; }
+    }
+    c.stroke();
+  };
+  path(s.oxi, s.oyi, S2);          // wheels first, SLAM drawn over it
+  path(s.ix, s.iy, S1);
+
+  for (const e of s.events) {
+    if (e.map_x === null || e.map_x === undefined) continue;
+    const q = P(e.map_x, e.map_y);
+    c.beginPath(); c.arc(q[0], q[1], 6, 0, 6.2832);
+    c.strokeStyle = WARN; c.lineWidth = 2.5; c.stroke();
+    c.beginPath(); c.arc(q[0], q[1], 2, 0, 6.2832);
+    c.fillStyle = WARN; c.fill();
+  }
+}
+(function mapNav() {
+  const wrap = $('mapWrap');
+  let drag = null;
+  wrap.addEventListener('pointerdown', e => {
+    if (!mapState) return;
+    drag = { x: e.clientX, y: e.clientY, px: mapState.px, py: mapState.py };
+    wrap.classList.add('grabbing'); wrap.setPointerCapture(e.pointerId);
+  });
+  wrap.addEventListener('pointermove', e => {
+    if (!drag) return;
+    mapState.px = drag.px + (e.clientX - drag.x);
+    mapState.py = drag.py + (e.clientY - drag.y);
+    drawMap();
+  });
+  ['pointerup','pointercancel'].forEach(ev => wrap.addEventListener(ev, () => {
+    drag = null; wrap.classList.remove('grabbing');
+  }));
+  wrap.addEventListener('wheel', e => {
+    if (!mapState) return;
+    e.preventDefault();
+    const r = wrap.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const before = mapState.scale;
+    mapState.scale = Math.max(0.5, Math.min(40, before * (e.deltaY < 0 ? 1.15 : 1/1.15)));
+    const k = mapState.scale / before;
+    mapState.px = mx - (mx - mapState.px) * k;
+    mapState.py = my - (my - mapState.py) * k;
+    drawMap();
+  }, { passive: false });
+  $('zin').onclick  = () => { mapState.scale *= 1.3; drawMap(); };
+  $('zout').onclick = () => { mapState.scale /= 1.3; drawMap(); };
+  $('zfit').onclick = () => fitMap();
+  window.addEventListener('resize', () => mapState && drawMap());
+})();
+
+/* ── generic SVG line chart with crosshair ───────────────────────────── */
+function lineChart(host, series, opts) {
+  const W = host.clientWidth || 800, H = opts.height || 190;
+  const m = { t: 12, r: 14, b: 26, l: 52 };
+  const all = series.flatMap(s => s.pts);
+  if (!all.length) { host.innerHTML = '<div class="missing">no data</div>'; return; }
+  const xs = all.map(p => p[0]), ys = all.map(p => p[1]);
+  let x0 = Math.min(...xs), x1 = Math.max(...xs);
+  let y0 = opts.y0 !== undefined ? opts.y0 : Math.min(...ys);
+  let y1 = Math.max(...ys, y0 + 1e-6);
+  const pad = (y1 - y0) * 0.08; y1 += pad; if (opts.y0 === undefined) y0 -= pad;
+  // A near-constant series (a wheel holding a steady speed) collapses the y
+  // range, and the tick generator then emits the same label four times. Open
+  // the band around the value instead, so the axis stays readable and the
+  // flatness is visible as flatness rather than as noise filling the panel.
+  if (y1 - y0 < Math.max(1e-6, Math.abs(y1) * 1e-3)) {
+    const c = (y0 + y1) / 2, e = Math.max(Math.abs(c) * 0.15, 0.25);
+    y0 = opts.y0 !== undefined ? opts.y0 : c - e; y1 = c + e;
+  }
+  if (x1 - x0 < 1e-9) x1 = x0 + 1;
+  const X = v => m.l + (v - x0) / (x1 - x0) * (W - m.l - m.r);
+  const Y = v => H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b);
+
+  const ticks = (lo, hi, n) => {
+    const raw = (hi - lo) / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1,2,2.5,5,10].map(s => s*mag).find(s => s >= raw) || mag*10;
+    const out = []; for (let v = Math.ceil(lo/step)*step; v <= hi+1e-9; v += step) out.push(v);
+    return out;
+  };
+  let g = '';
+  const seenY = new Set();
+  for (const t of ticks(y0, y1, 4)) {
+    const lbl = String(+t.toFixed(4));
+    if (seenY.has(lbl)) continue;
+    seenY.add(lbl);
+    g += `<line x1="${m.l}" y1="${Y(t)}" x2="${W-m.r}" y2="${Y(t)}" stroke="${GRID}" stroke-width="1"/>`
+       + `<text x="${m.l-8}" y="${Y(t)+3.5}" fill="${INK3}" font-size="10" text-anchor="end">${lbl}</text>`;
+  }
+  for (const t of ticks(x0, x1, 6)) {
+    g += `<text x="${X(t)}" y="${H-8}" fill="${INK3}" font-size="10" text-anchor="middle">${(+t.toFixed(0))}</text>`;
+  }
+  g += `<line x1="${m.l}" y1="${H-m.b}" x2="${W-m.r}" y2="${H-m.b}" stroke="${INK3}" stroke-width="1"/>`;
+
+  for (const s of series) {
+    const d = s.pts.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ');
+    g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2"
+           stroke-linejoin="round" stroke-linecap="round"
+           ${s.dash ? 'stroke-dasharray="4 3" opacity="0.85"' : ''}/>`;
+  }
+  for (const mk of (opts.markers || [])) {
+    g += `<line x1="${X(mk.x)}" y1="${m.t}" x2="${X(mk.x)}" y2="${H-m.b}"
+           stroke="${WARN}" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.8"/>`
+       + `<circle cx="${X(mk.x)}" cy="${m.t+4}" r="3.5" fill="${WARN}"/>`;
+  }
+  if (opts.xlabel)
+    g += `<text x="${(m.l+W-m.r)/2}" y="${H-1}" fill="${INK3}" font-size="9.5" text-anchor="middle">${esc(opts.xlabel)}</text>`;
+  if (opts.ylabel)
+    g += `<text x="11" y="${(m.t+H-m.b)/2}" fill="${INK3}" font-size="9.5" text-anchor="middle" transform="rotate(-90 11 ${(m.t+H-m.b)/2})">${esc(opts.ylabel)}</text>`;
+
+  g += `<line id="ch_${opts.id}" y1="${m.t}" y2="${H-m.b}" stroke="${INK2}" stroke-width="1" opacity="0"/>`;
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}"
+      style="display:block" id="svg_${opts.id}">${g}</svg>`;
+
+  const svg = $('svg_' + opts.id), ch = $('ch_' + opts.id), tip = $('tip');
+  svg.addEventListener('pointermove', e => {
+    const r = svg.getBoundingClientRect();
+    const sx = (e.clientX - r.left) * (W / r.width);
+    if (sx < m.l || sx > W - m.r) { ch.setAttribute('opacity', 0); tip.classList.remove('show'); return; }
+    const xv = x0 + (sx - m.l) / (W - m.l - m.r) * (x1 - x0);
+    ch.setAttribute('x1', sx); ch.setAttribute('x2', sx); ch.setAttribute('opacity', 0.7);
+    let html = '<b>' + xv.toFixed(1) + ' ' + (opts.xunit || '') + '</b>';
+    for (const s of series) {
+      let best = null, bd = Infinity;
+      for (const p of s.pts) { const d = Math.abs(p[0] - xv); if (d < bd) { bd = d; best = p; } }
+      if (best) html += '<br><span style="color:' + s.color + '">■</span> ' +
+        esc(s.name) + ' ' + best[1].toFixed(3) + ' ' + (opts.yunit || '');
+    }
+    tip.innerHTML = html; tip.classList.add('show');
+    tip.style.left = Math.min(window.innerWidth - 190, e.clientX + 14) + 'px';
+    tip.style.top = (e.clientY - 10) + 'px';
+  });
+  svg.addEventListener('pointerleave', () => {
+    ch.setAttribute('opacity', 0); $('tip').classList.remove('show');
+  });
+}
+
+/* ── correction over time ────────────────────────────────────────────── */
+function renderCorrection(a) {
+  const p = a.pose || {}, pose = B.pose;
+  if (!p.has_odom || !pose) {
+    $('corrSec').innerHTML = '<h2>Correction applied by SLAM</h2>'
+      + '<div class="missing">This run has no odometry log, so the correction '
+      + 'cannot be separated from the motion. Runs recorded before 26 Aug 2026 '
+      + 'stored SLAM pose only.</div>';
+    return;
+  }
+  const it = col(pose,'epoch_s'), cx = col(pose,'corr_x'), cy = col(pose,'corr_y');
+  const rows = pose.rows.filter(r => r[cx] !== null && r[cy] !== null);
+  if (!rows.length) { $('corrChart').innerHTML = '<div class="missing">no correction samples</div>'; return; }
+  const t0 = rows[0][it];
+  const pts = decimate(rows.map(r => [r[it] - t0, Math.hypot(r[cx], r[cy])]), 1200);
+  lineChart($('corrChart'), [{ name:'|correction|', color:S1, pts }], {
+    id:'corr', height:200, y0:0, xlabel:'seconds since start of run',
+    ylabel:'metres', xunit:'s', yunit:'m',
+    markers:(p.jump_events || []).map(e => ({ x:e.t_rel }))
+  });
+}
+
+/* ── events table ────────────────────────────────────────────────────── */
+function renderEvents(a) {
+  const p = a.pose || {}, ev = p.jump_events || [];
+  const cross = a.cross || {};
+  if (!ev.length) {
+    $('evNote').innerHTML = '';
+    $('evTable').innerHTML = '<div class="missing">'
+      + (p.has_odom ? 'No correction exceeded the threshold — the pose graph never yanked the estimate.'
+                    : 'Not available without an odometry log.') + '</div>';
+    return;
+  }
+  const nearMap = new Map();
+  for (const r of (cross.jump_vs_map || [])) nearMap.set(r.t_rel, r);
+  const nearWheel = new Map();
+  for (const r of (cross.jump_vs_wheels || [])) nearWheel.set(r.t_rel, r);
+
+  $('evNote').innerHTML = (cross.notes || []).map(esc).join('<br>');
+  let h = '<table><thead><tr><th>t+ (s)</th><th>corr (m)</th><th>peak (m)</th>'
+        + '<th>yaw (°)</th><th>wheels moved (m)</th><th>location (map)</th>'
+        + '<th style="text-align:left">reading</th></tr></thead><tbody>';
+  for (const e of ev) {
+    const m = nearMap.get(e.t_rel), wv = nearWheel.get(e.t_rel);
+    let read = esc(e.verdict);
+    if (m) read += ' · <span style="color:' + CRIT + '">doubled wall '
+                 + fmt(m.distance_m,2) + ' m away</span>';
+    if (wv) read += ' · <span style="color:' + WARN + '">' + esc(wv.kinds.join('/'))
+                  + ' on ' + esc(wv.wheels.join('/')) + '</span>';
+    h += '<tr><td>' + fmt(e.t_rel,1) + '</td><td>' + fmt(e.corr_m,3) + '</td><td>'
+       + fmt(e.peak_m,3) + '</td><td>' + fmt(e.yaw_deg,2) + '</td><td>'
+       + fmt(e.odom_m,3) + '</td><td>' + fmt(e.map_x,2) + ', ' + fmt(e.map_y,2)
+       + '</td><td style="text-align:left">' + read + '</td></tr>';
+  }
+  $('evTable').innerHTML = h + '</tbody></table>';
+}
+
+/* ── wheel small multiples ───────────────────────────────────────────── */
+const WHEELS = ['FR','FL','RR','RL'];
+function renderWheels(a) {
+  const T = B.telemetry, w = a.wheels || {};
+  if (!T || !T.rows.length) {
+    $('wheelSec').innerHTML = '<h2>Wheels — commanded vs actual</h2>'
+      + '<div class="missing">No telemetry CSV in this bundle.</div>';
+    return;
+  }
+  const it = col(T,'pi_time_s'), t0 = T.rows[0][it];
+  $('facets').innerHTML = WHEELS.map(k =>
+    '<div class="facet"><h3>' + k + '</h3><div class="sub" id="sub_'+k+'"></div>'
+    + '<div id="fc_' + k + '"></div></div>').join('');
+  for (const k of WHEELS) {
+    const ti = col(T, k + '_target_rads'), ai = col(T, k + '_actual_rads');
+    const tgt = [], act = [];
+    for (const r of T.rows) {
+      if (r[ti] !== null) tgt.push([r[it] - t0, r[ti]]);
+      if (r[ai] !== null) act.push([r[it] - t0, r[ai]]);
+    }
+    const d = (w.wheels || {})[k] || {};
+    $('sub_' + k).innerHTML = 'rms err ' + fmt(d.rms_error_rads,3) + ' rad/s · sat '
+      + fmt(d.saturated_pct,1) + '% · sign flips ' + fmt(d.sign_mismatch_pct,1) + '%';
+    lineChart($('fc_' + k), [
+      { name:'commanded', color:S3, pts:decimate(tgt, 500), dash:true },
+      { name:'actual',    color:S1, pts:decimate(act, 500) },
+    ], { id:'w' + k, height:150, xlabel:'s', ylabel:'rad/s', xunit:'s', yunit:'rad/s' });
+  }
+}
+
+/* ── arc bars ────────────────────────────────────────────────────────── */
+function renderArcs(a) {
+  const w = a.wheels || {};
+  if (!w.wheels) { $('arcSec').innerHTML =
+      '<h2>Distance each wheel rolled</h2><div class="missing">No telemetry.</div>'; return; }
+  const vals = WHEELS.map(k => ({ k, v: (w.wheels[k] || {}).arc_m || 0 }));
+  const max = Math.max(...vals.map(v => v.v), 1e-6);
+  const lazy = (w.arc_spread || {}).least;
+  const W = $('arcChart').clientWidth || 800, rowH = 30, L = 44, R = 74;
+  const H = vals.length * rowH + 12;
+  let g = '';
+  vals.forEach((v, i) => {
+    const y = i * rowH + 6, bw = (v.v / max) * (W - L - R);
+    const isLazy = v.k === lazy && (w.arc_spread || {}).ratio > 1.5;
+    g += `<text x="${L-10}" y="${y+15}" fill="${INK2}" font-size="11" text-anchor="end">${v.k}</text>`
+       + `<rect x="${L}" y="${y+3}" width="${Math.max(bw,2)}" height="16" rx="4"
+            fill="${isLazy ? CRIT : S1}"/>`
+       + `<text x="${L+Math.max(bw,2)+8}" y="${y+15}" fill="${INK}" font-size="11">${v.v.toFixed(2)} m</text>`;
+  });
+  $('arcChart').innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}"
+     style="display:block">${g}</svg>`
+     + (lazy && (w.arc_spread || {}).ratio > 1.5
+        ? '<div class="note" style="margin:8px 0 0;color:' + CRIT + '">'
+          + esc(lazy) + ' rolled ' + fmt(w.arc_spread.ratio,2)
+          + '× less than the busiest wheel — investigate before trusting odometry.</div>'
+        : '');
+}
+
+/* ── plain-text report for pasting ───────────────────────────────────── */
+function reportText(a) {
+  const L = [];
+  L.push('RUN ' + B.stamp + '  (' + fmt(B.duration_s,0) + ' s)');
+  const m = a.map || {}, p = a.pose || {}, w = a.wheels || {};
+  L.push('MAP        ' + (m.verdict || 'not analysed') +
+         (m.flags && m.flags.length ? '  flags: ' + m.flags.join('; ') : ''));
+  L.push('RETURN     ' + fmt(p.return_to_mark_m,3) + ' m from mark');
+  if (p.has_odom) {
+    L.push('WHEEL DRIFT ' + fmt(p.odom_closure_m,3) + ' m closure');
+    L.push('CORRECTION ' + fmt(p.final_correction_m,3) + ' m net, ' +
+           (p.jump_count || 0) + ' event(s)');
+    for (const e of (p.jump_events || []).slice(0, 10))
+      L.push('   t+' + fmt(e.t_rel,1) + 's  ' + fmt(e.corr_m,3) + ' m  at (' +
+             fmt(e.map_x,2) + ', ' + fmt(e.map_y,2) + ')  ' + e.verdict);
+  }
+  if (w.arc_spread) L.push('WHEELS     spread ratio ' + fmt(w.arc_spread.ratio,2) +
+                           ', laziest ' + w.arc_spread.least);
+  for (const n of ((a.cross || {}).notes || [])) L.push('CROSS      ' + n);
+  L.push('');
+  L.push((a.verdict || []).join('\n'));
+  return L.join('\n');
+}
+</script>
+</body>
+</html>

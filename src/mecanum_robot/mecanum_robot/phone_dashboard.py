@@ -1173,8 +1173,20 @@ function updateHud() {
   if (robotPose) {
     // Map frame, stated explicitly — this is not the body-relative
     // convention used when talking about offsets by hand.
+    // NOSE is base_link +Y (§17.10), so its map bearing is the frame yaw
+    // PLUS 90 deg -- not the frame yaw itself. This line printed the raw
+    // yaw under a NOSE label until 26 Aug, which put it in direct
+    // contradiction with drawRobot() four functions up: that draws the nose
+    // marker at (-sin, cos), i.e. correctly at yaw+90, so the same panel
+    // showed the nose pointing along map +X while the text said -90 deg.
+    // Parked on the mark now reads NOSE 0, which is what a human standing
+    // next to the robot sees. The frame yaw is kept in brackets because
+    // every log entry before this date recorded THAT number.
+    const noseDeg = ((robotPose.yaw * 180 / Math.PI + 90 + 180) % 360 + 360) % 360 - 180;
     t += 'MAP x ' + robotPose.x.toFixed(3) + '  y ' + robotPose.y.toFixed(3) +
-         '<br>NOSE ' + (robotPose.yaw * 180 / Math.PI).toFixed(1) + '&deg;';
+         '<br>NOSE ' + noseDeg.toFixed(1) + '&deg;' +
+         '<span class="dim">  (frame yaw ' +
+         (robotPose.yaw * 180 / Math.PI).toFixed(1) + '&deg;)</span>';
   } else {
     t += '<span class="dim">NO POSE (map&rarr;base_link)</span>';
   }

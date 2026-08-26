@@ -1521,40 +1521,72 @@ class PhoneDashboard(Node):
         }
         self.map_dirty = True
 
-    def _pose_timer(self):
-        """Sample map -> base_link at 10 Hz.
+    def _lookup(self, parent, child):
+        """(x, y, yaw) of `child` in `parent`, or None if that TF is absent.
 
-        The transform legitimately does not exist before SLAM or AMCL is up,
-        so a failed lookup is skipped silently rather than logged — the
-        dashboard must not spam or crash while the map stack is down.
+        Returns None rather than raising so a caller can log the transforms
+        that do exist: during mapping all three below are present, but odom
+        exists before SLAM does and map does not, and neither case should
+        stop the other from being recorded.
         """
         try:
-            tf = self.tf_buffer.lookup_transform('map', 'base_link',
-                                                 rclpy.time.Time())
+            tf = self.tf_buffer.lookup_transform(parent, child, rclpy.time.Time())
         except (TransformException, Exception):
-            return
-
+            return None
         q = tf.transform.rotation
-        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
-                         1.0 - 2.0 * (q.y * q.y + q.z * q.z))
-        self.latest_pose = {
-            'x':   tf.transform.translation.x,
-            'y':   tf.transform.translation.y,
-            'yaw': yaw,
-        }
+        return (tf.transform.translation.x,
+                tf.transform.translation.y,
+                math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                           1.0 - 2.0 * (q.y * q.y + q.z * q.z)))
 
-        if self._pose_csv_writer is not None:
-            try:
-                self._pose_csv_writer.writerow([
-                    '{:.3f}'.format(time.time()),
-                    '{:.4f}'.format(self.latest_pose['x']),
-                    '{:.4f}'.format(self.latest_pose['y']),
-                    '{:.2f}'.format(math.degrees(yaw)),
-                ])
-            except Exception:
-                # A logging failure must never take down the pose sampler the
-                # live dashboard map is drawn from.
-                pass
+    def _pose_timer(self):
+        """Sample the three transforms that describe where the robot is, 10 Hz.
+
+        map -> base_link   where SLAM believes the robot is
+        odom -> base_link  where the WHEELS alone believe it is (dead
+                           reckoning, no scan matching, drifts but never jumps)
+        map -> odom        the correction SLAM has applied to the wheels
+
+        Logging all three is what makes every run self-diagnosing. §17.32's
+        Stage A had to record a rosbag and run a separate tool once to find a
+        39.57 cm map->odom jump; the third column below is that same quantity,
+        sampled on every run for free. And the pairing is what identifies the
+        culprit: wheel odometry is smooth by construction, so if map jumps
+        while odom does not, the pose graph moved, not the robot.
+
+        The transforms legitimately do not exist before the stack is up, so a
+        failed lookup is skipped silently rather than logged — the dashboard
+        must not spam or crash while the map stack is down.
+        """
+        pose = self._lookup('map', 'base_link')
+        odom = self._lookup('odom', 'base_link')
+        corr = self._lookup('map', 'odom')
+
+        if pose is not None:
+            self.latest_pose = {'x': pose[0], 'y': pose[1], 'yaw': pose[2]}
+
+        if self._pose_csv_writer is None:
+            return
+        if pose is None and odom is None:
+            return                       # nothing to say yet
+
+        def f(v, n=4):
+            return '' if v is None else ('{:.%df}' % n).format(v)
+
+        def deg(v):
+            return '' if v is None else '{:.2f}'.format(math.degrees(v))
+
+        try:
+            self._pose_csv_writer.writerow([
+                '{:.3f}'.format(time.time()),
+                f(pose and pose[0]), f(pose and pose[1]), deg(pose and pose[2]),
+                f(odom and odom[0]), f(odom and odom[1]), deg(odom and odom[2]),
+                f(corr and corr[0]), f(corr and corr[1]), deg(corr and corr[2]),
+            ])
+        except Exception:
+            # A logging failure must never take down the pose sampler the
+            # live dashboard map is drawn from.
+            pass
 
     # ── Status line to the browser ────────────────────────────────
 
@@ -1686,7 +1718,11 @@ class PhoneDashboard(Node):
             if self._pose_path:
                 self._pose_csv_file = open(self._pose_path, 'w', newline='')
                 self._pose_csv_writer = csv.writer(self._pose_csv_file)
-                self._pose_csv_writer.writerow(['epoch_s', 'map_x', 'map_y', 'yaw_deg'])
+                self._pose_csv_writer.writerow(
+                    ['epoch_s',
+                     'map_x', 'map_y', 'map_yaw_deg',
+                     'odom_x', 'odom_y', 'odom_yaw_deg',
+                     'corr_x', 'corr_y', 'corr_yaw_deg'])
         except Exception as e:
             self.get_logger().warn(f'Could not open pose log: {e}')
             self._pose_csv_file = self._pose_csv_writer = None

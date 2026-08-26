@@ -14,6 +14,7 @@ analysis tools.)
 | `sync_bench_logs.ps1` | Windows PC | Incremental download of new CSVs from `~/aislebot_logs` on the Pi — pulls only what's missing. Just the OpenSSH client, no rsync. |
 | `map_corpus.py` | Pi or PC | Compares every mapping run in a folder side by side — size, occupied/free/unknown, metres of wall against the bounding perimeter. Answers "is this map better than the last one" across the archive instead of one run at a time. |
 | `map_integrity.py` | Pi or PC | Measures whether a saved map **folded**. Doubled walls, skeleton forks, wall thickness, orientation coherence, free-space connectivity — the §17.32 acceptance gate as numbers rather than an eyeball. Writes an annotated PNG. |
+| `run_analyzer.py` | Pi or PC | **One report for one drive.** Map integrity + SLAM path + wheel odometry + per-wheel telemetry, read together, with the cross-checks between them. Writes an annotated PNG. |
 | `graph_residuals.py` | Pi (needs ROS) | Differences successive publications of `slam_toolbox`'s pose graph and names the closure that moved it. The one Tier 1 MATLAB item worth building (`MATLAB_Navigation_Reference.md`). |
 | `pi_audit.sh` | Pi | Read-only inventory — disk, network, services, deployed code, run data, cleanup candidates. Deletes nothing. With `--online`, diffs every deployed source file against GitHub. |
 | `pi_clean.sh` | Pi | Removes accumulated waste (journald, `~/.ros/log`, stale snaps, old kernels, dead workspace code). **Dry run by default**; `--apply` to execute. |
@@ -73,6 +74,79 @@ rectangle, a planted 0.35 m ghost wall, two walls that close with
 **unknown** between them, a real 0.85 m aisle, and a genuinely thick wall —
 and asserts that the fold is caught and the other four are not. Run it after
 touching any of the geometry.
+
+---
+
+## `run_analyzer.py`
+
+Everything one mapping run produced, analysed together instead of one file at
+a time. Point it at a run and it finds the rest alongside:
+
+```bash
+./tools/run_analyzer.py ~/aislebot_logs/run_20260826_143000
+./tools/run_analyzer.py run_20260826_143000 --png run.png --json run.json
+./tools/run_analyzer.py --selftest
+```
+
+| Reads | For |
+|---|---|
+| `run_<stamp>.pgm` / `.yaml` | map integrity (delegates to `map_integrity.py`) |
+| `run_<stamp>_pose.csv` | SLAM pose, **wheel odometry**, and the correction between them |
+| `run_<stamp>.csv` | 13-column per-wheel telemetry |
+| `run_<stamp>_report.json` | duration, sample counts |
+
+Missing files are reported, not fatal — every other section still runs.
+
+### The point is the cross-checks
+
+Three instruments watched the same drive and can be asked whether they agree.
+
+**Wheel odometry cannot jump.** It integrates encoder ticks and has no
+opinion about the world; it drifts, but it has no mechanism for a
+discontinuity. So when the `map→odom` correction moves while odom steps
+normally, **the pose graph moved and the robot did not.** §17.32 established
+that once, from a rosbag, with a separate tool. The dashboard now logs the
+same quantity every run, so every run gets it for free — per event, with a
+timestamp and a map coordinate.
+
+**A false closure leaves two marks:** a correction when it fires, and a
+doubled wall where it fired. `map_integrity.py` finds the second, this finds
+the first, and when both land within a metre of each other that is two
+independent witnesses to the same event — stronger evidence than this project
+has previously been able to produce about any closure.
+
+**A slipped wheel corrupts odometry**, which corrupts the scan matcher's
+starting guess. A correction coinciding with PWM saturation or a
+commanded/actual sign mismatch is a mechanical fault, not a SLAM parameter —
+so the tool flags that pairing separately and says so.
+
+### Two numbers this project did not previously have
+
+- **Wheel closure** — if the robot physically ended on its mark, the final
+  odom reading *is* the wheels' accumulated drift over the whole run,
+  separated from SLAM's correction of it.
+- **Cumulative correction** — how much SLAM moved the estimate in total,
+  against how far the robot actually drove.
+
+### Wheels: health only, deliberately
+
+Per-wheel RMS tracking error, PWM saturation, commanded/actual sign
+mismatch, mean speed, and arc length, plus the busiest/laziest travel ratio.
+It does **not** re-derive chassis position from wheel speeds: that is the
+odometry node's job, it already does it, and the pose CSV now records the
+result. Re-deriving it here against a guessed sign convention would only add
+a second thing to doubt — the same reasoning `odometry_publisher.py` gives
+for leaving its longitudinal scale at 1.0.
+
+`--png` draws the map with doubled walls in red, the SLAM path in blue, the
+wheel path in green, and a yellow cross at each correction. Where blue and
+green diverge is exactly where SLAM overruled the wheels.
+
+`--selftest` needs no data: it builds a clean synthetic run, one with a
+planted 0.40 m correction while odometry steps smoothly, a planted wheel
+sign-mismatch at the same instant, and a pre-26-Aug 4-column pose CSV, and
+asserts each is read correctly — including that the legacy file loads and
+says odometry is unavailable rather than inventing it.
 
 ---
 

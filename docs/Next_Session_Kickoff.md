@@ -12,10 +12,37 @@ workflow has moved off the terminal and into the dashboard.
 
 ---
 
-## ⏸ RESUME HERE — 26 Aug 2026 (§17.35)
+## ⏸ RESUME HERE — 26 Aug 2026 (§17.36)
+
+**The mapping-reliability priority below is unchanged and still not done —
+§17.36 was a dashboard-only detour, not progress on it.** Two things to
+clear first, both quick:
+
+1. **Three branches need deleting**, confirmed fully absorbed into `main`
+   (zero unique commits each) — safe, no content is lost:
+   `claude/mapping-autonomous-nav-695glw`, `claude/nab-hardware-calibration`,
+   `claude/narrowaislebot-mapping-hardware-02rnh2`. Blocked last session by
+   the permission classifier on `git push --delete` (no branch-delete tool
+   exists in the GitHub MCP server either) — retry with the user's
+   confirmation, or point them at
+   `github.com/AritraD11/NarrowAisleBot/branches` to do it directly. Leave
+   `claude/aps-report-draft-2nywbq` alone — it carries an unmerged APS report
+   draft, kept on the user's explicit call.
+2. **There is now exactly one dashboard file** —
+   `src/mecanum_robot/mecanum_robot/phone_dashboard.py`, light theme,
+   verified against every hardware reading collected 26 Aug. §17.36 explains
+   why this needed saying: three independently-modified copies of this file
+   had silently diverged (the repo, and two separate ChatGPT-obtained
+   forks), disagreeing on the map canvas's rotation and on what the printed
+   X/Y means. **If a `phone_dashboard.py`-shaped file shows up from
+   anywhere other than this repo, diff it against the repo copy before
+   trusting it** — the Python `class PhoneDashboard(Node)` matching
+   byte-for-byte is not enough on its own, check the JS/HTML too, since
+   that's exactly where the three copies had drifted while the Python
+   stayed identical.
 
 **Map acceptance is now a command, not a judgement. Run it first — it needs
-no robot.** The platform was verified 25 Aug; 26 Aug built the two
+no robot.** The platform was verified 25 Aug; 26 Aug (§17.35) built the two
 instruments that were missing. Neither has seen real data.
 
 ### Step 1 — the integrity check, on the laptop, no hardware
@@ -172,17 +199,29 @@ single reading.
   from Windows often enough not to trust.
 - **`10.42.0.1` only exists while the Pi hosts its own AP.** On eduroam it
   gives a timeout that looks exactly like the robot being down.
+- **A dashboard file from outside this repo is not safe to deploy on trust**
+  (§17.36) — two separately-obtained forks had each independently "fixed"
+  the map canvas's rotation in incompatible ways, one of them silently
+  reintroducing a bug this project already fixed once (forward drive moving
+  the robot sideways on screen instead of up). Diff the JS/HTML against the
+  repo copy, not just the Python class.
 
 ---
 
 ## Paste this as the first message of the new session
 
 > Continue work on AritraD11/NarrowAisleBot. Read this file — start with the
-> RESUME HERE block — and `docs/Research_Journal.md` §17.35 before doing
-> anything else.
+> RESUME HERE block — and `docs/Research_Journal.md` §17.35 and §17.36
+> before doing anything else.
 >
-> Today's goal: **settle whether either existing map is usable, then either
-> get AMCL localising on it or redo the drive.**
+> First, two quick items from §17.36: confirm whether the three
+> fully-merged branches got deleted, and remember there is now exactly one
+> dashboard file (the repo copy) — don't trust a `phone_dashboard.py` from
+> anywhere else without diffing it first.
+>
+> Then, today's real goal, unchanged from 26 Aug: **settle whether either
+> existing map is usable, then either get AMCL localising on it or redo the
+> drive.**
 >
 > Step 1 needs no hardware: run `tools/map_integrity.py` on
 > `run_20260825_151713` and `run_20260825_113735` in

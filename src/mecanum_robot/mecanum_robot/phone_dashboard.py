@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║  AisleBot Phone Dashboard v2.4                                   ║
+║  AisleBot Phone Dashboard v2.5                                   ║
 ║  ROS2 Node + FastAPI WebSocket on port 8080                      ║
 ║                                                                    ║
 ║  Controls:                                                       ║
@@ -55,6 +55,36 @@
 ║        - stdout/stderr -> ~/aislebot_logs/calib_*.log, and the    ║
 ║          last lines are polled back to the phone, so a run that   ║
 ║          misbehaves is diagnosable afterwards rather than silent. ║
+║                                                                    ║
+║  NEW in v2.5 -- this is now the ONE canonical dashboard file      ║
+║  (Research_Journal.md, 26 Aug consolidation):                    ║
+║    • Three lineages of this file had drifted apart: the git repo ║
+║      (dark theme), and two independently-modified light-theme    ║
+║      forks (one patched in-session, one from a separate ChatGPT  ║
+║      thread) -- each disagreeing on the map canvas's rotation    ║
+║      and on what the X/Y readout means. This file merges them:   ║
+║      this fork's UI/layout (the one actually in use) + the       ║
+║      repo's proven axis behaviour, restored below.               ║
+║    • DISPLAY_ROT restored to -90 deg. A separate fork had zeroed ║
+║      it out to fix sideways/garbled grid-line text, which         ║
+║      reintroduced the original bug this constant exists to fix:  ║
+║      without it, forward drive visibly moves the robot SIDEWAYS  ║
+║      on screen, not up -- confirmed on hardware. The real fix    ║
+║      for the text was rotation-aware label placement (drawUpright║
+║      / labelXGridline / labelYGridline below), not removing the  ║
+║      rotation.                                                    ║
+║    • The printed X/Y (HUD, live-pose card, grid labels, axis      ║
+║      arrows) is a fixed relabeling of the raw map frame --        ║
+║      dispX = -raw_y, dispY = raw_x -- so it reads like ordinary   ║
+║      graph paper (right=+X, forward=+Y) instead of slam_toolbox's ║
+║      own axis names, which are just an artifact of which way the  ║
+║      robot faced when mapping started. Display-only: goals,       ║
+║      camera-follow and the pose CSV all still use the raw map     ║
+║      frame, exactly as slam_toolbox and TF report it.             ║
+║    • The Python ROS/control class below is unchanged from the     ║
+║      git repo (byte-identical) -- only this HTML/JS presentation  ║
+║      layer had drifted. Frames, TF, safety and odometry were      ║
+║      never in question.                                           ║
 ║                                                                    ║
 ║  ROS2 Topics:                                                    ║
 ║    Publishes  /cmd_vel_manual   geometry_msgs/Twist  (drive) —   ║
@@ -124,296 +154,119 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>AisleBot</title>
+
 <style>
+:root{
+  --bg:#f4f6f8;--panel:#ffffff;--panel-2:#f8fafc;--line:#d0d5dd;
+  --text:#17202a;--muted:#667085;--blue:#1677ff;--blue-soft:#eaf2ff;
+  --green:#12b76a;--green-soft:#e9f8f1;--amber:#f79009;--amber-soft:#fff4e5;
+  --red:#d92d20;--red-soft:#fff0ee;--shadow:0 6px 24px rgba(16,24,40,.08);
+}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none;touch-action:none}
-html,body{width:100vw;height:100vh;overflow:hidden;background:#0a0e17;color:#e0e0e0;font-family:'Courier New',monospace}
-
-/* ── HEADER ── */
-.hdr{display:flex;align-items:center;justify-content:space-between;
-     height:44px;padding:0 12px;background:#111827;
-     border-bottom:1.5px solid #1e3a5f;flex-shrink:0;gap:8px}
-.hdr-title{font-size:12px;font-weight:700;color:#38bdf8;letter-spacing:2px;white-space:nowrap}
-.spd-group{display:flex;gap:4px;flex-shrink:0}
-.spd-btn{padding:3px 8px;border-radius:4px;font-size:10px;font-weight:700;
-         border:1.5px solid #1e3a5f;background:transparent;color:#4b5563;
-         cursor:pointer;letter-spacing:.5px;transition:all .15s;font-family:inherit;
-         touch-action:manipulation}
-.spd-btn.active-slow  {background:#052e16;color:#22c55e;border-color:#22c55e}
-.spd-btn.active-normal{background:#431407;color:#f59e0b;border-color:#f59e0b}
-.spd-btn.active-fast  {background:#450a0a;color:#ef4444;border-color:#ef4444}
-.hdr-right{display:flex;align-items:center;gap:8px}
-.status-dot{width:9px;height:9px;border-radius:50%;background:#ef4444;flex-shrink:0;
-            transition:background .3s}
-.status-dot.on{background:#22c55e;box-shadow:0 0 6px #22c55e}
-.map-badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;
-           background:#0c2a43;color:#7dd3fc;letter-spacing:1px;display:none}
-.map-badge.show{display:inline-block;animation:pulse 1s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-
-/* ── SPEED INDICATOR ── */
-.spd-indicator{font-size:8px;color:#334155;letter-spacing:1px;text-align:center;
-               padding:2px 0;background:#0c1220;border-bottom:1px solid #1e3a5f;
-               flex-shrink:0}
-#spdValue{color:#38bdf8;font-weight:700}
-
-/* ── LAYOUT ── */
-.body{display:flex;height:calc(100vh - 44px - 18px - 72px)}
-
-/* ── MAP VIEW (overlays the joystick area; E-STOP stays visible below) ── */
-.view-btn{padding:3px 8px;border-radius:4px;font-size:10px;font-weight:700;
-          border:1.5px solid #1e3a5f;background:transparent;color:#4b5563;
-          cursor:pointer;letter-spacing:.5px;font-family:inherit;
-          touch-action:manipulation;white-space:nowrap}
-.view-btn.on{background:#0c2a43;color:#7dd3fc;border-color:#38bdf8}
-.map-view{position:absolute;inset:0;background:#060a12;display:none;z-index:6}
-.map-view.show{display:block}
-#mapCanvas{width:100%;height:100%;display:block;touch-action:none}
-.map-hud{position:absolute;top:6px;left:8px;font-size:9px;color:#38bdf8;
-         letter-spacing:1px;pointer-events:none;text-shadow:0 0 4px #000;
-         line-height:1.5;max-width:calc(100% - 64px)}
-.map-hud .dim{color:#475569}
-.map-tools{position:absolute;top:6px;right:8px;display:flex;flex-direction:column;gap:5px}
-.mt-btn{width:38px;height:28px;border-radius:4px;font-size:9px;font-weight:700;
-        border:1.5px solid #1e3a5f;background:#0c1220cc;color:#7dd3fc;
-        font-family:inherit;letter-spacing:.5px;touch-action:manipulation}
-.mt-btn.armed{background:#431407;color:#f59e0b;border-color:#f59e0b;
-              animation:pulse 1s infinite}
-.map-hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
-          font-size:9px;letter-spacing:1px;padding:4px 10px;border-radius:4px;
-          background:#0c1220dd;color:#7dd3fc;border:1px solid #1e3a5f;
-          pointer-events:none;white-space:nowrap;max-width:92%;text-align:center}
-.map-hint.armed{background:#431407ee;color:#f59e0b;border-color:#f59e0b}
-
-/* ── JOYSTICK AREA ── */
-.joy-area{flex:1;position:relative;display:flex;align-items:center;
-          justify-content:center;background:#0a0e17;overflow:hidden}
-.joy-ring{width:min(58vw,260px);height:min(58vw,260px);border-radius:50%;
-          border:2px solid #1e3a5f;position:relative;flex-shrink:0;cursor:grab}
-.joy-thumb{width:64px;height:64px;border-radius:50%;position:absolute;
-           top:50%;left:50%;transform:translate(-50%,-50%);
-           background:radial-gradient(circle at 35% 35%,#38bdf8,#0369a1);
-           box-shadow:0 0 16px rgba(56,189,248,.3);transition:box-shadow .1s}
-.joy-thumb.active{box-shadow:0 0 28px rgba(56,189,248,.7);cursor:grabbing}
-.jlbl{position:absolute;font-size:8px;color:#1e3a5f;font-weight:700;letter-spacing:1px}
-.jlbl.t{top:6%;left:50%;transform:translateX(-50%)}
-.jlbl.b{bottom:6%;left:50%;transform:translateX(-50%)}
-.jlbl.l{left:5%;top:50%;transform:translateY(-50%)}
-.jlbl.r{right:5%;top:50%;transform:translateY(-50%)}
-
-/* ── RIGHT PANEL ── */
-.right-panel{width:120px;display:flex;flex-direction:column;
-             border-left:1.5px solid #1e3a5f;background:#0c1220;flex-shrink:0;
-             transition:width .18s ease}
-
-/* MAP MODE: the arm and lift controls have no role in a mapping run, and on
-   a phone they were eating roughly two thirds of the right panel's height
-   and 120px of width the map could have had. Hidden while the map is up;
-   the yaw slider stays, because rotating in place is part of driving a
-   perimeter. Reverts the instant you leave map view - nothing is removed,
-   only hidden, so no control is ever permanently lost. */
-body.map-mode .right-panel{width:64px}
-body.map-mode .arm-section,
-body.map-mode .lift-section{display:none}
-body.map-mode .yaw-wrap{flex:1;border-bottom:none;padding:14px 0}
-body.map-mode .yaw-track{max-height:none}
-
-/* YAW SLIDER */
-.yaw-wrap{flex:2;display:flex;flex-direction:column;align-items:center;
-          justify-content:center;padding:10px 0;gap:5px;border-bottom:1px solid #1e3a5f}
-.yaw-lbl{font-size:8px;color:#334155;letter-spacing:1px;font-weight:700}
-.yaw-track{width:24px;flex:1;max-height:120px;background:#111827;border-radius:12px;
-           border:1.5px solid #1e3a5f;position:relative;cursor:pointer;touch-action:none}
-.yaw-thumb{width:38px;height:38px;border-radius:50%;position:absolute;
-           left:50%;top:50%;transform:translate(-50%,-50%);
-           background:radial-gradient(circle at 35% 35%,#fbbf24,#78350f);
-           box-shadow:0 0 10px rgba(251,191,36,.35)}
-
-/* ARM BUTTONS */
-.arm-section{flex:3;display:flex;flex-direction:column;padding:6px;
-             gap:5px;border-bottom:1px solid #1e3a5f;justify-content:center}
-.arm-btn{flex:1;border:1.5px solid #134e4a;background:#042f2e;color:#5eead4;
-         font-size:10px;font-weight:700;border-radius:5px;cursor:pointer;
-         font-family:inherit;letter-spacing:.5px;transition:background .1s;
-         display:flex;align-items:center;justify-content:center;
-         touch-action:manipulation}
-.arm-btn:active,.arm-btn.held{background:#0d3d3a;box-shadow:inset 0 0 8px rgba(94,234,212,.2)}
-
-/* LIFT BUTTONS */
-.lift-section{flex:2;display:flex;flex-direction:column;padding:6px;
-              gap:5px;justify-content:center}
-.lift-btn{flex:1;border:1.5px solid #1e3a5f;background:#0f172a;color:#7dd3fc;
-          font-size:11px;font-weight:700;border-radius:5px;cursor:pointer;
-          font-family:inherit;letter-spacing:.5px;transition:background .1s;
-          display:flex;align-items:center;justify-content:center;gap:4px;
-          touch-action:manipulation}
-.lift-btn:active,.lift-btn.held{background:#1e293b;box-shadow:inset 0 0 8px rgba(125,211,252,.2)}
-
-/* ── BOTTOM BAR ── */
-.bottom{display:flex;height:72px;flex-shrink:0;border-top:1.5px solid #1e3a5f;
-        background:#111827}
-.map-btn{flex:1;border:none;border-right:1.5px solid #1e3a5f;
-         background:transparent;color:#38bdf8;font-size:11px;font-weight:700;
-         cursor:pointer;font-family:inherit;letter-spacing:.5px;
-         display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-         transition:background .15s;touch-action:manipulation}
-.map-btn .map-icon{font-size:18px;line-height:1}
-.map-btn.mapping{background:#082032;color:#7dd3fc;animation:mappulse 1.5s infinite}
-@keyframes mappulse{0%,100%{background:#082032}50%{background:#0c2a43}}
-/* CALIBRATE — amber, deliberately not the same blue as MAP. MAP is
-   passive (starts sensors); this one makes the robot drive itself. */
-.cal-btn{flex:1;border:none;border-right:1.5px solid #1e3a5f;
-         background:transparent;color:#fbbf24;font-size:11px;font-weight:700;
-         cursor:pointer;font-family:inherit;letter-spacing:.5px;
-         display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-         transition:background .15s;touch-action:manipulation}
-.cal-btn .cal-icon{font-size:18px;line-height:1}
-.cal-btn.disabled{color:#334155;pointer-events:none}
-.cal-btn.armed{background:#422006;color:#fde68a}
-.cal-btn.running{background:#422006;color:#fde68a;animation:calpulse 1.2s infinite}
-@keyframes calpulse{0%,100%{background:#422006}50%{background:#713f12}}
-/* Status strip: overlaid on the joystick area rather than added to the
-   flex column, so the existing height math stays untouched. */
-.cal-status{position:absolute;top:0;left:0;right:0;z-index:20;display:none;
-            background:rgba(12,18,32,.94);border-bottom:1px solid #713f12;
-            padding:4px 6px;font-size:8px;line-height:1.35;color:#fde68a;
-            font-family:inherit;max-height:82px;overflow:hidden}
-.cal-status.show{display:block}
-.cal-status .cal-hd{color:#fbbf24;font-weight:700;letter-spacing:1px}
-.uv-btn{flex:1;border:none;border-right:1.5px solid #1e3a5f;
-        background:transparent;color:#c084fc;font-size:11px;font-weight:700;
-        cursor:pointer;font-family:inherit;letter-spacing:.5px;
-        display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-        transition:background .15s;touch-action:manipulation}
-.uv-btn .uv-icon{font-size:18px;line-height:1}
-.uv-btn.on{background:#2e1065;color:#e9d5ff;animation:uvpulse 1.5s infinite}
-@keyframes uvpulse{0%,100%{background:#2e1065}50%{background:#3b0764}}
-.estop-btn{flex:1;border:none;background:transparent;
-           display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-           cursor:pointer;transition:background .1s;touch-action:manipulation}
-.estop-btn .estop-circle{width:48px;height:48px;border-radius:50%;
-  background:radial-gradient(circle at 40% 35%,#f87171,#7f1d1d);
-  border:2px solid #fca5a5;box-shadow:0 0 16px rgba(239,68,68,.25),inset 0 -3px 6px rgba(0,0,0,.3);
-  display:flex;align-items:center;justify-content:center;
-  font-size:9px;font-weight:700;color:#fff;letter-spacing:.5px}
-.estop-btn:active .estop-circle{transform:scale(.88);box-shadow:0 0 28px rgba(239,68,68,.7)}
-.estop-btn.armed .estop-circle{background:radial-gradient(circle at 40% 35%,#4ade80,#14532d);
-  border-color:#86efac;box-shadow:0 0 16px rgba(74,222,128,.25)}
-.estop-lbl{font-size:8px;color:#4b5563;letter-spacing:.5px;font-weight:700}
-
-/* ── FLASH OVERLAY ── */
-.flash{position:fixed;inset:0;background:rgba(239,68,68,.2);pointer-events:none;
-       opacity:0;transition:opacity .25s;z-index:999}
-.flash.show{opacity:1}
-
-/* ── GRID decorative ── */
-.joy-area::before{content:'';position:absolute;inset:0;
-  background:radial-gradient(ellipse at center,rgba(56,189,248,.04) 0%,transparent 70%);
-  pointer-events:none}
+html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+button{font:inherit}
+.hdr{height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;
+  background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);gap:10px;flex-shrink:0}
+.hdr-left{display:flex;align-items:center;gap:10px;min-width:0}.hdr-title{font-size:15px;font-weight:800;letter-spacing:1.4px;white-space:nowrap}.hdr-sub{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.8px;white-space:nowrap}
+.status-pills{display:flex;gap:4px;overflow:hidden}.state-pill{font-size:9px;font-weight:800;border:1px solid var(--line);border-radius:999px;padding:4px 7px;background:#fff;color:var(--muted);white-space:nowrap}.state-pill.good{color:#087443;background:var(--green-soft);border-color:#b7e6d0}.state-pill.bad{color:#b42318;background:var(--red-soft);border-color:#f4c7c2}.state-pill.muted{color:#667085;background:#f2f4f7}
+.hdr-right{display:flex;align-items:center;gap:8px}.speed-label{font-size:9px;color:var(--muted);font-weight:700}.spd-group{display:flex;gap:4px}.spd-btn{min-width:54px;padding:6px 8px;border-radius:7px;border:1px solid var(--line);background:#fff;color:#667085;font-size:9px;font-weight:800;cursor:pointer;touch-action:manipulation}.spd-btn.active-slow{background:#edf9f3;color:#087443;border-color:#9dd9ba}.spd-btn.active-normal{background:#fff5e8;color:#a15c00;border-color:#f2c27a}.spd-btn.active-fast{background:#fff0ee;color:#b42318;border-color:#efaaa3}
+.view-btn{padding:7px 11px;border-radius:7px;border:1px solid var(--line);background:#fff;color:#344054;font-size:9px;font-weight:800;cursor:pointer;touch-action:manipulation}.view-btn.on{background:var(--blue-soft);color:#1457b9;border-color:#a8c8ff}
+.map-badge{font-size:9px;font-weight:800;padding:4px 7px;border-radius:999px;background:var(--blue-soft);color:#1457b9;display:none}.map-badge.show{display:inline-block}
+.status-dot{display:none}.spd-indicator{height:22px;display:flex;align-items:center;justify-content:center;background:#f8fafc;border-bottom:1px solid var(--line);font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.5px;flex-shrink:0}.spd-indicator #spdValue{color:#1457b9}
+.body{display:flex;height:calc(100vh - 54px - 22px - 74px);min-height:0}
+.joy-area{flex:1;position:relative;display:flex;align-items:center;justify-content:center;background:var(--bg);overflow:hidden}
+.drive-info{position:absolute;top:12px;left:12px;z-index:3;display:flex;gap:8px;align-items:stretch;pointer-events:none}.info-card{background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:9px;padding:7px 9px;box-shadow:var(--shadow);min-width:92px}.info-card .k{font-size:8px;color:var(--muted);font-weight:800;letter-spacing:.6px}.info-card .v{font-size:14px;font-weight:800;margin-top:2px}.info-card .s{font-size:9px;color:var(--muted);margin-top:1px}
+.motion-card{position:absolute;right:12px;top:12px;z-index:3;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:9px;padding:8px 10px;box-shadow:var(--shadow);pointer-events:none;min-width:128px}.motion-card .title{font-size:8px;color:var(--muted);font-weight:800;letter-spacing:.6px}.motion-state{font-size:12px;font-weight:900;margin:2px 0 5px}.cmd-row{display:grid;grid-template-columns:28px 1fr;gap:4px;font-size:9px;color:#475467}.cmd-row strong{font-weight:800;color:var(--text)}
+.joy-ring{width:min(58vw,280px);height:min(58vw,280px);max-width:62vh;max-height:62vh;border-radius:50%;border:2px solid #b9c5d3;background:radial-gradient(circle,#fff 0%,#f7f9fb 65%,#eef2f5 100%);position:relative;flex-shrink:0;cursor:grab;box-shadow:inset 0 0 0 12px rgba(22,119,255,.025),0 10px 28px rgba(16,24,40,.06)}
+.joy-ring::before,.joy-ring::after{content:'';position:absolute;background:#d7dee7;pointer-events:none}.joy-ring::before{width:1px;height:78%;left:50%;top:11%}.joy-ring::after{height:1px;width:78%;top:50%;left:11%}
+.joy-thumb{width:66px;height:66px;border-radius:50%;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 34% 30%,#5ea5ff,#1677ff 65%,#0f5fd1);box-shadow:0 7px 18px rgba(22,119,255,.28);transition:box-shadow .1s}.joy-thumb.active{box-shadow:0 10px 24px rgba(22,119,255,.42)}
+.jlbl{position:absolute;font-size:8px;color:#98a2b3;font-weight:800;letter-spacing:.8px}.jlbl.t{top:6%;left:50%;transform:translateX(-50%)}.jlbl.b{bottom:6%;left:50%;transform:translateX(-50%)}.jlbl.l{left:5%;top:50%;transform:translateY(-50%)}.jlbl.r{right:5%;top:50%;transform:translateY(-50%)}
+.right-panel{width:126px;display:flex;flex-direction:column;border-left:1px solid var(--line);background:#fff;flex-shrink:0;transition:width .18s ease}.right-panel .section-title{font-size:8px;color:#98a2b3;font-weight:800;letter-spacing:.8px;text-align:center}
+body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 0;gap:7px;border-bottom:1px solid var(--line)}.yaw-lbl{font-size:8px;color:#98a2b3;letter-spacing:1px;font-weight:800}.yaw-track{width:24px;flex:1;max-height:120px;background:#f2f4f7;border-radius:12px;border:1px solid #c9d2dc;position:relative;cursor:pointer;touch-action:none}.yaw-thumb{width:38px;height:38px;border-radius:50%;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 35% 30%,#ffd591,#f79009 70%);box-shadow:0 6px 14px rgba(247,144,9,.25)}
+.arm-section,.lift-section{display:flex;flex-direction:column;padding:7px;gap:6px;justify-content:center}.arm-section{flex:3;border-bottom:1px solid var(--line)}.lift-section{flex:2}body.map-mode .arm-section,body.map-mode .lift-section{display:none}body.map-mode .yaw-wrap{flex:1;border-bottom:none;padding:14px 0}.arm-btn,.lift-btn{flex:1;border-radius:7px;cursor:pointer;touch-action:manipulation;font-weight:800}.arm-btn{border:1px solid #b7e6d0;background:#f1fbf6;color:#087443;font-size:9px}.arm-btn:active,.arm-btn.held{background:#dff5e9}.lift-btn{border:1px solid #b9d5ff;background:#f3f7ff;color:#1457b9;font-size:10px}.lift-btn:active,.lift-btn.held{background:#e5efff}
+.bottom{height:74px;display:flex;flex-shrink:0;border-top:1px solid var(--line);background:#fff;box-shadow:0 -4px 18px rgba(16,24,40,.04)}.bottom>button{flex:1;border:none;border-right:1px solid var(--line);background:#fff;cursor:pointer;touch-action:manipulation}.map-btn,.cal-btn,.uv-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:900}.map-btn{color:#1457b9}.map-btn.mapping{background:#edf5ff;color:#1457b9}.cal-btn{color:#a15c00}.cal-btn.disabled{color:#98a2b3;background:#f8fafc;pointer-events:none}.cal-btn.armed,.cal-btn.running{background:#fff5e8;color:#9a6700}.uv-btn{color:#7a4fb3}.uv-btn.on{background:#f7f1ff;color:#6d3ea0}.map-icon,.cal-icon,.uv-icon{font-size:18px;line-height:1}.estop-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}.estop-circle{width:48px;height:48px;border-radius:50%;background:#fff0ee;border:2px solid #e99b93;color:#b42318;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;box-shadow:0 3px 10px rgba(217,45,32,.08)}.estop-btn:active .estop-circle{transform:scale(.92)}.estop-btn.armed .estop-circle{background:#d92d20;border-color:#b42318;color:#fff;box-shadow:0 5px 18px rgba(217,45,32,.25)}.estop-lbl{font-size:8px;color:#667085;font-weight:800}
+.map-view{position:absolute;inset:0;background:#f4f6f8;display:none;z-index:6}.map-view.show{display:block}#mapCanvas{width:100%;height:100%;display:block;touch-action:none}.map-hud{position:absolute;top:11px;left:11px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:9px;padding:9px 10px;box-shadow:var(--shadow);font-size:10px;color:var(--text);pointer-events:none;min-width:175px}.hud-title{font-size:8px;font-weight:900;color:var(--muted);letter-spacing:.7px;margin-bottom:6px}.hud-grid{display:grid;grid-template-columns:42px 1fr;gap:4px 8px}.hud-grid span{color:var(--muted);font-weight:800;font-size:9px}.hud-grid strong{font-size:13px}.hud-muted{font-size:9px;color:var(--muted)}.map-status{position:absolute;left:12px;bottom:10px;background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:7px;padding:5px 8px;color:#667085;font-size:8px;font-weight:800;pointer-events:none}.map-tools{position:absolute;top:11px;right:11px;display:flex;flex-direction:column;gap:5px}.mt-btn{min-width:42px;height:30px;border-radius:7px;border:1px solid var(--line);background:rgba(255,255,255,.95);color:#344054;font-size:9px;font-weight:900;box-shadow:0 2px 8px rgba(16,24,40,.06);touch-action:manipulation}.mt-btn.armed,.mt-btn.active{background:var(--amber-soft);color:#9a6700;border-color:#f2c27a}.map-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:800;letter-spacing:.4px;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.94);color:#667085;border:1px solid var(--line);pointer-events:none;white-space:nowrap}.map-hint.armed{background:var(--amber-soft);color:#9a6700;border-color:#f2c27a}
+.layer-panel{position:absolute;top:50px;right:58px;width:204px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px;display:none;z-index:12}.layer-panel.show{display:block}.layer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.layer-title{font-size:10px;font-weight:900}.layer-close{border:0;background:none;color:#667085;font-size:14px}.layer-row{display:flex;align-items:center;justify-content:space-between;padding:7px 2px;border-top:1px solid #eef2f6;font-size:9px;color:#475467}.layer-row input{accent-color:#1677ff}.layer-note{margin-top:8px;font-size:8px;line-height:1.35;color:#98a2b3}.research-chip{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:10;background:#17202a;color:#fff;border-radius:999px;padding:5px 10px;font-size:8px;font-weight:900;letter-spacing:.5px;display:none;pointer-events:none}.research-chip.show{display:block}
+.cal-status{position:absolute;top:0;left:0;right:0;z-index:20;display:none;background:rgba(255,255,255,.97);border-bottom:1px solid #f2c27a;padding:7px 9px;font-size:8px;line-height:1.35;color:#9a6700;box-shadow:0 3px 12px rgba(16,24,40,.06);font-family:inherit;max-height:82px;overflow:hidden}.cal-status.show{display:block}.cal-status .cal-hd{font-weight:900;letter-spacing:.7px;color:#a15c00}
+.flash{position:fixed;inset:0;background:rgba(217,45,32,.12);pointer-events:none;opacity:0;transition:opacity .25s;z-index:999}.flash.show{opacity:1}
+@media (max-width:560px){.hdr-sub{display:none}.status-pills{max-width:150px}.speed-label{display:none}.spd-btn{min-width:48px;padding:6px 5px}.hdr{padding:0 9px}.drive-info{left:7px;top:7px;gap:5px}.motion-card{right:7px;top:7px;min-width:116px}.info-card{min-width:78px;padding:6px 7px}.info-card .v{font-size:12px}.motion-card{padding:7px 8px}.layer-panel{right:55px;width:190px}}
 </style>
+
 </head>
 <body>
-
-<!-- HEADER -->
 <div class="hdr">
-  <span class="hdr-title">AISLEBOT</span>
-  <div class="spd-group">
-    <button class="spd-btn active-slow" id="spd0">SLOW</button>
-    <button class="spd-btn" id="spd1">MED</button>
-    <button class="spd-btn" id="spd2">FAST</button>
+  <div class="hdr-left">
+    <div><div class="hdr-title">AISLEBOT</div><div class="hdr-sub">NARROW-CHASSIS MOBILE ROBOT</div></div>
+    <div class="status-pills"><span class="state-pill bad" id="rosPill">ROS ×</span><span class="state-pill muted" id="mapPill">MAP —</span><span class="state-pill muted" id="posePill">POSE —</span></div>
   </div>
   <div class="hdr-right">
+    <span class="speed-label">SPEED</span>
+    <div class="spd-group"><button class="spd-btn active-slow" id="spd0">SLOW</button><button class="spd-btn" id="spd1">NORMAL</button><button class="spd-btn" id="spd2">FAST</button></div>
     <button class="view-btn" id="viewBtn">VIEW</button>
     <span class="map-badge" id="mapBadge">MAP</span>
     <span class="status-dot" id="dot"></span>
   </div>
 </div>
-
-<!-- SPEED INDICATOR -->
-<div class="spd-indicator">SPEED: <span id="spdValue">SLOW — 0.05 m/s</span></div>
-
-<!-- BODY: joystick (left) + right panel -->
+<div class="spd-indicator">COMMAND LIMIT: <span id="spdValue">SLOW — 0.05 m/s</span></div>
 <div class="body">
-
-  <!-- JOYSTICK -->
   <div class="joy-area" id="joyArea">
-    <div class="cal-status" id="calStatus">
-      <div class="cal-hd" id="calHd">CALIBRATING</div>
-      <div id="calTail"></div>
+    <div class="drive-info">
+      <div class="info-card"><div class="k">MAP X</div><div class="v" id="liveX">—</div></div>
+      <div class="info-card"><div class="k">MAP Y</div><div class="v" id="liveY">—</div></div>
+      <div class="info-card"><div class="k">NOSE</div><div class="v" id="liveNose">—</div></div>
+      <div class="info-card"><div class="k">PATH</div><div class="v" id="liveDist">0.00 m</div></div>
     </div>
-    <div class="joy-ring" id="joyRing">
-      <span class="jlbl t">FWD</span>
-      <span class="jlbl b">REV</span>
-      <span class="jlbl l">LEFT</span>
-      <span class="jlbl r">RIGHT</span>
-      <div class="joy-thumb" id="joyThumb"></div>
+    <div class="motion-card">
+      <div class="title">MOTION COMMAND</div><div class="motion-state" id="motionState">IDLE</div>
+      <div class="cmd-row"><span>Vx</span><strong id="cmdVx">0.00 m/s</strong></div>
+      <div class="cmd-row"><span>Vy</span><strong id="cmdVy">0.00 m/s</strong></div>
+      <div class="cmd-row"><span>Wz</span><strong id="cmdWz">0.00 rad/s</strong></div>
     </div>
-    <!-- Map overlays the joystick area only, so the right panel and the
-         bottom bar (E-STOP) stay reachable in every mode. -->
+    <div class="research-chip" id="researchChip">RESEARCH VIEW</div>
+    <div class="joy-ring" id="joyRing"><span class="jlbl t">FWD</span><span class="jlbl b">REV</span><span class="jlbl l">LEFT</span><span class="jlbl r">RIGHT</span><div class="joy-thumb" id="joyThumb"></div></div>
+    <div class="cal-status" id="calStatus"><div class="cal-hd" id="calHd">CALIBRATING</div><div id="calTail"></div></div>
     <div class="map-view" id="mapView">
       <canvas id="mapCanvas"></canvas>
       <div class="map-hud" id="mapHud">WAITING FOR /map</div>
+      <div class="map-status" id="mapStatus">MAP GRID WAITING</div>
       <div class="map-tools">
-        <button class="mt-btn" id="btnZoomIn">+</button>
-        <button class="mt-btn" id="btnZoomOut">&minus;</button>
-        <button class="mt-btn" id="btnFollow">CTR</button>
+        <button class="mt-btn" id="btnZoomIn" aria-label="Zoom in">+</button>
+        <button class="mt-btn" id="btnZoomOut" aria-label="Zoom out">−</button>
+        <button class="mt-btn" id="btnFollow">CENTER</button>
         <button class="mt-btn" id="btnGoal">GOAL</button>
         <button class="mt-btn" id="btnZero">ZERO</button>
+        <button class="mt-btn" id="btnLayers">LAYERS</button>
+        <button class="mt-btn" id="btnResearch">RESEARCH</button>
       </div>
-      <div class="map-hint" id="mapHint">DRAG TO PAN &middot; PINCH TO ZOOM</div>
+      <div class="layer-panel" id="layerPanel">
+        <div class="layer-head"><div class="layer-title">VIEW SETTINGS</div><button class="layer-close" id="btnLayersClose">×</button></div>
+        <label class="layer-row">Grid <input id="layer-grid" type="checkbox" checked></label>
+        <label class="layer-row">Scale bar <input id="layer-scale" type="checkbox" checked></label>
+        <label class="layer-row">Trajectory <input id="layer-trajectory" type="checkbox"></label>
+        <label class="layer-row">Robot footprint <input id="layer-footprint" type="checkbox" checked></label>
+        <label class="layer-row">Map axes <input id="layer-axes" type="checkbox"></label>
+        <label class="layer-row">Zero mark <input id="layer-zero" type="checkbox" checked></label>
+        <label class="layer-row">Research mode <input id="researchToggle" type="checkbox"></label>
+        <div class="layer-note">Grid spacing and scale-bar length adapt automatically to zoom. Rendering options do not change ROS behavior.</div>
+      </div>
+      <div class="map-hint" id="mapHint">DRAG TO PAN · PINCH TO ZOOM</div>
     </div>
   </div>
-
-  <!-- RIGHT PANEL -->
   <div class="right-panel">
-
-    <!-- YAW SLIDER -->
-    <div class="yaw-wrap">
-      <span class="yaw-lbl">CCW</span>
-      <div class="yaw-track" id="yawTrack">
-        <div class="yaw-thumb" id="yawThumb"></div>
-      </div>
-      <span class="yaw-lbl">CW</span>
-    </div>
-
-    <!-- ARM OPEN / CLOSE -->
-    <div class="arm-section">
-      <button class="arm-btn" id="btnOpen">ARM<br>OPEN</button>
-      <button class="arm-btn" id="btnClose">ARM<br>CLOSE</button>
-    </div>
-
-    <!-- LIFT / LOWER -->
-    <div class="lift-section">
-      <button class="lift-btn" id="btnUp">▲ LIFT</button>
-      <button class="lift-btn" id="btnDown">▼ LOWER</button>
-    </div>
-
-  </div><!-- /right-panel -->
-
-</div><!-- /body -->
-
-<!-- BOTTOM BAR -->
-<div class="bottom">
-  <button class="map-btn" id="mapBtn">
-    <span class="map-icon" id="mapIcon">▦</span>
-    <span id="mapLabel">MAP</span>
-  </button>
-  <button class="cal-btn disabled" id="calBtn">
-    <span class="cal-icon" id="calIcon">⟳</span>
-    <span id="calLabel">CALIBRATE</span>
-  </button>
-  <button class="uv-btn" id="uvBtn">
-    <span class="uv-icon" id="uvIcon">☼</span>
-    <span id="uvLabel">UV LIGHTS</span>
-  </button>
-  <button class="estop-btn" id="estopBtn">
-    <div class="estop-circle" id="estopCircle">E-STOP</div>
-    <span class="estop-lbl" id="estopLbl">TAP TO STOP</span>
-  </button>
+    <div class="yaw-wrap"><span class="section-title">YAW</span><span class="yaw-lbl">CCW</span><div class="yaw-track" id="yawTrack"><div class="yaw-thumb" id="yawThumb"></div></div><span class="yaw-lbl">CW</span></div>
+    <div class="arm-section"><button class="arm-btn" id="btnOpen">ARM<br>OPEN</button><button class="arm-btn" id="btnClose">ARM<br>CLOSE</button></div>
+    <div class="lift-section"><button class="lift-btn" id="btnUp">▲ LIFT</button><button class="lift-btn" id="btnDown">▼ LOWER</button></div>
+  </div>
 </div>
-
+<div class="bottom">
+  <button class="map-btn" id="mapBtn"><span class="map-icon" id="mapIcon">▦</span><span id="mapLabel">MAP</span></button>
+  <button class="cal-btn disabled" id="calBtn"><span class="cal-icon" id="calIcon">⟳</span><span id="calLabel">CALIBRATE</span></button>
+  <button class="uv-btn" id="uvBtn"><span class="uv-icon" id="uvIcon">☼</span><span id="uvLabel">UV LIGHTS</span></button>
+  <button class="estop-btn" id="estopBtn"><div class="estop-circle" id="estopCircle">E-STOP</div><span class="estop-lbl" id="estopLbl">TAP TO STOP</span></button>
+</div>
 <div class="flash" id="flash"></div>
-
 <script>
+
 // ── CONFIG ────────────────────────────────────────────────────────
 // FIX: MAX_LINEAR lowered from 0.48 → 0.15 m/s to prevent motor saturation.
 // Old: SLOW=0.12, MED=0.29, FAST=0.48 → MED and FAST both hit the 3 rad/s
@@ -434,6 +287,76 @@ let yawVal = 0, yawActive = false, yawTouchId = null;
 let estopped  = false;
 let mapping   = false;
 let armInterval = null;
+
+// ── Cosmetic / operator-view state (does not alter ROS commands) ──
+const mapLayers = {
+  grid: true,
+  scale: true,
+  trajectory: false,
+  footprint: true,
+  axes: false,
+  zero: true,
+};
+let mapResearchMode = false;
+let trajectory = [];
+let lastTrajectoryPose = null;
+let pathLength = 0;
+
+// ── Operator display helpers ──────────────────────────────────────
+function updateLivePoseCard() {
+  if (!robotPose) return;
+  const x = document.getElementById('liveX');
+  const y = document.getElementById('liveY');
+  const n = document.getElementById('liveNose');
+  const d = document.getElementById('liveDist');
+  // Displayed x/y is a fixed relabeling of the raw map frame -- see the
+  // DISPLAY_ROT note above. Keep both readouts (this card and updateHud()
+  // below) in sync.
+  if (x) x.textContent = (-robotPose.y).toFixed(3) + ' m';
+  if (y) y.textContent = robotPose.x.toFixed(3) + ' m';
+  const noseDeg = ((robotPose.yaw * 180 / Math.PI + 90 + 180) % 360 + 360) % 360 - 180;
+  if (n) n.textContent = noseDeg.toFixed(1) + '°';
+  if (d) d.textContent = pathLength.toFixed(2) + ' m';
+}
+
+function updateDriveCommandCard(vx, vy, wz) {
+  const ex = document.getElementById('cmdVx');
+  const ey = document.getElementById('cmdVy');
+  const ew = document.getElementById('cmdWz');
+  if (ex) ex.textContent = `${vx.toFixed(2)} m/s`;
+  if (ey) ey.textContent = `${vy.toFixed(2)} m/s`;
+  if (ew) ew.textContent = `${wz.toFixed(2)} rad/s`;
+  const moving = Math.abs(vx) > 0.001 || Math.abs(vy) > 0.001 || Math.abs(wz) > 0.001;
+  const ms = document.getElementById('motionState');
+  if (ms) ms.textContent = moving ? (Math.abs(wz) > 0.02 && Math.hypot(vx, vy) < 0.01 ? 'ROTATING' : 'MOVING') : 'IDLE';
+}
+
+function setPill(id, state, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'state-pill ' + state;
+  el.textContent = text;
+}
+
+function updateConnectionUI() {
+  setPill('rosPill', wsOk ? 'good' : 'bad', wsOk ? 'ROS ●' : 'ROS ×');
+  setPill('mapPill', mapGrid ? 'good' : 'muted', mapGrid ? 'MAP ●' : 'MAP —');
+  setPill('posePill', robotPose ? 'good' : 'muted', robotPose ? 'POSE ●' : 'POSE —');
+}
+
+function syncLayerPanel() {
+  for (const [k, v] of Object.entries(mapLayers)) {
+    const el = document.getElementById('layer-' + k);
+    if (el) el.checked = v;
+  }
+  const research = document.getElementById('researchToggle');
+  if (research) research.checked = mapResearchMode;
+}
+
+function openLayers() {
+  const p = document.getElementById('layerPanel');
+  if (p) p.classList.toggle('show');
+}
 
 // ── MAP STATE ─────────────────────────────────────────────────────
 // base_link on this robot is NOT REP-103: +X is the robot's RIGHT and +Y is
@@ -466,6 +389,7 @@ function connect() {
   ws.onopen = () => {
     wsOk = true;
     document.getElementById('dot').classList.add('on');
+    updateConnectionUI();
     // FIX: Auto-enable arm on every connection so we never need a manual ENABLE button
     send({ type: 'arm', cmd: 'ENABLE' });
   };
@@ -478,16 +402,31 @@ function connect() {
       noticeTimer = setTimeout(() => goalHint(defaultHint(), false), 4000);
     } else if (m.type === 'pose') {
       robotPose = { x: m.x, y: m.y, yaw: m.yaw };
+      updateLivePoseCard();
+      if (lastTrajectoryPose) {
+        const d = Math.hypot(m.x - lastTrajectoryPose.x, m.y - lastTrajectoryPose.y);
+        if (d >= 0.005) {
+          pathLength += d;
+          trajectory.push({ x: m.x, y: m.y });
+          if (trajectory.length > 2500) trajectory.shift();
+          lastTrajectoryPose = { x: m.x, y: m.y };
+        }
+      } else {
+        trajectory.push({ x: m.x, y: m.y });
+        lastTrajectoryPose = { x: m.x, y: m.y };
+      }
       if (mapFollow) { camX = m.x; camY = m.y; }
       if (mapView) drawMap();
     } else if (m.type === 'map') {
       ingestMap(m);
       if (mapView) drawMap();
+      updateConnectionUI();
     }
   };
   ws.onclose = () => {
     wsOk = false;
     document.getElementById('dot').classList.remove('on');
+    updateConnectionUI();
     setTimeout(connect, 1500);
   };
   ws.onerror = () => ws.close();
@@ -677,6 +616,7 @@ function sendDrive() {
   const vx = applyDead(joyY)   * m * MAX_LINEAR;
   const vy = applyDead(-joyX)  * m * MAX_LINEAR;
   const wz = applyDead(yawVal) * m * MAX_ANGULAR;
+  updateDriveCommandCard(vx, vy, wz);
   send({ type: 'drive', vx: +vx.toFixed(3), vy: +vy.toFixed(3), wz: +wz.toFixed(3) });
 }
 
@@ -1037,31 +977,49 @@ function sizeCanvas() {
 }
 window.addEventListener('resize', () => { sizeCanvas(); if (mapView) drawMap(); });
 
-// ── Display rotation: screen "up" means "the way the robot was facing at
-//    ZERO", not "map +Y" ─────────────────────────────────────────────────
-// base_link on this robot is +X = RIGHT, +Y = NOSE (not REP-103 -- see the
-// AXES note atop nav2_params.yaml, "the stack's deepest open issue"). ZERO
-// fixes the reference pose at frame yaw -90 deg, at which the nose points
-// along map's own +X axis (verified: nose = (-sin th, cos th), th=-90 deg
-// -> (1, 0)). w2s() draws map +X as screen-RIGHT with no rotation, so at
-// the moment mapping starts the robot's physical forward is drawn sideways
-// -- correct data, coherent-looking picture only by accident of which way
-// the robot happened to be pointed when SLAM planted the map frame.
+// ── Map-frame display orientation ────────────────────────────────────────
+// Two separate things were both wrong in different earlier versions of this
+// file, and it's worth keeping both fixes visible so neither gets re-broken:
 //
-// This constant rotates the CANVAS, not the data: w2s/s2w keep computing
-// exactly the coordinates they always did ("local" space); a single
-// mctx.rotate() in drawMap() turns local-space into final pixels for every
-// draw call in one pass (bitmap, grid, robot, goal -- canvas transforms
-// apply uniformly to drawImage same as moveTo/lineTo, so nothing per-call
-// needs touching). Raw pointer events arrive in un-rotated DOM pixel space
-// regardless, so unrotatePtr() below undoes the same rotation before any
-// tap/drag reaches s2w, which still expects local-space input.
+// 1. DISPLAY_ROT rotates the CANVAS so screen-up matches the way the robot
+//    was facing at the ZERO mark, instead of raw slam_toolbox map +X (which
+//    is arbitrary -- it's just whichever way the robot happened to face when
+//    mapping started). Without this rotation, forward drive visibly moves
+//    the robot SIDEWAYS on screen, not up -- confirmed on hardware, see
+//    Research_Journal.md. -Math.PI/2 is the correct value for this robot's
+//    ZERO heading; the derivation is in the same journal entry.
 //
-// Fixed, not user-adjustable: DISPLAY_ROT = -90 deg turns "local +X"
-// (screen-right, pre-rotation) into "screen-up" -- see the derivation in
-// docs/Research_Journal.md's session note if this ever needs re-deriving
-// for a different reference yaw.
+// 2. Because (1) rotates the CANVAS but not the printed numbers, the raw
+//    "MAP x/y" text used to read like slam_toolbox's own axis names, which
+//    don't match ordinary graph paper (right=+X, up=+Y) -- forward motion
+//    visibly increased "x", not "y", which is confusing on its face even
+//    though it was never wrong. Fixed at the point each number is PRINTED
+//    (updateHud, updateLivePoseCard, the grid/axis labels below):
+//    dispX = -raw_y, dispY = raw_x. Nothing upstream of the print site
+//    changes -- goals, camera-follow and the pose CSV all still use
+//    robotPose.x/y raw, exactly as slam_toolbox and TF report it.
+//
+// A rotated canvas means anything drawn with mctx.fillText() while the
+// rotation is active comes out sideways -- drawUpright() below (used by the
+// grid/axis/zero-mark labels) resets to the plain transform for just the
+// text draw so labels stay upright and land at the correct real screen
+// position regardless of DISPLAY_ROT.
 const DISPLAY_ROT = -Math.PI / 2;
+
+// Draws text upright in real screen space at the real-screen point that
+// local point (localX, localY) maps to under DISPLAY_ROT -- use this for
+// any fillText() call made while the map canvas is in its rotated state.
+function drawUpright(text, localX, localY, align, dxReal, dyReal) {
+  const c = Math.cos(DISPLAY_ROT), s = Math.sin(DISPLAY_ROT);
+  const dx = localX - cssW / 2, dy = localY - cssH / 2;
+  const realX = cssW / 2 + (dx * c - dy * s) + (dxReal || 0);
+  const realY = cssH / 2 + (dx * s + dy * c) + (dyReal || 0);
+  mctx.save();
+  mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  mctx.textAlign = align || 'left';
+  mctx.fillText(text, realX, realY);
+  mctx.restore();
+}
 
 function w2s(wx, wy) {
   return { x: cssW / 2 + (wx - camX) * camScale,
@@ -1078,10 +1036,16 @@ function s2w(sx, sy) {
 // matters.
 function unrotatePtr(sx, sy) {
   const dx = sx - cssW / 2, dy = sy - cssH / 2;
-  return { x: cssW / 2 - dy, y: cssH / 2 + dx };
+  const c = Math.cos(DISPLAY_ROT), s = Math.sin(DISPLAY_ROT);
+  // Apply the inverse canvas rotation to recover local map coordinates.
+  return {
+    x: cssW / 2 + c * dx + s * dy,
+    y: cssH / 2 - s * dx + c * dy,
+  };
 }
 function unrotateDelta(dx, dy) {
-  return { x: -dy, y: dx };
+  const c = Math.cos(DISPLAY_ROT), s = Math.sin(DISPLAY_ROT);
+  return { x: c * dx + s * dy, y: -s * dx + c * dy };
 }
 
 // ── Decode one OccupancyGrid into an offscreen bitmap ──────────────
@@ -1110,10 +1074,10 @@ function ingestMap(m) {
       // drivable space and never-seen space looked identical on a phone in
       // daylight. Ratios now: free/unknown 3.8:1, occupied/free 3.6:1,
       // occupied/unknown 13.6:1.
-      if (v === 255)     { r =  26; g =  29; b =  36; }   // unknown  - neutral slate
-      else if (v >= 65)  { r = 232; g = 238; b = 246; }   // occupied - near white
-      else if (v <= 25)  { r =  56; g = 124; b = 184; }   // free     - mid blue
-      else               { r = 120; g = 150; b = 185; }   // uncertain- between the two
+      if (v === 255)     { r = 228; g = 231; b = 236; }   // unknown  - light neutral
+      else if (v >= 65)  { r =  52; g =  64; b =  78; }   // occupied - dark structure
+      else if (v <= 25)  { r = 248; g = 250; b = 252; }   // free     - clean floor
+      else               { r = 152; g = 162; b = 176; }   // uncertain- between the two
       px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255;
     }
   }
@@ -1126,21 +1090,16 @@ function ingestMap(m) {
 // ── Draw ───────────────────────────────────────────────────────────
 function drawMap() {
   if (!cssW || !cssH) { sizeCanvas(); if (!cssW) return; }
-  // Reset to the plain per-frame baseline before rotating -- setTransform
-  // REPLACES the matrix, so this is not cumulative across frames the way an
-  // unconditional mctx.rotate() every drawMap() call would be.
+
   mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   mctx.translate(cssW / 2, cssH / 2);
   mctx.rotate(DISPLAY_ROT);
   mctx.translate(-cssW / 2, -cssH / 2);
 
-  mctx.fillStyle = '#060a12';
+  mctx.fillStyle = '#f4f6f8';
   mctx.fillRect(0, 0, cssW, cssH);
 
   if (mapBitmap && mapGrid) {
-    // info.origin is the pose of cell (0,0). It is generally NOT (0,0) —
-    // slam_toolbox grows the grid in every direction — so the image is
-    // anchored through it, never assumed to start at the world origin.
     const tl = w2s(mapGrid.ox, mapGrid.oy + mapGrid.h * mapGrid.res);
     mctx.imageSmoothingEnabled = false;
     mctx.drawImage(mapBitmap, tl.x, tl.y,
@@ -1148,54 +1107,219 @@ function drawMap() {
                    mapGrid.h * mapGrid.res * camScale);
   }
 
-  drawGrid();
+  if (mapLayers.grid) drawGrid();
+  if (mapLayers.axes) drawAxes();
+  if (mapLayers.trajectory) drawTrajectory();
+
+  // Zero mark is a coordinate reference, never a command.
+  if (mapLayers.zero) drawZeroMark();
 
   if (goalDrag) drawGoal(goalDrag);
-  if (robotPose) drawRobot(robotPose);
+  if (mapLayers.footprint && robotPose) drawRobot(robotPose);
 
   updateHud();
+
+  // Screen-fixed overlays: not rotated with the map.
+  mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (mapLayers.scale) drawScaleBar();
+  drawMapModeBadge();
 }
 
-function drawGrid() {
-  // 1 m reference grid, so distances are readable without a ruler.
-  if (camScale < 12) return;
-  // BUG (found 26 Aug on real hardware, live during a drive): this used to
-  // read `s2w(0, 0), s2w(cssW, cssH)` directly -- the RAW screen corners --
-  // but s2w expects local (pre-rotation) input, same as pointer events do.
-  // Pointer handling already accounts for this via unrotatePtr(); this
-  // function didn't, and was the one place in drawMap() that needed to,
-  // because it's the one place that computes a BOUNDING BOX rather than
-  // just drawing at a single point (a single w2s()/s2w() call is rotation-
-  // agnostic -- the canvas transform places it correctly regardless -- but
-  // "which world coordinates are visible" depends on where the screen's
-  // actual corners land in local space, which is exactly what a rotation
-  // changes). On a square viewport this silently canceled out; on any real
-  // phone (never square) it iterated the wrong coordinate range, so the 1 m
-  // gridlines packed into a band near one edge instead of tiling the visible
-  // area -- the striping the user saw live, mid-drive.
+function worldBounds() {
   const corners = [unrotatePtr(0, 0), unrotatePtr(cssW, 0),
                    unrotatePtr(0, cssH), unrotatePtr(cssW, cssH)];
   const lx = corners.map(c => c.x), ly = corners.map(c => c.y);
   const tl = s2w(Math.min(...lx), Math.min(...ly));
   const br = s2w(Math.max(...lx), Math.max(...ly));
-  mctx.strokeStyle = 'rgba(56,189,248,.10)';
-  mctx.lineWidth = 1;
-  mctx.beginPath();
-  for (let x = Math.floor(tl.x); x <= Math.ceil(br.x); x++) {
-    const s = w2s(x, 0); mctx.moveTo(s.x, 0); mctx.lineTo(s.x, cssH);
+  return { minX: tl.x, maxX: br.x, minY: br.y, maxY: tl.y };
+}
+
+function niceGridStep() {
+  // Choose a physical interval that lands in a readable 70–150 px range.
+  const targetPx = 105;
+  const raw = targetPx / Math.max(camScale, 1);
+  const powers = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50];
+  let best = powers[powers.length - 1];
+  let bestErr = Infinity;
+  for (const p of powers) {
+    const err = Math.abs(Math.log((p * camScale) / targetPx));
+    if (err < bestErr) { bestErr = err; best = p; }
   }
-  for (let y = Math.floor(br.y); y <= Math.ceil(tl.y); y++) {
-    const s = w2s(0, y); mctx.moveTo(0, s.y); mctx.lineTo(cssW, s.y);
+  return best;
+}
+
+function formatMeters(v) {
+  if (v >= 10) return `${v.toFixed(0)} m`;
+  if (v >= 1) return `${v.toFixed(v % 1 === 0 ? 0 : 1)} m`;
+  return `${v.toFixed(2)} m`;
+}
+
+function drawGrid() {
+  if (camScale < 8) return;
+  const b = worldBounds();
+  const step = niceGridStep();
+  const minor = step / 5;
+
+  mctx.lineWidth = 1;
+  mctx.font = '10px Inter, Arial, sans-serif';
+  mctx.textBaseline = 'top';
+
+  // Minor grid only when it remains visually useful.
+  if (minor * camScale >= 18) {
+    mctx.beginPath();
+    mctx.strokeStyle = 'rgba(52, 73, 94, 0.10)';
+    for (let x = Math.floor(b.minX / minor) * minor; x <= b.maxX + minor; x += minor) {
+      const p = w2s(x, 0);
+      mctx.moveTo(p.x, 0); mctx.lineTo(p.x, cssH);
+    }
+    for (let y = Math.floor(b.minY / minor) * minor; y <= b.maxY + minor; y += minor) {
+      const p = w2s(0, y);
+      mctx.moveTo(0, p.y); mctx.lineTo(cssW, p.y);
+    }
+    mctx.stroke();
+  }
+
+  // Major grid.
+  mctx.beginPath();
+  mctx.strokeStyle = 'rgba(22, 119, 255, 0.20)';
+  for (let x = Math.floor(b.minX / step) * step; x <= b.maxX + step; x += step) {
+    const p = w2s(x, 0);
+    mctx.moveTo(p.x, 0); mctx.lineTo(p.x, cssH);
+  }
+  for (let y = Math.floor(b.minY / step) * step; y <= b.maxY + step; y += step) {
+    const p = w2s(0, y);
+    mctx.moveTo(0, p.y); mctx.lineTo(cssW, p.y);
   }
   mctx.stroke();
 
-  // The commissioned zero mark: map (0,0) is the physical floor mark.
+  // Coordinate labels on major axes/lines, in the DISPLAYED convention
+  // (dispX = -raw_y, dispY = raw_x -- see the DISPLAY_ROT note above). A
+  // gridline at constant raw world-x is a horizontal-on-screen line of
+  // constant dispY; a gridline at constant raw world-y is a vertical line
+  // of constant dispX. These are margin labels (anchored near a screen
+  // EDGE, not tied to a real world point), so drawUpright()'s small-local-
+  // offset trick doesn't apply -- a small LOCAL anchor like "near local
+  // y=6" is actually a large offset from the rotation centre on a
+  // non-square viewport and explodes to the wrong place on screen (this
+  // exact bug shipped and was fixed live on hardware 26 Aug, see
+  // Research_Journal.md). labelYGridline/labelXGridline below compute the
+  // REAL screen position directly instead.
+  mctx.fillStyle = '#3b4754';
+  mctx.font = '10px Inter, Arial, sans-serif';
+  for (let x = Math.ceil(b.minX / step) * step; x <= b.maxX; x += step) {
+    labelYGridline(`Y ${x.toFixed(x % 1 === 0 ? 0 : 1)}`, x);
+  }
+  for (let y = Math.ceil(b.minY / step) * step; y <= b.maxY; y += step) {
+    labelXGridline(`X ${(-y).toFixed(y % 1 === 0 ? 0 : 1)}`, y);
+  }
+}
+
+// raw world-x = const --> horizontal line on screen (dispY = rawWorldX).
+// Margin label pinned to the real left edge, at the real height that line
+// crosses it.
+function labelYGridline(text, rawWorldX) {
+  const p = w2s(rawWorldX, 0);
+  const realY = cssH / 2 - (p.x - cssW / 2);
+  if (realY < -20 || realY > cssH + 20) return;
+  mctx.save();
+  mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  mctx.textAlign = 'left';
+  mctx.fillText(text, 8, realY - 3);
+  mctx.restore();
+}
+// raw world-y = const --> vertical line on screen (dispX = -rawWorldY).
+// Margin label pinned to the real bottom edge, at the real x that line
+// crosses it.
+function labelXGridline(text, rawWorldY) {
+  const p = w2s(0, rawWorldY);
+  const realX = cssW / 2 + (p.y - cssH / 2);
+  if (realX < -20 || realX > cssW + 20) return;
+  mctx.save();
+  mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  mctx.textAlign = 'left';
+  mctx.fillText(text, realX + 3, cssH - 10);
+  mctx.restore();
+}
+
+function drawAxes() {
   const o = w2s(0, 0);
-  mctx.strokeStyle = '#f59e0b'; mctx.lineWidth = 1.5;
+  if (o.x < -40 || o.x > cssW + 40 || o.y < -40 || o.y > cssH + 40) return;
+  // Displayed X+ (screen-right) is raw map -Y; displayed Y+ (screen-up) is
+  // raw map +X -- dispX = -raw_y, dispY = raw_x, same relabeling as
+  // everywhere else on this page.
+  const ax = w2s(0, -0.65);
+  const ay = w2s(0.65, 0);
+  mctx.lineWidth = 2;
+  mctx.strokeStyle = '#3b82f6';
+  mctx.beginPath(); mctx.moveTo(o.x, o.y); mctx.lineTo(ax.x, ax.y); mctx.stroke();
+  mctx.strokeStyle = '#12b76a';
+  mctx.beginPath(); mctx.moveTo(o.x, o.y); mctx.lineTo(ay.x, ay.y); mctx.stroke();
+  mctx.font = 'bold 10px Inter, Arial, sans-serif';
+  mctx.fillStyle = '#2563eb'; drawUpright('X+', ax.x + 4, ax.y, 'left');
+  mctx.fillStyle = '#059669'; drawUpright('Y+', ay.x + 4, ay.y, 'left');
+}
+
+function drawZeroMark() {
+  const o = w2s(0, 0);
+  mctx.strokeStyle = '#f79009';
+  mctx.lineWidth = 2;
   mctx.beginPath();
-  mctx.moveTo(o.x - 7, o.y); mctx.lineTo(o.x + 7, o.y);
-  mctx.moveTo(o.x, o.y - 7); mctx.lineTo(o.x, o.y + 7);
+  mctx.moveTo(o.x - 8, o.y); mctx.lineTo(o.x + 8, o.y);
+  mctx.moveTo(o.x, o.y - 8); mctx.lineTo(o.x, o.y + 8);
   mctx.stroke();
+  mctx.fillStyle = '#9a6700';
+  mctx.font = 'bold 10px Inter, Arial, sans-serif';
+  drawUpright('ZERO (0,0)', o.x + 10, o.y + 4, 'left');
+}
+
+function drawTrajectory() {
+  if (trajectory.length < 2) return;
+  mctx.beginPath();
+  trajectory.forEach((p, i) => {
+    const q = w2s(p.x, p.y);
+    if (i === 0) mctx.moveTo(q.x, q.y); else mctx.lineTo(q.x, q.y);
+  });
+  mctx.strokeStyle = 'rgba(22, 119, 255, 0.68)';
+  mctx.lineWidth = 2.5;
+  mctx.stroke();
+
+  const start = w2s(trajectory[0].x, trajectory[0].y);
+  mctx.fillStyle = '#12b76a';
+  mctx.beginPath(); mctx.arc(start.x, start.y, 4, 0, Math.PI * 2); mctx.fill();
+}
+
+function drawScaleBar() {
+  const candidates = [0.1, 0.2, 0.5, 1, 2, 5, 10];
+  let step = candidates[candidates.length - 1];
+  for (const c of candidates) {
+    const px = c * camScale;
+    if (px >= 70 && px <= 170) { step = c; break; }
+  }
+  const px = step * camScale;
+  const x = 18, y = cssH - 34;
+  mctx.strokeStyle = '#17202a';
+  mctx.fillStyle = 'rgba(255,255,255,.88)';
+  mctx.lineWidth = 3;
+  mctx.beginPath(); mctx.moveTo(x, y); mctx.lineTo(x + px, y); mctx.stroke();
+  mctx.lineWidth = 1;
+  mctx.beginPath();
+  mctx.moveTo(x, y - 5); mctx.lineTo(x, y + 5);
+  mctx.moveTo(x + px, y - 5); mctx.lineTo(x + px, y + 5);
+  mctx.stroke();
+  mctx.font = 'bold 11px Inter, Arial, sans-serif';
+  mctx.fillText(formatMeters(step), x + px / 2 - 18, y - 22);
+}
+
+function drawMapModeBadge() {
+  const pad = 10;
+  const label = mapResearchMode ? 'RESEARCH VIEW' : 'OPERATOR VIEW';
+  mctx.fillStyle = 'rgba(255,255,255,.92)';
+  mctx.strokeStyle = '#d0d5dd';
+  mctx.lineWidth = 1;
+  mctx.beginPath(); mctx.roundRect(cssW - 142, 10, 132, 28, 7); mctx.fill(); mctx.stroke();
+  mctx.fillStyle = '#344054';
+  mctx.font = '700 10px Inter, Arial, sans-serif';
+  mctx.fillText(label, cssW - 132, 20);
 }
 
 function drawRobot(p) {
@@ -1204,73 +1328,59 @@ function drawRobot(p) {
                    [-FOOT_HALF_X, -FOOT_HALF_Y], [-FOOT_HALF_X,  FOOT_HALF_Y]];
   mctx.beginPath();
   corners.forEach(([bx, by], i) => {
-    // base_link -> map: standard rotation. bx is RIGHT, by is NOSE.
     const pt = w2s(p.x + bx * c - by * s, p.y + bx * s + by * c);
     i ? mctx.lineTo(pt.x, pt.y) : mctx.moveTo(pt.x, pt.y);
   });
   mctx.closePath();
-  mctx.fillStyle   = 'rgba(56,189,248,.28)';
-  mctx.strokeStyle = '#38bdf8';
-  mctx.lineWidth   = 2;
+  mctx.fillStyle = 'rgba(22,119,255,.18)';
+  mctx.strokeStyle = '#1677ff';
+  mctx.lineWidth = 2.2;
   mctx.fill(); mctx.stroke();
 
-  // Nose indicator: base_link +Y rotated into the map frame.
-  const ctr  = w2s(p.x, p.y);
+  const ctr = w2s(p.x, p.y);
   const nose = w2s(p.x - s * (FOOT_HALF_Y + 0.22),
                    p.y + c * (FOOT_HALF_Y + 0.22));
   mctx.beginPath();
   mctx.moveTo(ctr.x, ctr.y); mctx.lineTo(nose.x, nose.y);
-  mctx.strokeStyle = '#f8fafc'; mctx.lineWidth = 2.5; mctx.stroke();
-  mctx.beginPath(); mctx.arc(nose.x, nose.y, 3.5, 0, 6.2832);
-  mctx.fillStyle = '#f8fafc'; mctx.fill();
+  mctx.strokeStyle = '#17202a'; mctx.lineWidth = 2.5; mctx.stroke();
+  mctx.beginPath(); mctx.arc(nose.x, nose.y, 3.8, 0, 6.2832);
+  mctx.fillStyle = '#17202a'; mctx.fill();
 }
 
 function drawGoal(g) {
   const a = w2s(g.wx, g.wy);
-  mctx.beginPath(); mctx.arc(a.x, a.y, 8, 0, 6.2832);
-  mctx.strokeStyle = '#f59e0b'; mctx.lineWidth = 2.5; mctx.stroke();
+  mctx.beginPath(); mctx.arc(a.x, a.y, 9, 0, 6.2832);
+  mctx.strokeStyle = '#f79009'; mctx.lineWidth = 2.5; mctx.stroke();
   const b = w2s(g.wx + Math.cos(g.yaw) * 0.6, g.wy + Math.sin(g.yaw) * 0.6);
   mctx.beginPath(); mctx.moveTo(a.x, a.y); mctx.lineTo(b.x, b.y); mctx.stroke();
 }
 
 function updateHud() {
   const hud = document.getElementById('mapHud');
-  if (!mapGrid && !robotPose) { hud.innerHTML = 'WAITING FOR /map'; return; }
-  let t = '';
+  if (!mapGrid && !robotPose) { hud.innerHTML = '<strong>WAITING FOR /map</strong>'; return; }
+  const status = document.getElementById('mapStatus');
   if (robotPose) {
-    // DISPLAYED x/y, requested 26 Aug: relabel slam_toolbox's raw map frame
-    // so it reads like ordinary graph paper (right=+X, forward/screen-up=
-    // +Y) instead of its own start-heading-dependent naming. Forward-at-
-    // ZERO is raw +X (see the DISPLAY_ROT derivation above), so this is
-    // just dispX=-raw_y, dispY=raw_x -- a fixed 90 deg relabeling, nothing
-    // else. Display-only: goals, camera-follow, and the pose CSV all still
-    // use robotPose.x/y (raw) untouched below and elsewhere in this file --
-    // only the two numbers printed to the human change.
+    // Displayed x/y is a fixed relabeling of slam_toolbox's raw map frame
+    // so it reads like ordinary graph paper (right=+X, forward=+Y) instead
+    // of slam_toolbox's own axis names, which are just an artifact of
+    // which way the robot faced when mapping started: dispX = -raw_y,
+    // dispY = raw_x. Display-only -- goals, camera-follow and the pose CSV
+    // all still use robotPose.x/y raw, untouched, everywhere else in this
+    // file.
     const dispX = -robotPose.y;
     const dispY =  robotPose.x;
-    // NOSE is base_link +Y (§17.10), so its map bearing is the frame yaw
-    // PLUS 90 deg -- not the frame yaw itself. This line printed the raw
-    // yaw under a NOSE label until 26 Aug, which put it in direct
-    // contradiction with drawRobot() four functions up: that draws the nose
-    // marker at (-sin, cos), i.e. correctly at yaw+90, so the same panel
-    // showed the nose pointing along map +X while the text said -90 deg.
-    // Parked on the mark now reads NOSE 0, which is what a human standing
-    // next to the robot sees. The frame yaw is kept in brackets because
-    // every log entry before this date recorded THAT (raw, unrelabeled)
-    // number.
     const noseDeg = ((robotPose.yaw * 180 / Math.PI + 90 + 180) % 360 + 360) % 360 - 180;
-    t += 'MAP x ' + dispX.toFixed(3) + '  y ' + dispY.toFixed(3) +
-         '<br>NOSE ' + noseDeg.toFixed(1) + '&deg;' +
-         '<span class="dim">  (frame yaw ' +
-         (robotPose.yaw * 180 / Math.PI).toFixed(1) + '&deg;)</span>';
+    hud.innerHTML = `
+      <div class="hud-title">ROBOT POSE · MAP FRAME</div>
+      <div class="hud-grid">
+        <span>X</span><strong>${dispX.toFixed(3)} m</strong>
+        <span>Y</span><strong>${dispY.toFixed(3)} m</strong>
+        <span>NOSE</span><strong>${noseDeg.toFixed(1)}°</strong>
+      </div>`;
+    if (status) status.textContent = mapGrid ? `${mapGrid.w} × ${mapGrid.h} · ${mapGrid.res.toFixed(2)} m/cell` : 'MAP GRID WAITING';
   } else {
-    t += '<span class="dim">NO POSE (map&rarr;base_link)</span>';
+    hud.innerHTML = '<div class="hud-title">ROBOT POSE</div><div class="hud-muted">NO POSE (map → base_link)</div>';
   }
-  if (mapGrid) {
-    t += '<br><span class="dim">' + mapGrid.w + '&times;' + mapGrid.h +
-         ' @ ' + mapGrid.res.toFixed(2) + 'm</span>';
-  }
-  hud.innerHTML = t;
 }
 
 // ── View toggle ────────────────────────────────────────────────────
@@ -1300,6 +1410,37 @@ function setMapView(on) {
 }
 document.getElementById('viewBtn').addEventListener('click',
   () => setMapView(!mapView));
+
+// Research/display controls are cosmetic only: they change rendering layers,
+// never ROS publishers or command semantics.
+document.getElementById('btnLayers').addEventListener('click', openLayers);
+document.getElementById('btnResearch').addEventListener('click', () => {
+  mapResearchMode = !mapResearchMode;
+  document.getElementById('btnResearch').classList.toggle('active', mapResearchMode);
+  mapLayers.trajectory = mapResearchMode;
+  mapLayers.axes = mapResearchMode;
+  syncLayerPanel();
+  if (mapView) drawMap();
+});
+for (const key of Object.keys(mapLayers)) {
+  const el = document.getElementById('layer-' + key);
+  if (el) el.addEventListener('change', () => {
+    mapLayers[key] = el.checked;
+    if (mapView) drawMap();
+  });
+}
+document.getElementById('researchToggle').addEventListener('change', (e) => {
+  mapResearchMode = e.target.checked;
+  document.getElementById('btnResearch').classList.toggle('active', mapResearchMode);
+  mapLayers.trajectory = mapResearchMode;
+  mapLayers.axes = mapResearchMode;
+  syncLayerPanel();
+  if (mapView) drawMap();
+});
+document.getElementById('btnLayersClose').addEventListener('click', () => {
+  document.getElementById('layerPanel').classList.remove('show');
+});
+
 
 // ── Zoom / centre ──────────────────────────────────────────────────
 function zoom(f) {
@@ -1449,11 +1590,17 @@ mapCanvas.addEventListener('wheel', (e) => {
   zoom(e.deltaY < 0 ? 1.12 : 1 / 1.12);
 }, { passive: false });
 
+
+
+// Initial cosmetic sync.
+syncLayerPanel();
+updateConnectionUI();
+updateLivePoseCard();
+
 </script>
 </body>
 </html>
 """
-
 # ═══════════════════════════════════════════════════════════════════
 #  ROS2 NODE
 # ═══════════════════════════════════════════════════════════════════

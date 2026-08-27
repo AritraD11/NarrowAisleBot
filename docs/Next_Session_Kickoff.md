@@ -217,18 +217,34 @@ single reading.
 
 ## Paste this as the first message of the new session
 
-> Continue work on AritraD11/NarrowAisleBot. Read this file — start with the
-> RESUME HERE block — and `docs/Research_Journal.md` §17.35 and §17.36
+> Continue work on AritraD11/NarrowAisleBot, branch
+> `claude/narrowaislebot-mapping-reliability-038ike`. Read this file — start
+> with the RESUME HERE block — and `docs/Research_Journal.md` §17.35–§17.37
 > before doing anything else.
 >
-> First, two quick items from §17.36: confirm whether the three
-> fully-merged branches got deleted, and remember there is now exactly one
-> dashboard file (the repo copy) — don't trust a `phone_dashboard.py` from
-> anywhere else without diffing it first.
+> Three closed items from the last session, don't reopen them:
+> - **Axis convention is settled and written down**: `docs/Axis_Convention.md`
+>   is the one authoritative reference, verified hop-by-hop against source
+>   (`+X=right, +Y=forward`). Read it if any axis question comes up — don't
+>   re-derive it from scratch, and don't accept a fix from anywhere
+>   (including another AI tool's independent analysis) that quietly assumes
+>   otherwise.
+> - **There is exactly one dashboard file**, the repo copy at
+>   `src/mecanum_robot/mecanum_robot/phone_dashboard.py`. Don't trust a
+>   `phone_dashboard.py` from anywhere else without diffing it first — three
+>   independently-forked copies silently disagreed with each other once
+>   already (§17.36).
+> - **Three branches are confirmed safe to delete** (fully absorbed into
+>   `main`, zero unique commits): `claude/mapping-autonomous-nav-695glw`,
+>   `claude/nab-hardware-calibration`,
+>   `claude/narrowaislebot-mapping-hardware-02rnh2`. Still pending —
+>   blocked last time by the permission classifier on `git push --delete`.
+>   Confirm whether they're actually gone yet; if not, retry or ask me to
+>   do it on GitHub directly.
 >
-> Then, today's real goal, unchanged from 26 Aug: **settle whether either
-> existing map is usable, then either get AMCL localising on it or redo the
-> drive.**
+> Then, today's real goal, unchanged since 26 Aug and not yet started:
+> **settle whether either existing map is usable, then either get AMCL
+> localising on it or redo the drive.**
 >
 > Step 1 needs no hardware: run `tools/map_integrity.py` on
 > `run_20260825_151713` and `run_20260825_113735` in

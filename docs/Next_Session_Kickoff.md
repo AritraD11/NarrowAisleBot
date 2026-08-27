@@ -1,235 +1,101 @@
 # Next Session Kickoff — paste this to start
 
-Self-contained prompt for the next Claude Code session. It assumes no memory of
-the previous conversation — everything needed is either here or in the repo
-(`docs/Dashboard_Map_System.md`, `docs/Research_Journal.md`,
-`docs/Production_Architecture.md`, `docs/Important_Commands.md`,
-`docs/MATLAB_Navigation_Reference.md`).
+Self-contained prompt for the next Claude Code session. It assumes no memory
+of the previous conversation — everything needed is here or in the repo
+(`docs/Axis_Convention.md`, `docs/Research_Journal.md`,
+`docs/Dashboard_Map_System.md`, `docs/Important_Commands.md`,
+`docs/MATLAB_Navigation_Reference.md`, `tools/README.md`).
 
-**Rewritten 22 Aug 2026 (§17.32).** The 21 Aug version of this file is
-superseded: Stage A has now been run, Stage B is deployed, and the whole
-workflow has moved off the terminal and into the dashboard.
+**Rewritten 27 Aug 2026 (§17.38–§17.39).** The 22 Aug version is superseded
+in full. The axis and map-frame work it was organised around is **closed and
+merged to `main`**; this file is now organised around the one thing that is
+not: **loop-closure reliability**.
 
 ---
 
-## ⏸ RESUME HERE — 27 Aug 2026 (§17.38–§17.39)
+## ⏸ RESUME HERE — the SLAM problem
 
-**The axis/map-frame work is CLOSED. Deployed, measured at both ends,
-demonstrated on video, and guarded by a test. Do not reopen it.**
-**Loop-closure reliability is NOT closed and is now the top item.**
+**Everything up to and including the map frame is done. The pose graph is
+not.** That is the whole agenda.
 
-Read `docs/Axis_Convention.md` and `Research_Journal.md` §17.38–§17.39
-before touching anything axis-related.
+### The problem, in four numbers
 
-### What was wrong, and what fixed it
+From `run_20260827_140207` — a 38-second W→D→S→A square, no rotation
+commanded, full bundle at `data/field_runs/run_20260827_140207_bundle.json`:
 
-`odometry_publisher.py` applied the `+Y`-forward relabel to its published
-orientation and twist but **not** to its published translation. Publishing
-raw internal translation is what *defines* `odom`'s axes, so `odom` — and
-`map`, inheriting it at SLAM init — sat on REP-103's axes while `base_link`
-had `+X=right, +Y=forward`. The constant −90° was the seam between two frame
-definitions, not a design choice. Driving forward genuinely increased map
-`X`.
-
-Fixed by rotating the translation too (`pub_x=-self.y, pub_y=self.x`), which
-makes `pub_theta` plain `self.theta`. Four downstream −90° compensations
-existed only to undo that seam and were deleted with it: the dashboard canvas
-rotation, the dashboard print relabel, `goal_pose_adapter`'s yaw offset, and
-`ZERO_POINT_YAW`. Conversion points in the stack went from three to two.
-
-**Hardware confirmation** — `odom→base_link` −90.076° → 0.000°; W/S/D/A drove
-+Y/−Y/+X/−X with ≤1.2 mm cross-coupling on ~180 mm moves; the W→D→S→A square
-closed to 2.58 cm with −0.10° total yaw drift. Video and full run bundle in
-`docs/evidence/axis_frame_fix/` and
-`data/field_runs/run_20260827_140207_bundle.json`.
-
-```bash
-python3 tools/verify_axis_chain.py     # 38 checks; fails if the fix is removed
-```
-
-**§17.36/§17.37 were wrong about the map frame** and are corrected in place.
-They verified `base_link` and concluded the stack was coherent; it was
-coherently wrong. Don't cite them against §17.38.
-
-**Never fix an axis complaint at the display.** Four locally-reasonable
-display/goal compensations grew over one real frame fault and kept it
-invisible for two weeks. If a printed coordinate disagrees with the robot,
-the frame is wrong upstream.
-
-### ⚠ The top item now: loop closure, not axes
-
-The same square drive caught the real remaining problem on video. At 17–18 s
-the pose jumps `X 0.114, Y 0.304` → `X 0.012, Y 0.013` — **~31 cm inside one
-10 Hz sample** while wheel odometry moved 5 mm. Three such events in the run
-(0.327 / 0.386 / 0.416 m), all "pose graph moved, robot did not".
-
-Two instruments, quantified disagreement over the same 38 seconds:
-
-| | Closure |
+| | Closure over the same square |
 |---|---|
-| Wheel odometry | **2.58 cm** |
-| SLAM corrected map pose | **6.2 cm** |
+| **Wheel odometry** | **2.58 cm** |
+| **SLAM corrected pose** | **6.2 cm** |
 
-Map path 2.47 m vs odometry path 1.42 m — the corrections made closure
-**worse**. This is §17.32's open question, unchanged. The axis fix had
-nothing to do with it and could not have improved it.
+Odometry path 1.42 m; map path 2.47 m. The extra 1.05 m is correction
+applied. **The pose graph made the estimate worse than dead reckoning.**
 
-`tools/graph_residuals.py` was built for exactly this and has still never met
-the live node. It is not on the Pi (no git clone there) — one `scp`.
+Three correction events, all flagged `pose graph moved, robot did not`:
 
-### The next drive: a real commissioning run
+| # | t | Correction | Odom moved | Yaw | at map |
+|---|---|---|---|---|---|
+| 1 | 32.2 s | **0.327 m** | 0.005 m | −8.2° | (0.14, 0.30) |
+| 2 | 42.5 s | **0.386 m** | 0.005 m | −10.8° | (0.21, −0.19) |
+| 3 | 52.3 s | **0.416 m** | 0.005 m | +18.2° | (−0.35, −0.02) |
 
-Everything so far has been an axis test. **There is still no accepted
-commissioning map.**
+All three inside the first minute, and **growing** — 0.327 → 0.386 → 0.416.
+Event 1 is on video —
+`docs/evidence/axis_frame_fix/02_square_wdsa_after_fix.mp4` at 17–18 s, the
+pose card jumping `X 0.114, Y 0.304` → `X 0.012, Y 0.013` in a single 10 Hz
+sample.
 
-- Perimeter, **nose leading, rotating at corners** so the LiDAR sweeps every
-  wall. A non-rotating square keeps the blind rear 90° pointed at one world
-  direction all run — that is why `run_20260827_140207` came out 87% unknown
-  and SUSPECT.
-- 0.5–1.5 m off the walls, one direction, close at the mark. Longer beats
-  shorter.
-- This is also the **first hardware test of the frame at non-zero headings** —
-  currently verified in simulation at seven headings, on hardware only at
-  yaw ≈ 0.
-- Run `graph_residuals.py --watch` alongside it.
-- Acceptance: return-to-mark HUD ≈ `(0,0)` with **`NOSE ≈ 0°`** (not −90°),
-  no folds or doubled walls, real occupied cells.
+**This is §17.32's open question, unchanged.** The axis fix had nothing to do
+with it and could not have improved it.
 
-Then `./tools/run_bundle.py --latest` and open in `docs/tools/run_viewer.html`.
-It refuses runs under 60 s.
+### ⚠ Re-test rather than inherit
 
-### Still open, none of it touched by the frame work
+§17.28–§17.32's loop-closure conclusions were drawn on a stack that we now
+know had a **rotated map frame** (§17.38). The scan matcher's input was fine
+— `scan_relay`'s mirror is calibrated in `base_link`, which never moved — so
+most of it should still hold. But "should still hold" is exactly the kind of
+assumption that cost two weeks last time. **Treat prior loop-closure
+conclusions as hypotheses to re-confirm, not as settled facts**, and say
+which category any given claim is in.
 
-- **Loop-closure reliability** (above) — top item
-- `lateral_scale` independent validation: the square's legs were unequal, so
-  it measured nothing. Needs equal-duration legs and a tape measure.
-- `ros2 param get /goal_pose_adapter yaw_offset_deg` → expect `0.0`; only
-  runs under `navigation.launch.py`, so check it at Stage D bringup
-- **AMCL / Stage D has never run**
-- `map_integrity.py` on the archive for the `--corpus` percentiles. Note
-  `run_bundle.py`'s own header records that `run_20260825_113735` and
-  `_151713` "were analysed at length on 26 Aug before anyone noticed they
-  were 30-second bug-fix checks rather than commissioning drives" — they were
-  never real candidates.
+Two that are safe, because they are about code rather than geometry:
 
-### Transfers: one staging folder, both directions
-
-`C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download`
-
-**Hash every file on arrival, per file, not per batch.** A batch of three
-`scp`s reported `100%` and exited 0 while one wrote to a mistyped destination
-(a password typed onto the end of the path); the build that followed silently
-used the old file. `Important_Commands.md` §3.1.
+- **This `slam_toolbox` build (2.8.5) emits no per-closure signal** — no
+  console line, no topic, no service. Verified against source *and* the live
+  node (§17.29). Don't go looking for one.
+- **`publishGraph()` carries node positions and edge endpoint coordinates
+  only** — no node ids, no edge measurement, no information matrix (§17.35).
+  A true χ² residual is **not computable** from `/slam_toolbox/graph_visualization`.
+  `graph_residuals.py` works by *differencing successive publications*
+  instead, which is why it exists in the form it does.
 
 ---
 
-## Reference — map acceptance tooling
+## Step 0 — the instrument that has never run
 
-`map_integrity.py` self-tests clean and has still never been run on real
-archive data. `graph_residuals.py` has still never met the live node.
-
-### The integrity check, on the laptop, no hardware
-
-The `.pgm` files are on the Windows machine, not in the repo, so this is the
-one step that has to start there.
+`tools/graph_residuals.py` was built for exactly this problem and **has never
+met the live node**. It is not on the Pi (no git clone there). One transfer:
 
 ```powershell
-cd C:\Users\aritradas\Documents\data\field_runs
-python map_integrity.py run_20260825_151713.pgm --png 151713.png
-python map_integrity.py run_20260825_113735.pgm --png 113735.png
-python map_integrity.py --corpus . --csv integrity.csv
+# Windows, from the staging folder
+curl.exe -sSL -o graph_residuals.py "https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/main/tools/graph_residuals.py"
+Get-FileHash graph_residuals.py -Algorithm SHA256
+scp graph_residuals.py aritra@10.42.0.1:~/tools/graph_residuals.py
 ```
 
-(`tools/map_integrity.py` from the repo; pure standard library, so nothing to
-install. `--selftest` first if you want to see it prove itself on five
-synthetic rooms with known answers.)
-
-**Read it like this:**
-
-| Verdict | What it means now |
-|---|---|
-| `CLEAN` | that drive did not fold — the technique works, repeat it in the new frame |
-| `SUSPECT` | open the `--png` and look at the red cells before deciding |
-| `FOLDED` | that drive folded; change the technique, not just the frame |
-
-**Note the verdicts no longer gate Stage D directly.** Both maps predate
-§17.38 and are in the old frame, so a re-drive is required whatever they
-say. What the check buys is knowing whether the *drive technique* was
-sound before repeating it, plus the corpus percentiles.
-
-The headline number is **D2, doubled walls**. Its argument: free cells
-between two near-parallel walls mean the LiDAR returned through that space,
-so something saw both faces — but the gap is under the robot's own 0.48 m
-width, so it cannot have been this robot. The clusters come with **map
-coordinates**, so a flag is a place you can go and look at rather than a
-score. Open the same coordinates in `map_viewer.html` and decide with both.
-
-**The corpus run matters as much as the two maps.** Every threshold in the
-tool is a guess and says so; `--corpus` over the archive prints the
-percentiles that should replace them. That is the first use anyone has made
-of the 70-map corpus §17.33 recorded as never analysed.
-
-### Step 2a — Stage D, after a fresh map in the new frame
-
-`nav2_params.yaml:57` **is fixed** — it read `robot_model_type:
-"omnidirectional"`, which is not a class anyone exports. Confirmed against
-upstream `nav2_amcl` on `jazzy` and `humble`: `plugins.xml` declares only
-`nav2_amcl::DifferentialMotionModel` and `nav2_amcl::OmniMotionModel`,
-`amcl_node.cpp` defaults to the *fully-qualified* name, and it passes the
-string straight to `createSharedInstance` with no legacy shim and no
-try/catch on the `on_configure` path. The old value would have aborted the
-**entire** bringup, not just localisation.
-
-Still verify on the Pi before the first bringup, because the repo is not the
-robot:
-
 ```bash
-grep -rn "OmniMotionModel" /opt/ros/jazzy/share/nav2_amcl/*.xml
-ros2 node list | grep slam_toolbox      # MUST come back empty
-```
-
-`slam_toolbox` must be completely gone before AMCL starts — both publish
-`map→odom`. Then park on the mark, launch `navigation.launch.py` against the
-saved map, and confirm the value actually bound:
-
-```bash
-ros2 param get /amcl robot_model_type
-```
-
-Then one goal from the dashboard, then the obstacle test.
-
-### Step 2b — if they are not CLEAN: one more commissioning drive
-
-Apply what 25 Aug showed: **longer beats shorter** (the 20-minute run had 10×
-the wall cells of the 5-minute one), perimeter, 0.5–1.5 m off the walls, one
-direction, closing at the mark. The rear 90° is permanently blind behind the
-mast.
-
-**Run the new instrument alongside it** — it costs nothing and does not touch
-the mapping stack:
-
-```bash
+sha256sum ~/tools/graph_residuals.py       # match it before running
 source /opt/ros/jazzy/setup.bash
-./tools/graph_residuals.py --watch --log ~/aislebot_logs/graph.jsonl
+python3 ~/tools/graph_residuals.py --selftest        # first, on the Pi
+python3 ~/tools/graph_residuals.py --watch --log ~/aislebot_logs/graph.jsonl
 ```
 
-### What `graph_residuals.py` does, and the correction behind it
-
-§17.29 proved this `slam_toolbox` build emits **no per-closure signal** — no
-console line, no topic, no service. The MATLAB item assumed
-`/slam_toolbox/graph_visualization` carried enough to compute
-`edgeResidualErrors` anyway. Reading `publishGraph()` first showed it does
-not: node positions and edge endpoint **coordinates** only, with no
-orientation, no node ids, **no edge measurement and no information matrix**.
-A true χ² residual is not computable from that topic.
-
-What is computable is better. The graph is republished every second, so
-**a node that moves between two publications was moved by the optimiser**,
-and differencing the *edge sets* over the same two messages names which
-closure arrived in the update that moved things. That is the per-closure
-signal §17.29 said did not exist — not as an event, as a difference. It is
-Stage A's TF-differencing method at per-node resolution, with the cause
-attached.
+**What it gives you that nothing else does.** The graph is republished every
+`map_update_interval` (1.0 s). A node that moves between two publications was
+moved by the optimiser; differencing the *edge sets* over the same two
+messages names **which closure arrived in the update that moved things**.
+That is the per-closure signal §17.29 concluded does not exist — it does not
+exist as an *event*, but it does as a *difference*.
 
 And it can be judged, which a raw jump size cannot:
 
@@ -238,104 +104,188 @@ implied drift rate = shift / metres driven since the closed-on node
 ```
 
 A legitimate closure cancels drift accumulated since the robot was last
-there, so the rate should land near this robot's measured 1.5% (§17.32's
-3.4 m box drive), 2.4% forward/back, 3.3% lateral (§17.30). 20% means it
-corrected drift that never accumulated. The 10% ceiling is the one judgement
-call in the tool and it is a parameter.
+there, so the rate should land near this robot's measured **1.5%** (§17.32's
+3.4 m box), 2.4% forward/back, 3.3% lateral (§17.30). **20% means it
+corrected drift that never accumulated.** The 10% ceiling is the single
+judgement call in the tool and it is a parameter.
 
-**The two tools corroborate each other.** A false closure strains the graph
-when it fires and puts a doubled wall where it strained it.
-`graph_residuals.py --watch` gives the time and the map coordinates;
-`map_integrity.py --png` gives the location on the saved grid. The two
-agreeing on a location is the first evidence here that would not rest on a
-single reading.
+**Applied to the three events above, computed from the bundle's own pose
+CSV**, using total odometry path driven since the run started:
 
-### Still true from 25 Aug
+| Event | Correction | Odom path driven | Implied rate |
+|---|---|---|---|
+| t=32.2 s | 0.327 m | 0.447 m | **73%** |
+| t=42.5 s | 0.386 m | 0.869 m | **44%** |
+| t=52.3 s | 0.416 m | 1.300 m | **32%** |
 
-- **All 30 deployed files hash-match `main`**, including
-  `~/ros2_ws/slam_nodom.yaml` (`7ec7904aa3ab…`, Stage B) and
-  `params/ydlidar.yaml` (`049fbbe7bff9…`). First fully known state this
-  project has had — but that was 25 Aug, and nothing has been deployed since.
-- A map survives a restart: `run_20260825_151713.pgm`, 27,383 B, header
-  stamped `# CREATOR: phone_dashboard from cached /map`.
-- The map view no longer drives the robot when you touch it.
-- **Best return-to-mark ever: 1.9 cm / 0.2°** on a ~30 s drive. One drive,
-  not a repeatability claim.
-- `run_20260825_113735`: 81% unknown, yet ~27 m of wall against a 32.8 m
-  bounding perimeter (0.82). Those two readings disagree, and `map_integrity`
-  is what settles it.
+Against a measured 1.5%. These are **conservative lower bounds**: the tool
+measures against distance since the *closed-on node*, which is more recent
+than the run start, so a smaller denominator would push every one of these
+higher.
 
-### Not yet touched
+**That is the number to explain.** Corrections are cancelling drift that
+could not physically have accumulated — on a robot whose wheel odometry
+closed the same square to 2.58 cm.
 
-- **70+ maps, 73 run reports, 124 telemetry CSVs, three `.mcap` rosbags** in
-  `~/slam_tests`, two never opened. `--corpus` is the first tool built to
-  consume the map half of that.
-- **`AISLEBOT_VIDEO_DECODER_APP`** — recommended against on reasoning, but
-  the implementation has never been read. Still owed a proper look.
-- MATLAB Tier 1 #3 (occupancy-grid saturation): parameter names still
-  unverified. `ros2 param list /slam_toolbox | grep -iE "thresh|pass"` before
-  assuming anything. Tier 1 #4 (path clearance) still waits on one accepted
-  map.
+---
 
-### Traps that bit on 25 Aug
+## Step 1 — the first real commissioning drive
 
-- **`curl --retry` does not retry TLS failures.** Use `--retry-all-errors`.
-  When eduroam blocks HTTPS from the Pi entirely, relay through the PC —
-  `Important_Commands.md` §2.1.
-- **Check the Pi's address every session** (`ip -4 -br addr`). Its eduroam
-  lease moved twice in two days, and `aritra-desktop.local` fails to resolve
-  from Windows often enough not to trust.
-- **`10.42.0.1` only exists while the Pi hosts its own AP.** On eduroam it
-  gives a timeout that looks exactly like the robot being down.
-- **A dashboard file from outside this repo is not safe to deploy on trust**
-  (§17.36) — two separately-obtained forks had each independently "fixed"
-  the map canvas's rotation in incompatible ways, one of them silently
-  reintroducing a bug this project already fixed once (forward drive moving
-  the robot sideways on screen instead of up). Diff the JS/HTML against the
-  repo copy, not just the Python class.
+**There is still no accepted commissioning map.** Everything driven so far
+has been an axis test.
+
+`run_bundle.py`'s own header records that `run_20260825_113735` and
+`_151713` "were analysed at length on 26 Aug before anyone noticed they were
+30-second bug-fix checks rather than commissioning drives." They were never
+candidates.
+
+**Drive it like this**, all from the dashboard:
+
+1. **STOP MAP** if a session is running — discard it.
+2. Park physically on the mark. **ZERO** (two taps; must precede MAP).
+3. **MAP**, then **VIEW** and keep it open. A fold is visible the moment it
+   happens, which no after-the-fact screenshot gives you.
+4. **Perimeter, nose leading, rotating at the corners** so the LiDAR sweeps
+   every wall. 0.5–1.5 m off the walls, slow, one direction, close at the
+   mark. Longer beats shorter — the 20-minute run had 10× the wall cells of
+   the 5-minute one.
+5. **MAP** again to stop; it saves automatically.
+
+**Why rotation matters and a square will not do.** The rear 90° is
+permanently blind behind the mast. A non-rotating square keeps that blind
+cone pointed at the *same world direction* for the entire run, so one whole
+side of the room is never observed — which is exactly why
+`run_20260827_140207` came back 87% unknown and `SUSPECT`.
+
+**This drive is also the first hardware test of the frame at non-zero
+headings.** The invariant is verified in simulation at seven headings
+(`verify_axis_chain.py`) but on hardware only at yaw ≈ 0. Rotating at the
+corners tests it for real. If the map ever appears to grow sideways relative
+to actual motion, stop — the arithmetic says it cannot, so that is real
+information.
+
+Run `graph_residuals.py --watch` alongside. Then:
+
+```bash
+./tools/run_bundle.py --latest        # refuses runs under 60 s
+```
+
+Open the bundle in `docs/tools/run_viewer.html`.
+
+### Acceptance
+
+| Check | Pass condition |
+|---|---|
+| Return-to-mark | HUD ≈ `(0, 0)`, **`NOSE ≈ 0°`** (not −90° — that changed in §17.38) |
+| Map integrity | no folds, tears, doubled walls — `map_integrity.py`, D2 is the headline |
+| Walls present | real occupied cells, not just free space |
+
+Single-sample step size is **diagnostic, not pass/fail**: a legitimate
+correction of accumulated drift trips it exactly as hard as a bad one. That
+is why `graph_residuals.py`'s implied-drift-rate exists.
+
+---
+
+## The levers, and the one that is explicitly gated
+
+Deployed now (`system/slam_nodom_stageB.yaml`, on the Pi as
+`~/ros2_ws/slam_nodom.yaml`, sha `7ec7904a…`). **Verify with
+`ros2 param get /slam_toolbox <name>` against the live node, never by reading
+the file** — that is the discipline that caught §17.32:
+
+| Parameter | Deployed | Stock |
+|---|---|---|
+| `loop_search_maximum_distance` | **2.0** | 5.0 |
+| `loop_match_minimum_chain_size` | **8** | 5 |
+| `max_laser_range` | **10.0** | 12.0 |
+| `loop_match_minimum_response_coarse` | 0.25 | 0.25 |
+| `loop_match_minimum_response_fine` | 0.35 | 0.35 |
+| `minimum_travel_distance` | 0.2 | 0.2 |
+| `map_update_interval` | 1.0 | — |
+
+**Do not raise `_coarse`/`_fine` to 0.30/0.40 on a hunch.** That lever is
+explicitly gated on "if the map visibly folds", and as of
+`run_20260827_140207` it does not: D2 doubled walls reads 4 cells, 0
+clusters — essentially clean. Raising the gate to fix corrections that are
+firing on a *clean* map treats the symptom and hides the cause.
+
+**Chain size 8 × `minimum_travel_distance` 0.2 ≈ 1.6 m before closure is
+eligible at all.** On short drives that lands closures in the back half,
+which is where §17.32 saw them cluster — that clustering may be *eligibility*
+rather than aliasing. A long perimeter drive is the test that separates them.
 
 ---
 
 ## Paste this as the first message of the new session
 
-> Continue work on AritraD11/NarrowAisleBot, branch
-> `claude/narrowaislebot-mapping-reliability-038ike`. Read this file — start
-> with the RESUME HERE block — plus `docs/Axis_Convention.md` and
-> `docs/Research_Journal.md` §17.38–§17.39 before doing anything else.
+> Continue work on AritraD11/NarrowAisleBot. `main` is current at `5466f3e`
+> and everything below is merged into it — cut a fresh branch from `main`.
+> Read `docs/Next_Session_Kickoff.md` (start at RESUME HERE),
+> `docs/Axis_Convention.md`, and `docs/Research_Journal.md` §17.38–§17.39
+> before doing anything else.
 >
-> Closed last session, don't reopen:
-> - **The map frame was rotated −90°; it is fixed, deployed and verified on
->   hardware.** `odometry_publisher.py` published a rotated orientation with
->   an unrotated translation, which gave `odom`/`map` REP-103's axes while
->   `base_link` had `+X=right, +Y=forward`. Four downstream compensations
->   that existed only to undo it were deleted. `odom→base_link` went
->   −90.076° → 0.000°, and a W→D→S→A square closed to 2.58 cm with −0.10°
->   yaw drift. Video and run bundle are committed.
->   `python3 tools/verify_axis_chain.py` proves it (38 checks) and fails if
->   anyone edits it back out. **Never fix an axis complaint in the
->   dashboard** — that is what hid this for two weeks.
-> - **§17.36/§17.37's "the axis stack is coherent" conclusion was wrong about
->   the map frame** and is corrected in place. Don't cite them against §17.38.
+> **Closed last session — do not reopen:** the map frame was rotated −90°
+> because `odometry_publisher.py` published a rotated orientation with an
+> unrotated translation. Fixed, deployed, verified on hardware, demonstrated
+> on video, guarded by `python3 tools/verify_axis_chain.py` (38 checks, fails
+> if anyone edits it back out). Four downstream −90° compensations were
+> deleted with it. §17.36/§17.37's "the axis stack is coherent" conclusion
+> was wrong about the map frame and is corrected in place — don't cite them
+> against §17.38. **Never fix an axis complaint in the dashboard**; that is
+> what hid this for two weeks.
 >
-> **Today's top item is loop-closure reliability, which the frame work did
-> not touch and could not have fixed.** The same square drive caught it on
-> video: a ~31 cm pose jump inside one 10 Hz sample while wheel odometry
-> moved 5 mm, three such events in the run. Wheel odometry closed the square
-> to 2.58 cm; SLAM's corrected pose closed it to 6.2 cm — the corrections
-> made it worse. `tools/graph_residuals.py` was built for exactly this and
-> has never met the live node; it needs one `scp` to the Pi.
+> **This session is SLAM — the pose graph, which the frame work did not
+> touch and could not have fixed.** On a 38 s square: wheel odometry closed
+> to 2.58 cm, SLAM's corrected pose closed to 6.2 cm. Three corrections of
+> 0.416 / 0.386 / 0.327 m, all "pose graph moved, robot did not", one caught
+> on video jumping 31 cm inside a single 10 Hz sample. Computed against
+> odometry path driven, those corrections imply drift rates of **73% / 44% /
+> 32%** where this robot measures **1.5%** — and those are lower bounds.
+> That is what I want explained.
+>
+> Careful with the prior work: §17.28–§17.32's loop-closure conclusions were
+> drawn on a stack with a rotated map frame. Treat them as hypotheses to
+> re-confirm, not settled facts, and tell me which category a claim is in.
+>
+> Step 0 needs no drive: `tools/graph_residuals.py` was built for exactly
+> this and has never met the live node. It's not on the Pi — one `scp`, then
+> `--selftest` there before trusting it.
 >
 > Then the first real commissioning drive: perimeter, **nose leading,
 > rotating at corners** so the LiDAR sweeps every wall — a non-rotating
-> square leaves the blind rear 90° pointed one way all run. That drive is
-> also the first hardware test of the frame at non-zero headings.
+> square leaves the blind rear 90° pointed one way all run, which is why the
+> last map came back 87% unknown. That drive is also the first hardware test
+> of the frame at non-zero headings.
 >
 > I want to run the drive itself **from the dashboard, not the terminal**.
 > Walk me through it step by step — I'll do each thing and report back.
 > Don't assume a step succeeded. Verify deployed config with `ros2 param get`
 > against the live node, never by reading a file, and **hash every
 > transferred file on arrival, per file** — an `scp` reported `100%` while
-> writing to a mistyped path and the build silently used the old file.
+> writing to a mistyped destination path and the build silently used the old
+> file.
+
+---
+
+## Transfers: one staging folder, both directions
+
+```
+C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download
+```
+
+Everything pulled off the Pi, and everything downloaded on Windows on its way
+*to* the Pi, lands here first. Details in `Important_Commands.md` §3.1.
+
+> ⚠ **`scp` reporting `100%` does not mean the file arrived where you
+> meant.** A password typed onto the end of a destination path before Enter
+> produced a file at that name; `scp` created it, reported success, exited 0,
+> and the build that followed silently used the old file. **Hash on arrival,
+> per file, not per batch** — two of three in that batch landed correctly,
+> which is exactly why a per-batch assumption fails.
+
+**Also:** there is no persistent git clone on the Pi. Deployed code lives
+only under `~/ros2_ws/src`, so repo tools (`tools/*.py`) have to be copied
+across before they can run there.
 
 ---
 
@@ -352,6 +302,9 @@ map-frame TF numbers:
 map-frame coordinate. Translate explicitly in both directions and always say
 which frame a number is in.
 
+Since §17.38 `map` and `odom` share this convention too, so map-frame numbers
+and body-frame numbers finally agree on which way is which.
+
 ## Working style
 
 Hands-on-hardware, one step at a time, nothing assumed to have succeeded.
@@ -363,281 +316,168 @@ The user is moving deliberately away from the terminal. Prefer a dashboard
 path over an SSH command wherever one exists, and when one doesn't, say so
 rather than quietly falling back to SSH.
 
----
-
-## THE BIG FINDING OF 22 AUG — read this before trusting any earlier entry
-
-**`system/slam_nodom.yaml`'s loop-closure tuning was committed on 19 Aug and
-never reached the robot.** `install.sh:228` is the only mechanism that copies
-it to `~/ros2_ws/slam_nodom.yaml`, `mapping_full.launch.py:62` loads the Pi's
-copy, and that copy's mtime was **26 June** — i.e. the last time `install.sh`
-ran. Every drive from 19–21 Aug ran on `slam_toolbox` **stock defaults**.
-
-Consequences for the journal:
-
-- §17.28–§17.31's hypothesis — "§17.25 over-relaxed the closure gate, causing
-  false positives" — was diagnosing **parameters that were never active**.
-  Stock is *stricter* than §17.25's values, not looser.
-- §17.27's "first hardware confirmation of the tuning, 50 cm → 2 cm" cannot
-  have been the tuning. **What did cause it is an open question, not a
-  settled one.** The user confirms the robot was physically parked on the
-  mark and returned to it, so the naive "it was a re-zero artefact"
-  explanation does not fit either. Leave it open; don't invent a cause.
-
-**Lesson worth keeping:** a value in the repo is not a value on the robot.
-Verify deployed config with `ros2 param get` against the *live node*, not by
-reading a file — that is what caught this.
+**One worth carrying from 27 Aug:** the axis bug was found because the user
+insisted the map was wrong while the repo's own documentation said it was
+fine, and because the dashboard they happened to be running showed the raw
+truth rather than a patched version of it. Both instincts beat the written
+record.
 
 ---
 
 ## What's true right now — don't re-derive
 
+### Axes and frames: closed (§17.38)
+
+`base_link`, `odom` and `map` all use **`+X = right, +Y = forward`**. A
+freshly-zeroed robot on the mark reads `[0,0,0] @ 0°`. `W→+Y, S→−Y, D→+X,
+A→−X`, measured on hardware with ≤1.2 mm cross-axis coupling on ~180 mm
+moves. Two conversion points remain in the whole stack: `cmd_vel_axis_adapter`
+(base_link ↔ wheel kinematics) and `scan_relay`'s LiDAR mirror (a reflection,
+which no TF can express). `docs/Axis_Convention.md` is authoritative;
+`tools/verify_axis_chain.py` is its executable form.
+
 ### Drive accuracy: validated, closed
 
 0.5 m forward/back ≈ 1.2 cm net; 0.5 m pure lateral ≈ 1.63 cm. Final resting
 error 1.97–1.99 cm is `SimpleGoalChecker`'s `xy_goal_tolerance: 0.02` doing
-its job, not drift. **Do not spend time re-testing this.**
+its job, not drift. **Do not re-test this.**
 
-### Stage A: RUN, and it answered the question
+Wheels on the 27 Aug run: all four within 0.015–0.016 rad/s RMS, zero
+saturation, zero sign mismatch, arc spread ratio **1.00**, zero anomalies.
+The mechanical side is not contributing to the SLAM problem.
 
-`tools/bag_tf_diff.py`'s first-ever run, on a 233.8 s drive:
+### Stage A: run, and it answered the question
+
+`tools/bag_tf_diff.py` on a 233.8 s drive:
 
 | Pair | Distinct changes | Behaviour |
 |---|---|---|
-| `map→odom` | **3** | flat all run, then **39.57 cm / −13.80°**, then **39.00 cm / +13.80°** 12.5 s later, landing back within 0.7 cm |
-| `odom→base_link` | 787 | smooth, ~2.3 mm per tick — **including at both jump instants** |
+| `map→odom` | **3** | flat, then 39.57 cm / −13.80°, then 39.00 cm / +13.80° 12.5 s later, landing back within 0.7 cm |
+| `odom→base_link` | 787 | smooth, ~2.3 mm/tick — **including at both jump instants** |
 
-Wheel odometry did not blink at the moment `map` moved 40 cm. That is row 1 of
-the pre-committed decision tree: **SLAM pose-graph correction, not odometry.**
-Settled. Don't re-measure it.
+Wheel odometry did not blink when `map` moved 40 cm: **SLAM pose-graph
+correction, not odometry.** Settled. The 27 Aug run reproduces the same
+signature per-event.
 
-### Stage B: DEPLOYED and verified live
+### THE BIG FINDING OF 22 AUG — still load-bearing
 
-`system/slam_nodom_stageB.yaml` is on the Pi as `~/ros2_ws/slam_nodom.yaml`
-(sha256 `7ec7904a…0093ba`), confirmed by `ros2 param get` on the running node:
+**`system/slam_nodom.yaml`'s loop-closure tuning was committed 19 Aug and
+never reached the robot.** `install.sh:228` is the only thing that copies it;
+that copy's mtime was 26 June. Every drive 19–21 Aug ran on **stock
+defaults**, so §17.28–§17.31 were diagnosing parameters that were never
+active. §17.27's "50 cm → 2 cm" cannot have been the tuning, and what did
+cause it is **open, not settled** — don't invent a cause.
 
-| Parameter | Was | Now |
-|---|---|---|
-| `loop_search_maximum_distance` | 5.0 | **2.0** |
-| `loop_match_minimum_chain_size` | 5 | **8** |
-| `max_laser_range` | 12.0 | **10.0** |
+**The lesson is the rule this project now runs on:** a value in the repo is
+not a value on the robot.
 
-Baseline backed up at `~/ros2_ws/slam_nodom_baseline_<stamp>.yaml`.
+### The acceptance gate, corrected
 
-### Stage B's measured effect — real, partial
-
-Two drives on Stage B, both from a verified `[0,0,0] @ -90°` re-zero (that
-`-90°` is the PRE-§17.38 reading; the same re-zero now reads `@ 0°`):
-
-| Drive | Path | Final `map→base_link` | Steps > 10 cm |
-|---|---|---|---|
-| out-and-back over the same line (confounded) | — | **36.3 cm**, 5° off | 9, spread throughout |
-| a closed box, each leg new ground | 3.4 m / 223 s | **5.0 cm**, 0.75° off | 5, **all in the last 30 s** |
-
-Before Stage B the jumps came roughly every 18 s throughout a run. On the box
-drive the first 185 s had **zero**. The remaining 5 cluster exactly where
-loop closure first becomes eligible.
-
-**Probable explanation, not yet confirmed:** `minimum_travel_distance: 0.2`
-puts a graph node every 20 cm, and chain size 8 needs 8 consecutive nodes
-≈ **1.6 m of driving** before closure can fire at all. On a 3.4 m drive that
-lands in the back half — which is where the jumps are. So the clustering may
-be eligibility, not aliasing.
-
-**Evidence they are *correct* closures:** the map came out visibly clean (no
-fold, tear, doubled wall, or forked corridor) and the robot landed 5 cm from
-truth. A wrong closure gives you neither.
-
-### Consequence: the acceptance gate needs a fix
-
-`Dashboard_Map_System.md` §3 says "no single-sample step > 10 cm". That
-criterion was written to catch bad closures, **but it cannot tell a good
-closure from a bad one** — a legitimate correction of accumulated drift trips
-it just as hard. The two criteria that actually discriminate are **map
-integrity** and **return-to-mark accuracy**. Judge on those.
-
-**Do not raise `loop_match_minimum_response_coarse`/`_fine` to 0.30/0.40.**
-That lever is explicitly gated on "if the map visibly folds" and it did not.
+`Dashboard_Map_System.md` §3's "no single-sample step > 10 cm" **cannot tell
+a good closure from a bad one** — a legitimate correction trips it just as
+hard. The criteria that discriminate are **map integrity** and
+**return-to-mark**, plus `graph_residuals.py`'s implied drift rate.
 
 ---
 
-## What was built 22 Aug — all code-complete, NONE hardware-tested
+## Instruments — what exists, and what has met real data
 
-### The dashboard is now the whole workflow
-
-`phone_dashboard.py` gained, in one session:
-
-- **Server → client WebSocket broadcast.** The socket was client → server only
-  before; this was the single largest missing piece. ROS callbacks write plain
-  node attributes, one async task reads them on a timer and pushes — one
-  writer, one reader, no locks, no cross-thread asyncio.
-- **Live map + pose in the browser** (`VIEW` button). Occupancy grid streamed
-  raw and rendered client-side; robot drawn as its **real 1.12 × 0.48 m
-  footprint**, not a dot, so "does it fit this aisle" is answerable.
-- **Click-to-goal** with a two-tap arm, publishing `/goal_pose_click`.
-- **`ZERO` button** — re-zero without a terminal. This needed a new
-  `/odom/reset` topic in `odometry_publisher.py`, because the old route
-  (`systemctl restart aislebot.service`) also kills the dashboard.
-  **It refuses while mapping is active**, enforcing §8's ordering.
-- **Pose CSV** written automatically for the duration of every mapping run
-  (`run_<stamp>_pose.csv`, columns `epoch_s, map_x, map_y, yaw_deg`), so jump
-  analysis no longer needs a separately-launched terminal tool.
-
-### Already there, discovered by reading — don't rebuild
-
-- **`stop_mapping()` already saves the map** via `map_saver_cli`, to
-  `~/aislebot_logs/run_<stamp>.pgm/.yaml`. The MAP button is already a full
-  start-stack / stop-stack-and-save cycle. There is no separate save button
-  and none is needed.
-- The dashboard's telemetry CSV is the 13-column motor format
-  `telemetry_analyzer.html` expects. That pairing was always intended.
-
-### `docs/tools/map_viewer.html` — new
-
-`telemetry_analyzer.html`'s map dropzone only unlocks after loading a valid
-13-column run, so it cannot open a bare map. `map_viewer.html` takes just the
-`.pgm` + `.yaml` pair. Parses P5/P2 PGM and `map_saver_cli`'s YAML entirely
-client-side; verified against a synthetic file before shipping.
-
----
-
-## Today's plan
-
-### 1. Pre-flight (short — most of it was settled 22 Aug)
-
-```bash
-ros2 node list                                    # expect the full 11-node set
-ros2 param get /slam_toolbox loop_search_maximum_distance   # MUST read 2.0
-ros2 param get /slam_toolbox loop_match_minimum_chain_size  # MUST read 8
-ros2 param get /slam_toolbox max_laser_range                # MUST read 10.0
-```
-
-Then **deploy the new dashboard**, which has not run once:
-
-```bash
-cd ~/ros2_ws && colcon build --packages-select mecanum_robot
-sudo systemctl restart aislebot.service     # robot need not be on the mark yet
-```
-
-Open `http://10.42.0.1:8080` on the phone. **Expect first-run bugs** in the
-map view, the broadcast loop, or the ZERO button — none of it has hardware
-time. Budget for that; don't treat a failure there as a SLAM problem.
-
-### 2. Stage C — the real commissioning drive
-
-Everything below is dashboard-only:
-
-1. Park physically on the mark.
-2. **ZERO** (two taps). Must happen *before* MAP — the button enforces it.
-3. **MAP** — brings up LiDAR + `scan_relay` + `slam_toolbox`, starts both CSVs.
-4. **VIEW** — watch the map build live. This is the new instrument: a fold is
-   visible *the moment it happens*, which no after-the-fact screenshot gives.
-5. Drive the **perimeter** with the joystick: **0.5–1.5 m off the walls**,
-   slow, one direction, full loop, back to the mark. The rear 90° is
-   permanently blind (mast), so walls register only to the front/left/right.
-   *This is what 22 Aug's test drives lacked — they were open-floor boxes and
-   produced free space with no wall geometry.*
-6. **MAP** again to stop — this saves the map automatically.
-
-**Acceptance (revised — see above):**
-
-| Check | Pass condition |
+| Tool | Status |
 |---|---|
-| Return-to-mark | VIEW's HUD reads ≈ `(0, 0)`, nose ≈ `0°` (was `-90°` pre-§17.38) |
-| Map integrity | no folds, tears, doubled walls — check in `map_viewer.html` |
-| Walls present | the map actually contains occupied cells, not just free space |
+| `verify_axis_chain.py` | 38 checks, passing, guards the §17.38 fix |
+| `map_integrity.py` | self-tests clean; **has met one real map** (27 Aug) |
+| `run_bundle.py` / `run_analyzer.py` | **used in anger 27 Aug**, worked |
+| `graph_residuals.py` | self-tests clean, **never met the live node** ← Step 0 |
+| `scan_quality.py` | self-tests clean, **never run on real scans** |
+| `bag_tf_diff.py` | run once (Stage A), answered its question |
+| `map_viewer.html`, `run_viewer.html`, `telemetry_analyzer.html` | working |
 
-Single-sample step size is **diagnostic, not pass/fail**.
+`--corpus` over the ~70-map archive still hasn't been run; it prints the
+percentiles that should replace `map_integrity.py`'s guessed thresholds.
 
-### 3. Stage D — AMCL, never run on hardware
+---
 
-**The suspected bug is confirmed and fixed** (26 Aug). `nav2_params.yaml:57`
-now reads `robot_model_type: "nav2_amcl::OmniMotionModel"`; it said
-`"omnidirectional"`, which is not a class anyone exports. Verified against
-upstream `nav2_amcl` source on `jazzy` and `humble` — see
-`Dashboard_Map_System.md` §D.1 for the three findings. It would have aborted
-the entire `lifecycle_manager` bringup, not just localisation.
+## Stage D — AMCL, still never run
 
-Still check the installed package, and the live node afterward:
+Blocked only on having an accepted map. `nav2_params.yaml:57` **is fixed** —
+it read `robot_model_type: "omnidirectional"`, which no one exports; now
+`nav2_amcl::OmniMotionModel`. Confirmed against upstream on `jazzy` and
+`humble`: `plugins.xml` declares only the two fully-qualified classes,
+`amcl_node.cpp` defaults to the fully-qualified name, and it passes the
+string straight to `createSharedInstance` with no shim and no try/catch on
+`on_configure`. The old value would have aborted the **entire** bringup.
+
+Still verify on the robot:
 
 ```bash
 grep -rn "OmniMotionModel" /opt/ros/jazzy/share/nav2_amcl/*.xml
-ros2 param get /amcl robot_model_type      # after bringup — the repo is not the robot
+ros2 node list | grep slam_toolbox          # MUST come back empty
+ros2 param get /amcl robot_model_type       # after bringup
+ros2 param get /goal_pose_adapter yaw_offset_deg    # expect 0.0 since §17.38
 ```
 
-Then: stop mapping completely (`ros2 node list | grep slam_toolbox` must come
-back empty — AMCL and slam_toolbox both publish `map→odom` and must never run
-together), park on the mark, launch `navigation.launch.py` against the saved
-map, and confirm `map→base_link` ≈ `(0,0) @ 0°` **with no SLAM running**
-(`-90°` was the pre-§17.38 expectation — see `docs/Axis_Convention.md`).
+`slam_toolbox` must be completely gone before AMCL starts — both publish
+`map→odom`.
 
-That is the first time this robot will know where it is on a remembered map.
-
-### 4. First autonomous goal + the obstacle test the user has been waiting for
-
-Once AMCL holds: send **one** goal from the dashboard (tap GOAL, tap the map,
-drag to aim the nose). One goal, not a chain.
-
-Then the obstacle-avoidance demo, which needs no extra work — it is already
-configured and independent of pose accuracy:
-
-- **Soft layer:** the local costmap inflates live LiDAR returns
-  (`inflation_radius: 0.65`) and MPPI plans around them. This is what
-  re-routes around a pallet that was not there when the map was made.
-- **Hard layer:** `collision_monitor` forward-simulates the padded 1.12 × 0.48 m
-  footprint along the commanded velocity and intervenes only if that path
-  actually collides within 1.2 s. It is **velocity-aware, not a static zone** —
-  a stationary robot near an obstacle correctly does nothing.
-
-Put an obstacle in the path of a goal and watch both. This is safe to try
-before Stage D if the user wants it early, since neither layer depends on the
-global pose estimate.
+Then one goal from the dashboard, then the obstacle test — which needs no
+extra work and does not depend on global pose accuracy: the local costmap
+inflates live LiDAR returns (`inflation_radius: 0.65`) and MPPI plans around
+them, while `collision_monitor` forward-simulates the padded footprint along
+the commanded velocity and intervenes only if that path actually collides
+within 1.2 s. Velocity-aware, not a static zone.
 
 ---
 
 ## Standing traps
 
-- **`base_link` is NOT REP-103: `+X` = RIGHT, `+Y` = NOSE.** Sixth place it
-  has bitten the project. **Since §17.38 `odom` and `map` use the same
-  convention**, so forward drive increases map `Y` and the robot's long
-  axis lies along map `+Y` on the mark. Any new component with a notion of
-  "forward" needs checking against it — `tools/verify_axis_chain.py` is how.
+- **`base_link` is NOT REP-103: `+X` = RIGHT, `+Y` = NOSE**, and since
+  §17.38 `odom` and `map` match it. Any new component with a notion of
+  "forward" needs checking — `tools/verify_axis_chain.py` is how.
 - **Never fix an axis complaint at the display.** Four separate −90°
   display/goal compensations grew over one real frame fault and kept it
-  invisible for two weeks (§17.38). If a printed coordinate disagrees with
-  the robot, the frame is wrong upstream.
-- **This `slam_toolbox` build (2.8.5) has no loop-closure signal** — no
-  console output, no topic. Verified against source *and* the live node. TF
-  differencing is the only observation available. Don't grep for it.
+  invisible for two weeks (§17.38).
+- **`slam_toolbox` 2.8.5 has no loop-closure signal** — no console output, no
+  topic, no service. Verified against source *and* the live node. TF and
+  graph differencing are the only observations available. Don't grep for it.
 - **`src/mecanum_robot/resource/dashboard.html` is dead code.** The served
-  page is the `DASHBOARD_HTML` constant at `phone_dashboard.py:112`.
+  page is the `DASHBOARD_HTML` constant in `phone_dashboard.py`.
 - **Nothing that stores a coordinate before Stage D.** Live-SLAM coordinates
-  don't survive a restart, so a location taught today points at a different
-  floor tile tomorrow.
+  don't survive a restart.
 - **Never run AMCL and `slam_toolbox` together.** Both publish `map→odom`.
 - **A repo value is not a robot value.** Check the live node.
+- **Check the Pi's address every session** (`ip -4 -br addr`). Its eduroam
+  lease has moved twice in two days, and `aritra-desktop.local` fails to
+  resolve from Windows often enough not to trust.
+- **`10.42.0.1` only exists while the Pi hosts its own AP.** On eduroam it
+  gives a timeout that looks exactly like the robot being down. The AP has
+  **no internet uplink**, so `curl` to GitHub fails from the Pi — relay
+  through the PC.
+- **`curl --retry` does not retry TLS failures.** Use `--retry-all-errors`.
 
 ## Deferred, still worth remembering
 
 - Location library + teach flow (gated on Stage D)
+- `lateral_scale` independent validation — the 27 Aug square's legs were
+  unequal, so it measured nothing. Needs equal-duration legs and a tape
+  measure.
+- `--corpus` over the ~70-map archive for the threshold percentiles
+- `scan_quality.py` on real scans
 - Delete or wire up the dead `dashboard.html` — not during map work
 - Whether a pure-*forward* move introduces a small lateral component (§17.30's
   untested candidate explanation for the original 1–3 cm side offset)
 - The recovery-count cold-start pattern (stiction vs. MPPI warm-up)
-- ~~Moving the −90° into the URDF's `laser_joint`~~ — **obsolete since
-  §17.38**: there is no longer a −90° in TF to move. The LiDAR mirror in
-  `scan_relay.py` is a reflection and still cannot live in a TF at all.
-- **IMU: decided against for now (22 Aug).** Considered an MPU-6000/6050 as a
-  cheap route in; rejected — no magnetometer means no absolute heading
-  reference, which is the entire point, and `ekf_params.yaml` fuses IMU yaw
-  as ground truth, so a drifting signal there would actively hurt. Orientation
-  continues from wheel odometry + SLAM alone, same as today. BNO055 remains
-  the right part if this is ever prioritized — full reasoning in
-  `docs/MATLAB_Navigation_Reference.md` §1. **Don't re-open this unless the
-  user raises it.**
-- `docs/MATLAB_Navigation_Reference.md` has one more small, harmless-to-defer
-  finding: `ekf_params.yaml`'s `imu0_config` fuses `roll, pitch` from the IMU
-  while `two_d_mode: true` already forces those same states toward zero
-  independently — redundant, not broken. Clean up to `roll, pitch: false,
-  false` (keep `yaw: true`) whenever this file is next touched for real
-  hardware.
+- **`AISLEBOT_VIDEO_DECODER_APP`** — recommended against on reasoning, but the
+  implementation has never been read. Still owed a proper look.
+- MATLAB Tier 1 #3 (occupancy-grid saturation): parameter names still
+  unverified. `ros2 param list /slam_toolbox | grep -iE "thresh|pass"` before
+  assuming anything. Tier 1 #4 (path clearance) waits on one accepted map.
+- **IMU: decided against for now (22 Aug).** MPU-6000/6050 rejected — no
+  magnetometer means no absolute heading reference, which is the entire
+  point, and `ekf_params.yaml` fuses IMU yaw as ground truth, so a drifting
+  signal there would actively hurt. BNO055 remains the right part if this is
+  ever prioritized — reasoning in `MATLAB_Navigation_Reference.md` §1.
+  **Don't re-open unless the user raises it.**
+- `ekf_params.yaml`'s `imu0_config` fuses `roll, pitch` while `two_d_mode:
+  true` already forces those states toward zero — redundant, not broken.
+  Clean up to `roll, pitch: false, false` (keep `yaw: true`) whenever that
+  file is next touched for real hardware.

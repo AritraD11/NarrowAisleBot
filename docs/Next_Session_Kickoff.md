@@ -19,10 +19,13 @@ CONFIRMED ON HARDWARE 27 Aug: `odom→base_link` went −90.076° → 0.000°, a
 W/S/D/A drove +Y/−Y/+X/−X against `/wheel_odom` with under 1.2 mm of
 cross-axis coupling on ~180 mm moves.**
 
-Still to deploy: `phone_dashboard.py`, `goal_pose_adapter.py`,
-`mapping_full.launch.py` (see the table at the end of this block). None
-affect the result above — that depends only on `odometry_publisher.py`,
-which is deployed and verified.
+**All five touched files are deployed and hash-verified on the robot.**
+The dashboard reads `NOSE 0.0°` and `map→zero_point` reads `0.000°`, so all
+four −90° compensations are confirmed gone. The frame work is closed.
+`goal_pose_adapter`'s `yaw_offset_deg` is the one value not yet checked
+against a live node — it only runs under `navigation.launch.py`, so verify
+it with `ros2 param get /goal_pose_adapter yaw_offset_deg` (expect `0.0`)
+at Stage D bringup.
 
 Read `docs/Axis_Convention.md` and `Research_Journal.md` §17.38 before
 touching anything axis-related.
@@ -47,9 +50,10 @@ touching anything axis-related.
    the only reason the fault became visible. Deploying the then-canonical
    repo copy would have re-hidden it. Still diff any dashboard from outside
    this repo — but check what it is *revealing*, not just what it changed.
-4. **The odometry fix is on the robot and measured.** The other three
-   files are not yet deployed. Verify anything else against the live node,
-   never by reading a file.
+4. **All of it is on the robot and measured.** Verify anything new
+   against the live node, never by reading a file — and hash every file on
+   arrival: a `scp` reported `100%` while silently writing to a mistyped
+   destination path, and only the hash caught it.
 
 ### Step 0 — deploy and verify the frame fix (do this first)
 

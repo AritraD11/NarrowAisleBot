@@ -2675,7 +2675,26 @@ A correction to the two entries immediately above, on evidence they did not have
 
 **Dashboard verified headless** across phone (390×844), desktop (1900×950) and tall (950×1900), same standard as §17.36: HUD correct for six poses on all three, no JS errors, and the footprint now drawn tall with its heading arrow up where the video showed it wide with the arrow right. The grid-label helpers were rebuilt to clip each gridline in real screen space rather than assume a rotation, so they are correct at `DISPLAY_ROT = 0` and stay correct if it is ever set non-zero — the margin-label explosion bug of §17.36 cannot return by that route.
 
-**Where this leaves it.** The frames are coherent and the claim is executable rather than asserted. The cost is that every saved map — both commissioning candidates and the whole 70-map corpus — is frozen in the old frame; they stay geometrically valid, so `map_integrity.py`'s verdicts still mean what they meant, but a re-drive is now required before Stage D regardless of what those verdicts say. Nothing here has run on hardware: `colcon build`, restart, and `ros2 param get` / `tf2_echo` against the live node are the first real test, and the project's own rule that a repo value is not a robot value applies to this entry as much as any other.
+**CONFIRMED ON HARDWARE the same day.** The paragraph above originally ended by saying none of this had run on a robot. It has now, and every prediction held.
+
+*The baseline first, because it is the half that is easy to skip.* Before deploying anything, `tf2_echo odom base_link` on the live node read **`-90.076°`** with the pre-fix file hash-verified in place (`143702e8…`). That is the fault measured on this robot, not inferred from the video or from the simulation — and it could not have been captured after the fix. The `0.076°` is accumulated drift; the `-90` is the constant.
+
+*After deploying (`364c767f…` verified end to end, GitHub → PC → Pi → sha256 on arrival), rebuilding and restarting:* `[0.000, 0.000, 0.000]` at **`0.000°`**, rotation matrix exactly identity where it had been `[-0.001, 1.000; -1.000, -0.001]`. The constant is gone.
+
+*Then the operator table, driven from the dashboard against `/wheel_odom`, with mapping deliberately NOT started* so that slam_toolbox, loop closure and the map frame were all out of the loop and only the changed code was under test:
+
+| Key | Intended axis | Other axis | Cross-coupling |
+|---|---|---|---|
+| `W` forward | **y +0.1756 m** | x +0.0003 m | 0.2% |
+| `D` right | **x +0.1723 m** | y −0.0010 m | 0.6% |
+| `S` back | **y −0.1735 m** | x −0.0009 m | 0.5% |
+| `A` left | **x −0.1935 m** | y +0.0012 m | 0.6% |
+
+**The cross-axis terms are the second result and were not the thing being tested.** All four are under 1.2 mm on ~180 mm moves. A residual rotation left anywhere in the frame would appear as *systematic* cross-coupling proportional to the move; there is none, which is independent confirmation that the correction is exact rather than approximately right.
+
+*The test was deliberately run on the dashboard that was already deployed* — fork #3, untouched by this session — rather than on the rewritten one. Fork #3 prints raw `x/y` and has `DISPLAY_ROT = 0`, both of which become correct once the frame is fixed, so the axes coming out right on a file this session never edited rules out the display simply agreeing with itself. Its map canvas drew the robot tall with its heading arrow up, where the original video showed it wide with the arrow right. Its one remaining artefact was predicted in advance and observed exactly: `NOSE 89.9°`, the leftover `+90` that existed to make the old `-90°` read as zero.
+
+**Where this leaves it.** The frames are coherent, the claim is executable, and it has been checked against the robot at both ends — the fault measured before, the fix measured after. The cost is that every saved map — both commissioning candidates and the whole 70-map corpus — is frozen in the old frame; they stay geometrically valid, so `map_integrity.py`'s verdicts still mean what they meant, but a re-drive is required before Stage D regardless of what those verdicts say. Still to deploy at time of writing: `phone_dashboard.py` (removes the `+90`), `goal_pose_adapter.py` and `mapping_full.launch.py`. None of those three affect the result above, which depends only on `odometry_publisher.py`.
 
 Every supporting document, organised by category. Update this as new artefacts are produced.
 

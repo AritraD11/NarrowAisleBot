@@ -14,8 +14,15 @@ workflow has moved off the terminal and into the dashboard.
 
 ## ⏸ RESUME HERE — 27 Aug 2026 (§17.38)
 
-**The map frame was rotated −90° from the robot, and it is now fixed in
-code but NOT YET ON HARDWARE. Deploying and verifying that is step 1.**
+**The map frame was rotated −90° from the robot. Fixed, deployed, and
+CONFIRMED ON HARDWARE 27 Aug: `odom→base_link` went −90.076° → 0.000°, and
+W/S/D/A drove +Y/−Y/+X/−X against `/wheel_odom` with under 1.2 mm of
+cross-axis coupling on ~180 mm moves.**
+
+Still to deploy: `phone_dashboard.py`, `goal_pose_adapter.py`,
+`mapping_full.launch.py` (see the table at the end of this block). None
+affect the result above — that depends only on `odometry_publisher.py`,
+which is deployed and verified.
 
 Read `docs/Axis_Convention.md` and `Research_Journal.md` §17.38 before
 touching anything axis-related.
@@ -40,8 +47,9 @@ touching anything axis-related.
    the only reason the fault became visible. Deploying the then-canonical
    repo copy would have re-hidden it. Still diff any dashboard from outside
    this repo — but check what it is *revealing*, not just what it changed.
-4. **Nothing here has run on hardware.** `colcon build`, restart, then
-   verify against the live node — never by reading a file.
+4. **The odometry fix is on the robot and measured.** The other three
+   files are not yet deployed. Verify anything else against the live node,
+   never by reading a file.
 
 ### Step 0 — deploy and verify the frame fix (do this first)
 

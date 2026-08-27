@@ -6,264 +6,203 @@ of the previous conversation — everything needed is here or in the repo
 `docs/Dashboard_Map_System.md`, `docs/Important_Commands.md`,
 `docs/MATLAB_Navigation_Reference.md`, `tools/README.md`).
 
-**Rewritten 27 Aug 2026 (§17.38–§17.39).** The 22 Aug version is superseded
-in full. The axis and map-frame work it was organised around is **closed and
-merged to `main`**; this file is now organised around the one thing that is
-not: **loop-closure reliability**.
+**Rewritten 27 Aug 2026 (evening), §17.40.** The morning version of this file
+was organised around loop-closure reliability. That framing is now known to
+be aimed at the wrong half of `slam_toolbox`, and this file is reorganised
+around what the jumps actually are: **the front-end scan matcher**.
 
 ---
 
-## ⏸ RESUME HERE — the SLAM problem
+## ⏸ RESUME HERE — one deploy, one drive, one comparison
 
-**Everything up to and including the map frame is done. The pose graph is
-not.** That is the whole agenda.
+**A parameter change is committed and NOT yet on the robot.** Everything
+below is downstream of getting it there and re-running one 90-second drive.
 
-### The problem, in four numbers
+### What changed yesterday, in one paragraph
 
-From `run_20260827_140207` — a 38-second W→D→S→A square, no rotation
-commanded, full bundle at `data/field_runs/run_20260827_140207_bundle.json`:
+The pose-graph jumps are not loop closures. On a 153-second `W`/`S`/`D`/`A`
+drive, `graph_residuals.py` reported `moved=0, max_shift=0.000` for the
+entire run — **not one pose-graph node was ever moved by the optimiser** —
+while the dashboard HUD threw three corrections of **0.336 / 0.302 /
+0.240 m** with `NOSE` stepping to −13.4°, on a drive where `Q` and `E` were
+never pressed. A back-end re-solve moves nodes. Nothing moved. The
+corrections come from the front end, and their size is set by
+`correlation_search_space_dimension`, which was live-verified at `0.7` —
+±0.35 m of freedom to place each scan away from a prior that is good to
+about 4 mm over the same interval. Full reasoning in §17.40.
 
-| | Closure over the same square |
-|---|---|
-| **Wheel odometry** | **2.58 cm** |
-| **SLAM corrected pose** | **6.2 cm** |
+### Step 1 — deploy Stage C and verify it on the node
 
-Odometry path 1.42 m; map path 2.47 m. The extra 1.05 m is correction
-applied. **The pose graph made the estimate worse than dead reckoning.**
-
-Three correction events, all flagged `pose graph moved, robot did not`:
-
-| # | t | Correction | Odom moved | Yaw | at map |
-|---|---|---|---|---|---|
-| 1 | 32.2 s | **0.327 m** | 0.005 m | −8.2° | (0.14, 0.30) |
-| 2 | 42.5 s | **0.386 m** | 0.005 m | −10.8° | (0.21, −0.19) |
-| 3 | 52.3 s | **0.416 m** | 0.005 m | +18.2° | (−0.35, −0.02) |
-
-All three inside the first minute, and **growing** — 0.327 → 0.386 → 0.416.
-Event 1 is on video —
-`docs/evidence/axis_frame_fix/02_square_wdsa_after_fix.mp4` at 17–18 s, the
-pose card jumping `X 0.114, Y 0.304` → `X 0.012, Y 0.013` in a single 10 Hz
-sample.
-
-**This is §17.32's open question, unchanged.** The axis fix had nothing to do
-with it and could not have improved it.
-
-### ⚠ Re-test rather than inherit
-
-§17.28–§17.32's loop-closure conclusions were drawn on a stack that we now
-know had a **rotated map frame** (§17.38). The scan matcher's input was fine
-— `scan_relay`'s mirror is calibrated in `base_link`, which never moved — so
-most of it should still hold. But "should still hold" is exactly the kind of
-assumption that cost two weeks last time. **Treat prior loop-closure
-conclusions as hypotheses to re-confirm, not as settled facts**, and say
-which category any given claim is in.
-
-Two that are safe, because they are about code rather than geometry:
-
-- **This `slam_toolbox` build (2.8.5) emits no per-closure signal** — no
-  console line, no topic, no service. Verified against source *and* the live
-  node (§17.29). Don't go looking for one.
-- **`publishGraph()` carries node positions and edge endpoint coordinates
-  only** — no node ids, no edge measurement, no information matrix (§17.35).
-  A true χ² residual is **not computable** from `/slam_toolbox/graph_visualization`.
-  `graph_residuals.py` works by *differencing successive publications*
-  instead, which is why it exists in the form it does.
-
----
-
-## Step 0 — the instrument that has never run
-
-`tools/graph_residuals.py` was built for exactly this problem and **has never
-met the live node**. It is not on the Pi (no git clone there). One transfer:
+Committed as `2a3e83b`: `correlation_search_space_dimension` **0.7 → 0.3**,
+in `system/slam_nodom_stageB.yaml`. Exactly one value changed, verified by
+parsing both YAMLs rather than reading the diff.
 
 ```powershell
-# Windows, from the staging folder
-curl.exe -sSL -o graph_residuals.py "https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/main/tools/graph_residuals.py"
-Get-FileHash graph_residuals.py -Algorithm SHA256
-scp graph_residuals.py aritra@10.42.0.1:~/tools/graph_residuals.py
+curl.exe -sSL --retry 3 --retry-all-errors -o slam_nodom.yaml "https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/narrowaislebot-mapping-reliability-038ike/system/slam_nodom_stageB.yaml"
+scp slam_nodom.yaml aritra@10.42.0.1:~/ros2_ws/slam_nodom.yaml
 ```
+
+⚠ **Note the destination filename.** The repo file is
+`slam_nodom_stageB.yaml`; `mapping_full.launch.py:66` loads
+`~/ros2_ws/slam_nodom.yaml`. Land it under the wrong name and the old
+file keeps running, silently.
 
 ```bash
-sha256sum ~/tools/graph_residuals.py       # match it before running
-source /opt/ros/jazzy/setup.bash
-python3 ~/tools/graph_residuals.py --selftest        # first, on the Pi
-python3 ~/tools/graph_residuals.py --watch --log ~/aislebot_logs/graph.jsonl
+sha256sum ~/ros2_ws/slam_nodom.yaml
+# must be e90aee539b0c7f245f2386ba9e9c80ab08a5ee475c02a0600fb74a98158a5d71
 ```
 
-**What it gives you that nothing else does.** The graph is republished every
-`map_update_interval` (1.0 s). A node that moves between two publications was
-moved by the optimiser; differencing the *edge sets* over the same two
-messages names **which closure arrived in the update that moved things**.
-That is the per-closure signal §17.29 concluded does not exist — it does not
-exist as an *event*, but it does as a *difference*.
+Then **STOP MAP → park on the mark → ZERO (two taps) → MAP**; parameters
+only reload on a fresh bring-up. Then, against the live node, never the
+file:
 
-And it can be judged, which a raw jump size cannot:
-
-```
-implied drift rate = shift / metres driven since the closed-on node
+```bash
+ros2 param get /slam_toolbox correlation_search_space_dimension    # 0.3
 ```
 
-A legitimate closure cancels drift accumulated since the robot was last
-there, so the rate should land near this robot's measured **1.5%** (§17.32's
-3.4 m box), 2.4% forward/back, 3.3% lateral (§17.30). **20% means it
-corrected drift that never accumulated.** The 10% ceiling is the single
-judgement call in the tool and it is a parameter.
+If it still says `0.7`, stop — the file did not take.
 
-**Applied to the three events above, computed from the bundle's own pose
-CSV**, using total odometry path driven since the run started:
+### Step 2 — the A/B, and it is a repeat, not a new experiment
 
-| Event | Correction | Odom path driven | Implied rate |
-|---|---|---|---|
-| t=32.2 s | 0.327 m | 0.447 m | **73%** |
-| t=42.5 s | 0.386 m | 0.869 m | **44%** |
-| t=52.3 s | 0.416 m | 1.300 m | **32%** |
+Re-run **the identical drive**: `W` 1 m, `S` back, `D` 1 m, `A` back, at
+**SLOW (0.05 m/s)**, no `Q`, no `E`, with
 
-Against a measured 1.5%. These are **conservative lower bounds**: the tool
-measures against distance since the *closed-on node*, which is more recent
-than the run start, so a smaller denominator would push every one of these
-higher.
+```bash
+python3 ~/tools/graph_residuals.py --watch --log ~/aislebot_logs/graph_stageC.jsonl
+```
 
-**That is the number to explain.** Corrections are cancelling drift that
-could not physically have accumulated — on a robot whose wheel odometry
-closed the same square to 2.58 cm.
+and the dashboard HUD visible. The baseline it is being compared against,
+measured 27 Aug at the same speed:
 
----
+| | `W`/`S` leg | `D`/`A` leg |
+|---|---|---|
+| HUD tracked to | 0.988 m of 1 m, back to 0.017 | jumps at X 0.357, 0.312, −0.313 |
+| Corrections | ≤ 6 cm | **0.336 / 0.302 / 0.240 m** |
+| `NOSE` | 0.0° → −0.6° | −0.8° → **−13.4°** |
+| Graph node spacing | 0.37, 0.36, 0.36, 0.36 m | **0.02, 0.00, 0.03 m** |
+| Chain accumulated | 1.45 m | **0.05 m** |
+| Pose graph | `moved=0` | `moved=0` |
 
-## Step 1 — the first real commissioning drive
+**The prediction, written before the test so it can fail:**
 
-**There is still no accepted commissioning map.** Everything driven so far
-has been an axis test.
+| Outcome | Reading |
+|---|---|
+| `D`/`A` corrections **< 0.15 m**, lateral node spacing stops collapsing | The window was the lever. Go to the perimeter drive on this config. |
+| Corrections reappear **pinned near 0.15 m** | The window only clamped the symptom. `distance_variance_penalty` 0.7 and `angle_variance_penalty` 1.2 are the real lever — same stale §17.21 premise, deliberately left for this step. |
+| `W`/`S` leg **degrades** | Over-constrained. Back off to 0.5. |
 
-`run_bundle.py`'s own header records that `run_20260825_113735` and
-`_151713` "were analysed at length on 26 Aug before anyone noticed they were
-30-second bug-fix checks rather than commissioning drives." They were never
-candidates.
+Change one parameter at a time. §17.25 changed six at once and paid for it
+across three sessions.
 
-**Drive it like this**, all from the dashboard:
+### Step 3 — only then, the commissioning drive
+
+**There is still no accepted commissioning map**, and yesterday's session
+deliberately did not attempt one. Building a 20-minute map on a front end
+that loses a third of a metre per strafe would produce a misleading
+artefact, not a commissioning map. Once Step 2 comes back clean:
 
 1. **STOP MAP** if a session is running — discard it.
-2. Park physically on the mark. **ZERO** (two taps; must precede MAP).
-3. **MAP**, then **VIEW** and keep it open. A fold is visible the moment it
-   happens, which no after-the-fact screenshot gives you.
+2. Park on the mark. **ZERO** (two taps; must precede MAP).
+3. **MAP**, then **VIEW** and keep it open. A fold is visible as it happens.
 4. **Perimeter, nose leading, rotating at the corners** so the LiDAR sweeps
    every wall. 0.5–1.5 m off the walls, slow, one direction, close at the
-   mark. Longer beats shorter — the 20-minute run had 10× the wall cells of
-   the 5-minute one.
+   mark. Longer beats shorter.
 5. **MAP** again to stop; it saves automatically.
 
-**Why rotation matters and a square will not do.** The rear 90° is
-permanently blind behind the mast. A non-rotating square keeps that blind
-cone pointed at the *same world direction* for the entire run, so one whole
-side of the room is never observed — which is exactly why
-`run_20260827_140207` came back 87% unknown and `SUSPECT`.
+`graph_residuals.py --watch` alongside. Then `./tools/run_bundle.py --latest`
+(refuses runs under 60 s), and open the bundle in
+`docs/tools/run_viewer.html`.
 
-**This drive is also the first hardware test of the frame at non-zero
-headings.** The invariant is verified in simulation at seven headings
-(`verify_axis_chain.py`) but on hardware only at yaw ≈ 0. Rotating at the
-corners tests it for real. If the map ever appears to grow sideways relative
-to actual motion, stop — the arithmetic says it cannot, so that is real
-information.
+**Why rotation and not a square.** The rear 90° is permanently blind behind
+the mast. A non-rotating square keeps that cone pointed at the same *world*
+direction all run, so one whole side of the room is never observed — which
+is why `run_20260827_140207` came back 87% unknown and `SUSPECT`. It is also
+the first hardware test of the frame at non-zero headings; the invariant is
+verified in simulation at seven headings and on hardware only at yaw ≈ 0
+(now confirmed at metre scale, §17.40).
 
-Run `graph_residuals.py --watch` alongside. Then:
-
-```bash
-./tools/run_bundle.py --latest        # refuses runs under 60 s
-```
-
-Open the bundle in `docs/tools/run_viewer.html`.
-
-### Acceptance
-
-| Check | Pass condition |
+| Acceptance check | Pass condition |
 |---|---|
-| Return-to-mark | HUD ≈ `(0, 0)`, **`NOSE ≈ 0°`** (not −90° — that changed in §17.38) |
+| Return-to-mark | HUD ≈ `(0, 0)`, **`NOSE ≈ 0°`** (not −90°; changed in §17.38) |
 | Map integrity | no folds, tears, doubled walls — `map_integrity.py`, D2 is the headline |
 | Walls present | real occupied cells, not just free space |
 
-Single-sample step size is **diagnostic, not pass/fail**: a legitimate
-correction of accumulated drift trips it exactly as hard as a bad one. That
-is why `graph_residuals.py`'s implied-drift-rate exists.
-
 ---
 
-## The levers, and the one that is explicitly gated
+## Two open leads from §17.40, neither controlled
 
-Deployed now (`system/slam_nodom_stageB.yaml`, on the Pi as
-`~/ros2_ws/slam_nodom.yaml`, sha `7ec7904a…`). **Verify with
-`ros2 param get /slam_toolbox <name>` against the live node, never by reading
-the file** — that is the discipline that caught §17.32:
+- **Strafe is the weak axis.** At 0.05 m/s the `W`/`S` leg is clean while
+  `D`/`A` fails on the same drive. One observation, mechanism unknown. A
+  `scan_relay` reflection explanation was considered and does not fit.
+- **Speed matters.** At 0.10 m/s both legs fail and corrections grow to
+  0.36–0.45 m; at 0.05 m/s only the lateral leg does. Not a controlled
+  result. Do not build on either until Stage C is settled.
 
-| Parameter | Deployed | Stock |
-|---|---|---|
-| `loop_search_maximum_distance` | **2.0** | 5.0 |
-| `loop_match_minimum_chain_size` | **8** | 5 |
-| `max_laser_range` | **10.0** | 12.0 |
-| `loop_match_minimum_response_coarse` | 0.25 | 0.25 |
-| `loop_match_minimum_response_fine` | 0.35 | 0.35 |
-| `minimum_travel_distance` | 0.2 | 0.2 |
-| `map_update_interval` | 1.0 | — |
+## What §17.40 did NOT overturn
 
-**Do not raise `_coarse`/`_fine` to 0.30/0.40 on a hunch.** That lever is
-explicitly gated on "if the map visibly folds", and as of
-`run_20260827_140207` it does not: D2 doubled walls reads 4 cells, 0
-clusters — essentially clean. Raising the gate to fix corrections that are
-firing on a *clean* map treats the symptom and hides the cause.
+§17.28–§17.32's loop-closure conclusions are **out of scope for these
+events**, which is different from refuted. Their tuning may still matter for
+genuine closures on a long drive — no drive so far has been long enough to
+produce one. `loop_search_maximum_distance` 2.0, `loop_match_minimum_chain_size`
+8, and the 0.25/0.35 response gates all remain deployed and live-verified;
+leave them alone until the perimeter drive gives real closures to judge.
 
-**Chain size 8 × `minimum_travel_distance` 0.2 ≈ 1.6 m before closure is
-eligible at all.** On short drives that lands closures in the back half,
-which is where §17.32 saw them cluster — that clustering may be *eligibility*
-rather than aliasing. A long perimeter drive is the test that separates them.
+**Still true and load-bearing:** `graph_residuals.py`'s implied-drift-rate is
+the right instrument for a **back-end** closure and the wrong one for a
+front-end snap, and it cannot currently distinguish them on its own — that
+is what `moved` is for. §17.39's 73/44/32% figures are retired: they were
+computed as if the corrections cancelled drift, and they do not.
+
+## One small debt from §17.38
+
+`aislebot.urdf` on the Pi is `31833ce0…`, the pre-§17.38 blob; repo `main`
+has `ea6619ff…`. **Geometry is byte-identical** with comments stripped
+(7105 chars, same hash both revisions) — the §17.38 diff is one hunk, +12/−2,
+entirely inside the header comment. Nothing executes differently. What is
+stale is the prose: the header on the robot still asserts the orientation-only
+−90° rotation §17.38 removed. Deploy it whenever the workspace is next
+rebuilt for another reason; it does not justify a rebuild on its own.
+§17.38's "all five touched files are now deployed and hash-verified" is
+corrected to four of five in §17.40.
 
 ---
 
 ## Paste this as the first message of the new session
 
-> Continue work on AritraD11/NarrowAisleBot. `main` is current at `5466f3e`
-> and everything below is merged into it — cut a fresh branch from `main`.
-> Read `docs/Next_Session_Kickoff.md` (start at RESUME HERE),
-> `docs/Axis_Convention.md`, and `docs/Research_Journal.md` §17.38–§17.39
-> before doing anything else.
+> Continue work on AritraD11/NarrowAisleBot, branch
+> `claude/narrowaislebot-mapping-reliability-038ike`. Read
+> `docs/Next_Session_Kickoff.md` (start at RESUME HERE) and
+> `docs/Research_Journal.md` §17.40 before doing anything else.
 >
-> **Closed last session — do not reopen:** the map frame was rotated −90°
-> because `odometry_publisher.py` published a rotated orientation with an
-> unrotated translation. Fixed, deployed, verified on hardware, demonstrated
-> on video, guarded by `python3 tools/verify_axis_chain.py` (38 checks, fails
-> if anyone edits it back out). Four downstream −90° compensations were
-> deleted with it. §17.36/§17.37's "the axis stack is coherent" conclusion
-> was wrong about the map frame and is corrected in place — don't cite them
-> against §17.38. **Never fix an axis complaint in the dashboard**; that is
-> what hid this for two weeks.
+> **Settled yesterday, do not reopen:** the pose-graph jumps are **not loop
+> closures**. `graph_residuals.py` reported `moved=0, max_shift=0.000` across
+> a whole 153 s drive — no graph node was ever moved — while the HUD threw
+> corrections of 0.336 / 0.302 / 0.240 m with the nose stepping to −13.4°,
+> on a drive where `Q`/`E` were never pressed. Two instruments agree leg by
+> leg: graph node spacing is 0.36 m on `W`/`S` where the HUD tracks to within
+> 6 cm, and collapses to 0.02 m on `D`/`A` where it jumps. It is the
+> front-end scan matcher, and §17.39's "73%/44%/32% implied drift" is retired
+> — those corrections overrule correct odometry rather than cancelling drift,
+> so the ratio never meant anything.
 >
-> **This session is SLAM — the pose graph, which the frame work did not
-> touch and could not have fixed.** On a 38 s square: wheel odometry closed
-> to 2.58 cm, SLAM's corrected pose closed to 6.2 cm. Three corrections of
-> 0.416 / 0.386 / 0.327 m, all "pose graph moved, robot did not", one caught
-> on video jumping 31 cm inside a single 10 Hz sample. Computed against
-> odometry path driven, those corrections imply drift rates of **73% / 44% /
-> 32%** where this robot measures **1.5%** — and those are lower bounds.
-> That is what I want explained.
+> **This session is one deploy, one drive, one comparison.** Stage C
+> (`2a3e83b`) sets `correlation_search_space_dimension` 0.7 → 0.3 and is
+> committed but **not on the robot**. Deploy it to `~/ros2_ws/slam_nodom.yaml`
+> — note the filename differs from the repo's — hash it on arrival against
+> `e90aee53…`, restart mapping, confirm `0.3` with `ros2 param get` against
+> the live node, then re-run the identical `W`/`S`/`D`/`A` drive at SLOW with
+> `graph_residuals.py --watch`. The baseline table and the three predicted
+> outcomes are in the kickoff doc.
 >
-> Careful with the prior work: §17.28–§17.32's loop-closure conclusions were
-> drawn on a stack with a rotated map frame. Treat them as hypotheses to
-> re-confirm, not settled facts, and tell me which category a claim is in.
+> Only if that comes back clean, the commissioning perimeter drive — nose
+> leading, rotating at corners.
 >
-> Step 0 needs no drive: `tools/graph_residuals.py` was built for exactly
-> this and has never met the live node. It's not on the Pi — one `scp`, then
-> `--selftest` there before trusting it.
->
-> Then the first real commissioning drive: perimeter, **nose leading,
-> rotating at corners** so the LiDAR sweeps every wall — a non-rotating
-> square leaves the blind rear 90° pointed one way all run, which is why the
-> last map came back 87% unknown. That drive is also the first hardware test
-> of the frame at non-zero headings.
->
-> I want to run the drive itself **from the dashboard, not the terminal**.
-> Walk me through it step by step — I'll do each thing and report back.
-> Don't assume a step succeeded. Verify deployed config with `ros2 param get`
-> against the live node, never by reading a file, and **hash every
-> transferred file on arrival, per file** — an `scp` reported `100%` while
-> writing to a mistyped destination path and the build silently used the old
-> file.
+> I want to run the drive from the dashboard, not the terminal. Walk me
+> through it step by step — I'll do each thing and report back. Don't assume
+> a step succeeded. Verify deployed config with `ros2 param get` against the
+> live node, never by reading a file, and **hash every transferred file on
+> arrival, per file** — an `scp` reported `100%` while writing to a mistyped
+> destination path and the build silently used the old file.
 
 ---
 
@@ -376,7 +315,12 @@ not a value on the robot.
 `Dashboard_Map_System.md` §3's "no single-sample step > 10 cm" **cannot tell
 a good closure from a bad one** — a legitimate correction trips it just as
 hard. The criteria that discriminate are **map integrity** and
-**return-to-mark**, plus `graph_residuals.py`'s implied drift rate.
+**return-to-mark**, plus `graph_residuals.py`'s `moved` / `max_shift`.
+
+⚠ **§17.40:** the implied-drift-rate is the right instrument for a *back-end*
+closure and the wrong one for a *front-end* snap, and cannot tell them apart
+on its own. `moved=0` with a large HUD jump means the front end. §17.39's
+73/44/32% figures are retired.
 
 ---
 
@@ -387,7 +331,7 @@ hard. The criteria that discriminate are **map integrity** and
 | `verify_axis_chain.py` | 38 checks, passing, guards the §17.38 fix |
 | `map_integrity.py` | self-tests clean; **has met one real map** (27 Aug) |
 | `run_bundle.py` / `run_analyzer.py` | **used in anger 27 Aug**, worked |
-| `graph_residuals.py` | self-tests clean, **never met the live node** ← Step 0 |
+| `graph_residuals.py` | **met the live node 27 Aug**, found and fixed its own Ctrl-C bug (`4ece40c`), and produced §17.40's finding |
 | `scan_quality.py` | self-tests clean, **never run on real scans** |
 | `bag_tf_diff.py` | run once (Stage A), answered its question |
 | `map_viewer.html`, `run_viewer.html`, `telemetry_analyzer.html` | working |

@@ -146,6 +146,44 @@ eduroam), swap `10.42.0.1` for `aritra-desktop.local`. Pulling to a
 different folder some other time, swap out the destination path — it's
 just the last argument to `scp`/`rsync`.
 
+### 3.1 The staging folder — one place, both directions (27 Aug 2026)
+
+**Every transfer between the Pi and Windows goes through one folder, in
+both directions:**
+
+```
+C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download
+```
+
+Pulled off the Pi, or downloaded on Windows on its way *to* the Pi — it
+lands here first. The destination paths in the examples above predate this
+and should be pointed at the staging folder instead.
+
+Why one folder: the alternative is what already happened once. Files got
+downloaded to `$HOME\Documents`, and a batch of three `scp`s went out with
+one of them silently mistyped — see the warning below. A single staging
+folder makes "what did I actually just transfer" answerable by looking at
+one directory listing.
+
+Organising it into subfolders is deferred deliberately: anything worth
+keeping gets committed to the repo, so the staging folder is scratch space,
+not an archive.
+
+> ⚠ **`scp` reporting `100%` does not mean the file arrived where you
+> meant.** A password typed onto the end of a destination path before Enter
+> produced `.../mapping_full.launch.py<PASSWORD-REDACTED>` — `scp` created it,
+> reported `100%`, exited 0, and the real file was never touched. The build
+> and restart that followed silently used the old file. **Hash every file
+> on arrival, per file, not per batch** — two of the three in that batch
+> landed correctly, which is exactly why a per-batch assumption fails:
+>
+> ```bash
+> sha256sum ~/ros2_ws/src/.../<file>
+> ```
+>
+> A destination path that ends in anything other than the filename you
+> intended is the tell. §17.39.
+
 ---
 
 ## 4. Where things live on the Pi

@@ -16,6 +16,7 @@ Markdown is the source of truth here (diffs cleanly, renders on GitHub, greppabl
 | [`Network_SelfHosted_AP.md`](Network_SelfHosted_AP.md) | Self-hosted WiFi AP setup (`AisleBot-Pi` @ 10.42.0.1) and the ESP32's own backup AP. | Current |
 | [`Setup_Manual.md`](Setup_Manual.md) | Narrative fresh-Pi setup manual. Largely superseded by the root `install.sh` one-liner — kept as historical reference. | Superseded, historical |
 | [`Axis_Convention.md`](Axis_Convention.md) | **The one authoritative reference for `+X`/`+Y` on this robot.** `+X=right,+Y=forward` — and since §17.38 that holds for `odom` and `map` too, not just `base_link`, so forward drive increases map `Y`. Lists the two remaining conversion points and a hop-by-hop trace from keypress to display. Read this before touching anything axis-related, and before trusting any axis fix from outside this repo. Executable companion: `tools/verify_axis_chain.py`. | v2.0, 27 Aug 2026 |
+| [`evidence/axis_frame_fix/`](evidence/axis_frame_fix/) | **Hardware video evidence for the map-frame rotation and its fix** (§17.38–§17.39). Two side-by-side recordings — physical robot left, live map right — one showing the fault (`W` increasing map `X`), one showing the corrected W→D→S→A square. The second also captures a ~31 cm loop-closure pose jump, which is a separate and still-open problem. See the folder README. | v1.0, 27 Aug 2026 |
 
 Where documents disagree on a fact, prefer the one with the later date — the Research Journal is generally authoritative for current project state.
 

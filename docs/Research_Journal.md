@@ -2698,6 +2698,39 @@ A correction to the two entries immediately above, on evidence they did not have
 
 **One deployment note worth keeping, because it cost a round trip.** A `scp` appeared to succeed — `100%`, no error — while the file on the Pi stayed at its old hash. The password had been typed onto the end of the destination path before Enter, so `scp` had faithfully created `mapping_full.launch.py<PASSWORD-REDACTED>` and reported success for it. **`scp` reporting `100%` says a file arrived somewhere, not that it arrived where you meant.** The hash check on arrival is what caught it, and it is the same discipline that caught §17.32's never-deployed config and §17.34's inert parameter file. Two files in the same batch landed correctly, which is precisely why a per-file hash beats a per-batch assumption.
 
+## 17.39 27 Aug 2026: the square drive — the fix demonstrated end to end, and the problem it does not solve, caught on video
+
+The closing run of the §17.38 session, and the first time this project has had a single artefact that shows both what was fixed and what remains. Recorded as a side-by-side video (physical robot left, live map right) plus a full run bundle, both committed: `docs/evidence/axis_frame_fix/` and `data/field_runs/run_20260827_140207_bundle.json`.
+
+**The drive.** From the zero mark, `W → D → S → A` — forward, right, back, left — returning to the mark. **No `Q`/`E`, so no commanded rotation at any point**, which makes it a pure translation test of the frame. 535 s total, of which the square itself occupies 38 s.
+
+**Segmented from wheel odometry, the four legs are each on a single axis:**
+
+| Leg | Δ intended axis | Δ other axis | Δyaw |
+|---|---|---|---|
+| `W` forward | **+0.2741 m** on `Y` | +0.0001 m | −0.01° |
+| `D` right | **+0.3673 m** on `X` | −0.0002 m | −0.06° |
+| `S` back | **−0.3118 m** on `Y` | −0.0004 m | −0.04° |
+| `A` left | **−0.4065 m** on `X` | +0.0012 m | +0.03° |
+
+Cross-axis coupling peaks at 1.2 mm on a 407 mm leg — 0.3%. Total yaw drift across the whole square: **−0.10°**, confirming from the data alone that nothing rotated. Closure **2.58 cm**. The legs are unequal because the keys were held by hand for different durations; that is manual driving, and it means this run does *not* cleanly measure `lateral_scale` — that needs equal-duration legs and a tape measure, and is still owed.
+
+**One number worth keeping for calibration anyway.** Leg durations give 49.6 mm/s forward and 45.8 mm/s lateral against a commanded 50 mm/s. That ratio, 0.923, is `lateral_scale`'s current value of 0.92 reproducing itself in the data — expected, since odometry applies it, so it is a consistency check rather than an independent measurement. Stated explicitly because it would be easy to mistake for a validation of the constant.
+
+**The problem that remains, and this is the part worth the video.** At 17–18 s the pose card jumps from `X 0.114, Y 0.304` to `X 0.012, Y 0.013` — a **~31 cm discontinuity inside one 10 Hz sample**, while wheel odometry moved 5 mm. The bundle names it: jump event 3, `corr_m 0.327`, at map `(0.14, 0.30)`, verdict "pose graph moved, robot did not". Three such events occur, 0.327 / 0.386 / 0.416 m, all within the first minute, all with odometry stepping normally.
+
+**Two independent instruments therefore disagree about the same 38 seconds, and the disagreement is quantified:** wheel odometry closed the square to **2.58 cm**; SLAM's corrected map pose closed it to **6.2 cm**. Map path 2.47 m against odometry path 1.42 m — the extra 1.05 m is correction applied, and on this run the corrections made the closure **worse, not better**. That is §17.32's open question, unchanged, now with a video of the moment it happens.
+
+**This is the distinction §17.38 was careful to draw, and here it is demonstrated rather than argued.** The axis fix was necessary and is correct; it had nothing to do with loop closure and could not have improved it. A run can have a perfectly coherent frame and an untrustworthy pose graph at the same time, and this one does. Anyone reading §17.38's confirmations as "mapping now works" has the wrong conclusion.
+
+**Map verdict: SUSPECT, for reasons that are the drive's fault rather than the map's.** 9.8 × 6.7 m, 87% unknown, 15.6 m of wall. Two flags: only 38% of wall within 10° of the dominant axis, and 4 disconnected free-space regions. But **D2, doubled walls — the detector that actually carries the fold verdict — is essentially clean**: 4 cells, 0 clusters. This was predicted before the drive: a square with no rotation keeps the LiDAR's permanently blind rear 90° pointed at the *same world direction* for the entire run, so one whole side of the room is never observed. The flags are what that looks like in the metrics. **A non-rotating square is an axis test, not a commissioning drive**, and it was run as one.
+
+**Wheels: nothing to report, which is itself the result.** All four within 0.015–0.016 rad/s RMS error, zero saturation, zero sign mismatches, arc spread ratio 1.00 between busiest and laziest wheel, zero anomalies. The mechanical side did not contribute to anything above.
+
+**A deployment lesson, recorded because it cost a round trip and will recur.** A batch of three `scp`s reported `100%` and exited 0; only two arrived. The third had the password typed onto the end of the destination path before Enter, so `scp` faithfully created `mapping_full.launch.py<PASSWORD-REDACTED>` and reported success for *that*. The subsequent `colcon build` and restart silently used the old file, and the only reason it was caught is that the arrival hash was checked per file. **Two of three landing correctly is exactly why a per-batch assumption fails.** Now in `Important_Commands.md` §3.1, along with the new rule that all Pi↔Windows transfers stage through one folder in both directions.
+
+**Where this leaves the project.** The axis and frame work is closed: deployed, measured at both ends, demonstrated on video, and guarded by `tools/verify_axis_chain.py`, which fails if any part of it is edited back out. Still open and untouched by any of it: loop-closure reliability (now with three fresh events to study), `lateral_scale`'s independent validation, `goal_pose_adapter`'s parameter against a live node, AMCL and Stage D, and — the headline — **there is still no accepted commissioning map.** The next drive is a perimeter run with the nose leading and rotation at the corners, which will also be the first hardware test of the frame at non-zero headings; that invariant is currently verified in simulation at seven headings and on hardware only at yaw ≈ 0.
+
 Every supporting document, organised by category. Update this as new artefacts are produced.
 
 > *Repository note (v2.0): the project's own authored documents now live as Markdown under `docs/` in the `NarrowAisleBot` GitHub repo, with the original `.docx`/`.pdf` in `docs/originals/`. The catalogue below predates that consolidation and lists documents by their original working titles; several are now the `docs/*.md` files. The repo is the current home of record.*

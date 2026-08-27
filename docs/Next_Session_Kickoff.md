@@ -12,95 +12,123 @@ workflow has moved off the terminal and into the dashboard.
 
 ---
 
-## ⏸ RESUME HERE — 27 Aug 2026 (§17.38)
+## ⏸ RESUME HERE — 27 Aug 2026 (§17.38–§17.39)
 
-**The map frame was rotated −90° from the robot. Fixed, deployed, and
-CONFIRMED ON HARDWARE 27 Aug: `odom→base_link` went −90.076° → 0.000°, and
-W/S/D/A drove +Y/−Y/+X/−X against `/wheel_odom` with under 1.2 mm of
-cross-axis coupling on ~180 mm moves.**
+**The axis/map-frame work is CLOSED. Deployed, measured at both ends,
+demonstrated on video, and guarded by a test. Do not reopen it.**
+**Loop-closure reliability is NOT closed and is now the top item.**
 
-**All five touched files are deployed and hash-verified on the robot.**
-The dashboard reads `NOSE 0.0°` and `map→zero_point` reads `0.000°`, so all
-four −90° compensations are confirmed gone. The frame work is closed.
-`goal_pose_adapter`'s `yaw_offset_deg` is the one value not yet checked
-against a live node — it only runs under `navigation.launch.py`, so verify
-it with `ros2 param get /goal_pose_adapter yaw_offset_deg` (expect `0.0`)
-at Stage D bringup.
+Read `docs/Axis_Convention.md` and `Research_Journal.md` §17.38–§17.39
+before touching anything axis-related.
 
-Read `docs/Axis_Convention.md` and `Research_Journal.md` §17.38 before
-touching anything axis-related.
+### What was wrong, and what fixed it
 
-1. **What changed.** `odometry_publisher.py` rotated its published
-   orientation and twist but not its published translation, which gave
-   `odom` (and therefore `map`) REP-103's axes while `base_link` had
-   `+X=right, +Y=forward`. Driving forward really did increase map `X` —
-   confirmed on video, W/S/D/A read frame by frame. Fixed by rotating the
-   translation too; the constant −90° is gone from TF. Four downstream
-   compensations that existed only to undo it were deleted in the same
-   commit (dashboard canvas rotation, dashboard print relabel,
-   `goal_pose_adapter` yaw offset, `ZERO_POINT_YAW`).
-2. **§17.36 and §17.37 were wrong about this and are corrected in place.**
-   Both verified `base_link` and concluded the stack was coherent. It was
-   coherently wrong: self-consistency between two frames says nothing about
-   whether either is the frame you wanted. Do not treat those two entries'
-   "settled" language as covering the map frame.
-3. **The deployed dashboard fork was the honest one.** §17.36 called fork #3
-   defective for zeroing `DISPLAY_ROT` and printing raw x/y. Diffed properly
-   (Python half byte-identical, sha `ab7e8245…`), it was right, and it is
-   the only reason the fault became visible. Deploying the then-canonical
-   repo copy would have re-hidden it. Still diff any dashboard from outside
-   this repo — but check what it is *revealing*, not just what it changed.
-4. **All of it is on the robot and measured.** Verify anything new
-   against the live node, never by reading a file — and hash every file on
-   arrival: a `scp` reported `100%` while silently writing to a mistyped
-   destination path, and only the hash caught it.
+`odometry_publisher.py` applied the `+Y`-forward relabel to its published
+orientation and twist but **not** to its published translation. Publishing
+raw internal translation is what *defines* `odom`'s axes, so `odom` — and
+`map`, inheriting it at SLAM init — sat on REP-103's axes while `base_link`
+had `+X=right, +Y=forward`. The constant −90° was the seam between two frame
+definitions, not a design choice. Driving forward genuinely increased map
+`X`.
 
-### Step 0 — deploy and verify the frame fix (do this first)
+Fixed by rotating the translation too (`pub_x=-self.y, pub_y=self.x`), which
+makes `pub_theta` plain `self.theta`. Four downstream −90° compensations
+existed only to undo that seam and were deleted with it: the dashboard canvas
+rotation, the dashboard print relabel, `goal_pose_adapter`'s yaw offset, and
+`ZERO_POINT_YAW`. Conversion points in the stack went from three to two.
+
+**Hardware confirmation** — `odom→base_link` −90.076° → 0.000°; W/S/D/A drove
++Y/−Y/+X/−X with ≤1.2 mm cross-coupling on ~180 mm moves; the W→D→S→A square
+closed to 2.58 cm with −0.10° total yaw drift. Video and full run bundle in
+`docs/evidence/axis_frame_fix/` and
+`data/field_runs/run_20260827_140207_bundle.json`.
 
 ```bash
-cd ~/ros2_ws && colcon build --packages-select mecanum_robot mecanum_navigation
-sudo systemctl restart aislebot.service
-# on the ZERO mark, with odometry freshly zeroed:
-ros2 run tf2_ros tf2_echo odom base_link      # MUST read [0,0,0] @ 0 deg, not -90
+python3 tools/verify_axis_chain.py     # 38 checks; fails if the fix is removed
 ```
 
-Then from the dashboard, park on the mark and tap W / S / D / A in turn:
+**§17.36/§17.37 were wrong about the map frame** and are corrected in place.
+They verified `base_link` and concluded the stack was coherent; it was
+coherently wrong. Don't cite them against §17.38.
 
-| Key | Expected on the HUD |
+**Never fix an axis complaint at the display.** Four locally-reasonable
+display/goal compensations grew over one real frame fault and kept it
+invisible for two weeks. If a printed coordinate disagrees with the robot,
+the frame is wrong upstream.
+
+### ⚠ The top item now: loop closure, not axes
+
+The same square drive caught the real remaining problem on video. At 17–18 s
+the pose jumps `X 0.114, Y 0.304` → `X 0.012, Y 0.013` — **~31 cm inside one
+10 Hz sample** while wheel odometry moved 5 mm. Three such events in the run
+(0.327 / 0.386 / 0.416 m), all "pose graph moved, robot did not".
+
+Two instruments, quantified disagreement over the same 38 seconds:
+
+| | Closure |
 |---|---|
-| `W` | `Y` increases, `X` stays 0 |
-| `S` | `Y` decreases |
-| `D` | `X` increases |
-| `A` | `X` decreases |
+| Wheel odometry | **2.58 cm** |
+| SLAM corrected map pose | **6.2 cm** |
 
-`Q`/`E` are yaw, not strafe. If any row disagrees, stop and report it — the
-arithmetic says it cannot, so a disagreement is new information.
+Map path 2.47 m vs odometry path 1.42 m — the corrections made closure
+**worse**. This is §17.32's open question, unchanged. The axis fix had
+nothing to do with it and could not have improved it.
 
-Without a robot, the same claim is checkable directly:
+`tools/graph_residuals.py` was built for exactly this and has still never met
+the live node. It is not on the Pi (no git clone there) — one `scp`.
 
-```bash
-python3 tools/verify_axis_chain.py
-```
+### The next drive: a real commissioning run
 
-38 checks: the operator table, the frame invariant at seven headings, and
-source guards that fail if the fix is edited back out.
+Everything so far has been an axis test. **There is still no accepted
+commissioning map.**
 
-### ⚠ Every existing map is in the OLD frame
+- Perimeter, **nose leading, rotating at corners** so the LiDAR sweeps every
+  wall. A non-rotating square keeps the blind rear 90° pointed at one world
+  direction all run — that is why `run_20260827_140207` came out 87% unknown
+  and SUSPECT.
+- 0.5–1.5 m off the walls, one direction, close at the mark. Longer beats
+  shorter.
+- This is also the **first hardware test of the frame at non-zero headings** —
+  currently verified in simulation at seven headings, on hardware only at
+  yaw ≈ 0.
+- Run `graph_residuals.py --watch` alongside it.
+- Acceptance: return-to-mark HUD ≈ `(0,0)` with **`NOSE ≈ 0°`** (not −90°),
+  no folds or doubled walls, real occupied cells.
 
-Both commissioning candidates (`run_20260825_151713`, `run_20260825_113735`)
-and the whole 70-map corpus were recorded when map `+X` was the start
-heading. They stay **geometrically** valid — `map_integrity.py` measures
-wall thickness and parallelism, not axis labels, so its verdicts still mean
-what they meant — but **a re-drive is required before Stage D regardless of
-what those verdicts say.** Run the integrity check anyway: it needs no
-hardware, and its `--corpus` percentiles are what calibrate the tool's
-thresholds for the new drive.
+Then `./tools/run_bundle.py --latest` and open in `docs/tools/run_viewer.html`.
+It refuses runs under 60 s.
 
-**Map acceptance is now a command, not a judgement. Run it first — it needs
-no robot.** The platform was verified 25 Aug; 26 Aug (§17.35) built the two
-instruments that were missing. Neither has seen real data.
+### Still open, none of it touched by the frame work
 
-### Step 1 — the integrity check, on the laptop, no hardware
+- **Loop-closure reliability** (above) — top item
+- `lateral_scale` independent validation: the square's legs were unequal, so
+  it measured nothing. Needs equal-duration legs and a tape measure.
+- `ros2 param get /goal_pose_adapter yaw_offset_deg` → expect `0.0`; only
+  runs under `navigation.launch.py`, so check it at Stage D bringup
+- **AMCL / Stage D has never run**
+- `map_integrity.py` on the archive for the `--corpus` percentiles. Note
+  `run_bundle.py`'s own header records that `run_20260825_113735` and
+  `_151713` "were analysed at length on 26 Aug before anyone noticed they
+  were 30-second bug-fix checks rather than commissioning drives" — they were
+  never real candidates.
+
+### Transfers: one staging folder, both directions
+
+`C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download`
+
+**Hash every file on arrival, per file, not per batch.** A batch of three
+`scp`s reported `100%` and exited 0 while one wrote to a mistyped destination
+(a password typed onto the end of the path); the build that followed silently
+used the old file. `Important_Commands.md` §3.1.
+
+---
+
+## Reference — map acceptance tooling
+
+`map_integrity.py` self-tests clean and has still never been run on real
+archive data. `graph_residuals.py` has still never met the live node.
+
+### The integrity check, on the laptop, no hardware
 
 The `.pgm` files are on the Windows machine, not in the repo, so this is the
 one step that has to start there.
@@ -273,50 +301,41 @@ single reading.
 > Continue work on AritraD11/NarrowAisleBot, branch
 > `claude/narrowaislebot-mapping-reliability-038ike`. Read this file — start
 > with the RESUME HERE block — plus `docs/Axis_Convention.md` and
-> `docs/Research_Journal.md` §17.38 before doing anything else.
+> `docs/Research_Journal.md` §17.38–§17.39 before doing anything else.
 >
-> Settled last session, don't reopen:
-> - **The map frame was rotated −90° and is fixed in code.**
->   `odometry_publisher.py` published a rotated orientation with an
->   unrotated translation, which gave `odom`/`map` REP-103's axes while
->   `base_link` had `+X=right, +Y=forward`. Fixed by rotating the
->   translation too; four downstream −90° compensations deleted with it.
+> Closed last session, don't reopen:
+> - **The map frame was rotated −90°; it is fixed, deployed and verified on
+>   hardware.** `odometry_publisher.py` published a rotated orientation with
+>   an unrotated translation, which gave `odom`/`map` REP-103's axes while
+>   `base_link` had `+X=right, +Y=forward`. Four downstream compensations
+>   that existed only to undo it were deleted. `odom→base_link` went
+>   −90.076° → 0.000°, and a W→D→S→A square closed to 2.58 cm with −0.10°
+>   yaw drift. Video and run bundle are committed.
 >   `python3 tools/verify_axis_chain.py` proves it (38 checks) and fails if
 >   anyone edits it back out. **Never fix an axis complaint in the
 >   dashboard** — that is what hid this for two weeks.
-> - **§17.36/§17.37's "axis stack is coherent" conclusion was wrong about
->   the map frame** and is corrected in place. Don't cite them against
->   §17.38.
-> - **Three branches are deleted**, confirmed gone via `git ls-remote`.
->   Only `main`, this branch, and `claude/aps-report-draft-2nywbq` (kept
->   deliberately) remain.
+> - **§17.36/§17.37's "the axis stack is coherent" conclusion was wrong about
+>   the map frame** and is corrected in place. Don't cite them against §17.38.
 >
-> Today's goal: **deploy the frame fix to the robot and verify it on
-> hardware, then re-drive a commissioning map in the new frame, then
-> Stage D.**
+> **Today's top item is loop-closure reliability, which the frame work did
+> not touch and could not have fixed.** The same square drive caught it on
+> video: a ~31 cm pose jump inside one 10 Hz sample while wheel odometry
+> moved 5 mm, three such events in the run. Wheel odometry closed the square
+> to 2.58 cm; SLAM's corrected pose closed it to 6.2 cm — the corrections
+> made it worse. `tools/graph_residuals.py` was built for exactly this and
+> has never met the live node; it needs one `scp` to the Pi.
 >
-> Step 0 needs the robot: `colcon build`, restart, then
-> `ros2 run tf2_ros tf2_echo odom base_link` on the ZERO mark — must read
-> `[0,0,0] @ 0°`, not −90. Then W/S/D/A from the dashboard against the table
-> in the RESUME block. If any row disagrees, stop and tell me: the
-> arithmetic says it can't, so a disagreement is real information.
->
-> Step 1 needs no hardware and can run in parallel: `tools/map_integrity.py`
-> on `run_20260825_151713` and `run_20260825_113735` in
-> `C:\Users\aritradas\Documents\data\field_runs`, plus `--corpus` over the
-> whole folder. It has still never seen real data — if its output looks
-> wrong against the `--png` or `map_viewer.html`, the map is right and the
-> tool is wrong, say so. **Both maps are in the old frame, so a re-drive is
-> needed either way** — this is for the corpus percentiles and to learn
-> whether those drives folded, not to salvage them.
->
-> Then the commissioning drive, with `graph_residuals.py --watch` running
-> alongside it, which has never met the live node either.
+> Then the first real commissioning drive: perimeter, **nose leading,
+> rotating at corners** so the LiDAR sweeps every wall — a non-rotating
+> square leaves the blind rear 90° pointed one way all run. That drive is
+> also the first hardware test of the frame at non-zero headings.
 >
 > I want to run the drive itself **from the dashboard, not the terminal**.
 > Walk me through it step by step — I'll do each thing and report back.
 > Don't assume a step succeeded. Verify deployed config with `ros2 param get`
-> against the live node, never by reading a file.
+> against the live node, never by reading a file, and **hash every
+> transferred file on arrival, per file** — an `scp` reported `100%` while
+> writing to a mistyped path and the build silently used the old file.
 
 ---
 

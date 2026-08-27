@@ -28,7 +28,14 @@ clear first, both quick:
    `github.com/AritraD11/NarrowAisleBot/branches` to do it directly. Leave
    `claude/aps-report-draft-2nywbq` alone — it carries an unmerged APS report
    draft, kept on the user's explicit call.
-2. **There is now exactly one dashboard file** —
+2. **The axis convention now has one authoritative reference**:
+   `docs/Axis_Convention.md`, written 26 Aug 2026 after tracing the entire
+   stack hop-by-hop against source (URDF → odometry → teleop → TF →
+   Nav2 → dashboard, plus the LiDAR mirror and both goal/cmd_vel adapters).
+   `+X=right, +Y=forward` is settled and verified correct end-to-end — do
+   not re-derive or re-litigate it from scratch again. Read that file first
+   if any axis question comes up.
+3. **There is now exactly one dashboard file** —
    `src/mecanum_robot/mecanum_robot/phone_dashboard.py`, light theme,
    verified against every hardware reading collected 26 Aug. §17.36 explains
    why this needed saying: three independently-modified copies of this file

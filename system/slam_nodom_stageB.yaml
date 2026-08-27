@@ -134,14 +134,48 @@ slam_toolbox:
     loop_match_minimum_response_fine: 0.35
 
     # ── SCAN MATCHER ─────────────────────────────────────────────────────
-    # Search window for matching each new scan against the running map.
-    # Widened from stock 0.5 m because the odometry prior feeding this is
-    # itself imperfect -- mecanum lateral slip is corrected but not
-    # eliminated (lateral_scale, sec 17.21), and residual cross-coupling
-    # of ~0.6 cm per 0.25 m nudge was measured and deliberately left
-    # unmodelled. The matcher needs room to find the true pose beyond
-    # where the prior says it should be.
-    correlation_search_space_dimension: 0.7
+    # STAGE C: 0.7 -> 0.3. THIS IS THE FRONT END, NOT LOOP CLOSURE, AND IT
+    # IS WHERE THE JUMPS COME FROM (sec 17.40, measured 27 Aug 2026).
+    #
+    # The value below used to be 0.7, widened from stock 0.5 on the
+    # reasoning preserved here:
+    #
+    #   "Widened from stock 0.5 m because the odometry prior feeding this
+    #    is itself imperfect -- mecanum lateral slip is corrected but not
+    #    eliminated (lateral_scale, sec 17.21), and residual cross-coupling
+    #    of ~0.6 cm per 0.25 m nudge was measured and deliberately left
+    #    unmodelled. The matcher needs room to find the true pose beyond
+    #    where the prior says it should be."
+    #
+    # That premise was true when written and is now false. It cites
+    # sec 17.21, BEFORE lateral_scale. The same odometry has since closed
+    # a 4 m out-and-back path to 4.3 cm (1.1%) and sec 17.39's square to
+    # 2.58 cm. Between two consecutive pose-graph nodes -- 0.36 m apart on
+    # the leg where matching works -- odometry's expected error is about
+    # 4 mm. A 0.7 m window lets the matcher place each scan up to 0.35 m
+    # from the prior: ~90x the actual uncertainty of the thing it is
+    # allowed to overrule.
+    #
+    # Measured consequence, dashboard HUD read frame by frame against
+    # tf2_echo odom base_link on the same drives:
+    #   at 0.10 m/s, seven corrections of 0.36-0.45 m in 48 s. Every one
+    #   lands between this window's half-width (0.35) and its diagonal
+    #   reach (0.495). They are saturating the search window.
+    #   at 0.05 m/s the W/S leg is clean (<= 6 cm, nose within 0.8 deg)
+    #   while the D/A leg still throws 0.34 / 0.30 / 0.24 m with nose
+    #   steps to -13.4 deg. Strafe is the weak axis.
+    #
+    # 0.3 leaves +/-0.15 m, still ~37x the per-node odometry error, and
+    # makes a 0.24-0.34 m single-step correction impossible by
+    # construction. Deliberately ONE parameter (sec 17.25 changed six at
+    # once and paid for it for three sessions):
+    # distance_variance_penalty and angle_variance_penalty below rest on
+    # the same stale premise and are the NEXT step, not this one.
+    #
+    # If corrections simply reappear pinned at 0.15 m, the window was the
+    # wrong lever and the penalties are the right one -- that is the
+    # result this change is designed to produce cleanly either way.
+    correlation_search_space_dimension: 0.3
     correlation_search_space_resolution: 0.01
     correlation_search_space_smear_deviation: 0.1
 

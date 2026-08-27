@@ -129,14 +129,25 @@ verified in simulation at seven headings and on hardware only at yaw ≈ 0
 
 ---
 
-## Two open leads from §17.40, neither controlled
+## One retracted lead, and one weak one
 
-- **Strafe is the weak axis.** At 0.05 m/s the `W`/`S` leg is clean while
-  `D`/`A` fails on the same drive. One observation, mechanism unknown. A
-  `scan_relay` reflection explanation was considered and does not fit.
-- **Speed matters.** At 0.10 m/s both legs fail and corrections grow to
-  0.36–0.45 m; at 0.05 m/s only the lateral leg does. Not a controlled
-  result. Do not build on either until Stage C is settled.
+- ~~**Strafe is the weak axis.**~~ **Retracted before it was ever acted on.**
+  The §17.40 drive had `W`/`S` clean and `D`/`A` failing, which looked like a
+  real axis effect — a `scan_relay` reflection explanation was already being
+  considered. A third recording from the same day
+  (`docs/evidence/frontend_scan_matcher/01_ws_slow_three_resets.mp4`) fails on
+  `W`/`S`, at the same speed. **The failure is intermittent, not axis-locked.**
+  Do not re-derive this lead from the §17.40 drive in isolation — that is
+  exactly how it arose.
+- **Speed matters** — weak. 0.10 m/s produced corrections of 0.36–0.45 m,
+  0.05 m/s produced 0.24–0.34 m. Consistent with the search window being
+  reached more readily, but not controlled. Don't build on it.
+
+**What that third recording did strengthen:** its three corrections measure
+**0.340, 0.340, 0.340 m** — identical to the millimetre, against a search
+window half-width of **0.35 m**. Corrections that do not vary with anything
+the robot did, sitting on the edge of the window, is the best single argument
+that Stage C is aimed at the right parameter.
 
 ## What §17.40 did NOT overturn
 

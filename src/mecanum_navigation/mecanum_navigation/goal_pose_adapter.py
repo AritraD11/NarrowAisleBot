@@ -8,11 +8,11 @@ THE PROBLEM
     simply the direction you dragged, in the map frame. bt_navigator takes
     that yaw as base_link's target orientation, verbatim.
 
-    On this robot base_link's +X is the robot's RIGHT, not its front
-    (odometry_publisher.py's deliberate constant -90 deg rotation, matching
-    the validated LiDAR calibration -- Research_Journal.md sec 17.10). So a
-    goal yaw of theta parks the robot with its SIDE facing theta and its
-    nose facing theta + 90 deg.
+    On this robot base_link's +X is the robot's RIGHT, not its front. Until
+    27 Aug 2026 the MAP frame did not share that convention -- map +X was
+    whichever way the robot faced when odometry was zeroed -- so a goal yaw
+    of theta parked the robot with its SIDE facing theta and its nose facing
+    theta + 90 deg, and this node subtracted the difference.
 
     Recorded in sec 17.20 as a live workaround: "drag 90 degrees clockwise
     of the intended heading until a correction node exists." This is that
@@ -22,8 +22,24 @@ THE PROBLEM
     chassis rotating to the wrong heading at the goal can put a corner into
     a wall the planner never intended to approach.
 
+STATUS AFTER sec 17.38 -- THE OFFSET IS NOW ZERO
+    odometry_publisher.py was publishing a rotated orientation with an
+    UNrotated translation, which gave odom (and so map) REP-103's axes while
+    base_link had +X=right/+Y=forward. That seam was the 90 deg this node
+    existed to cancel. It is fixed at the source: map and base_link now
+    share one convention, a dragged yaw already means "point the nose this
+    way", and the default offset is 0.0.
+
+    The node is deliberately KEPT rather than deleted. It is a one-line
+    parameterised pass-through now, it remains the single named place where
+    a goal-orientation convention could ever be re-applied, and removing it
+    would mean re-plumbing /goal_pose_click -> /goal_pose everywhere it is
+    referenced (phone_dashboard.py, nav_goal.py, the launch files) for no
+    behavioural gain. Set yaw_offset_deg if a future change ever needs it;
+    do not re-add a hardcoded constant.
+
 THE CONVERSION
-    published_yaw = dragged_yaw - 90 deg
+    published_yaw = dragged_yaw + yaw_offset_deg   (default 0.0)
 
     which is exactly the manual "drag 90 deg clockwise" rule, applied by
     software instead of by the operator. Position passes through untouched
@@ -72,12 +88,13 @@ class GoalPoseAdapter(Node):
     def __init__(self):
         super().__init__('goal_pose_adapter')
 
-        # Same coupling rule as odometry_publisher.py and
-        # cmd_vel_axis_adapter.py: if scan_relay's yaw_offset is ever
-        # re-derived, this constant must be re-derived with it. Exposed as a
-        # parameter so that re-derivation is a launch argument rather than
-        # an edit to three files that must agree.
-        self.declare_parameter('yaw_offset_deg', -90.0)
+        # 0.0 since sec 17.38: map and base_link share one axis convention,
+        # so a dragged yaw already means "point the nose this way" and no
+        # correction is needed. Kept as a parameter rather than deleted so
+        # that any future convention change is a launch argument instead of
+        # an edit to several files that have to agree. See this module's
+        # docstring before setting it to anything else.
+        self.declare_parameter('yaw_offset_deg', 0.0)
         self.declare_parameter('input_topic',  '/goal_pose_click')
         self.declare_parameter('output_topic', '/goal_pose')
 

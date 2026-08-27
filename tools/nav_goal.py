@@ -11,8 +11,9 @@ WHY THIS EXISTS
     takes the robot's current ODOM pose as the first scan's pose, which
     makes map->odom identity and plants the map frame on the odom frame,
     not on the robot. map->base_link at session start is therefore whatever
-    odometry had accumulated since odometry_publisher last started, plus
-    the constant -90 deg published rotation from section 17.10.
+    odometry had accumulated since odometry_publisher last started. (Before
+    section 17.38 there was also a constant -90 deg on top of that; it is
+    gone, and map now shares base_link's +X=right/+Y=forward convention.)
 
     Goals do not need that mystery solved. A goal only needs to be correct
     in the map frame, and the robot's real pose in the map frame is
@@ -28,11 +29,11 @@ AXES -- READ THIS BEFORE CHANGING ANY ARITHMETIC BELOW
     feeds x. This is the single place in this script where the convention
     matters; everything else is frame-agnostic vector algebra.
 
-    A consequence worth knowing before you read the output and think it is
-    broken: a robot pointing its physical front along the map's +X axis
-    reports a yaw of -90 deg, because its own +X (its right side) is what
-    yaw actually describes. -90 deg is the healthy reading here, not a
-    fault.
+    Since section 17.38 the MAP frame uses that same convention, so the
+    two agree and a robot standing on a freshly-zeroed mark reads a yaw of
+    0 deg, not -90. If you see -90 deg there, you are running against a
+    pre-17.38 odometry_publisher.py or a map recorded by one -- check with
+    `ros2 run tf2_ros tf2_echo odom base_link` before trusting the output.
 
 WHAT IT PRINTS
     Two ready-to-paste commands:

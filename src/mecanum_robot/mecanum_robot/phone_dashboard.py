@@ -56,35 +56,35 @@
 ║          last lines are polled back to the phone, so a run that   ║
 ║          misbehaves is diagnosable afterwards rather than silent. ║
 ║                                                                    ║
-║  NEW in v2.5 -- this is now the ONE canonical dashboard file      ║
-║  (Research_Journal.md, 26 Aug consolidation):                    ║
-║    • Three lineages of this file had drifted apart: the git repo ║
-║      (dark theme), and two independently-modified light-theme    ║
-║      forks (one patched in-session, one from a separate ChatGPT  ║
-║      thread) -- each disagreeing on the map canvas's rotation    ║
-║      and on what the X/Y readout means. This file merges them:   ║
-║      this fork's UI/layout (the one actually in use) + the       ║
-║      repo's proven axis behaviour, restored below.               ║
-║    • DISPLAY_ROT restored to -90 deg. A separate fork had zeroed ║
-║      it out to fix sideways/garbled grid-line text, which         ║
-║      reintroduced the original bug this constant exists to fix:  ║
-║      without it, forward drive visibly moves the robot SIDEWAYS  ║
-║      on screen, not up -- confirmed on hardware. The real fix    ║
-║      for the text was rotation-aware label placement (drawUpright║
-║      / labelXGridline / labelYGridline below), not removing the  ║
-║      rotation.                                                    ║
-║    • The printed X/Y (HUD, live-pose card, grid labels, axis      ║
-║      arrows) is a fixed relabeling of the raw map frame --        ║
-║      dispX = -raw_y, dispY = raw_x -- so it reads like ordinary   ║
-║      graph paper (right=+X, forward=+Y) instead of slam_toolbox's ║
-║      own axis names, which are just an artifact of which way the  ║
-║      robot faced when mapping started. Display-only: goals,       ║
-║      camera-follow and the pose CSV all still use the raw map     ║
-║      frame, exactly as slam_toolbox and TF report it.             ║
-║    • The Python ROS/control class below is unchanged from the     ║
-║      git repo (byte-identical) -- only this HTML/JS presentation  ║
-║      layer had drifted. Frames, TF, safety and odometry were      ║
-║      never in question.                                           ║
+║  NEW in v2.6 -- the display compensations are GONE, because the   ║
+║  frame underneath them was fixed (Research_Journal.md §17.38):    ║
+║    • odometry_publisher.py used to publish rotated orientation    ║
+║      but UNrotated translation, which defined odom's axes to be   ║
+║      REP-103's and left a constant -90 deg seam that map          ║
+║      inherited. Forward drive really did increase map X. Every    ║
+║      compensation in this file existed to hide that.              ║
+║    • It is fixed at the source now: odom, map and base_link all   ║
+║      share +X=right, +Y=forward. Forward drive increases map Y.   ║
+║      So this file prints the raw map frame verbatim, and that IS  ║
+║      ordinary graph paper -- no relabel, nothing to keep in sync. ║
+║    • DISPLAY_ROT = 0. It existed to spin the canvas so forward    ║
+║      looked like up while map +X was forward. Map +Y is forward   ║
+║      now and screen-up is already map +Y, so the correct value    ║
+║      is zero. The rotation-aware label helpers (drawUpright /     ║
+║      labelXGridline / labelYGridline) are kept and still correct  ║
+║      -- at rot 0 they are the identity -- so the garbled-text bug ║
+║      cannot come back if anyone ever sets it non-zero again.      ║
+║    • NOSE prints raw yaw. The old +90 deg existed so that "on the ║
+║      mark" read 0 deg while raw yaw was -90; raw yaw on the mark  ║
+║      is 0 now, so the offset would introduce the error it used to ║
+║      remove.                                                      ║
+║    • Do NOT re-add a display-side axis fix here. If the printed   ║
+║      X/Y ever disagrees with the robot again, the frame is wrong  ║
+║      upstream and this is the wrong file to change -- read        ║
+║      docs/Axis_Convention.md first.                               ║
+║    • The Python ROS/control class below is unchanged (verified    ║
+║      byte-identical against the deployed fork, 27 Aug) -- only    ║
+║      this HTML/JS presentation layer ever differed.               ║
 ║                                                                    ║
 ║  ROS2 Topics:                                                    ║
 ║    Publishes  /cmd_vel_manual   geometry_msgs/Twist  (drive) —   ║
@@ -309,12 +309,13 @@ function updateLivePoseCard() {
   const y = document.getElementById('liveY');
   const n = document.getElementById('liveNose');
   const d = document.getElementById('liveDist');
-  // Displayed x/y is a fixed relabeling of the raw map frame -- see the
-  // DISPLAY_ROT note above. Keep both readouts (this card and updateHud()
-  // below) in sync.
-  if (x) x.textContent = (-robotPose.y).toFixed(3) + ' m';
-  if (y) y.textContent = robotPose.x.toFixed(3) + ' m';
-  const noseDeg = ((robotPose.yaw * 180 / Math.PI + 90 + 180) % 360 + 360) % 360 - 180;
+  // Raw map frame, printed verbatim: since §17.38 map +X is right and
+  // map +Y is forward, so the raw numbers already read as ordinary graph
+  // paper. No relabel here or in updateHud() -- if one ever looks needed,
+  // the frame upstream is wrong. See docs/Axis_Convention.md.
+  if (x) x.textContent = robotPose.x.toFixed(3) + ' m';
+  if (y) y.textContent = robotPose.y.toFixed(3) + ' m';
+  const noseDeg = ((robotPose.yaw * 180 / Math.PI + 180) % 360 + 360) % 360 - 180;
   if (n) n.textContent = noseDeg.toFixed(1) + '°';
   if (d) d.textContent = pathLength.toFixed(2) + ' m';
 }
@@ -978,33 +979,34 @@ function sizeCanvas() {
 window.addEventListener('resize', () => { sizeCanvas(); if (mapView) drawMap(); });
 
 // ── Map-frame display orientation ────────────────────────────────────────
-// Two separate things were both wrong in different earlier versions of this
-// file, and it's worth keeping both fixes visible so neither gets re-broken:
+// This whole section used to carry two compensations. Both are gone, and
+// the history is kept here because the temptation to re-add them is exactly
+// what this comment exists to stop.
 //
-// 1. DISPLAY_ROT rotates the CANVAS so screen-up matches the way the robot
-//    was facing at the ZERO mark, instead of raw slam_toolbox map +X (which
-//    is arbitrary -- it's just whichever way the robot happened to face when
-//    mapping started). Without this rotation, forward drive visibly moves
-//    the robot SIDEWAYS on screen, not up -- confirmed on hardware, see
-//    Research_Journal.md. -Math.PI/2 is the correct value for this robot's
-//    ZERO heading; the derivation is in the same journal entry.
+// The map frame used to have REP-103's axes (map +X = whichever way the
+// robot faced when odometry was zeroed) while base_link had +X=right,
+// +Y=forward. odometry_publisher.py rotated its published orientation but
+// not its published translation, and that mismatch WAS the -90 deg. So:
+//   - the canvas was spun -90 deg to make forward look like up, and
+//   - every printed number was relabeled dispX = -raw_y, dispY = raw_x.
+// Both were display-side patches over a frame that was genuinely rotated.
 //
-// 2. Because (1) rotates the CANVAS but not the printed numbers, the raw
-//    "MAP x/y" text used to read like slam_toolbox's own axis names, which
-//    don't match ordinary graph paper (right=+X, up=+Y) -- forward motion
-//    visibly increased "x", not "y", which is confusing on its face even
-//    though it was never wrong. Fixed at the point each number is PRINTED
-//    (updateHud, updateLivePoseCard, the grid/axis labels below):
-//    dispX = -raw_y, dispY = raw_x. Nothing upstream of the print site
-//    changes -- goals, camera-follow and the pose CSV all still use
-//    robotPose.x/y raw, exactly as slam_toolbox and TF report it.
+// §17.38 fixed the frame instead. odom, map and base_link now all use
+// +X=right, +Y=forward. Screen-up is already map +Y, which is already
+// forward, so the correct canvas rotation is ZERO, and the raw numbers are
+// already ordinary graph paper, so the correct relabel is NONE.
 //
-// A rotated canvas means anything drawn with mctx.fillText() while the
-// rotation is active comes out sideways -- drawUpright() below (used by the
-// grid/axis/zero-mark labels) resets to the plain transform for just the
-// text draw so labels stay upright and land at the correct real screen
-// position regardless of DISPLAY_ROT.
-const DISPLAY_ROT = -Math.PI / 2;
+// If the printed X/Y ever looks wrong again, do not fix it here. A display
+// patch would hide a real frame fault for a second time. Read
+// docs/Axis_Convention.md, then check odometry_publisher.py.
+//
+// drawUpright() and the labelXGridline()/labelYGridline() helpers below are
+// KEPT even though DISPLAY_ROT is 0 (where they reduce to the identity).
+// They are what makes rotated-canvas text land upright and in the right
+// place, and a previous fork's attempt to fix garbled labels by zeroing the
+// rotation instead is how the display drifted from the frame in the first
+// place. Keeping them means setting DISPLAY_ROT non-zero stays safe.
+const DISPLAY_ROT = 0;
 
 // Draws text upright in real screen space at the real-screen point that
 // local point (localX, localY) maps to under DISPLAY_ROT -- use this for
@@ -1192,63 +1194,94 @@ function drawGrid() {
   }
   mctx.stroke();
 
-  // Coordinate labels on major axes/lines, in the DISPLAYED convention
-  // (dispX = -raw_y, dispY = raw_x -- see the DISPLAY_ROT note above). A
-  // gridline at constant raw world-x is a horizontal-on-screen line of
-  // constant dispY; a gridline at constant raw world-y is a vertical line
-  // of constant dispX. These are margin labels (anchored near a screen
-  // EDGE, not tied to a real world point), so drawUpright()'s small-local-
-  // offset trick doesn't apply -- a small LOCAL anchor like "near local
-  // y=6" is actually a large offset from the rotation centre on a
-  // non-square viewport and explodes to the wrong place on screen (this
-  // exact bug shipped and was fixed live on hardware 26 Aug, see
-  // Research_Journal.md). labelYGridline/labelXGridline below compute the
-  // REAL screen position directly instead.
+  // Coordinate labels on major gridlines. Map axes ARE display axes now
+  // (§17.38), so a constant-world-X line is labelled "X <value>" and a
+  // constant-world-Y line "Y <value>" -- no relabel, no sign flip.
+  //
+  // These are MARGIN labels (anchored to a screen EDGE, not to a world
+  // point), so drawUpright()'s small-local-offset trick does not apply: a
+  // small LOCAL offset is a large offset from the rotation centre on a
+  // non-square viewport and lands the text somewhere else entirely. That
+  // exact bug shipped and was fixed live on hardware 26 Aug. The helpers
+  // below therefore clip each gridline in REAL screen space and pin the
+  // label to where it actually leaves the canvas -- correct at DISPLAY_ROT
+  // 0, and still correct if it is ever set non-zero again.
   mctx.fillStyle = '#3b4754';
   mctx.font = '10px Inter, Arial, sans-serif';
   for (let x = Math.ceil(b.minX / step) * step; x <= b.maxX; x += step) {
-    labelYGridline(`Y ${x.toFixed(x % 1 === 0 ? 0 : 1)}`, x);
+    labelXGridline(`X ${x.toFixed(x % 1 === 0 ? 0 : 1)}`, x);
   }
   for (let y = Math.ceil(b.minY / step) * step; y <= b.maxY; y += step) {
-    labelXGridline(`X ${(-y).toFixed(y % 1 === 0 ? 0 : 1)}`, y);
+    labelYGridline(`Y ${y.toFixed(y % 1 === 0 ? 0 : 1)}`, y);
   }
 }
 
-// raw world-x = const --> horizontal line on screen (dispY = rawWorldX).
-// Margin label pinned to the real left edge, at the real height that line
-// crosses it.
-function labelYGridline(text, rawWorldX) {
-  const p = w2s(rawWorldX, 0);
-  const realY = cssH / 2 - (p.x - cssW / 2);
-  if (realY < -20 || realY > cssH + 20) return;
+// Real on-screen position of a local (pre-rotation) canvas point.
+function localToReal(lx, ly) {
+  const c = Math.cos(DISPLAY_ROT), s = Math.sin(DISPLAY_ROT);
+  const dx = lx - cssW / 2, dy = ly - cssH / 2;
+  return { x: cssW / 2 + (dx * c - dy * s),
+           y: cssH / 2 + (dx * s + dy * c) };
+}
+
+// Clip the infinite line P + t*D to the canvas rect. Returns [tMin, tMax]
+// or null when the line misses the canvas entirely.
+function lineClipToCanvas(px, py, dx, dy) {
+  let tMin = -Infinity, tMax = Infinity;
+  const slabs = [[dx, -px, cssW - px], [dy, -py, cssH - py]];
+  for (const [d, lo, hi] of slabs) {
+    if (Math.abs(d) < 1e-9) { if (lo > 0 || hi < 0) return null; continue; }
+    let a = lo / d, b2 = hi / d;
+    if (a > b2) { const t = a; a = b2; b2 = t; }
+    if (a > tMin) tMin = a;
+    if (b2 < tMax) tMax = b2;
+  }
+  return tMin <= tMax ? [tMin, tMax] : null;
+}
+
+// Draws one margin label for a gridline, given a local anchor point on the
+// line and the line's local direction. `preferBottom` picks which end of
+// the visible span the label sits at.
+function labelGridline(text, localAnchorX, localAnchorY, localDirX, localDirY,
+                       preferBottom) {
+  const c = Math.cos(DISPLAY_ROT), s = Math.sin(DISPLAY_ROT);
+  const P = localToReal(localAnchorX, localAnchorY);
+  const D = { x: localDirX * c - localDirY * s,
+              y: localDirX * s + localDirY * c };
+  const span = lineClipToCanvas(P.x, P.y, D.x, D.y);
+  if (!span) return;
+  const e0 = { x: P.x + span[0] * D.x, y: P.y + span[0] * D.y };
+  const e1 = { x: P.x + span[1] * D.x, y: P.y + span[1] * D.y };
+  const e = preferBottom ? (e0.y > e1.y ? e0 : e1)
+                         : (e0.x < e1.x ? e0 : e1);
   mctx.save();
   mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   mctx.textAlign = 'left';
-  mctx.fillText(text, 8, realY - 3);
+  mctx.fillText(text,
+                Math.min(Math.max(e.x + 3, 3), cssW - 26),
+                Math.min(Math.max(e.y - 4, 12), cssH - 10));
   mctx.restore();
 }
-// raw world-y = const --> vertical line on screen (dispX = -rawWorldY).
-// Margin label pinned to the real bottom edge, at the real x that line
-// crosses it.
-function labelXGridline(text, rawWorldY) {
-  const p = w2s(0, rawWorldY);
-  const realX = cssW / 2 + (p.y - cssH / 2);
-  if (realX < -20 || realX > cssW + 20) return;
-  mctx.save();
-  mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  mctx.textAlign = 'left';
-  mctx.fillText(text, realX + 3, cssH - 10);
-  mctx.restore();
+
+// A constant-world-X gridline: local vertical line, labelled at the bottom.
+function labelXGridline(text, worldX) {
+  const p = w2s(worldX, 0);
+  labelGridline(text, p.x, cssH / 2, 0, 1, true);
+}
+// A constant-world-Y gridline: local horizontal line, labelled at the left.
+function labelYGridline(text, worldY) {
+  const p = w2s(0, worldY);
+  labelGridline(text, cssW / 2, p.y, 1, 0, false);
 }
 
 function drawAxes() {
   const o = w2s(0, 0);
   if (o.x < -40 || o.x > cssW + 40 || o.y < -40 || o.y > cssH + 40) return;
-  // Displayed X+ (screen-right) is raw map -Y; displayed Y+ (screen-up) is
-  // raw map +X -- dispX = -raw_y, dispY = raw_x, same relabeling as
-  // everywhere else on this page.
-  const ax = w2s(0, -0.65);
-  const ay = w2s(0.65, 0);
+  // X+ is map +X (right), Y+ is map +Y (forward). Since §17.38 those are
+  // the real map axes, so the arrows point at the world coordinates they
+  // are named after -- no swap, which is what they used to need.
+  const ax = w2s(0.65, 0);
+  const ay = w2s(0, 0.65);
   mctx.lineWidth = 2;
   mctx.strokeStyle = '#3b82f6';
   mctx.beginPath(); mctx.moveTo(o.x, o.y); mctx.lineTo(ax.x, ax.y); mctx.stroke();
@@ -1360,21 +1393,17 @@ function updateHud() {
   if (!mapGrid && !robotPose) { hud.innerHTML = '<strong>WAITING FOR /map</strong>'; return; }
   const status = document.getElementById('mapStatus');
   if (robotPose) {
-    // Displayed x/y is a fixed relabeling of slam_toolbox's raw map frame
-    // so it reads like ordinary graph paper (right=+X, forward=+Y) instead
-    // of slam_toolbox's own axis names, which are just an artifact of
-    // which way the robot faced when mapping started: dispX = -raw_y,
-    // dispY = raw_x. Display-only -- goals, camera-follow and the pose CSV
-    // all still use robotPose.x/y raw, untouched, everywhere else in this
-    // file.
-    const dispX = -robotPose.y;
-    const dispY =  robotPose.x;
-    const noseDeg = ((robotPose.yaw * 180 / Math.PI + 90 + 180) % 360 + 360) % 360 - 180;
+    // Raw map frame, verbatim. Since §17.38 map +X is right and map +Y is
+    // forward, so these numbers already read as ordinary graph paper and
+    // agree with the physical +X/+Y marked on the robot. NOSE is raw yaw:
+    // on the ZERO mark that is 0 deg, which is what the old +90 deg offset
+    // used to produce artificially.
+    const noseDeg = ((robotPose.yaw * 180 / Math.PI + 180) % 360 + 360) % 360 - 180;
     hud.innerHTML = `
       <div class="hud-title">ROBOT POSE · MAP FRAME</div>
       <div class="hud-grid">
-        <span>X</span><strong>${dispX.toFixed(3)} m</strong>
-        <span>Y</span><strong>${dispY.toFixed(3)} m</strong>
+        <span>X</span><strong>${robotPose.x.toFixed(3)} m</strong>
+        <span>Y</span><strong>${robotPose.y.toFixed(3)} m</strong>
         <span>NOSE</span><strong>${noseDeg.toFixed(1)}°</strong>
       </div>`;
     if (status) status.textContent = mapGrid ? `${mapGrid.w} × ${mapGrid.h} · ${mapGrid.res.toFixed(2)} m/cell` : 'MAP GRID WAITING';

@@ -12,41 +12,77 @@ workflow has moved off the terminal and into the dashboard.
 
 ---
 
-## ⏸ RESUME HERE — 26 Aug 2026 (§17.36)
+## ⏸ RESUME HERE — 27 Aug 2026 (§17.38)
 
-**The mapping-reliability priority below is unchanged and still not done —
-§17.36 was a dashboard-only detour, not progress on it.** Two things to
-clear first, both quick:
+**The map frame was rotated −90° from the robot, and it is now fixed in
+code but NOT YET ON HARDWARE. Deploying and verifying that is step 1.**
 
-1. **Three branches need deleting**, confirmed fully absorbed into `main`
-   (zero unique commits each) — safe, no content is lost:
-   `claude/mapping-autonomous-nav-695glw`, `claude/nab-hardware-calibration`,
-   `claude/narrowaislebot-mapping-hardware-02rnh2`. Blocked last session by
-   the permission classifier on `git push --delete` (no branch-delete tool
-   exists in the GitHub MCP server either) — retry with the user's
-   confirmation, or point them at
-   `github.com/AritraD11/NarrowAisleBot/branches` to do it directly. Leave
-   `claude/aps-report-draft-2nywbq` alone — it carries an unmerged APS report
-   draft, kept on the user's explicit call.
-2. **The axis convention now has one authoritative reference**:
-   `docs/Axis_Convention.md`, written 26 Aug 2026 after tracing the entire
-   stack hop-by-hop against source (URDF → odometry → teleop → TF →
-   Nav2 → dashboard, plus the LiDAR mirror and both goal/cmd_vel adapters).
-   `+X=right, +Y=forward` is settled and verified correct end-to-end — do
-   not re-derive or re-litigate it from scratch again. Read that file first
-   if any axis question comes up.
-3. **There is now exactly one dashboard file** —
-   `src/mecanum_robot/mecanum_robot/phone_dashboard.py`, light theme,
-   verified against every hardware reading collected 26 Aug. §17.36 explains
-   why this needed saying: three independently-modified copies of this file
-   had silently diverged (the repo, and two separate ChatGPT-obtained
-   forks), disagreeing on the map canvas's rotation and on what the printed
-   X/Y means. **If a `phone_dashboard.py`-shaped file shows up from
-   anywhere other than this repo, diff it against the repo copy before
-   trusting it** — the Python `class PhoneDashboard(Node)` matching
-   byte-for-byte is not enough on its own, check the JS/HTML too, since
-   that's exactly where the three copies had drifted while the Python
-   stayed identical.
+Read `docs/Axis_Convention.md` and `Research_Journal.md` §17.38 before
+touching anything axis-related.
+
+1. **What changed.** `odometry_publisher.py` rotated its published
+   orientation and twist but not its published translation, which gave
+   `odom` (and therefore `map`) REP-103's axes while `base_link` had
+   `+X=right, +Y=forward`. Driving forward really did increase map `X` —
+   confirmed on video, W/S/D/A read frame by frame. Fixed by rotating the
+   translation too; the constant −90° is gone from TF. Four downstream
+   compensations that existed only to undo it were deleted in the same
+   commit (dashboard canvas rotation, dashboard print relabel,
+   `goal_pose_adapter` yaw offset, `ZERO_POINT_YAW`).
+2. **§17.36 and §17.37 were wrong about this and are corrected in place.**
+   Both verified `base_link` and concluded the stack was coherent. It was
+   coherently wrong: self-consistency between two frames says nothing about
+   whether either is the frame you wanted. Do not treat those two entries'
+   "settled" language as covering the map frame.
+3. **The deployed dashboard fork was the honest one.** §17.36 called fork #3
+   defective for zeroing `DISPLAY_ROT` and printing raw x/y. Diffed properly
+   (Python half byte-identical, sha `ab7e8245…`), it was right, and it is
+   the only reason the fault became visible. Deploying the then-canonical
+   repo copy would have re-hidden it. Still diff any dashboard from outside
+   this repo — but check what it is *revealing*, not just what it changed.
+4. **Nothing here has run on hardware.** `colcon build`, restart, then
+   verify against the live node — never by reading a file.
+
+### Step 0 — deploy and verify the frame fix (do this first)
+
+```bash
+cd ~/ros2_ws && colcon build --packages-select mecanum_robot mecanum_navigation
+sudo systemctl restart aislebot.service
+# on the ZERO mark, with odometry freshly zeroed:
+ros2 run tf2_ros tf2_echo odom base_link      # MUST read [0,0,0] @ 0 deg, not -90
+```
+
+Then from the dashboard, park on the mark and tap W / S / D / A in turn:
+
+| Key | Expected on the HUD |
+|---|---|
+| `W` | `Y` increases, `X` stays 0 |
+| `S` | `Y` decreases |
+| `D` | `X` increases |
+| `A` | `X` decreases |
+
+`Q`/`E` are yaw, not strafe. If any row disagrees, stop and report it — the
+arithmetic says it cannot, so a disagreement is new information.
+
+Without a robot, the same claim is checkable directly:
+
+```bash
+python3 tools/verify_axis_chain.py
+```
+
+38 checks: the operator table, the frame invariant at seven headings, and
+source guards that fail if the fix is edited back out.
+
+### ⚠ Every existing map is in the OLD frame
+
+Both commissioning candidates (`run_20260825_151713`, `run_20260825_113735`)
+and the whole 70-map corpus were recorded when map `+X` was the start
+heading. They stay **geometrically** valid — `map_integrity.py` measures
+wall thickness and parallelism, not axis labels, so its verdicts still mean
+what they meant — but **a re-drive is required before Stage D regardless of
+what those verdicts say.** Run the integrity check anyway: it needs no
+hardware, and its `--corpus` percentiles are what calibrate the tool's
+thresholds for the new drive.
 
 **Map acceptance is now a command, not a judgement. Run it first — it needs
 no robot.** The platform was verified 25 Aug; 26 Aug (§17.35) built the two
@@ -70,11 +106,16 @@ synthetic rooms with known answers.)
 
 **Read it like this:**
 
-| Verdict | What to do |
+| Verdict | What it means now |
 |---|---|
-| `CLEAN` | integrity half of §17.32's gate passed — go to Stage D |
+| `CLEAN` | that drive did not fold — the technique works, repeat it in the new frame |
 | `SUSPECT` | open the `--png` and look at the red cells before deciding |
-| `FOLDED` | redo the drive; that map cannot localise |
+| `FOLDED` | that drive folded; change the technique, not just the frame |
+
+**Note the verdicts no longer gate Stage D directly.** Both maps predate
+§17.38 and are in the old frame, so a re-drive is required whatever they
+say. What the check buys is knowing whether the *drive technique* was
+sound before repeating it, plus the corpus percentiles.
 
 The headline number is **D2, doubled walls**. Its argument: free cells
 between two near-parallel walls mean the LiDAR returned through that space,
@@ -88,7 +129,7 @@ tool is a guess and says so; `--corpus` over the archive prints the
 percentiles that should replace them. That is the first use anyone has made
 of the 70-map corpus §17.33 recorded as never analysed.
 
-### Step 2a — if the maps are CLEAN: Stage D
+### Step 2a — Stage D, after a fresh map in the new frame
 
 `nav2_params.yaml:57` **is fixed** — it read `robot_model_type:
 "omnidirectional"`, which is not a class anyone exports. Confirmed against
@@ -219,43 +260,46 @@ single reading.
 
 > Continue work on AritraD11/NarrowAisleBot, branch
 > `claude/narrowaislebot-mapping-reliability-038ike`. Read this file — start
-> with the RESUME HERE block — and `docs/Research_Journal.md` §17.35–§17.37
-> before doing anything else.
+> with the RESUME HERE block — plus `docs/Axis_Convention.md` and
+> `docs/Research_Journal.md` §17.38 before doing anything else.
 >
-> Three closed items from the last session, don't reopen them:
-> - **Axis convention is settled and written down**: `docs/Axis_Convention.md`
->   is the one authoritative reference, verified hop-by-hop against source
->   (`+X=right, +Y=forward`). Read it if any axis question comes up — don't
->   re-derive it from scratch, and don't accept a fix from anywhere
->   (including another AI tool's independent analysis) that quietly assumes
->   otherwise.
-> - **There is exactly one dashboard file**, the repo copy at
->   `src/mecanum_robot/mecanum_robot/phone_dashboard.py`. Don't trust a
->   `phone_dashboard.py` from anywhere else without diffing it first — three
->   independently-forked copies silently disagreed with each other once
->   already (§17.36).
-> - **Three branches are confirmed safe to delete** (fully absorbed into
->   `main`, zero unique commits): `claude/mapping-autonomous-nav-695glw`,
->   `claude/nab-hardware-calibration`,
->   `claude/narrowaislebot-mapping-hardware-02rnh2`. Still pending —
->   blocked last time by the permission classifier on `git push --delete`.
->   Confirm whether they're actually gone yet; if not, retry or ask me to
->   do it on GitHub directly.
+> Settled last session, don't reopen:
+> - **The map frame was rotated −90° and is fixed in code.**
+>   `odometry_publisher.py` published a rotated orientation with an
+>   unrotated translation, which gave `odom`/`map` REP-103's axes while
+>   `base_link` had `+X=right, +Y=forward`. Fixed by rotating the
+>   translation too; four downstream −90° compensations deleted with it.
+>   `python3 tools/verify_axis_chain.py` proves it (38 checks) and fails if
+>   anyone edits it back out. **Never fix an axis complaint in the
+>   dashboard** — that is what hid this for two weeks.
+> - **§17.36/§17.37's "axis stack is coherent" conclusion was wrong about
+>   the map frame** and is corrected in place. Don't cite them against
+>   §17.38.
+> - **Three branches are deleted**, confirmed gone via `git ls-remote`.
+>   Only `main`, this branch, and `claude/aps-report-draft-2nywbq` (kept
+>   deliberately) remain.
 >
-> Then, today's real goal, unchanged since 26 Aug and not yet started:
-> **settle whether either existing map is usable, then either get AMCL
-> localising on it or redo the drive.**
+> Today's goal: **deploy the frame fix to the robot and verify it on
+> hardware, then re-drive a commissioning map in the new frame, then
+> Stage D.**
 >
-> Step 1 needs no hardware: run `tools/map_integrity.py` on
-> `run_20260825_151713` and `run_20260825_113735` in
+> Step 0 needs the robot: `colcon build`, restart, then
+> `ros2 run tf2_ros tf2_echo odom base_link` on the ZERO mark — must read
+> `[0,0,0] @ 0°`, not −90. Then W/S/D/A from the dashboard against the table
+> in the RESUME block. If any row disagrees, stop and tell me: the
+> arithmetic says it can't, so a disagreement is real information.
+>
+> Step 1 needs no hardware and can run in parallel: `tools/map_integrity.py`
+> on `run_20260825_151713` and `run_20260825_113735` in
 > `C:\Users\aritradas\Documents\data\field_runs`, plus `--corpus` over the
-> whole folder. It was written 26 Aug, self-tests clean and **has never seen
-> real data** — if its output looks wrong against the `--png` or against
-> `map_viewer.html`, the map is right and the tool is wrong, say so.
+> whole folder. It has still never seen real data — if its output looks
+> wrong against the `--png` or `map_viewer.html`, the map is right and the
+> tool is wrong, say so. **Both maps are in the old frame, so a re-drive is
+> needed either way** — this is for the corpus percentiles and to learn
+> whether those drives folded, not to salvage them.
 >
-> Then Stage D if clean, or one more commissioning drive if not — with
-> `graph_residuals.py --watch` running alongside it, which also has never met
-> the live node.
+> Then the commissioning drive, with `graph_residuals.py --watch` running
+> alongside it, which has never met the live node either.
 >
 > I want to run the drive itself **from the dashboard, not the terminal**.
 > Walk me through it step by step — I'll do each thing and report back.
@@ -351,7 +395,8 @@ Baseline backed up at `~/ros2_ws/slam_nodom_baseline_<stamp>.yaml`.
 
 ### Stage B's measured effect — real, partial
 
-Two drives on Stage B, both from a verified `[0,0,0] @ -90°` re-zero:
+Two drives on Stage B, both from a verified `[0,0,0] @ -90°` re-zero (that
+`-90°` is the PRE-§17.38 reading; the same re-zero now reads `@ 0°`):
 
 | Drive | Path | Final `map→base_link` | Steps > 10 cm |
 |---|---|---|---|
@@ -467,7 +512,7 @@ Everything below is dashboard-only:
 
 | Check | Pass condition |
 |---|---|
-| Return-to-mark | VIEW's HUD reads ≈ `(0, 0)`, nose ≈ `-90°` |
+| Return-to-mark | VIEW's HUD reads ≈ `(0, 0)`, nose ≈ `0°` (was `-90°` pre-§17.38) |
 | Map integrity | no folds, tears, doubled walls — check in `map_viewer.html` |
 | Walls present | the map actually contains occupied cells, not just free space |
 
@@ -492,7 +537,8 @@ ros2 param get /amcl robot_model_type      # after bringup — the repo is not t
 Then: stop mapping completely (`ros2 node list | grep slam_toolbox` must come
 back empty — AMCL and slam_toolbox both publish `map→odom` and must never run
 together), park on the mark, launch `navigation.launch.py` against the saved
-map, and confirm `map→base_link` ≈ `(0,0) @ -90°` **with no SLAM running**.
+map, and confirm `map→base_link` ≈ `(0,0) @ 0°` **with no SLAM running**
+(`-90°` was the pre-§17.38 expectation — see `docs/Axis_Convention.md`).
 
 That is the first time this robot will know where it is on a remembered map.
 
@@ -521,9 +567,14 @@ global pose estimate.
 ## Standing traps
 
 - **`base_link` is NOT REP-103: `+X` = RIGHT, `+Y` = NOSE.** Sixth place it
-  has bitten the project. Any new component with a notion of "forward" needs
-  checking against it — the dashboard canvas now does (verified numerically:
-  at −90° the 1.12 m long axis lies along map `+X`, the nose direction).
+  has bitten the project. **Since §17.38 `odom` and `map` use the same
+  convention**, so forward drive increases map `Y` and the robot's long
+  axis lies along map `+Y` on the mark. Any new component with a notion of
+  "forward" needs checking against it — `tools/verify_axis_chain.py` is how.
+- **Never fix an axis complaint at the display.** Four separate −90°
+  display/goal compensations grew over one real frame fault and kept it
+  invisible for two weeks (§17.38). If a printed coordinate disagrees with
+  the robot, the frame is wrong upstream.
 - **This `slam_toolbox` build (2.8.5) has no loop-closure signal** — no
   console output, no topic. Verified against source *and* the live node. TF
   differencing is the only observation available. Don't grep for it.
@@ -542,7 +593,9 @@ global pose estimate.
 - Whether a pure-*forward* move introduces a small lateral component (§17.30's
   untested candidate explanation for the original 1–3 cm side offset)
 - The recovery-count cold-start pattern (stiction vs. MPPI warm-up)
-- Moving the −90° into the URDF's `laser_joint` — large cross-cutting refactor
+- ~~Moving the −90° into the URDF's `laser_joint`~~ — **obsolete since
+  §17.38**: there is no longer a −90° in TF to move. The LiDAR mirror in
+  `scan_relay.py` is a reflection and still cannot live in a TF at all.
 - **IMU: decided against for now (22 Aug).** Considered an MPU-6000/6050 as a
   cheap route in; rejected — no magnetometer means no absolute heading
   reference, which is the entire point, and `ekf_params.yaml` fuses IMU yaw

@@ -40,16 +40,20 @@ from launch_ros.actions import LifecycleNode, Node
 
 
 # base_link's published yaw at a freshly-zeroed odometry, in radians.
-# NOT an arbitrary choice: odometry_publisher.py rotates its published
-# orientation by a constant -90 deg so base_link's +X reads as the robot's
-# RIGHT and +Y as its NOSE, matching the validated LiDAR calibration
-# (Research_Journal.md §17.10). A robot standing on the zero mark with
-# odometry freshly restarted therefore reads exactly -90 deg, confirmed on
-# hardware 15 Aug 2026 (tf2_echo odom base_link -> [0,0,0] @ -90.000 deg).
-# The zero_point marker below carries the same rotation so that its axis
-# triad and base_link's coincide EXACTLY when the robot is home, rather
-# than sitting 90 deg apart and needing mental correction every time.
-ZERO_POINT_YAW = -1.5707963267948966
+# NOT an arbitrary choice, and it CHANGED on 27 Aug 2026 (§17.38).
+#
+# It used to be -90 deg. odometry_publisher.py rotated its published
+# orientation but not its published translation, which gave odom REP-103's
+# axes while base_link had +X=right/+Y=nose, so a robot standing on the
+# zero mark read [0,0,0] @ -90 deg (confirmed 15 Aug via tf2_echo). The
+# marker carried the same -90 deg so its triad would coincide with
+# base_link's instead of sitting 90 deg away from it.
+#
+# That seam is gone: odom, map and base_link now all use +X=right,
+# +Y=forward, so a freshly-zeroed robot on the mark reads [0,0,0] @ 0 deg
+# and the marker needs no rotation to line up with it. Verify on hardware
+# with `ros2 run tf2_ros tf2_echo odom base_link` before trusting a map.
+ZERO_POINT_YAW = 0.0
 
 
 def generate_launch_description():

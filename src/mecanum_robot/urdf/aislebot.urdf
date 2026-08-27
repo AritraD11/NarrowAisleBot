@@ -11,13 +11,23 @@
 
   This is deliberate, load-bearing, and confirmed on hardware
   (Research_Journal.md §17.10–§17.11). odometry_publisher.py publishes
-  its orientation rotated by a constant −90° from the REP-103 value it
-  computes internally, so that base_link's axes agree with the LiDAR's
+  its pose rotated by −90° from the REP-103 value it computes
+  internally, so that base_link's axes agree with the LiDAR's
   independently-validated scan calibration rather than with the textbook.
   nav2_params.yaml's footprint and DWB velocity limits are swapped to
   match. Do not "fix" this file back to +X=forward in isolation — every
   one of those would have to move together, and the LiDAR calibration
   has the strongest hardware evidence of the three.
+
+  UPDATED 27 Aug 2026 (§17.38): that rotation used to be applied to the
+  published ORIENTATION only, leaving the published TRANSLATION in
+  REP-103 axes — which quietly gave odom and map REP-103's axes while
+  base_link had these. Translation is rotated too now, so odom, map and
+  base_link all share +X=right/+Y=forward and driving forward increases
+  map Y. NOTHING IN THIS FILE CHANGED for that fix: base_link's geometry
+  was correct throughout, and the whole point of the fix was to make the
+  other frames agree with what is modelled here. See
+  docs/Axis_Convention.md.
 
   This file was converted to that convention on 12 Aug 2026 (§17.12).
   Everything below was previously modelled with +X=forward and was

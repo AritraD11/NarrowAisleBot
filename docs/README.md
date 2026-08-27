@@ -15,7 +15,7 @@ Markdown is the source of truth here (diffs cleanly, renders on GitHub, greppabl
 | [`LiDAR_SLAM_Bringup.md`](LiDAR_SLAM_Bringup.md) | YDLIDAR X4 Pro + slam_toolbox bringup guide — hardware gotchas, confirmed driver params, the manual 3-terminal launch sequence. | Verified 26 June 2026 |
 | [`Network_SelfHosted_AP.md`](Network_SelfHosted_AP.md) | Self-hosted WiFi AP setup (`AisleBot-Pi` @ 10.42.0.1) and the ESP32's own backup AP. | Current |
 | [`Setup_Manual.md`](Setup_Manual.md) | Narrative fresh-Pi setup manual. Largely superseded by the root `install.sh` one-liner — kept as historical reference. | Superseded, historical |
-| [`Axis_Convention.md`](Axis_Convention.md) | **The one authoritative reference for `+X`/`+Y` on this robot.** `base_link`'s `+X=right,+Y=forward`, the three (and only three) places that convert against the older REP-103-speaking wheel controller, and a verified hop-by-hop trace from keypress to dashboard display. Read this before touching anything axis-related, and before trusting any axis fix from outside this repo. | v1.0, 26 Aug 2026 |
+| [`Axis_Convention.md`](Axis_Convention.md) | **The one authoritative reference for `+X`/`+Y` on this robot.** `+X=right,+Y=forward` — and since §17.38 that holds for `odom` and `map` too, not just `base_link`, so forward drive increases map `Y`. Lists the two remaining conversion points and a hop-by-hop trace from keypress to display. Read this before touching anything axis-related, and before trusting any axis fix from outside this repo. Executable companion: `tools/verify_axis_chain.py`. | v2.0, 27 Aug 2026 |
 
 Where documents disagree on a fact, prefer the one with the later date — the Research Journal is generally authoritative for current project state.
 

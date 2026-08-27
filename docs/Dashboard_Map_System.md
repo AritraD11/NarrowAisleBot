@@ -240,7 +240,7 @@ aliasing many chances to fire; a deliberate single-circuit path gives it few.
 
 1. **Re-zero properly** (`Important_Commands.md` §8): park on the mark →
    `sudo systemctl restart aislebot.service` → confirm `tf2_echo odom base_link`
-   reads `[0,0,0] @ -90.000°` → start mapping → confirm `tf2_echo map base_link`
+   reads `[0,0,0] @ 0.000°` (was `-90.000°` before §17.38) → start mapping → confirm `tf2_echo map base_link`
    reads the same. Both, every time. This is what makes map `(0,0)` mean the
    physical mark.
 2. **Start the recorder** before moving:
@@ -257,7 +257,7 @@ aliasing many chances to fire; a deliberate single-circuit path gives it few.
 
 | Check | Pass condition | How it is checked |
 |---|---|---|
-| Return-to-mark | `tf2_echo map base_link` ≈ `(0, 0) @ -90°` | the dashboard HUD, or `tf2_echo` |
+| Return-to-mark | `tf2_echo map base_link` ≈ `(0, 0) @ 0°` (was `-90°` pre-§17.38) | the dashboard HUD, or `tf2_echo` |
 | Map integrity | no folds, tears, or doubled walls | **`tools/map_integrity.py` reports `CLEAN`** |
 | Walls present | actual occupied cells, not just swept free space | the same tool's occupied count, or `map_corpus.py` |
 
@@ -384,7 +384,8 @@ have never been hardware-confirmed. Park on the mark before launching.
 ### D.4 Acceptance
 
 Restart the whole stack, park on the mark, launch on the saved map, and confirm
-`tf2_echo map base_link` reads ≈ `(0,0) @ -90°` **without any SLAM running**.
+`tf2_echo map base_link` reads ≈ `(0,0) @ 0°` **without any SLAM running**
+(`-90°` was the pre-§17.38 expectation — see `docs/Axis_Convention.md`).
 That is the first time this robot will have known where it is on a remembered
 map — and it is the moment stable coordinates, and therefore named locations,
 become possible.

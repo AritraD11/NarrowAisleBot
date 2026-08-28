@@ -199,7 +199,7 @@ to the repo.
 
 **Every file that reaches the robot goes through these five steps, in this
 order, with no step skipped.** The rule this encodes: *a value in the repo is
-not a value on the robot* (§17.32), and * reporting  says a file
+not a value on the robot* (§17.32), and *`scp` reporting `100%` says a file
 arrived somewhere, not that it arrived where you meant* (§17.39).
 
 ```powershell
@@ -233,8 +233,8 @@ ros2 run tf2_ros tf2_echo odom base_link         # for anything frame-touching
 
 **Step 5 is the one people skip and it is the one that has caught every
 silent failure this project has had** — §17.32's never-deployed config,
-§17.34's inert parameter file, §17.39's mistyped , and §17.42's
-.
+§17.34's inert parameter file, §17.39's mistyped `scp`, and §17.42's
+`Parameter goal_checker.xy_goal_tolerance not found`.
 
 ### Currently pending deployment
 
@@ -244,8 +244,8 @@ silent failure this project has had** — §17.32's never-deployed config,
 | `tools/wheel_forensics.py` | `~/tools/wheel_forensics.py` | `27858ce417f3f39e56db3b87b31644fc11a9292aba7247f1c8d9a2d80bf96236` |
 | `src/mecanum_robot/urdf/aislebot.urdf` | `~/ros2_ws/src/mecanum_robot/urdf/aislebot.urdf` | `ea6619ff3999b856fc3c1632041bd3a151eb8732f9c782d90207831ce1b0a81c` |
 
- needs no rebuild.  needs step 4.
- is comment-only (§17.42) — deploy it whenever the workspace
+`wheel_forensics.py` needs no rebuild. `phone_dashboard.py` needs step 4.
+`aislebot.urdf` is comment-only (§17.42) — deploy it whenever the workspace
 is next rebuilt for another reason, not on its own.
 
 ---

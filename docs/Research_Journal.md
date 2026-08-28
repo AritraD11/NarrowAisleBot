@@ -2806,6 +2806,53 @@ The A/B §17.40 wrote down in advance, run against the identical drive with one 
 
 **Where this leaves it.** The blocker on a commissioning map was a front end losing a third of a metre per strafe. That is now 0.15 m bounded, with the pose returning to within 8 mm of origin over a 3 m path. **The perimeter drive is no longer blocked.** Recorded at `docs/evidence/frontend_scan_matcher/04_wsda_slow_stageC_window_0p3.mp4`.
 
+## 17.42 28 Aug 2026: the first long commissioning drive — 19 loop closures observed, the map FOLDED anyway, and the angular search window found holding the door Stage C closed
+
+The first drive in this project's history long enough for loop closure to be structurally possible: 1047 s, 21.85 m of wheel path, 62 pose-graph nodes, 93 edges, a real hub-and-spoke traverse of the junction. **Nineteen loop closures fired** — the count has been zero in every prior session, because 8 nodes cannot contain an edge of span greater than `loop_match_minimum_chain_size` 8, so `loops=0` was guaranteed rather than observed. §17.28–§17.32's loop-closure question finally has data.
+
+**And the map came back `FOLDED`, unusable for AMCL. There is still no accepted commissioning map.**
+
+**The three numbers that matter, with the robot physically parked back on the zero mark:**
+
+| | position error | heading error |
+|---|---|---|
+| Truth (on the mark) | 0.000 m | 0.00° |
+| **Wheel odometry** | **0.229 m** | **10.53°** |
+| **SLAM map pose** | **0.477 m** | **16.18°** |
+| the `map→odom` correction itself | 0.271 m | 5.65° |
+
+Odometry's 0.229 m over ~18 m is **1.27%** — dead on its measured 1.1–1.5% spec, on the longest drive it has ever been asked to do. Nothing is wrong with the wheels. **SLAM took that estimate and roughly doubled its error**, 2.09× on position and 1.54× on heading, applying **11.08 m of cumulative correction** across 21.85 m driven. §17.39's result (2.58 cm → 6.2 cm on a 38 s square) reproduced at five times the scale and in the same direction.
+
+**The frame composition is exact and should stop being suspected.** `R(corr)·odom + corr` reproduces the map pose to the fourth decimal. §17.38's work is not implicated in any of this.
+
+**Two instruments appeared to contradict each other, and reconciling them is the finding.** `graph_residuals.py --watch` reported `moved=0, max_shift=0.000` for all 645 s it observed, through all 19 closures. `run_analyzer.py` reported **48 correction events, 48 of 48 with wheel odometry stepping normally** — the Stage A signature, per event. Both are correct: the tool watches pose-graph *node positions* (the back end, which genuinely did nothing), while `map→odom` is also moved by the *front end*, which touches no node. **§17.40's conclusion stands: this is the front end.**
+
+**But the corrections are 4.6× larger than Stage C permits, which is what exposed the real gate.** Largest single correction 0.696 m against a deployed translational search half-width of 0.150 m. That cannot be a translational snap. Checked against pure yaw about the map origin, `2·r·sin(θ/2)`:
+
+| t+s | corr | yaw | r | predicted | ratio |
+|---|---|---|---|---|---|
+| 68.9 | 0.696 | **−18.40°** | 2.06 m | 0.660 | **0.95** |
+| 59.8 | 0.500 | 15.00° | 2.13 m | 0.555 | 1.11 |
+| 163.9 | 0.431 | 12.80° | 2.53 m | 0.563 | 1.31 |
+| 77.6 | 0.388 | 12.00° | 2.30 m | 0.481 | 1.24 |
+| 178.9 | 0.261 | −7.20° | 1.94 m | 0.244 | 0.93 |
+
+**The large corrections are heading snaps whose position error is pure lever arm.** `coarse_search_angle_offset` is stock `0.349 rad = 20°`, never touched by Stage B or Stage C, and the largest correction's **18.40° is 92% of it**. Same saturation signature as §17.40 and §17.41, on the axis nobody had closed. Smaller events fit the model poorly (ratios 0.10–0.49), so translation still contributes at short range — the model explains 3.59 m of 4.80 m total, and is a description of the large events, not all of them.
+
+**This also explains why Stage C looked like a clean win this morning and did not hold here.** The §17.41 A/B stayed within ~1 m of origin, where the lever arm is short and the error is mostly translational — exactly what Stage C bounds. This drive reached 3.5 m out, where the same angular error costs three to four times as much. **A fix validated near the origin was extrapolated to a drive that goes further, and the extrapolation failed** — worth recording as a methodological caution, not just a parameter note.
+
+**Map verdict, and which detector carries it.** `FOLDED`: 10.4 × 10.0 m, 2668 occupied cells, 133.4 m of wall, 63% unknown (against §17.39's 87% — the rotating traverse worked as intended for coverage). **D2 doubled walls is 5.0% of wall cells across 5 clusters**, where §17.39's map had 4 cells and 0 clusters. That is the detector this project has trusted to carry the fold verdict, and this is the first time it has been dirty. D3 forks (16.27/10 m), D4 alignment (0.34), and D5 free-space fragmentation (6 regions) all flag too, but a self-similar radiating junction plausibly produces all three honestly; D2 does not.
+
+**The doubled-wall gaps and the return-to-mark miss agree, independently.** Cluster gaps 0.23, 0.23, 0.38, 0.41, 0.53 m against a 0.477 m terminal miss. Two different instruments — one a spatial artefact in the saved grid, one a physical measurement against a floor mark — reporting the same half-metre.
+
+**Weak but first-of-its-kind evidence for false closure.** `run_analyzer`'s cross-check found **3 corrections within 1.0 m of a doubled wall**. Its own verdict line calls this "a false closure with two independent witnesses." With n=3 and corrections of 0.364 / 0.208 / 0.058 m, this is **suggestive, not conclusive** — but it is the first co-location evidence the project has ever had, and it is exactly the signature §17.28's aliasing hypothesis predicts. The doubled-wall clusters sit *within* individual arms (two pairs 0.29 m and 0.38 m apart in the same arm), not *across* different arms, which argues against "matched the wrong aisle" and for "matched the right aisle at a drifted pose."
+
+**Wheels: one number moved and it is not yet a concern.** All four motors 0.043–0.046 rad/s RMS, zero saturation, zero sign mismatch, no dead feedback. Travel spread **ratio 1.12** (FL 26.32 m, RL 29.46 m) against §17.39's 1.00 — but that run was a non-rotating square and this one rotated at every corner, which loads wheels unequally by construction. Not comparable, and not evidence of a mechanical fault.
+
+**On the operator's question, recorded because the answer is structural.** Asked whether a more detailed per-wheel log existed that could give position from rotation alone, "nearly impossible to mess up." It exists — `run_*.csv`, 20940 samples at 20 Hz, per-motor target/actual/PWM — **and it is already the source of `odom_x/odom_y/odom_yaw`.** `odometry_publisher.py` integrates exactly those four wheel velocities. There is no more precise position further down the stack: the wheel data *is* the estimate, and its 1.27% error is physical slip, not computational. That sharpens rather than weakens the finding — the most trustworthy instrument on the robot said 0.229 m, and SLAM chose to disagree with it by 0.271 m.
+
+**Where this leaves it.** Stage C is not wrong and should not be reverted; it closed the translational door and the §17.41 measurements stand. What it did not close is the angular one. `coarse_search_angle_offset` 20° and `angle_variance_penalty` 1.2 are both untouched and both rest on the same stale §17.21 premise as the parameters already corrected. The next step is Stage D on the angular gate, with one caveat that must be respected: `minimum_travel_heading` is 0.2 rad (11.5°), so the angular search cannot be cut below the inter-node heading change without risking loss of track during corner rotations — a real risk that Stage C's translational cut did not carry.
+
 Every supporting document, organised by category. Update this as new artefacts are produced.
 
 > *Repository note (v2.0): the project's own authored documents now live as Markdown under `docs/` in the `NarrowAisleBot` GitHub repo, with the original `.docx`/`.pdf` in `docs/originals/`. The catalogue below predates that consolidation and lists documents by their original working titles; several are now the `docs/*.md` files. The repo is the current home of record.*

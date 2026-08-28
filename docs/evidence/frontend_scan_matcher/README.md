@@ -126,3 +126,44 @@ not build on it.
 (`correlation_search_space_dimension` 0.7 → 0.3, commit `2a3e83b`) was
 committed after these were recorded and has not been deployed or tested. The
 A/B against `03` is the next session's first task.
+
+---
+
+## `04_wsda_slow_stageC_window_0p3.mp4` — the A/B, and the mechanism confirmed twice
+
+Added 28 Aug 2026 (§17.41). Dashboard beside `graph_residuals.py --watch`,
+108 s, **SLOW (0.05 m/s)**, `W`/`S`/`D`/`A` — deliberately the same drive as
+`03`, with one parameter changed: `correlation_search_space_dimension`
+`0.7 → 0.3`, verified `0.3` on the live node before driving.
+
+| | `03` (window 0.7) | `04` (window **0.3**) |
+|---|---|---|
+| Largest `D`/`A` correction | 0.336 m | **0.158 m** |
+| Largest `W`/`S` correction | 0.060 m | **0.032 m** |
+| Graph chain over the drive | 1.50 m | **3.07 m** |
+| Collapsed node hops | 3 of 7 (`0.02, 0.00, 0.03`) | **none** — 9 hops, all 0.30–0.37 m |
+| Forward metre reached | 0.988 m | **1.013 m** |
+| Final map error | 0.379 m | **0.008 m** |
+| Final `NOSE` | −12.4° | **−1.0°** |
+| Pose graph | `moved=0` | `moved=0` |
+
+**The lateral collapse is gone**, and the run ends 8 mm from origin against
+38 cm — a 47× improvement in final map error on an identical drive.
+
+**The mechanism is confirmed a second time by the ratio.** Largest
+correction ÷ search half-width is **0.96** in `03` and **1.05** in `04`.
+Change the window, and the corrections scale with it. The magnitude is set
+by this parameter and nothing else.
+
+**But the preference is not fixed, only bounded.** Corrections still land on
+the window edge, so the matcher still favours an alignment away from
+odometry — it simply has less room. `distance_variance_penalty` (0.7) and
+`angle_variance_penalty` (1.2) are the remaining lever.
+
+**One caveat from the operator, and it is correct.** The floor is uneven
+tile, and the robot physically wandered during the lateral leg. The slow `Y`
+walk (0.105 → 0.172 over several seconds) is consistent with that and is real
+motion faithfully tracked, not error. The two jumps are not: `Y −0.016 →
++0.113` inside a single 1 Hz sample, with `X` moving *backwards* 0.045 m
+against the direction of travel and a simultaneous `NOSE` step. At a
+0.05 m/s command limit that is not something the chassis can do.

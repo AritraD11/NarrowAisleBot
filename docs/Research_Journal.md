@@ -2777,6 +2777,35 @@ Same drive, same speed, comparable ground. Where the matcher tracks, nodes land 
 
 **Where this leaves the project.** The commissioning perimeter drive was deliberately *not* run. It was the session's stated goal, and holding it back was the right call: a 20-minute map built on a front end that loses a third of a metre on every strafe would have been a wasted drive and a misleading artefact. §17.28–§17.32's loop-closure conclusions are not refuted — they are **out of scope for these events**, which is a different and more useful statement. Their tuning may still matter for real closures on a long drive; it is simply not what has been producing the jumps.
 
+## 17.41 28 Aug 2026: Stage C tested on hardware — the lateral collapse gone, and the mechanism confirmed a second time by making the corrections scale
+
+The A/B §17.40 wrote down in advance, run against the identical drive with one parameter changed. `correlation_search_space_dimension` `0.7 → 0.3`, deployed to `~/ros2_ws/slam_nodom.yaml` (hash `e90aee53…` verified on arrival) and confirmed **`0.3` on the live node with `ros2 param get` before driving**, never from the file.
+
+**The result, same drive, same 0.05 m/s, same instruments:**
+
+| | baseline (window 0.7) | Stage C (window **0.3**) |
+|---|---|---|
+| Largest `D`/`A` correction | 0.336 m | **0.158 m** |
+| Largest `W`/`S` correction | 0.060 m | **0.032 m** |
+| Graph chain accumulated | 1.50 m | **3.07 m** |
+| Collapsed node hops | 3 of 7 (`0.02, 0.00, 0.03`) | **none** — 9 hops, all 0.30–0.37 m |
+| Forward metre reached | 0.988 m | **1.013 m** |
+| Final map error | 0.379 m | **0.008 m** |
+| Final `NOSE` | −12.4° | **−1.0°** |
+| Pose graph | `moved=0` | `moved=0` |
+
+**The lateral node collapse — the single sharpest symptom in §17.40 — is gone.** Nine consecutive hops between 0.30 and 0.37 m where three of seven had previously dropped to 2 cm or less. The same drive that registered 1.50 m of graph chain now registers 3.07 m, and the run finishes **8 mm from origin against 38 cm**: a 47× improvement in final map error.
+
+**The result that matters more than the pass, because it is the mechanism rather than the outcome.** Largest correction divided by search half-width is **0.96** at a window of 0.7 and **1.05** at a window of 0.3. Change the parameter and the corrections scale with it, landing on the boundary either way. §17.40 inferred the magnitude was set by this parameter from one value; this sets it by a second value on command. **A hypothesis that predicts a number before the test, and then produces it, is worth more than one that explains a number afterwards.**
+
+**But the fix bounds the failure rather than removing it, and that distinction should not be blurred.** Corrections still sit on the window edge, so the matcher still prefers an alignment away from odometry — it simply has less room to act on the preference. §17.40's predicted outcomes were written as three exclusive branches; the truth is branch 1 (the window was the lever) with a substantial component of branch 2 (the preference persists). `distance_variance_penalty` (0.7) and `angle_variance_penalty` (1.2) rest on the same stale §17.21 premise and remain the next lever, unchanged and deliberately untouched.
+
+**An operator observation, honestly volunteered and correct.** The floor is uneven tile and the robot physically wandered during the lateral leg — roughly 6 cm back, then forward about 10 cm, retracing the same path on the return. The data separates the two cleanly. The slow `Y` walk during that leg (0.105 → 0.172 over several seconds) is consistent with real drift, faithfully tracked, and is not error. The two jumps are not physical: `Y −0.016 → +0.113` inside a single 1 Hz sample, with `X` moving **backwards** 0.045 m against the direction of travel and a simultaneous `NOSE` step. At a 0.05 m/s command limit the chassis cannot strafe 12.9 cm sideways in one second, and cannot move backwards while strafing right. **A rigid-body correction and a rough floor look nothing alike once both are on the same time axis**, which is the argument for reading the HUD at 1 Hz rather than by eye.
+
+**A working note worth keeping.** `ros2 node list` is the honest answer to "is mapping running"; the dashboard's MAP button is not. The button restores its state on page load and the map canvas retains the last grid it received, so a page open across a `slam_toolbox` restart reads as actively mapping while nothing is. That cost a confusing five minutes at the start of this session, and `Node not found` from `ros2 param get` was the thing that exposed it.
+
+**Where this leaves it.** The blocker on a commissioning map was a front end losing a third of a metre per strafe. That is now 0.15 m bounded, with the pose returning to within 8 mm of origin over a 3 m path. **The perimeter drive is no longer blocked.** Recorded at `docs/evidence/frontend_scan_matcher/04_wsda_slow_stageC_window_0p3.mp4`.
+
 Every supporting document, organised by category. Update this as new artefacts are produced.
 
 > *Repository note (v2.0): the project's own authored documents now live as Markdown under `docs/` in the `NarrowAisleBot` GitHub repo, with the original `.docx`/`.pdf` in `docs/originals/`. The catalogue below predates that consolidation and lists documents by their original working titles; several are now the `docs/*.md` files. The repo is the current home of record.*

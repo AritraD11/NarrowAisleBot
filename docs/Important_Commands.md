@@ -146,28 +146,37 @@ eduroam), swap `10.42.0.1` for `aritra-desktop.local`. Pulling to a
 different folder some other time, swap out the destination path — it's
 just the last argument to `scp`/`rsync`.
 
-### 3.1 The staging folder — one place, both directions (27 Aug 2026)
+### 3.1 Staging folders — one per direction (28 Aug 2026)
 
-**Every transfer between the Pi and Windows goes through one folder, in
-both directions:**
+**The Pi never needs internet, and should not be put on eduroam to get it.**
+It hosts its own AP with no uplink, so it cannot reach GitHub at all. The
+PC has internet; the PC and the Pi can always see each other on
+`10.42.0.1`. So every file moves in two hops, and the PC is always the
+one that talks to the outside world:
 
 ```
-C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download
+GitHub  ──curl──▶  Windows  ──scp──▶  Pi          (deploying code/config)
+                   Windows  ◀──scp──  Pi          (pulling data to analyse)
 ```
 
-Pulled off the Pi, or downloaded on Windows on its way *to* the Pi — it
-lands here first. The destination paths in the examples above predate this
-and should be pointed at the staging folder instead.
+**One folder per direction**, so a directory listing answers "what did I
+just send" and "what did I just pull" separately:
 
-Why one folder: the alternative is what already happened once. Files got
-downloaded to `$HOME\Documents`, and a batch of three `scp`s went out with
-one of them silently mistyped — see the warning below. A single staging
-folder makes "what did I actually just transfer" answerable by looking at
-one directory listing.
+| Direction | Folder |
+|---|---|
+| **To the Pi** — anything downloaded on Windows on its way to the robot | `C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download` |
+| **From the Pi** — logs, bundles, maps, CSVs pulled back for analysis | `C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Analysis` |
 
-Organising it into subfolders is deferred deliberately: anything worth
-keeping gets committed to the repo, so the staging folder is scratch space,
-not an archive.
+Why staging folders at all: the alternative is what already happened once.
+Files got downloaded to `$HOME\Documents`, and a batch of three `scp`s went
+out with one of them silently mistyped — see the warning below.
+
+Both are scratch space, not archives. Anything worth keeping gets committed
+to the repo.
+
+> **A `curl.exe` line in this repo's docs always runs on Windows, never on
+> the Pi.** If one is ever pasted into the Pi's shell it will hang and then
+> fail on DNS, which looks like a broken URL and is not.
 
 > ⚠ **`scp` reporting `100%` does not mean the file arrived where you
 > meant.** A password typed onto the end of a destination path before Enter

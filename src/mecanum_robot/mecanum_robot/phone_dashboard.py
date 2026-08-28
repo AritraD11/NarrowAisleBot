@@ -186,7 +186,7 @@ body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-directi
 .arm-section,.lift-section{display:flex;flex-direction:column;padding:7px;gap:6px;justify-content:center}.arm-section{flex:3;border-bottom:1px solid var(--line)}.lift-section{flex:2}body.map-mode .arm-section,body.map-mode .lift-section{display:none}body.map-mode .yaw-wrap{flex:1;border-bottom:none;padding:14px 0}.arm-btn,.lift-btn{flex:1;border-radius:7px;cursor:pointer;touch-action:manipulation;font-weight:800}.arm-btn{border:1px solid #b7e6d0;background:#f1fbf6;color:#087443;font-size:9px}.arm-btn:active,.arm-btn.held{background:#dff5e9}.lift-btn{border:1px solid #b9d5ff;background:#f3f7ff;color:#1457b9;font-size:10px}.lift-btn:active,.lift-btn.held{background:#e5efff}
 .bottom{height:74px;display:flex;flex-shrink:0;border-top:1px solid var(--line);background:#fff;box-shadow:0 -4px 18px rgba(16,24,40,.04)}.bottom>button{flex:1;border:none;border-right:1px solid var(--line);background:#fff;cursor:pointer;touch-action:manipulation}.map-btn,.cal-btn,.uv-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:900}.map-btn{color:#1457b9}.map-btn.mapping{background:#edf5ff;color:#1457b9}.cal-btn{color:#a15c00}.cal-btn.disabled{color:#98a2b3;background:#f8fafc;pointer-events:none}.cal-btn.armed,.cal-btn.running{background:#fff5e8;color:#9a6700}.uv-btn{color:#7a4fb3}.uv-btn.on{background:#f7f1ff;color:#6d3ea0}.map-icon,.cal-icon,.uv-icon{font-size:18px;line-height:1}.estop-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}.estop-circle{width:48px;height:48px;border-radius:50%;background:#fff0ee;border:2px solid #e99b93;color:#b42318;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;box-shadow:0 3px 10px rgba(217,45,32,.08)}.estop-btn:active .estop-circle{transform:scale(.92)}.estop-btn.armed .estop-circle{background:#d92d20;border-color:#b42318;color:#fff;box-shadow:0 5px 18px rgba(217,45,32,.25)}.estop-lbl{font-size:8px;color:#667085;font-weight:800}
 .map-view{position:absolute;inset:0;background:#f4f6f8;display:none;z-index:6}.map-view.show{display:block}#mapCanvas{width:100%;height:100%;display:block;touch-action:none}.map-hud{position:absolute;top:11px;left:11px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:9px;padding:9px 10px;box-shadow:var(--shadow);font-size:10px;color:var(--text);pointer-events:none;min-width:175px}.hud-title{font-size:8px;font-weight:900;color:var(--muted);letter-spacing:.7px;margin-bottom:6px}.hud-grid{display:grid;grid-template-columns:42px 1fr;gap:4px 8px}.hud-grid span{color:var(--muted);font-weight:800;font-size:9px}.hud-grid strong{font-size:13px}.hud-muted{font-size:9px;color:var(--muted)}.map-status{position:absolute;left:12px;bottom:10px;background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:7px;padding:5px 8px;color:#667085;font-size:8px;font-weight:800;pointer-events:none}.map-tools{position:absolute;top:11px;right:11px;display:flex;flex-direction:column;gap:5px}.mt-btn{min-width:42px;height:30px;border-radius:7px;border:1px solid var(--line);background:rgba(255,255,255,.95);color:#344054;font-size:9px;font-weight:900;box-shadow:0 2px 8px rgba(16,24,40,.06);touch-action:manipulation}.mt-btn.armed,.mt-btn.active{background:var(--amber-soft);color:#9a6700;border-color:#f2c27a}.map-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:800;letter-spacing:.4px;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.94);color:#667085;border:1px solid var(--line);pointer-events:none;white-space:nowrap}.map-hint.armed{background:var(--amber-soft);color:#9a6700;border-color:#f2c27a}
-.layer-panel{position:absolute;top:50px;right:58px;width:204px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px;display:none;z-index:12}.layer-panel.show{display:block}.layer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.layer-title{font-size:10px;font-weight:900}.layer-close{border:0;background:none;color:#667085;font-size:14px}.layer-row{display:flex;align-items:center;justify-content:space-between;padding:7px 2px;border-top:1px solid #eef2f6;font-size:9px;color:#475467}.layer-row input{accent-color:#1677ff}.layer-note{margin-top:8px;font-size:8px;line-height:1.35;color:#98a2b3}.research-chip{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:10;background:#17202a;color:#fff;border-radius:999px;padding:5px 10px;font-size:8px;font-weight:900;letter-spacing:.5px;display:none;pointer-events:none}.research-chip.show{display:block}
+.layer-panel{position:absolute;top:50px;right:58px;width:204px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px;display:none;z-index:12}.layer-panel.show{display:block}.layer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.layer-title{font-size:10px;font-weight:900}.layer-close{border:0;background:none;color:#667085;font-size:14px}.layer-row{display:flex;align-items:center;justify-content:space-between;padding:7px 2px;border-top:1px solid #eef2f6;font-size:9px;color:#475467}.layer-row input{accent-color:#1677ff}.layer-note{margin-top:8px;font-size:8px;line-height:1.35;color:#98a2b3}.layer-clear{width:100%;margin-top:9px;padding:7px 6px;border:1px solid var(--line);border-radius:7px;background:#fff;color:#475467;font-size:8px;font-weight:900;letter-spacing:.4px;cursor:pointer}.layer-clear:active{background:#f2f4f7}.research-chip{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:10;background:#17202a;color:#fff;border-radius:999px;padding:5px 10px;font-size:8px;font-weight:900;letter-spacing:.5px;display:none;pointer-events:none}.research-chip.show{display:block}
 .cal-status{position:absolute;top:0;left:0;right:0;z-index:20;display:none;background:rgba(255,255,255,.97);border-bottom:1px solid #f2c27a;padding:7px 9px;font-size:8px;line-height:1.35;color:#9a6700;box-shadow:0 3px 12px rgba(16,24,40,.06);font-family:inherit;max-height:82px;overflow:hidden}.cal-status.show{display:block}.cal-status .cal-hd{font-weight:900;letter-spacing:.7px;color:#a15c00}
 .flash{position:fixed;inset:0;background:rgba(217,45,32,.12);pointer-events:none;opacity:0;transition:opacity .25s;z-index:999}.flash.show{opacity:1}
 @media (max-width:560px){.hdr-sub{display:none}.status-pills{max-width:150px}.speed-label{display:none}.spd-btn{min-width:48px;padding:6px 5px}.hdr{padding:0 9px}.drive-info{left:7px;top:7px;gap:5px}.motion-card{right:7px;top:7px;min-width:116px}.info-card{min-width:78px;padding:6px 7px}.info-card .v{font-size:12px}.motion-card{padding:7px 8px}.layer-panel{right:55px;width:190px}}
@@ -242,12 +242,15 @@ body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-directi
         <div class="layer-head"><div class="layer-title">VIEW SETTINGS</div><button class="layer-close" id="btnLayersClose">×</button></div>
         <label class="layer-row">Grid <input id="layer-grid" type="checkbox" checked></label>
         <label class="layer-row">Scale bar <input id="layer-scale" type="checkbox" checked></label>
-        <label class="layer-row">Trajectory <input id="layer-trajectory" type="checkbox"></label>
+        <label class="layer-row">Trajectory &mdash; current <input id="layer-trajectory" type="checkbox"></label>
+        <label class="layer-row">Trajectory &mdash; past runs <input id="layer-pastTrails" type="checkbox"></label>
+        <label class="layer-row">Goal markers <input id="layer-goals" type="checkbox" checked></label>
         <label class="layer-row">Robot footprint <input id="layer-footprint" type="checkbox" checked></label>
         <label class="layer-row">Map axes <input id="layer-axes" type="checkbox"></label>
         <label class="layer-row">Zero mark <input id="layer-zero" type="checkbox" checked></label>
         <label class="layer-row">Research mode <input id="researchToggle" type="checkbox"></label>
-        <div class="layer-note">Grid spacing and scale-bar length adapt automatically to zoom. Rendering options do not change ROS behavior.</div>
+        <button class="layer-clear" id="btnClearTrails">CLEAR TRAILS &amp; GOALS</button>
+        <div class="layer-note">A new run starts at MAP or re-ZERO; the previous trail moves to &ldquo;past runs&rdquo;. Clearing is display-only &mdash; it discards nothing ROS has recorded, and no option here changes ROS behavior.</div>
       </div>
       <div class="map-hint" id="mapHint">DRAG TO PAN · PINCH TO ZOOM</div>
     </div>
@@ -293,14 +296,58 @@ const mapLayers = {
   grid: true,
   scale: true,
   trajectory: false,
+  pastTrails: false,
+  goals: true,
   footprint: true,
   axes: false,
   zero: true,
 };
 let mapResearchMode = false;
+
+// TRAILS. `trajectory` is the CURRENT run only. Completed runs move into
+// `pastTrails` as separate polylines rather than being concatenated, so a
+// re-zero or a fresh MAP does not draw a straight line across the room
+// between where the old run ended and the new one starts. Each is toggled
+// independently: after several attempts the accumulated past trails are
+// what makes the canvas unreadable, and that is exactly when you still
+// want to see the live one.
 let trajectory = [];
+let pastTrails = [];
 let lastTrajectoryPose = null;
 let pathLength = 0;
+
+// GOALS. goalDrag is transient (only while placing). activeGoal is the one
+// actually SENT and survives the release, because "where did I tell it to
+// go" is worth seeing while it drives there. Superseded goals fall back to
+// pastGoals so a sequence of commands stays legible.
+let activeGoal = null;
+let pastGoals  = [];
+
+// Bounded so a long session cannot grow these without limit.
+const MAX_TRAIL_PTS   = 2500;
+const MAX_PAST_TRAILS = 8;
+const MAX_PAST_GOALS  = 12;
+const MIN_TRAIL_KEEP  = 4;    // shorter than this is a twitch, not a run
+
+// Close the current trail and start a new one. Called on the events that
+// genuinely begin a new run — MAP start and re-zero — never on a goal,
+// because a trail records where the robot went, not why.
+function startNewTrail() {
+  if (trajectory.length >= MIN_TRAIL_KEEP) {
+    pastTrails.push(trajectory);
+    while (pastTrails.length > MAX_PAST_TRAILS) pastTrails.shift();
+  }
+  trajectory = [];
+  lastTrajectoryPose = null;
+  pathLength = 0;
+}
+
+function clearAllTrails() {
+  trajectory = []; pastTrails = [];
+  lastTrajectoryPose = null; pathLength = 0;
+  activeGoal = null; pastGoals = [];
+  if (mapView) drawMap();
+}
 
 // ── Operator display helpers ──────────────────────────────────────
 function updateLivePoseCard() {
@@ -409,7 +456,7 @@ function connect() {
         if (d >= 0.005) {
           pathLength += d;
           trajectory.push({ x: m.x, y: m.y });
-          if (trajectory.length > 2500) trajectory.shift();
+          if (trajectory.length > MAX_TRAIL_PTS) trajectory.shift();
           lastTrajectoryPose = { x: m.x, y: m.y };
         }
       } else {
@@ -689,6 +736,9 @@ function toggleMapping() {
     mapReset();
   } else {
     mapping = true;
+    // A new mapping session re-anchors the map frame, so the old trail is
+    // no longer in the same coordinates as the new one. Close it off.
+    startNewTrail();
     send({ type: 'map_start' });
     document.getElementById('mapBtn').classList.add('mapping');
     document.getElementById('mapIcon').textContent  = '⏹';
@@ -1111,12 +1161,17 @@ function drawMap() {
 
   if (mapLayers.grid) drawGrid();
   if (mapLayers.axes) drawAxes();
+  // Past first, so the live trail always draws on top of the clutter.
+  if (mapLayers.pastTrails) drawPastTrails();
   if (mapLayers.trajectory) drawTrajectory();
 
   // Zero mark is a coordinate reference, never a command.
   if (mapLayers.zero) drawZeroMark();
 
-  if (goalDrag) drawGoal(goalDrag);
+  if (mapLayers.goals) drawGoals();
+  // The goal being placed right now is always drawn, toggle or not: it is
+  // direct feedback on a gesture in progress, not a display layer.
+  if (goalDrag) drawGoalMarker(goalDrag, true);
   if (mapLayers.footprint && robotPose) drawRobot(robotPose);
 
   updateHud();
@@ -1305,20 +1360,56 @@ function drawZeroMark() {
   drawUpright('ZERO (0,0)', o.x + 10, o.y + 4, 'left');
 }
 
-function drawTrajectory() {
-  if (trajectory.length < 2) return;
+function strokePolyline(pts) {
+  if (pts.length < 2) return;
   mctx.beginPath();
-  trajectory.forEach((p, i) => {
+  pts.forEach((p, i) => {
     const q = w2s(p.x, p.y);
     if (i === 0) mctx.moveTo(q.x, q.y); else mctx.lineTo(q.x, q.y);
   });
+  mctx.stroke();
+}
+
+function drawTrajectory() {
+  if (trajectory.length < 2) return;
   mctx.strokeStyle = 'rgba(22, 119, 255, 0.68)';
   mctx.lineWidth = 2.5;
-  mctx.stroke();
+  strokePolyline(trajectory);
 
   const start = w2s(trajectory[0].x, trajectory[0].y);
   mctx.fillStyle = '#12b76a';
   mctx.beginPath(); mctx.arc(start.x, start.y, 4, 0, Math.PI * 2); mctx.fill();
+}
+
+// Past runs: thinner and grey, and each drawn as its OWN polyline so no
+// line is ever drawn between the end of one run and the start of the next.
+// Older runs fade further, so the most recent past run stays readable
+// underneath the live one.
+function drawPastTrails() {
+  const n = pastTrails.length;
+  pastTrails.forEach((pts, i) => {
+    const age = n > 1 ? i / (n - 1) : 1;          // 0 = oldest, 1 = newest
+    mctx.strokeStyle = 'rgba(102, 112, 133, ' + (0.16 + 0.26 * age).toFixed(3) + ')';
+    mctx.lineWidth = 1.6;
+    strokePolyline(pts);
+  });
+}
+
+// Goal markers. The active goal is the one currently commanded; past goals
+// are drawn hollow and faint so a sequence reads as a sequence.
+function drawGoalMarker(g, active) {
+  const a = w2s(g.wx, g.wy);
+  mctx.strokeStyle = active ? '#f79009' : 'rgba(247, 144, 9, 0.32)';
+  mctx.lineWidth = active ? 2.5 : 1.4;
+  mctx.beginPath(); mctx.arc(a.x, a.y, active ? 9 : 6, 0, 6.2832); mctx.stroke();
+  const r = active ? 0.6 : 0.35;
+  const b = w2s(g.wx + Math.cos(g.yaw) * r, g.wy + Math.sin(g.yaw) * r);
+  mctx.beginPath(); mctx.moveTo(a.x, a.y); mctx.lineTo(b.x, b.y); mctx.stroke();
+}
+
+function drawGoals() {
+  pastGoals.forEach(g => drawGoalMarker(g, false));
+  if (activeGoal) drawGoalMarker(activeGoal, true);
 }
 
 function drawScaleBar() {
@@ -1378,14 +1469,6 @@ function drawRobot(p) {
   mctx.strokeStyle = '#17202a'; mctx.lineWidth = 2.5; mctx.stroke();
   mctx.beginPath(); mctx.arc(nose.x, nose.y, 3.8, 0, 6.2832);
   mctx.fillStyle = '#17202a'; mctx.fill();
-}
-
-function drawGoal(g) {
-  const a = w2s(g.wx, g.wy);
-  mctx.beginPath(); mctx.arc(a.x, a.y, 9, 0, 6.2832);
-  mctx.strokeStyle = '#f79009'; mctx.lineWidth = 2.5; mctx.stroke();
-  const b = w2s(g.wx + Math.cos(g.yaw) * 0.6, g.wy + Math.sin(g.yaw) * 0.6);
-  mctx.beginPath(); mctx.moveTo(a.x, a.y); mctx.lineTo(b.x, b.y); mctx.stroke();
 }
 
 function updateHud() {
@@ -1466,6 +1549,12 @@ document.getElementById('researchToggle').addEventListener('change', (e) => {
   syncLayerPanel();
   if (mapView) drawMap();
 });
+document.getElementById('btnClearTrails').addEventListener('click', (e) => {
+  e.preventDefault();
+  clearAllTrails();
+  goalHint('TRAILS AND GOAL MARKERS CLEARED', false);
+});
+
 document.getElementById('btnLayersClose').addEventListener('click', () => {
   document.getElementById('layerPanel').classList.remove('show');
 });
@@ -1526,6 +1615,9 @@ document.getElementById('btnZero').addEventListener('click', () => {
     return;
   }
   zeroDisarm();
+  // Re-zero redefines what every coordinate on this map means, so points
+  // recorded before it cannot be plotted against points recorded after.
+  startNewTrail();
   send({ type: 'rezero' });   // server replies over the notice channel
 });
 
@@ -1591,6 +1683,14 @@ function endPtr(e) {
       // yaw here is where the NOSE should end up; goal_pose_adapter
       // applies the -90 deg base_link conversion on the robot side.
       send({ type: 'goal', x: goalDrag.wx, y: goalDrag.wy, yaw: goalDrag.yaw });
+      // Keep the sent goal on the canvas. Previously goalDrag was nulled on
+      // release and the marker disappeared the instant it was commanded,
+      // which is the one moment you most want to see where it is heading.
+      if (activeGoal) {
+        pastGoals.push(activeGoal);
+        while (pastGoals.length > MAX_PAST_GOALS) pastGoals.shift();
+      }
+      activeGoal = { wx: goalDrag.wx, wy: goalDrag.wy, yaw: goalDrag.yaw };
       goalHint('GOAL SENT → ' + goalDrag.wx.toFixed(2) + ', ' +
                goalDrag.wy.toFixed(2), false);
     }

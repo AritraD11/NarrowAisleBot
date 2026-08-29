@@ -243,10 +243,24 @@ silent failure this project has had** — §17.32's never-deployed config,
 | `src/mecanum_robot/mecanum_robot/phone_dashboard.py` | `~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py` | `5b30a91dc7614d73848357bcedd66771cb332eddd12d1de06ed58dce47ad43d1` |
 | `tools/wheel_forensics.py` | `~/tools/wheel_forensics.py` | `27858ce417f3f39e56db3b87b31644fc11a9292aba7247f1c8d9a2d80bf96236` |
 | `src/mecanum_robot/urdf/aislebot.urdf` | `~/ros2_ws/src/mecanum_robot/urdf/aislebot.urdf` | `ea6619ff3999b856fc3c1632041bd3a151eb8732f9c782d90207831ce1b0a81c` |
+| `system/slam_nodom_stageB.yaml` **(Stage D)** | `~/ros2_ws/slam_nodom.yaml` ⚠ **note the different filename** | `0e88d60c34dfd9aada3f0fb5ab39523f45800bc8e4fba2385c6f9a3ba4ce3e5f` |
 
 `wheel_forensics.py` needs no rebuild. `phone_dashboard.py` needs step 4.
 `aislebot.urdf` is comment-only (§17.42) — deploy it whenever the workspace
 is next rebuilt for another reason, not on its own.
+
+**Stage D** (`coarse_search_angle_offset` stock 0.349 → 0.175, §17.43) needs no
+rebuild, but slam_toolbox only reloads parameters on a fresh bring-up: after
+landing the file, **STOP MAP → park on the mark → ZERO (two taps) → MAP**, then
+verify on the live node:
+
+```bash
+ros2 param get /slam_toolbox coarse_search_angle_offset          # 0.175
+ros2 param get /slam_toolbox correlation_search_space_dimension  # 0.3
+```
+
+If either reads a stock value the file did not take, and nothing measured after
+that point means anything.
 
 ---
 

@@ -13,7 +13,40 @@ around what the jumps actually are: **the front-end scan matcher**.
 
 ---
 
-## ⏸ RESUME HERE — one deploy, one drive, one comparison
+## ⏸ RESUME HERE — superseded 28 Aug 2026 (evening), §17.43
+
+> **Read `docs/Where_We_Stand.md` and `docs/Autonomy_Endgame.md` first.** They
+> were written on 28 Aug as a full-repository audit and they supersede the
+> plan below, which is kept because its *method* (one parameter, prediction
+> written before the test, verify on the live node) is still exactly right.
+>
+> **What changed.** Stage C **was** deployed and validated (§17.41), and then
+> failed to hold on a 1047 s drive that went 3.5 m out (§17.42). The next
+> parameter is the **angular** search gate, not the translational one, and it
+> is already committed:
+>
+> | | |
+> |---|---|
+> | Repo file | `system/slam_nodom_stageB.yaml` |
+> | Destination | `~/ros2_ws/slam_nodom.yaml` ⚠ **different filename** |
+> | sha256 | `0e88d60c34dfd9aada3f0fb5ab39523f45800bc8e4fba2385c6f9a3ba4ce3e5f` |
+> | The one change | `coarse_search_angle_offset` stock `0.349` (20°) → **`0.175`** (10°) |
+> | Verify on the live node | `ros2 param get /slam_toolbox coarse_search_angle_offset` |
+>
+> **And the bigger finding, which is architectural rather than a parameter.**
+> Every autonomous drive so far has been run *inside a live SLAM session*,
+> where the map frame is still moving — 11.08 m of movement across 21.85 m
+> driven. A tapped goal is a fixed coordinate in a frame that then slides
+> underneath it. **That is why the goal does not land where the mouse
+> clicked**, and it is not a dashboard bug: the click→world transform is exact
+> to 1e-6. The path to point-and-go runs through an **accepted commissioning
+> map → `map_server` → AMCL**, and `docs/Autonomy_Endgame.md` has the
+> day-by-day plan with commands.
+
+---
+
+## Historical — the Stage C plan (completed 28 Aug, §17.41)
+
 
 **A parameter change is committed and NOT yet on the robot.** Everything
 below is downstream of getting it there and re-running one 90-second drive.

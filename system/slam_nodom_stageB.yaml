@@ -179,6 +179,52 @@ slam_toolbox:
     correlation_search_space_resolution: 0.01
     correlation_search_space_smear_deviation: 0.1
 
+    # STAGE D: stock 0.349 rad (20 deg) -> 0.175 rad (10 deg). This parameter
+    # was never written in this file before; it ran on slam_toolbox's default
+    # through every session in this project's history, including both Stage B
+    # and Stage C. It is the ANGULAR half of the same search window Stage C
+    # closed translationally.
+    #
+    # Why it is the next lever, measured 28 Aug 2026 (sec 17.42):
+    #   The 1047 s commissioning drive threw a 0.696 m single correction
+    #   against a deployed translational half-width of 0.150 m. 4.6x the
+    #   window. That cannot be a translational snap. Checked against a pure
+    #   yaw about the map origin, 2*r*sin(theta/2):
+    #
+    #     corr    yaw       lever r   predicted   ratio
+    #     0.696   -18.40    2.06 m    0.660       0.95
+    #     0.500    15.00    2.13 m    0.555       1.11
+    #     0.431    12.80    2.53 m    0.563       1.31
+    #     0.388    12.00    2.30 m    0.481       1.24
+    #     0.261    -7.20    1.94 m    0.244       0.93
+    #
+    #   The large corrections are HEADING snaps whose position error is pure
+    #   lever arm. 18.40 deg is 92% of the 20 deg window -- the same
+    #   saturation signature Stage C found translationally, on the axis
+    #   nobody had closed.
+    #
+    # Why 10 deg is safe despite minimum_travel_heading being 0.2 rad
+    # (11.46 deg). sec 17.42 flagged the risk that the angular search must not
+    # fall below the inter-node heading change. That caveat is conservative:
+    # the search is centred on the ODOMETRY-PROPAGATED prior, which has
+    # already rotated by the inter-node heading change before matching
+    # starts. What the window has to cover is the ERROR in that prior, not
+    # the rotation itself. Measured: odometry accumulated 10.53 deg over
+    # ~18 m (sec 17.42) = 0.58 deg/m, so over a 0.36 m node hop the prior's
+    # heading error is about 0.2 deg. 10 deg is still ~50x that.
+    #
+    # THE RISK IS REAL BUT BOUNDED AND IT HAS A SIGNATURE. If the prior is
+    # ever worse than 10 deg -- a wheel slipping through a corner rotation,
+    # a stall -- the matcher loses track rather than snapping. That failure
+    # looks DIFFERENT from the current one: the map tears or the pose
+    # freezes at a corner, instead of the pose jumping mid-leg.
+    #   -> If corner rotations lose track, go to 0.25 (14.3 deg), which is
+    #      above minimum_travel_heading, NOT back to 0.349.
+    #
+    # Deliberately ONE parameter again. angle_variance_penalty (1.2 below)
+    # rests on the same stale sec 17.21 premise and is Stage E, not this one.
+    coarse_search_angle_offset: 0.175
+
     # How much the matcher is allowed to disagree with the odometry prior.
     # Both RAISED from stock (0.5 / 1.0) = trusting odometry LESS. This is
     # the deliberate consequence of sec 17.21's finding: wheel odometry on

@@ -7,6 +7,12 @@ This document exists because §17.38 (the map-frame rotation bug) proved that a
 wrong belief can survive two weeks of active work if nobody ever writes down
 *which category* a claim is in. That will not happen twice.
 
+> **Updated 29 Aug 2026 after the first hands-on day of the endgame week
+> (§17.44).** G1 and G2 both passed; the deployment debt in §6 is cleared;
+> §2's layer 6 and 7 numbers, §4's grades and §8's ranking are revised. The
+> one structural change: **rotating in place maps nothing**, so the
+> commissioning procedure itself was wrong, not only its tuning.
+
 ---
 
 ## 0. Evidence grades used throughout
@@ -49,8 +55,8 @@ Read this table top to bottom. The break is at layer 6.
 | 3 | **Kinematics** (asymmetric mecanum) | Exact | ✅ | Forward model reproduces ground-truth twist to 1.7e-16 over 20 000 random twists. Both the journal's §2.5 form and `odometry_publisher`'s form are unbiased (see §7 below) |
 | 4 | **Odometry integration** | Exact | ✅ | `wheel_forensics.py` re-integrated a whole run offline from raw encoders: **max divergence from the live `/odom` 0.0054 m, final divergence 0.0000 m.** The integrator is eliminated as a suspect |
 | 5 | **`/odom` physical accuracy** | At spec, and it is the ceiling | ✅ | 2.58 cm closure on a 38 s square; 4.3 cm (1.1%) on a 4 m out-and-back; **0.229 m (1.27%) and 10.53° over 21.85 m** |
-| 6 | **`map→odom`** (SLAM front end) | 🔴 **BROKEN — this is the project** | ✅ | **11.08 m of cumulative correction applied across 21.85 m driven.** Final map error 0.477 m / 16.18° against odometry's 0.229 m / 10.53° |
-| 7 | **Saved map** | 🔴 **Does not exist** | ✅ | Best map to date graded `FOLDED`: **D2 doubled walls 5.0% across 5 clusters**, 63% unknown. **There is no accepted commissioning map** |
+| 6 | **`map→odom`** (SLAM front end) | 🔴 **BROKEN — this is the project** | ✅ | **One correction per pose-graph node, every node** — 18 nodes / 17 corrections at a 3.65 s cadence (§17.44). Improved but not fixed: max correction 0.696 m → **0.202 m**, max heading step 18.40° → **4.57°**, cumulative per metre 0.507 → **0.163 m/m** |
+| 7 | **Saved map** | 🔴 **Does not exist** | ✅ | Best map to date graded `FOLDED`: **D2 doubled walls 1.9%** (gate <1.0%), improved from 5.0%; return-to-mark 0.257 m (gate <0.15). **There is still no accepted commissioning map** |
 | 8 | **AMCL localisation** | Never executed | ⬜ | The whole `amcl` block in `nav2_params.yaml` has never run once. Its `robot_model_type` value is suspect (see §5) |
 | 9 | **Global planner** (NavFn) | Working, starved | 🟡 | Plans successfully; runs at **1.25 Hz against 5 Hz requested** |
 | 10 | **Local controller** (MPPI) | Working, starved | ✅ | Two `Goal succeeded` (25.9 s, 21.0 s). Control loop **7.5–13.7 Hz against 20 Hz requested** |
@@ -145,6 +151,12 @@ have since been contradicted. **Every one of them is a hypothesis today.**
 | "Speed matters" (0.10 m/s worse than 0.05) | 🔷 | Consistent with the window being reached more readily, but uncontrolled. Weaker than the retracted claim above |
 | The pose-graph back end is healthy | 🟡 | `moved=0` through 19 closures is consistent with "healthy and correctly finding nothing to fix" **and** with "the closures fired and were inert." The second reading is supported by the 0.477 m terminal miss |
 | Loop closure will help once the front end is fixed | 🔷 | Untested. 19 closures fired and the map still folded |
+| **Rotation in place adds no node and no map cell** | ✅ **MEASURED** | Three runs, 29 Aug. A deliberate 714° / 642 s test produced **43 occupied cells = 2.1 m of wall and zero corrections**. `/scan_reliable` measured at 11.4 Hz throughout, so it is not starved scans (§17.44) |
+| `minimum_travel_heading` is what blocks rotation | ⛔ **RETRACTED** | Set to 0.05 and verified on the live node; a full 360° still gave `n=1, e=0` for 166 s. **Not the gate** |
+| `shouldProcessScan()` gates on distance only, ahead of Karto's heading test | 🔷 | Predicts every observation, but **recalled from source, not read**. Verify against the installed `slam_toolbox` before citing |
+| Turning **while translating** maps normally | ✅ **MEASURED** | A 111 s `W`+`E` arc: 18 nodes, **1545 cells = 77.2 m of wall** — 88% of the 621 s perimeter drive's coverage in 18% of its time |
+| The tight circle is a **degenerate geometry** for scan matching | 🔷 | At 5 m range 1° of heading ≈ 8.7 cm of translation. Predicts the measured signature (heading right to ~4°, position 27.6 cm out, wheels 0.008 m) and explains why **cumulative correction stayed 2.80 / 2.85 / 2.86 m across three parameter sets**. Not yet tested against a controlled wide-radius arc |
+| `angle_variance_penalty` is a useful lever | ⛔ **RETRACTED** | Stage E, 1.2 → 0.6: max correction went 0.229 → 0.366 m and the cumulative total did not move |
 
 **The single most important line in this table:** the closures were **inert** —
 they fired and changed nothing, while the estimate was half a metre wrong.
@@ -166,10 +178,15 @@ bringup-aborting failure sitting between here and the demo.
 
 ---
 
-## 6. Deployment debt — nothing from the last session is on the robot
+## 6. Deployment debt — CLEARED 29 Aug, verified against the live node
 
-**Confirmed by the operator on 28 Aug: none of these have been deployed.**
-The robot is running last-known-good code plus Stage C.
+**All four files below were deployed on 29 Aug (§17.44), hashed individually
+on arrival, rebuilt, and confirmed by `ros2 param get` against the running
+node: `coarse_search_angle_offset 0.175`, `correlation_search_space_dimension
+0.3`.** Before deployment the live node read stock `0.349`, which confirmed
+the debt by measurement rather than by report.
+
+The table is kept as the record of what was owed and what hash satisfied it.
 
 | File | Repo SHA-256 | Needs `colcon build`? | What it buys |
 |---|---|---|---|
@@ -220,21 +237,29 @@ Ranked by what unlocks the most, not by how hard each is.
 1. 🔴 **No accepted map.** Everything named in `Production_Architecture.md` —
    stable coordinates, named locations, AMCL, point-and-go — rests on one
    saved grid that does not exist yet. **This is the critical path.**
-2. 🔴 **The angular search gate.** `coarse_search_angle_offset` at stock 20°,
-   demonstrated to be saturating at 18.40°. This is what stands between the
-   current stack and an acceptable map.
-3. 🟠 **Pi CPU saturation.** Control 7.5–13.7 Hz vs 20 requested; planner
+2. 🔴 **The commissioning procedure itself.** "Rotating at every corner"
+   discards its own corner observations — measured, three runs (§17.44).
+   Corners must be taken as rounded turns *while rolling*. This costs
+   nothing and is the single highest-value change available.
+3. 🟠 **The residual front-end disagreement.** One correction per node, every
+   node. Not reachable by the search or penalty parameters — three sets left
+   cumulative correction at 2.80 / 2.85 / 2.86 m. Needs a diagnosis, not a
+   tuning pass, and the next measurement must be taken on a **perimeter**
+   drive rather than a circle.
+   *(Closed: `coarse_search_angle_offset` 20° → 10°. G2 passed 29 Aug —
+   max correction 0.202 m, max heading step 4.57°.)*
+4. 🟠 **Pi CPU saturation.** Control 7.5–13.7 Hz vs 20 requested; planner
    1.25 Hz vs 5. This degrades *everything above it* and produces TF
    extrapolation errors and stale `collision_monitor` scans — which read as
    navigation bugs and are not.
-4. 🟠 **AMCL has never run.** A one-line plugin-name error can abort the entire
+5. 🟠 **AMCL has never run.** A one-line plugin-name error can abort the entire
    bringup. Discover that on a Tuesday, not on demo day.
-5. 🟡 **`xy_goal_tolerance: 0.02`** is 2 cm — smaller than the pose jitter the
+6. 🟡 **`xy_goal_tolerance: 0.02`** is 2 cm — smaller than the pose jitter the
    estimate itself has. The controller cannot converge on a target tighter
    than its own noise floor.
-6. 🟡 **Heading drift, 10.53° over 18 m.** The odometry ceiling. Relevant to
+7. 🟡 **Heading drift, 10.53° over 18 m.** The odometry ceiling. Relevant to
    the shelved IMU decision, which stays shelved unless the operator raises it.
-7. ⬜ **No location library.** Pure software, no hardware risk, and it is what
+8. ⬜ **No location library.** Pure software, no hardware risk, and it is what
    turns "a navigation demo" into "a product."
 
 ---

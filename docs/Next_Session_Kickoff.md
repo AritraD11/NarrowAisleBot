@@ -1,12 +1,11 @@
-# Next Session Kickoff — SLAM first, then Nav
+# Next Session Kickoff — one accepted map, then Nav
 
-**Rewritten 29 Aug 2026.** Paste §0 into a fresh session. Everything the
-assistant needs is in this file or in the four documents it points at.
+**Rewritten 29 Aug 2026 after §17.44.** Paste §0 into a fresh session.
 
-The order is fixed and is not a preference: **SLAM must be trustworthy before
-Nav means anything.** A goal sent into a map frame that is still moving lands
-somewhere the operator did not click — that is measured, not theorised
-(§17.43).
+The order is unchanged and is not a preference: **SLAM must be trustworthy
+before Nav means anything.** What changed on 29 Aug is *why* the maps have
+been failing — the commissioning procedure itself was discarding its own
+corner observations. That is fixed by driving differently, not by tuning.
 
 ---
 
@@ -18,259 +17,228 @@ somewhere the operator did not click — that is measured, not theorised
 
 Continue NarrowAisleBot on branch `claude/narrowaislebot-mapping-reliability-038ike`.
 
-**Read first, before doing anything:** `docs/Next_Session_Kickoff.md`
-(this whole file), then `docs/Where_We_Stand.md` §2 and §6, then
-`docs/Autonomy_Endgame.md` Parts 3–4. `docs/Axis_Convention.md` if anything
-axis-related comes up.
+**Read first, before doing anything:** `docs/Next_Session_Kickoff.md` (this
+whole file), then `docs/Where_We_Stand.md` §2, §4 and §6, then
+`docs/Research_Journal.md` §17.44. `docs/evidence/rotation_deadzone/README.md`
+if anything about rotation or the circle tests comes up.
 
 **Closed, do not reopen:** the §17.38 map-frame rotation fix. **Never fix an
-axis or goal-placement complaint in the dashboard** — that is what hid it for
-two weeks, and §17.43 caught the same reflex a second time.
+axis, placement or trajectory-shape complaint in the dashboard** — §17.38 hid
+for two weeks that way, and §17.44 caught the same reflex a third time when
+the spiky trail looked like a rendering bug and was not.
 
-**Treat as hypotheses, not facts:** §17.28–§17.32's loop-closure conclusions
-(drawn on a rotated map frame), the false-closure co-location (n=3), and
-"speed matters". "Strafe is the weak axis" is **retracted** — do not
-re-derive it. Tell me which category any claim you make is in.
+**Passed, do not re-litigate:** G1 (deployment, verified on the live node) and
+G2 (max correction 0.202 m, max heading step 4.57°).
+
+**Retracted, do not re-derive:** "strafe is the weak axis"; `minimum_travel_heading`
+as the rotation gate; `angle_variance_penalty` as a useful lever.
+
+**Treat as hypotheses:** §17.28–§17.32's loop-closure conclusions, the
+false-closure co-location, "speed matters", the degenerate-geometry
+explanation, and the `shouldProcessScan()` distance-only mechanism.
+Tell me which category any claim you make is in.
 
 **The goal, in order:**
-1. **SLAM** — close the angular gate, then produce **one accepted
-   commissioning map**. There has never been one.
-2. **Nav** — save that map, bring up AMCL, then point-and-go on a *fixed*
-   frame.
+1. **SLAM** — produce **one accepted commissioning map**. There has never
+   been one. Everything else is downstream of this.
+2. **Nav** — save it, bring up AMCL, point-and-go on a *fixed* frame.
 
 **How I want to work:**
 - Robot is SSH'd and parked on the zero mark. Dashboard is up. Pi is on its
-  own AP (`10.42.0.1`), no internet. My Windows PC has LAN internet — so
-  **every file: Windows downloads → `scp` to Pi**. Never `curl` on the Pi.
-- **Give me copy-paste commands for everything.** One step at a time. Wait
-  for me to report back. **Never assume a step succeeded.**
-- **Verify deployed config with `ros2 param get` against the live node, never
-  by reading a file. Hash every transferred file on arrival, per file.**
-- I will eyeball, and I want every logger and every analysis run on every
-  drive — `graph_residuals.py --watch` live, then `run_bundle.py`,
-  `map_integrity.py`, `wheel_forensics.py`, `run_analyzer.py` after.
-- **Keep your messages short and crisp.** Command block, what to look for,
-  one line of why. Save the prose for the journal.
+  own AP (`10.42.0.1`), no internet. **Every file: Windows downloads → `scp`
+  to Pi.** Never `curl` on the Pi.
+- **Copy-paste commands for everything.** One step at a time. Wait for me to
+  report back. **Never assume a step succeeded.**
+- **Verify config with `ros2 param get` against the live node, never by
+  reading a file. Hash every transferred file on arrival, per file.**
+- Every logger and every analysis on every drive — `graph_residuals.py
+  --watch` live, then `run_bundle.py`, `map_integrity.py`,
+  `wheel_forensics.py`, `run_analyzer.py`.
+- **Short and crisp.** Command block, what to look for, one line of why.
+  Prose goes in the journal.
 
-Start with the §1 health check. Do not deploy anything until I confirm what
-is actually running.
+Start with the §2 health check. Do not deploy anything until I confirm what is
+actually running.
 
 ---
 
-## 1. Session constants — memorise these, do not re-derive them
+## 1. Session constants — memorise, do not re-derive
 
 | | |
 |---|---|
 | **Pi login** | `ssh aritra@10.42.0.1` — password typed **interactively only** |
-| ⚠ | **Never put the password on a command line.** It once got appended to an `scp` destination and created a file named `mapping_full.launch.py<PASSWORD>` |
-| **Pi on eduroam instead** | address changes daily — `ip -4 -br addr` on the Pi, then use the IP. `aritra-desktop.local` often fails to resolve from Windows |
+| ⚠ | **Never put the password on a command line.** It once got appended to an `scp` destination and created `mapping_full.launch.py<PASSWORD>` |
+| **Pi on eduroam instead** | address changes daily — `ip -4 -br addr` on the Pi. `aritra-desktop.local` often fails to resolve from Windows |
 | **Branch** | `claude/narrowaislebot-mapping-reliability-038ike` |
 | **Raw base URL** | `https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/narrowaislebot-mapping-reliability-038ike` |
 | **Windows staging** | `C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download` |
 | **Windows data drop** | `C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test` |
 | **ROS workspace** | `~/ros2_ws` · deployed code in `~/ros2_ws/src/mecanum_robot/` |
-| **Live SLAM config** | `~/ros2_ws/slam_nodom.yaml` ⚠ repo file is named `slam_nodom_stageB.yaml` |
-| **Tools** | `~/tools/` — but `run_bundle.py` has been living in `~/aislebot_logs/`. Check both |
+| **Live SLAM config** | `~/ros2_ws/slam_nodom.yaml` ⚠ repo file is `slam_nodom_stageB.yaml` |
+| **Tools** | `~/tools/` — **except** `run_bundle.py`, `map_integrity.py`, `run_analyzer.py`, `scan_quality.py`, which live in `~/aislebot_logs/` |
 | **Run data + maps** | `~/aislebot_logs/run_<stamp>.{csv,pgm,yaml,_report.json}` |
-| **Node log** | `~/aislebot_boot.log` (not `journalctl` — that only shows systemd start/stop) |
-| **Dashboard** | `http://10.42.0.1:8080` · WebSocket `ws://10.42.0.1:8765` |
+| **Node log** | `~/aislebot_boot.log` (binary; `grep -a`) |
+| **Dashboard** | `http://10.42.0.1:8080` — HTTP **and** WebSocket both on 8080 |
+| ⚠ | **8765 is `foxglove_bridge`, not the dashboard.** Earlier versions of this file said otherwise |
 | **ROS domain** | `42` |
 
-**The transfer rule.** The Pi hosts its own AP and has **no uplink**. Windows
-has LAN internet. So every file moves in two hops: `curl.exe` on Windows →
-`scp` to the Pi. A `curl` line in these docs is **never** a Pi command.
+**The transfer rule.** The Pi hosts its own AP and has **no uplink**. A `curl`
+line in these docs is **never** a Pi command.
+
+**Dashboard keys** (`phone_dashboard.py:975–999`): `W`/`A`/`S`/`D` translate,
+`Q` = CCW, `E` = CW, `m` toggles MAP. Held keys accumulate in a `Set`, so
+**`W`+`E` together is a forward arc** — that is how you turn while rolling.
+A drag on the YAW slider overrides the keys and gives a gentler turn.
 
 ---
 
-## 2. Health check — run before touching anything
-
-**On the Pi.** Paste as one block.
+## 2. Health check — before touching anything
 
 ```bash
 echo "=== NETWORK ==="; ip -4 -br addr | grep -v " lo "
 echo "=== ROS ENV ==="; echo "DOMAIN=$ROS_DOMAIN_ID  RMW=$RMW_IMPLEMENTATION"
 echo "=== NODES ==="; ros2 node list
 echo "=== SLAM LIVE PARAMS ==="
-ros2 param get /slam_toolbox correlation_search_space_dimension
 ros2 param get /slam_toolbox coarse_search_angle_offset
-ros2 param get /slam_toolbox distance_variance_penalty
+ros2 param get /slam_toolbox correlation_search_space_dimension
+ros2 param get /slam_toolbox minimum_travel_distance
+ros2 param get /slam_toolbox minimum_travel_heading
 ros2 param get /slam_toolbox angle_variance_penalty
 echo "=== DEPLOYED HASHES ==="
 sha256sum ~/ros2_ws/slam_nodom.yaml \
           ~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py \
           ~/ros2_ws/src/mecanum_robot/urdf/aislebot.urdf 2>&1
-ls -la ~/tools/ ~/aislebot_logs/*.py 2>&1 | head -30
-echo "=== CPU / THERMAL ==="; uptime; vcgencmd measure_temp; vcgencmd get_throttled
-echo "=== FRAMES ==="; timeout 3 ros2 run tf2_ros tf2_echo odom base_link 2>&1 | tail -12
+echo "=== CPU / THERMAL ==="; uptime
+awk '{printf "%.1f C\n", $1/1000}' /sys/class/thermal/thermal_zone0/temp
+cat /sys/devices/platform/soc/soc:firmware/get_throttled
+echo "=== SCAN RATE ==="; timeout 8 ros2 topic hz /scan_reliable --window 30
 ```
 
-**Expected, as of the last session:**
+**Expected, as deployed 29 Aug:**
 
-| Reading | Expected now | After §3 deploy |
-|---|---|---|
-| `correlation_search_space_dimension` | `0.3` | `0.3` |
-| `coarse_search_angle_offset` | `0.349` (stock) | **`0.175`** |
-| `slam_nodom.yaml` sha256 | `e90aee53…` (Stage C) | **`0e88d60c…`** |
-| `phone_dashboard.py` sha256 | old — **not** `5b30a91d…` | `5b30a91d…` |
-| `get_throttled` | `0x0` | `0x0` |
+| Reading | Expect |
+|---|---|
+| `coarse_search_angle_offset` | **0.175** |
+| `correlation_search_space_dimension` | 0.3 |
+| `minimum_travel_distance` / `_heading` | 0.2 / 0.2 |
+| `angle_variance_penalty` | 1.2 |
+| `slam_nodom.yaml` | `0e88d60c34dfd9aada3f0fb5ab39523f45800bc8e4fba2385c6f9a3ba4ce3e5f` |
+| `phone_dashboard.py` | `5b30a91dc7614d73848357bcedd66771cb332eddd12d1de06ed58dce47ad43d1` |
+| `aislebot.urdf` | `ea6619ff3999b856fc3c1632041bd3a151eb8732f9c782d90207831ce1b0a81c` |
+| `get_throttled` | `0` |
+| `/scan_reliable` | ~11.4 Hz, std dev <0.01 s |
 
-⚠ **If a node list is missing `/slam_toolbox`, no mapping session is running** —
-that is fine, and parameters cannot be read until one is. Start MAP first,
-then re-read.
+⚠ **Parameters can only be read while a MAP session is running.** No
+`/slam_toolbox` in the node list means no session — start MAP, then re-read.
+
+⚠ **Runtime `ros2 param set` does not survive.** Every value reverts from the
+YAML when the next MAP starts a fresh node. Set *after* MAP, never before,
+and always re-verify.
+
+**Nothing is pending deployment.** The debt was cleared on 29 Aug.
 
 ---
 
-## 3. Deploy — the five steps, no step skipped
+## 3. HOW TO DRIVE — the rules that changed
 
-### 3.1 Windows downloads
+**This section is the product of 29 Aug. Read it before the drive, not after.**
 
-```powershell
-cd "C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download"
-$B = "https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/narrowaislebot-mapping-reliability-038ike"
+### 3.1 Never stop and spin
 
-curl.exe -sSL --retry 3 --retry-all-errors -o slam_nodom.yaml     "$B/system/slam_nodom_stageB.yaml"
-curl.exe -sSL --retry 3 --retry-all-errors -o phone_dashboard.py  "$B/src/mecanum_robot/mecanum_robot/phone_dashboard.py"
-curl.exe -sSL --retry 3 --retry-all-errors -o wheel_forensics.py  "$B/tools/wheel_forensics.py"
-curl.exe -sSL --retry 3 --retry-all-errors -o aislebot.urdf       "$B/src/mecanum_robot/urdf/aislebot.urdf"
-```
+**Rotating in place adds no pose-graph node and no map cell.** Measured three
+times (§17.44): a deliberate 714° turn over 642 s produced **43 occupied
+cells = 2.1 m of wall** and zero corrections. It is not a threshold that can
+be tuned — `minimum_travel_heading` was set to 0.05 and verified live, and a
+full 360° still gave `n=1, e=0`.
 
-### 3.2 Windows pushes — type the whole destination including the filename
+Every stop-and-spin corner driven since §17.39 contributed **nothing**. That
+is the best explanation available for maps returning 63–87% unknown.
 
-```powershell
-scp slam_nodom.yaml    aritra@10.42.0.1:~/ros2_ws/slam_nodom.yaml
-scp phone_dashboard.py aritra@10.42.0.1:~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py
-scp wheel_forensics.py aritra@10.42.0.1:~/tools/wheel_forensics.py
-scp aislebot.urdf      aritra@10.42.0.1:~/ros2_ws/src/mecanum_robot/urdf/aislebot.urdf
-```
+### 3.2 Turn only while rolling
 
-⚠ **The config lands as `slam_nodom.yaml`, not `slam_nodom_stageB.yaml`.**
-`mapping_full.launch.py:66` loads the former. Wrong name = old file keeps
-running, silently, and every measurement after that is worthless.
+Hold `W` and feather the yaw. A 111 s `W`+`E` arc produced **18 nodes and
+1545 cells = 77.2 m of wall** — 88% of the 621 s perimeter drive's coverage
+in 18% of its time.
 
-### 3.3 Pi hashes — per file, never per batch
+### 3.3 But do not turn *tightly*
 
-```bash
-sha256sum ~/ros2_ws/slam_nodom.yaml
-# 0e88d60c34dfd9aada3f0fb5ab39523f45800bc8e4fba2385c6f9a3ba4ce3e5f
-sha256sum ~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py
-# 5b30a91dc7614d73848357bcedd66771cb332eddd12d1de06ed58dce47ad43d1
-sha256sum ~/tools/wheel_forensics.py
-# 27858ce417f3f39e56db3b87b31644fc11a9292aba7247f1c8d9a2d80bf96236
-sha256sum ~/ros2_ws/src/mecanum_robot/urdf/aislebot.urdf
-# ea6619ff3999b856fc3c1632041bd3a151eb8732f9c782d90207831ce1b0a81c
+`W`+`E` at full deflection gives a **0.54 m radius** circle, and that is a
+degenerate geometry: from a 1 m disc in a 10 m room, 1° of heading error is
+indistinguishable from 8.7 cm of translation, so the matcher cannot separate
+them. Measured cost: **5.3 corrections/m and a 0.367 m maximum**, against the
+perimeter drive's **1.0/m and 0.202 m**.
 
-ls -la ~/tools/ ~/ros2_ws/*.yaml     # nothing with a password stuck on the end
-```
+**Corners as wide as the floor allows.** Drag the YAW slider partway instead
+of holding `E`, which overrides the key and gives a gentler radius.
 
-### 3.4 Pi rebuilds — only for files under `~/ros2_ws/src`
+### 3.4 Hug the walls, 0.5–1.5 m
 
-```bash
-cd ~/ros2_ws && colcon build --packages-select mecanum_robot --symlink-install
-sudo systemctl restart aislebot.service
-python3 ~/tools/wheel_forensics.py --selftest      # 6 tests, all PASS
-```
+Close walls are what makes the matcher well-conditioned. The circle failed
+partly because it stared at far walls from a tiny disc.
 
-### 3.5 Pi verifies against the LIVE NODE
+### 3.5 MAP again to stop — it is the only thing that saves the map
 
-**slam_toolbox reloads parameters only on a fresh bring-up.**
-**STOP MAP → park on the mark → ZERO (two taps) → MAP.** Then:
+A `systemctl restart`, a reboot, or forgetting entirely loses it. **This cost
+a run on 29 Aug**: `run_20260829_163147` was analysed with `-- pgm -- yaml`
+because the session was never stopped.
 
-```bash
-ros2 param get /slam_toolbox coarse_search_angle_offset            # 0.175
-ros2 param get /slam_toolbox correlation_search_space_dimension    # 0.3
-```
+### 3.6 Change nothing
 
-**If either reads stock, stop.** The file did not take, and nothing measured
-after that point means anything.
+The deployed YAML is the configuration that passed G2. Carry no parameters
+over from the circle work — they revert on the next MAP anyway.
 
 ---
 
-## 4. PHASE 1 — SLAM
+## 4. PHASE 1 — the commissioning map → gate **G4**
 
-### S1 · Stage D A/B  →  gate **G2**
-
-**The one change:** `coarse_search_angle_offset` stock `0.349` (20°) →
-**`0.175`** (10°). Already committed. Nothing else changed — verified by
-parsing both YAMLs: 35 params before, 36 after, one difference.
-
-**The drive:** repeat the 28 Aug traverse *exactly* — perimeter of the
-junction, **nose leading, rotating at every corner**, 0.5–1.5 m off the
-walls, SLOW (0.05 m/s), one direction, closing at the mark. 15–18 min.
-
-**Instrument it live, in a second SSH window:**
-
-```bash
-python3 ~/tools/graph_residuals.py --watch --log ~/aislebot_logs/graph_stageD.jsonl
-```
-
-**Prediction table — read the row you land on, do not improvise:**
-
-| Outcome | Reading | Next |
-|---|---|---|
-| max correction **< 0.30 m**, max heading step **< 10°** | The angular gate was the lever. **G2 passes** | → S2 |
-| corrections pinned near **0.30 m**, heading near **10°** | Window clamped the symptom; matcher still *prefers* to disagree | Stage E: `angle_variance_penalty` 1.2 → 0.6 |
-| **track lost at a corner** — pose freezes, map tears at a rotation | Cut below the prior's real uncertainty | → `0.25` (14.3°), **not** back to 0.349 |
-| no change | Angular window is not the gate | Stage E, and re-open `distance_variance_penalty` |
-
-**Then, robot physically back on the zero mark, read all three:**
-
-```bash
-ros2 run tf2_ros tf2_echo map base_link      # SLAM's opinion
-ros2 run tf2_ros tf2_echo odom base_link     # odometry's opinion
-ros2 run tf2_ros tf2_echo map odom           # the correction between them
-```
-
-28 Aug baseline: **0.477 m / 0.229 m / 0.271 m**. Under **0.15 m** on the
-first is a pass.
-
-### S2 · CPU headroom  →  gate **G3**
-
-Control loop is 7.5–13.7 Hz against 20 requested; planner 1.25 against 5.
-Measure, then one change at a time, re-measuring after each.
-
-```bash
-top -b -n 1 -o %CPU | head -20
-uptime && vcgencmd measure_temp && vcgencmd get_throttled
-```
-
-| Order | Change | Where |
-|---|---|---|
-| 1 | MPPI `batch_size` 1000 → 400 | `ros2 param set /controller_server FollowPath.batch_size 400` |
-| 2 | `map_update_interval` 1.0 → 2.0 | `slam_nodom.yaml` |
-| 3 | global costmap `update_frequency` → 1.0, `publish_frequency` → 0.5 | `nav2_params.yaml` |
-
-**Pass:** control ≥ 15 Hz sustained, zero TF-extrapolation errors over 5 min.
-
-> `Parameter goal_checker.xy_goal_tolerance not found` from
-> `controller_server` is **MPPI's ParametersHandler being noisy, not a
-> failure**. The values do take. Do not chase it.
-
-### S3 · The commissioning map  →  gate **G4**   ← the day it turns
+### S1 · The drive
 
 1. **STOP MAP** if anything is running. Discard it.
-2. Park on the mark. **ZERO** (two taps — must precede MAP).
-3. **MAP**, then **VIEW**, and keep VIEW open the whole run. A fold is
-   visible as it happens.
-4. Perimeter, **nose leading, rotating at every corner**.
-5. **MAP again to stop — this is the only thing that saves the map.** A
-   `systemctl restart`, a reboot or a crash loses it entirely.
+2. Park on the mark. **Note which way the nose points** — ZERO fixes position,
+   not orientation, and on 29 Aug two otherwise-identical runs came back with
+   wall-orientation histograms 44° apart, most likely for that reason.
+3. **ZERO** (two taps), then **MAP**, then **VIEW** and keep it open.
+4. Perimeter, nose leading, **0.5–1.5 m off the walls**, SLOW (0.05 m/s),
+   one direction, **corners as wide rounded turns taken while rolling**.
+5. **10–15 minutes.** Longer beats shorter.
+6. Close at the mark. **MAP again to stop.**
 
-**Why rotation and not a square:** the rear 90° is permanently blind behind
-the mast (107 of 430 beams masked NaN). A non-rotating square keeps that cone
-pointed at the same *world* direction all run — which is why an earlier map
-came back **87% unknown**.
+Live, in a second window:
 
 ```bash
-python3 ~/tools/map_integrity.py ~/aislebot_logs/run_<TS>.pgm ~/aislebot_logs/run_<TS>.yaml
+python3 ~/tools/graph_residuals.py --watch --log ~/aislebot_logs/graph_commission.jsonl
 ```
 
-**Accept only if** verdict ≠ `FOLDED` · **D2 doubled walls < 1.0%** ·
-unknown < 50% · physical return-to-mark **< 0.15 m**.
-28 Aug failed on D2 at **5.0% across 5 clusters**.
+**Watch `n=`.** It must climb steadily. If it plateaus for more than ~15 s
+while the robot is moving, something is being rejected — note the time and
+what you were doing.
+
+### S2 · The analysis, every drive
+
+```bash
+cd ~/aislebot_logs
+TS=$(ls -1t run_*.csv | head -1 | sed 's/^run_//; s/\.csv$//'); echo "TS=$TS"
+python3 ~/aislebot_logs/run_bundle.py --latest --folder ~/aislebot_logs
+python3 ~/aislebot_logs/map_integrity.py run_$TS.pgm
+python3 ~/aislebot_logs/run_analyzer.py run_$TS
+python3 ~/tools/wheel_forensics.py run_$TS --csv ~/aislebot_logs/${TS}_wheels.csv
+```
+
+⚠ `map_integrity.py` takes **one** target, not pgm + yaml.
+⚠ `wheel_forensics.py`'s `--csv` is an **output** path; the run is positional.
+
+### S3 · Acceptance — G4
+
+| Check | Pass |
+|---|---|
+| `map_integrity.py` verdict | **not `FOLDED`** |
+| D2 doubled walls | **< 1.0%** (29 Aug best: 1.9%) |
+| unknown | < 50% |
+| physical return-to-mark, tape | **< 0.15 m** (29 Aug best: 0.257 m) |
 
 **Budget three attempts.** A bad map poisons everything downstream.
 
-**Once accepted, promote it out of the run folder:**
+Once accepted:
 
 ```bash
 mkdir -p ~/maps
@@ -280,133 +248,115 @@ sed -i 's|^image:.*|image: lab_commission_v1.pgm|' ~/maps/lab_commission_v1.yaml
 cat ~/maps/lab_commission_v1.yaml && sha256sum ~/maps/lab_commission_v1.*
 ```
 
-**Photograph the robot on the zero mark and tape-measure it to two walls.**
-Thirty seconds, and it cannot be recovered afterwards.
+### If G4 still fails after three attempts
+
+**Do not reach for another parameter.** Three sets left cumulative correction
+at 2.80 / 2.85 / 2.86 m — invariant to within 2%. The next move is diagnosis,
+in this order:
+
+1. **Record a rosbag** of `/scan_reliable` + `/tf` + `/odom` on the next
+   drive. Everything so far has been un-replayable, so every experiment has
+   cost a physical drive. A bag makes offline A/B possible and is the single
+   biggest speed-up available.
+2. **Run `scan_quality.py` on real scans** — it has self-tests and has
+   *never* met real data. If the matcher's *input* is degraded, no amount of
+   matcher tuning helps.
+3. **Read `shouldProcessScan()`** in the installed `slam_toolbox` and settle
+   the distance-only hypothesis from source rather than inference.
 
 ---
 
-## 5. PHASE 2 — Nav
+## 5. PHASE 2 — Nav, unchanged and still never run
 
-### N1 · AMCL's first breath  →  gate **G5**
-
-**This code has never executed once.** Check the known hazard *before*
-launching:
+Gates and procedure as written in `Autonomy_Endgame.md` Part 3 (G5–G7). The
+one hazard to check *before* the first launch:
 
 ```bash
 grep -rn "OmniMotionModel" /opt/ros/jazzy/share/nav2_amcl/*.xml
+ros2 node list | grep slam_toolbox     # MUST be empty before AMCL starts
 ```
-
-If the plugin XML names `nav2_amcl::OmniMotionModel`, then
-`nav2_params.yaml`'s `robot_model_type: "omnidirectional"` is the
-pre-Galactic bare-string form and **will abort the whole `lifecycle_manager`
-bringup** — the same all-or-nothing failure §17.17 hit. Fix it first.
-
-```bash
-ros2 launch mecanum_navigation navigation.launch.py \
-    map:=/home/aritra/maps/lab_commission_v1.yaml 2>&1 | tee ~/aislebot_logs/amcl_first.log
-```
-
-Wait for `Managed nodes are active`. Park on the mark, set the initial pose,
-drive **manually** for two minutes while watching:
-
-```bash
-ros2 topic hz /amcl_pose
-ros2 topic echo /amcl_pose --once
-ros2 run tf2_ros tf2_echo map base_link
-```
-
-**Pass:** covariance diagonal **shrinks** as walls come into view, and
-`map→base_link` stays smooth — no 0.3 m jumps. AMCL corrections should be
-centimetres, because it corrects the robot inside a fixed map rather than
-rebuilding the map.
-
-### N2 · Point-and-go  →  gate **G6**
-
-First raise the tolerance that cannot be met — 2 cm is smaller than the pose
-jitter of the estimate itself:
-
-```bash
-ros2 param set /controller_server goal_checker.xy_goal_tolerance 0.12
-ros2 param set /controller_server goal_checker.yaw_goal_tolerance 0.20
-ros2 param get /controller_server goal_checker.xy_goal_tolerance
-```
-
-Five goals, **tap don't drag** (dragging sets an orientation and costs ~50 s
-of nose-turning before it may declare success). Tape-mark the tapped point on
-the floor *before* sending, then tape-measure where it stops.
-
-| # | Tapped | Reached | Err (m) | Yaw err | Time | Result |
-|---|---|---|---|---|---|---|
-| 1 | | | | | | |
-| 2 | | | | | | |
-| 3 | | | | | | |
-| 4 | | | | | | |
-| 5 | | | | | | |
-
-**Pass: 5/5 succeeded, all within 0.15 m.** That table is a report figure
-exactly as it stands.
-
-### N3 · Named locations  →  gate **G7**
-
-`~/locations.json` keyed to the map name; `POST /save_location {name}` reads
-the live `map→base_link` and appends a row; `POST /goto_location {name}`
-republishes it as a goal. Design in `Production_Architecture.md` §3.3.
-
-**Pass: teach 3, full power cycle, recall all 3 within 0.15 m.** The power
-cycle is the whole test.
 
 ---
 
-## 6. Instrumentation — run all of it on every drive
+## 6. Scheduled work that needs no robot
 
-**Live, during:**
-```bash
-python3 ~/tools/graph_residuals.py --watch --log ~/aislebot_logs/graph_<label>.jsonl
-```
+| # | Item | Why |
+|---|---|---|
+| 1 | **`run_analyzer.py` — turn-rate guard on the wheel-spread alarm** | Fires on every arc. At radius 0.54 m the ICR sits on the inner wheels (`K_o` = 0.56069 m), so 37–56:1 is correct. Suppress or rescale when integrated yaw is large relative to path |
+| 2 | **`run_analyzer.py` — geometry guard on the co-location cross-check** | "Two independent witnesses" counted one wall seven times. Require *distinct* clusters, and suppress entirely when the trajectory's own extent is smaller than the coincidence radius |
+| 3 | **`map_integrity.py --corpus`** over the ~70-map archive | Replaces guessed thresholds with percentiles. Still never run |
+| 4 | **Turn off `foxglove_bridge`** (`use_foxglove:=false` in `~/start_aislebot.sh`) | Nothing in the dashboard path uses it; it predates the dashboard's map view. Free CPU toward G3 |
+| 5 | **Journal revision table** has no rows for 27–28 Aug (§17.38–§17.43) | Pre-existing gap, noticed 29 Aug, deliberately not back-filled by guesswork |
 
-**After, on the Pi:**
-```bash
-python3 ~/aislebot_logs/run_bundle.py --latest --folder ~/aislebot_logs    # refuses runs < 60 s
-python3 ~/tools/map_integrity.py ~/aislebot_logs/run_<TS>.pgm ~/aislebot_logs/run_<TS>.yaml
-python3 ~/tools/wheel_forensics.py --csv ~/aislebot_logs/<label>_wheels.csv
-python3 ~/tools/run_analyzer.py ~/aislebot_logs/run_<TS>.csv
-```
+**Do #1 and #2 before the next drive** — an instrument that cries wolf on
+every arc will cost a real diagnosis eventually. Do them as a separate
+commit with the baseline runs re-analysed before and after, so the change is
+attributable.
 
-**Pull to Windows:**
+---
+
+## 7. Capture list — what to photograph and record
+
+29 Aug produced good video and lost several stills, because dashboard
+screenshots were pasted into chat rather than saved. **Save everything to the
+Windows staging folder with the run stamp in the filename.**
+
+**Per drive, minimum:**
+
+| # | What | When | Why |
+|---|---|---|---|
+| 1 | Dashboard full screen, `X`/`Y`/`NOSE` legible | **freshly zeroed, before MAP** | the run's zero reference |
+| 2 | Photo of the robot on the floor mark, showing **which way the nose points** | before MAP | §17.44's 44° histogram flip is probably this, and it is unrecoverable afterwards |
+| 3 | Screen recording, dashboard + `graph_residuals.py` in one frame | **the whole drive** | the only way to align `n=` against what the robot was doing |
+| 4 | Dashboard full screen | immediately after **MAP-to-stop**, before moving | SLAM's terminal claim |
+| 5 | Photo of the robot where it actually stopped, next to the mark | before moving it | ground truth |
+| 6 | **Tape measure**, two numbers, your convention (cm, +Y forward, +X right) | before moving it | the referee. State the axes explicitly — 29 Aug had one "0,−3, so just x drift" that reads as a Y offset |
+| 7 | Dashboard full screen | after manually returning to the mark | SLAM's error at a known truth |
+
+**For the accepted map, additionally:** tape-measure the robot's distance to
+**two** walls, and photograph both. Thirty seconds, and it cannot be
+recovered afterwards.
+
+**Pull to Windows after every drive:**
+
 ```powershell
 scp aritra@10.42.0.1:~/aislebot_logs/run_<TS>.* "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
 scp aritra@10.42.0.1:~/aislebot_logs/*_bundle.json "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
 ```
 
-Open the bundle in `docs/tools/run_viewer.html`, the map in
+Then open the bundle in `docs/tools/run_viewer.html` and the map in
 `docs/tools/map_viewer.html` (**not** `telemetry_analyzer.html` — its map
 dropzone only unlocks after a valid 13-column run CSV).
 
 ---
 
-## 7. Standing rules
+## 8. Standing rules
 
-1. **One parameter at a time.** §17.25 changed six at once and paid for three
-   sessions.
-2. **Write the prediction down before the test.** A prediction that can fail
-   beats an explanation that cannot.
-3. **Verify against the live node, never the file.**
-4. **Hash every file on arrival, per file.** Two of three landing correctly
-   is exactly why per-batch fails.
-5. **Never fix an axis or goal-placement complaint in the dashboard.**
+1. **One parameter at a time.** §17.25 changed six and paid for three sessions.
+2. **Write the prediction down before the test.**
+3. **Verify against the live node, never the file.** And a runtime `param set`
+   dies at the next MAP.
+4. **Hash every file on arrival, per file.**
+5. **Never fix an axis, placement or trajectory-shape complaint in the
+   dashboard.** The display being ugly is usually the display being honest.
 6. **STOP MAP is the only thing that saves a map.**
-7. **Label every claim** — measured / measured-once / hypothesis / retracted /
+7. **Never stop and spin.** Turn only while rolling, and never tightly.
+8. **Label every claim** — measured / measured-once / hypothesis / retracted /
    never-run.
+9. **Do not change an instrument mid-campaign** without re-running the
+   baseline through both versions.
+10. **Do not derive map coverage from a screenshot.** Dark pixels include
+    trail lines and UI chrome; the saved `.pgm` is the only truth.
 
 ---
 
-## 8. Where the reasoning lives
+## 9. Where the reasoning lives
 
 | Question | Document |
 |---|---|
 | Why is the map worse than the odometry? | `Where_We_Stand.md` §3 |
+| Why does rotating in place do nothing? | `Research_Journal.md` §17.44, `docs/evidence/rotation_deadzone/` |
 | Why does the goal not land where I clicked? | `Autonomy_Endgame.md` §1.2 |
-| What do these parameters actually do? | `APS_Study_Guide.md` §5 |
 | What is still only a hypothesis? | `Where_We_Stand.md` §4 |
-| The full day-by-day with fallbacks | `Autonomy_Endgame.md` Parts 4–5 |
-| Session-by-session record | `Research_Journal.md` §17.38–§17.43 |
+| The day-by-day plan and fallbacks | `Autonomy_Endgame.md` Parts 4–5 |
+| Session-by-session record | `Research_Journal.md` §17.38–§17.44 |

@@ -1,6 +1,12 @@
 # Next Session Kickoff — one accepted map, then Nav
 
-**Rewritten 29 Aug 2026 after §17.44.** Paste §0 into a fresh session.
+**Rewritten 29 Aug 2026 after §17.44, for the session of Monday 31 Aug.**
+Paste §0 into a fresh session.
+
+**Schedule reality.** Demo is **Sat 5 Sep**. Sunday 30 Aug is not a lab day,
+so Monday is the commissioning-map day and there are five working days left.
+`Autonomy_Endgame.md`'s Day 2 (CPU headroom, G3) is **deferred** — it is a
+quality-of-life gain, and G4 is the critical path.
 
 The order is unchanged and is not a preference: **SLAM must be trustworthy
 before Nav means anything.** What changed on 29 Aug is *why* the maps have
@@ -57,8 +63,25 @@ Tell me which category any claim you make is in.
 - **Short and crisp.** Command block, what to look for, one line of why.
   Prose goes in the journal.
 
-Start with the §2 health check. Do not deploy anything until I confirm what is
-actually running.
+**Monday's order, and do not skip S0 for the drive:**
+1. **§2 health check.** Nothing is pending deployment — confirm what is
+   running before anything else.
+2. **§4 S0 — `scan_quality.py` at two positions.** 10 minutes, no driving.
+   It has never met real data and it tests the one open hypothesis. The
+   prediction is already written down; read the row we land on.
+3. **§6 items 1 and 2** — the two `run_analyzer.py` guards, while the robot
+   is idle. Re-run a 29 Aug baseline through both versions so the change is
+   attributable.
+4. **§4 S1 — the commissioning drive**, by the §3 rules.
+
+**I owe you this before the drive plan is final:** usable floor dimensions
+(length × width, tape-measured), a photographed hand sketch marking the zero
+mark and the obstacles, and three photos — down the long axis from the mark,
+the narrowest point, the widest open area. **My space is tight**, which is
+why a wide-radius corner may not be available and the plan has to fit what
+the room allows.
+
+Do not deploy anything until I confirm what is actually running.
 
 ---
 
@@ -190,6 +213,38 @@ over from the circle work — they revert on the next MAP anyway.
 ---
 
 ## 4. PHASE 1 — the commissioning map → gate **G4**
+
+### S0 · First: measure what the LiDAR gives the matcher — 10 min, no drive
+
+`scan_quality.py` is the only instrument in this project that has **never met
+real data**, and it measures exactly what the degenerate-geometry hypothesis
+predicts: conditioning as `λ_min/λ_max` over surface normals, with the bearing
+of the weak direction. **MAP must be running** — `/scan_reliable` only exists
+while `mapping_full.launch.py` is up.
+
+```bash
+python3 ~/aislebot_logs/scan_quality.py --selftest
+```
+
+Parked on the zero mark, MAP on, room still:
+```bash
+python3 ~/aislebot_logs/scan_quality.py --seconds 30 --save ~/aislebot_logs/scan_mark.json
+```
+
+Moved to within ~0.7 m of a wall, parked:
+```bash
+python3 ~/aislebot_logs/scan_quality.py --seconds 30 --save ~/aislebot_logs/scan_wall.json
+```
+
+**Read `conditioning`** — `< 0.15` poor, `< 0.35` marginal — plus the weak
+direction's bearing and the stationary stability.
+
+**Prediction, pre-registered 29 Aug:** poor in the open middle, better near
+the wall. If it holds, the degenerate-geometry hypothesis is measured rather
+than reasoned, and it names which parts of the lab the robot can localise in
+at all. Stability steady to a few mm means the sensor is fine and the fault
+is the matcher's; ranges wandering centimetres mean the matcher is fed a
+moving target and no tuning fixes it.
 
 ### S1 · The drive
 
@@ -330,7 +385,21 @@ dropzone only unlocks after a valid 13-column run CSV).
 
 ---
 
-## 8. Standing rules
+## 8. Decisions taken and closed — do not re-open casually
+
+| Decision | When | Why |
+|---|---|---|
+| **No camera** — USB webcam(s) under the LiDAR | 29 Aug | `slam_toolbox` is 2D laser SLAM with **no camera input**; frames reach nothing. Using vision means replacing it, days before the demo, for a fault already diagnosed. Also: control loop already 7.5–13.7 Hz vs 20 requested; two UVC devices on one Pi bus commonly fail to negotiate; matching a 360°−90° field needs four cameras. Revisit only as a post-demo direction, or as a POV camera for report footage |
+| **No IMU** | 22 Aug | No magnetometer means no absolute heading, which is the entire point; `ekf_params.yaml` fuses IMU yaw as truth, so a drifting signal would actively hurt. BNO055 remains the right part if ever prioritised |
+| **Do not change the yaw estimator** | 28 Aug | Both forms unbiased; equal weighting costs 0.89% yaw-rate noise, which cannot produce 10.53° over 18 m. Good theory, bad engineering priority |
+| **Do not smooth the trail display** | 29 Aug | The spikes are the per-node disagreement made visible. See rule 5 |
+
+The pattern in all four: **do not add a component, or hide a signal, that does
+not address the measured fault.**
+
+---
+
+## 9. Standing rules
 
 1. **One parameter at a time.** §17.25 changed six and paid for three sessions.
 2. **Write the prediction down before the test.**
@@ -350,7 +419,7 @@ dropzone only unlocks after a valid 13-column run CSV).
 
 ---
 
-## 9. Where the reasoning lives
+## 10. Where the reasoning lives
 
 | Question | Document |
 |---|---|

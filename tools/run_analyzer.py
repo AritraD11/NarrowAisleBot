@@ -60,6 +60,13 @@ DEF_CORR_JUMP_M = 0.05           # per-sample correction that counts as a jump
 DEF_EVENT_GAP_S = 0.5            # samples closer than this are one event
 DEF_COINCIDE_M = 1.0             # jump<->doubled-wall agreement radius
 DEF_COINCIDE_S = 1.0             # jump<->wheel-anomaly agreement window
+TIGHT_TURN_CURVATURE = 1.0       # rad/m (radius <= 1 m). Above this the ICR
+                                  # sits inside or near the wheelbase, so wheel
+                                  # -arc spread is the geometry of turning, not
+                                  # slip -- §17.44 measured 37-56:1 spread on a
+                                  # 0.54 m radius circle (curvature ~1.86 rad/m)
+                                  # with 0% saturation, 0% sign mismatch on
+                                  # every wheel.
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -213,6 +220,16 @@ def analyse_pose(rows, has_odom, corr_jump_m=DEF_CORR_JUMP_M,
 
     odom_len, _ = path_len('ox', 'oy')
     out['odom_path_m'] = round(odom_len, 2)
+
+    yaw_sum, yaw_n = 0.0, 0
+    for a, b in zip(rows, rows[1:]):
+        d = _ang_diff(b['oyaw'], a['oyaw'])
+        if d is not None:
+            yaw_sum += abs(d)
+            yaw_n += 1
+    if yaw_n:
+        out['odom_yaw_integrated_deg'] = round(yaw_sum, 1)
+
     last_od = next((r for r in reversed(rows) if r['ox'] is not None), None)
     if last_od:
         # If the robot physically returned to the mark, this IS the wheels'
@@ -299,6 +316,29 @@ def analyse_pose(rows, has_odom, corr_jump_m=DEF_CORR_JUMP_M,
     return out
 
 
+def turn_context(pose, tight_curvature=TIGHT_TURN_CURVATURE):
+    """How tight was the average turn, from odometry alone.
+
+    Curvature = yaw turned / path driven; its reciprocal is the turn radius
+    the whole run is consistent with. Needed by the wheel-spread alarm below,
+    which otherwise cannot tell a tight turn's geometry (the ICR moving
+    toward the inner wheels) from a mechanical fault -- §17.44 measured a
+    37-56:1 wheel-travel ratio on a 0.54 m radius circle with 0% saturation
+    and 0% sign mismatch on every wheel. That run's own numbers -- 341 deg
+    over a 3.2 m path -- reproduce as curvature 1.86 rad/m, radius 0.54 m.
+    """
+    yaw_deg = pose.get('odom_yaw_integrated_deg')
+    path_m = pose.get('odom_path_m')
+    if not yaw_deg or not path_m or path_m < 0.05:
+        return None
+    curvature = math.radians(yaw_deg) / path_m
+    return {
+        'curvature_rad_per_m': round(curvature, 3),
+        'implied_radius_m': round(1.0 / curvature, 2) if curvature > 1e-6 else None,
+        'tight': curvature >= tight_curvature,
+    }
+
+
 # ═════════════════════════════════════════════════════════════════════════
 #  Wheels
 #
@@ -363,33 +403,59 @@ def analyse_wheels(rows):
 # ═════════════════════════════════════════════════════════════════════════
 #  Cross-checks — the reason all of this is in one tool
 # ═════════════════════════════════════════════════════════════════════════
-def cross_check(pose, wheels, mapres, coincide_m=DEF_COINCIDE_M,
+def trajectory_extent_m(pose_rows):
+    """Bounding-box diagonal of the map-frame path actually driven.
+
+    A cheap proxy for how far apart any two points on the trajectory can be.
+    The co-location check below is meaningless once the whole drive fits
+    inside the coincidence radius -- every point is then trivially 'near'
+    every doubled wall by construction, not by evidence. §17.44's 1 m-diameter
+    circle produced seven 'independent' corrections against one wall this way.
+    """
+    if not pose_rows:
+        return None
+    xs = [r['mx'] for r in pose_rows if r.get('mx') is not None]
+    ys = [r['my'] for r in pose_rows if r.get('my') is not None]
+    if len(xs) < 2:
+        return None
+    return math.hypot(max(xs) - min(xs), max(ys) - min(ys))
+
+
+def cross_check(pose, wheels, mapres, pose_rows=None, coincide_m=DEF_COINCIDE_M,
                 coincide_s=DEF_COINCIDE_S):
     out = {'jump_vs_map': [], 'jump_vs_wheels': [], 'notes': []}
     events = pose.get('jump_events') or []
     if not events:
         return out
 
+    extent = trajectory_extent_m(pose_rows)
+    out['trajectory_extent_m'] = round(extent, 2) if extent is not None else None
     clusters = (mapres or {}).get('doubled_clusters') or []
-    for e in events:
-        if e['map_x'] is None or not clusters:
-            continue
-        best, bd = None, None
-        for c in clusters:
-            d = math.dist((e['map_x'], e['map_y']), (c['map_x'], c['map_y']))
-            if bd is None or d < bd:
-                best, bd = c, d
-        if bd is not None and bd <= coincide_m:
-            out['jump_vs_map'].append({
-                't_rel': e['t_rel'], 'corr_m': e['corr_m'],
-                'map_x': e['map_x'], 'map_y': e['map_y'],
-                'cluster_gap_m': best['gap_m'], 'cluster_cells': best['cells'],
-                'distance_m': round(bd, 2)})
+    if extent is not None and extent <= coincide_m:
+        out['notes'].append(
+            f"co-location check suppressed: the trajectory's own extent "
+            f"({extent:.2f} m) is no bigger than the {coincide_m} m coincidence "
+            f"radius, so every point on it is trivially 'near' every doubled "
+            f"wall — see §17.44's 1 m circle, where this produced seven "
+            f"'independent' corrections against one wall")
+    else:
+        for e in events:
+            if e['map_x'] is None or not clusters:
+                continue
+            best, bd = None, None
+            for c in clusters:
+                d = math.dist((e['map_x'], e['map_y']), (c['map_x'], c['map_y']))
+                if bd is None or d < bd:
+                    best, bd = c, d
+            if bd is not None and bd <= coincide_m:
+                out['jump_vs_map'].append({
+                    't_rel': e['t_rel'], 'corr_m': e['corr_m'],
+                    'map_x': e['map_x'], 'map_y': e['map_y'],
+                    'cluster_x': best['map_x'], 'cluster_y': best['map_y'],
+                    'cluster_gap_m': best['gap_m'], 'cluster_cells': best['cells'],
+                    'distance_m': round(bd, 2)})
 
     anomalies = (wheels or {}).get('anomalies') or []
-    if anomalies and pose.get('duration_s'):
-        # jump times are relative; anomaly times are epoch. Rebase.
-        t0 = anomalies[0]['t'] - 0  # placeholder, corrected by caller-supplied base
     for e in events:
         hits = [a for a in anomalies
                 if abs(a.get('t_rel', 1e9) - e['t_rel']) <= coincide_s]
@@ -401,11 +467,20 @@ def cross_check(pose, wheels, mapres, coincide_m=DEF_COINCIDE_M,
                 'wheels': whs, 'kinds': kinds, 'n': len(hits)})
 
     if out['jump_vs_map']:
-        out['notes'].append(
-            f"{len(out['jump_vs_map'])} correction(s) happened within "
-            f"{coincide_m} m of a doubled wall — two instruments pointing at "
-            f"the same place, which is the strongest false-closure evidence "
-            f"available here")
+        distinct = {(r['cluster_x'], r['cluster_y']) for r in out['jump_vs_map']}
+        out['distinct_doubled_clusters'] = len(distinct)
+        if len(distinct) >= 2:
+            out['notes'].append(
+                f"{len(out['jump_vs_map'])} correction(s) land within "
+                f"{coincide_m} m of {len(distinct)} DISTINCT doubled walls — "
+                f"independent witnesses, the strongest false-closure evidence "
+                f"available here")
+        else:
+            out['notes'].append(
+                f"{len(out['jump_vs_map'])} correction(s) all land within "
+                f"{coincide_m} m of the SAME doubled wall — one witness "
+                f"counted {len(out['jump_vs_map'])} time(s), not independent "
+                f"evidence (§17.44: this is exactly what the 1 m circle did)")
     if out['jump_vs_wheels']:
         out['notes'].append(
             f"{len(out['jump_vs_wheels'])} correction(s) coincided with wheel "
@@ -582,11 +657,18 @@ def print_report(res):
         print(f"\n  wheel travel spread  {s['min_m']} m ({s['least']}) .. "
               f"{s['max_m']} m ({s['most']})"
               + (f", ratio {s['ratio']}" if s['ratio'] else ''))
+        turn = res.get('turn')
         if s['ratio'] and s['ratio'] > 1.5:
-            print('    one wheel did much less work than another — slip, or a '
-                  'mechanical problem.')
-            print('    Odometry is computed from all four, so this corrupts the '
-                  'map through the pose estimate.')
+            if turn and turn['tight']:
+                print(f"    expected for a tight turn: curvature "
+                      f"{turn['curvature_rad_per_m']} rad/m implies a "
+                      f"{turn['implied_radius_m']} m radius, which puts the ICR "
+                      f"near the inner wheels (§17.44). Not flagged as slip.")
+            else:
+                print('    one wheel did much less work than another — slip, or a '
+                      'mechanical problem.')
+                print('    Odometry is computed from all four, so this corrupts the '
+                      'map through the pose estimate.')
 
     x = res.get('cross') or {}
     print(f"\n{'-' * 72}\n  CROSS-CHECKS\n{'-' * 72}")
@@ -596,7 +678,8 @@ def print_report(res):
     for row in x.get('jump_vs_map', []):
         print(f"  correction {row['corr_m']} m at t+{row['t_rel']} s, map "
               f"({row['map_x']}, {row['map_y']}), is {row['distance_m']} m from a "
-              f"{row['cluster_cells']}-cell doubled wall (gap {row['cluster_gap_m']} m)")
+              f"{row['cluster_cells']}-cell doubled wall at "
+              f"({row['cluster_x']}, {row['cluster_y']}) (gap {row['cluster_gap_m']} m)")
     for row in x.get('jump_vs_wheels', []):
         print(f"  correction {row['corr_m']} m at t+{row['t_rel']} s coincided with "
               f"{'/'.join(row['kinds'])} on {'/'.join(row['wheels'])}")
@@ -643,14 +726,25 @@ def build_verdict(res):
                    'Re-run after deploying the current dashboard.')
 
     sp = (w.get('arc_spread') or {}).get('ratio')
+    turn = res.get('turn')
     if sp is not None:
-        out.append(f'WHEELS     travel ratio {sp} between the busiest and laziest wheel'
-                   + (' — investigate, this corrupts odometry.' if sp > 1.5 else '.'))
+        if sp > 1.5 and turn and turn['tight']:
+            out.append(f"WHEELS     travel ratio {sp} — expected, the drive averaged a "
+                       f"{turn['implied_radius_m']} m turn radius (curvature "
+                       f"{turn['curvature_rad_per_m']} rad/m); not a fault.")
+        else:
+            out.append(f'WHEELS     travel ratio {sp} between the busiest and laziest wheel'
+                       + (' — investigate, this corrupts odometry.' if sp > 1.5 else '.'))
 
     if x.get('jump_vs_map'):
-        out.append('AGREEMENT  a correction and a doubled wall land in the same place. '
-                   'That is a false closure with two independent witnesses.')
-        bad = True
+        if (x.get('distinct_doubled_clusters') or 0) >= 2:
+            out.append('AGREEMENT  corrections land near multiple DISTINCT doubled '
+                       'walls — a false closure with independent witnesses.')
+            bad = True
+        else:
+            out.append('AGREEMENT  corrections repeatedly land near the SAME doubled '
+                       'wall — one witness counted more than once, not independent '
+                       'evidence on its own.')
     if x.get('jump_vs_wheels'):
         out.append('AGREEMENT  a correction coincides with a wheel anomaly — fix the '
                    'mechanics before blaming the scan matcher.')
@@ -769,8 +863,111 @@ def selftest(args):
                   'odometry is unavailable')
             ok = False
 
+    ok = selftest_guards() and ok
+
     print('\nselftest:', 'PASS' if ok else 'FAIL')
     return 0 if ok else 1
+
+
+def selftest_guards():
+    """§6's two false-positive fixes, tested against the real 29 Aug numbers
+    directly rather than through synthetic CSVs -- the turn geometry and the
+    doubled-wall coincidence are both cheaper and clearer to check as pure
+    functions of hand-built inputs than to reproduce via fake wheel ticks."""
+    ok = True
+
+    # ── turn-rate guard: §17.44's own arc (341 deg over 3.2 m) must read tight
+    tight = turn_context({'odom_yaw_integrated_deg': 341.0, 'odom_path_m': 3.2})
+    print(f"  turn context   341 deg / 3.2 m -> curvature "
+          f"{tight['curvature_rad_per_m']} rad/m, radius {tight['implied_radius_m']} m, "
+          f"tight={tight['tight']}")
+    if not tight['tight'] or abs(tight['implied_radius_m'] - 0.54) > 0.05:
+        print('               FAIL: the §17.44 arc must reproduce as a tight turn '
+              'near 0.54 m radius')
+        ok = False
+
+    wide = turn_context({'odom_yaw_integrated_deg': 90.0, 'odom_path_m': 18.0})
+    print(f"  turn context   90 deg / 18 m -> curvature "
+          f"{wide['curvature_rad_per_m']} rad/m, tight={wide['tight']}")
+    if wide['tight']:
+        print('               FAIL: a wide perimeter corner must not read as tight')
+        ok = False
+
+    res_tight = {'wheels': {'arc_spread': {'ratio': 40.0}}, 'turn': tight,
+                 'pose': {}, 'map': {}, 'cross': {}}
+    line = next(l for l in build_verdict(res_tight) if l.startswith('WHEELS'))
+    print(f"  verdict        tight-turn 40:1 spread -> {line}")
+    if 'slip' in line.lower() or 'investigate' in line:
+        print('               FAIL: a 40:1 spread on a tight turn must not be flagged '
+              'as slip')
+        ok = False
+
+    res_straight = {'wheels': {'arc_spread': {'ratio': 40.0}}, 'turn': wide,
+                    'pose': {}, 'map': {}, 'cross': {}}
+    line = next(l for l in build_verdict(res_straight) if l.startswith('WHEELS'))
+    print(f"  verdict        wide-turn 40:1 spread  -> {line}")
+    if 'investigate' not in line:
+        print('               FAIL: a 40:1 spread WITHOUT a tight turn must still be '
+              'flagged — the guard should not suppress unconditionally')
+        ok = False
+
+    # ── co-location guard: extent suppression, then distinct-cluster counting
+    small_rows = [{'mx': 0.02 * i, 'my': 0.01 * i} for i in range(10)]   # ~0.22 m extent
+    one_cluster = {'doubled_clusters': [{'map_x': 0.05, 'map_y': 0.05,
+                                         'gap_m': 0.1, 'cells': 4}]}
+    seven_events = {'jump_events': [
+        {'t_rel': t, 'corr_m': 0.3, 'map_x': 0.05, 'map_y': 0.02, 'odom_normal': True}
+        for t in (10, 20, 30, 40, 50, 60, 70)]}
+    cross = cross_check(seven_events, {}, one_cluster, small_rows, coincide_m=1.0)
+    print(f"  co-location    1 m circle, 7 corrections, 1 wall -> "
+          f"matched={len(cross['jump_vs_map'])}, suppressed="
+          f"{any('suppressed' in n for n in cross['notes'])}")
+    if cross['jump_vs_map']:
+        print('               FAIL: co-location must be suppressed when trajectory '
+              'extent <= the coincidence radius (§17.44\'s exact case)')
+        ok = False
+
+    big_rows = [{'mx': 3.0 * math.cos(i / 10), 'my': 3.0 * math.sin(i / 10)}
+                for i in range(60)]                                      # ~6 m extent
+    same_wall_events = {'jump_events': [
+        {'t_rel': t, 'corr_m': 0.3, 'map_x': 0.05 + 0.01 * k, 'map_y': 0.02,
+         'odom_normal': True} for k, t in enumerate((10, 20, 30))]}
+    cross2 = cross_check(same_wall_events, {}, one_cluster, big_rows, coincide_m=1.0)
+    print(f"  co-location    real 6 m drive, 3 corrections, 1 wall -> "
+          f"distinct={cross2.get('distinct_doubled_clusters')}")
+    if cross2.get('distinct_doubled_clusters') != 1 or any(
+            'DISTINCT' in n for n in cross2['notes']):
+        print('               FAIL: one wall matched three times must not be reported '
+              'as independent witnesses')
+        ok = False
+    line = next(l for l in build_verdict(
+        {'wheels': {}, 'pose': {}, 'map': {}, 'cross': cross2, 'turn': None})
+        if l.startswith('AGREEMENT'))
+    if 'SAME doubled' not in line:
+        print(f'               FAIL: single-cluster verdict line wrong: {line}')
+        ok = False
+
+    two_clusters = {'doubled_clusters': [
+        {'map_x': 0.0, 'map_y': 0.0, 'gap_m': 0.1, 'cells': 4},
+        {'map_x': 4.0, 'map_y': 0.0, 'gap_m': 0.1, 'cells': 6}]}
+    two_events = {'jump_events': [
+        {'t_rel': 10, 'corr_m': 0.3, 'map_x': 0.05, 'map_y': 0.0, 'odom_normal': True},
+        {'t_rel': 50, 'corr_m': 0.3, 'map_x': 4.05, 'map_y': 0.0, 'odom_normal': True}]}
+    cross3 = cross_check(two_events, {}, two_clusters, big_rows, coincide_m=1.0)
+    print(f"  co-location    real 6 m drive, 2 corrections, 2 walls -> "
+          f"distinct={cross3.get('distinct_doubled_clusters')}")
+    if cross3.get('distinct_doubled_clusters') != 2:
+        print('               FAIL: two separate walls must both be counted')
+        ok = False
+    res3 = {'wheels': {}, 'pose': {}, 'map': {}, 'cross': cross3, 'turn': None}
+    lines3 = build_verdict(res3)
+    agreement = next((l for l in lines3 if l.startswith('AGREEMENT')), '')
+    if 'DISTINCT' not in agreement or 'NOT USABLE' not in lines3[-1]:
+        print(f'               FAIL: two distinct walls must still be flagged bad: '
+              f'{agreement!r} / {lines3[-1]!r}')
+        ok = False
+
+    return ok
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -800,6 +997,8 @@ def analyse(base, args):
         res['pose'] = analyse_pose(pose_rows, has_odom, args.corr_jump, args.event_gap)
     else:
         res['pose'] = {'error': 'no _pose.csv'}
+    res['turn'] = (turn_context(res['pose'], args.tight_turn_curvature)
+                   if 'error' not in res['pose'] else None)
 
     if art['telem'].is_file():
         trows = load_telemetry(art['telem'])
@@ -819,7 +1018,8 @@ def analyse(base, args):
             pass
 
     res['cross'] = cross_check(res.get('pose') or {}, res.get('wheels') or {},
-                               res.get('map') or {}, args.coincide_m, args.coincide_s)
+                               res.get('map') or {}, pose_rows,
+                               args.coincide_m, args.coincide_s)
     res['verdict'] = build_verdict(res)
     res['_grid'], res['_doubled'], res['_pose_rows'] = grid, doubled, pose_rows
     return res
@@ -837,6 +1037,10 @@ def main():
     ap.add_argument('--event-gap', type=float, default=DEF_EVENT_GAP_S, dest='event_gap')
     ap.add_argument('--coincide-m', type=float, default=DEF_COINCIDE_M, dest='coincide_m')
     ap.add_argument('--coincide-s', type=float, default=DEF_COINCIDE_S, dest='coincide_s')
+    ap.add_argument('--tight-turn-curvature', type=float, default=TIGHT_TURN_CURVATURE,
+                    dest='tight_turn_curvature',
+                    help=f'rad/m; at or above this the wheel-spread alarm is treated as '
+                         f'turn geometry, not slip (default {TIGHT_TURN_CURVATURE})')
     args = ap.parse_args()
 
     if args.selftest:

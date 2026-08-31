@@ -2984,6 +2984,39 @@ Kickoff §6 items 1 and 2, done idle with no driving. Both were self-tested agai
 
 **What did not change, correctly.** Both runs still verdict `MAP FOLDED` and `NOT USABLE for AMCL — redo the drive`. The fix removed two false alarms; it did not, and should not, touch the real finding underneath them. Neither run was a candidate for G4 regardless — both are the circle-geometry diagnostics §17.44 explicitly says were spent on a degenerate test, not commissioning drives.
 
+## 17.47 31 Aug 2026 (evening): two recon legs on one configuration, a 6.8× spread between them, and the first return-to-mark inside the G4 gate
+
+The commissioning drive was **not** driven today. What was driven instead were two ~165 s reconnaissance legs, and they turned out to matter more than the errand they were sent on. Evidence and both videos in `docs/evidence/monday_recon/`.
+
+**Why recon at all.** The drive plan needed usable floor dimensions, and the room turns out to be **cross-shaped** — variable width, no single length × width to tape-measure. The operator's alternative was better than the request: a camera fixed to the mast looking straight down, with the floor's **62 × 62 cm tiles** (tape-measured) as an embedded metric ruler, so distance comes from counting tile-line crossings rather than from commanded speed × elapsed time, which assumes no slip. One leg out to the obstacle in `+Y`, one in `+X`, each returning to the mark. The zero mark, axes and NOSE direction are recorded on a photographed floor plan: **NOSE points toward the Entrance, and that is `+Y`.**
+
+**The result nobody was looking for.** Same deployed configuration, same afternoon, same operator, same driving style — mixed straight / wall-hugging / turn-while-rolling / strafing, no stop-and-spin anywhere — and the two legs came back **6.8× apart on return-to-mark**:
+
+| | front leg (`155316`, +Y) | right leg (`191509`, +X) | G4 gate |
+|---|---|---|---|
+| wheel path | 9.61 m | 8.00 m | — |
+| **return to mark** | **0.577 m** | **0.085 m** | < 0.15 m |
+| wheel closure | 0.028 m | 0.019 m | — |
+| max correction | **0.678 m** | 0.280 m | (G2: < 0.30 m) |
+| net correction | 0.576 m | 0.072 m | — |
+| cumulative ÷ wheel path | 0.562 m/m | 0.305 m/m | — |
+| corrections | 21 | 13 | — |
+| D2 doubled | 5.1% | 5.2% | < 1.0% |
+| unknown | 73.8% | 79.4% | < 50% |
+| verdict | FOLDED | FOLDED | not FOLDED |
+
+**The right leg returned to the mark at 0.085 m — the first drive in this project's history to land inside G4's return gate.** ✅ **measured.** Its largest correction also sits under the G2 threshold. The annotated maps show why: on the right leg the SLAM path and the wheel path run nearly on top of each other; on the front leg they separate into a loop.
+
+**The front leg is the worst front-end performance recorded since the Stage D fix.** 0.678 m maximum correction against a G2 gate of 0.30 m, and **0.562 m of cumulative correction per metre driven — worse than the 0.507 m/m pre-fix baseline Stage D was built to cure**, on the configuration that passed G2 four days earlier. G2 passing once on one geometry is not a property of the robot; it was a property of that drive.
+
+**What must not be concluded from this.** ⛔ Not "`+X` is good, `+Y` is bad." That is precisely the shape of **"strafe is the weak axis," retracted 29 Aug** when a third recording failed on the `W`/`S` leg at the same speed on the same day. This is n=1 per direction, on two physically different routes. Three explanations remain live and this data cannot separate them: **geometry** (the front leg threads a narrow furniture-flanked aisle traversed twice in opposite directions minutes apart, which would extend §17.44's degenerate-geometry hypothesis from tight turns to narrow aisles — 🔷 hypothesis); **direction/axis** (the retracted shape); and **intermittency** (✅ already measured to exist on 29 Aug, and on its own sufficient to produce a 6.8× spread). **The separating test is cheap and is the first thing owed tomorrow: drive each leg a second time.** If each reproduces its own number it is route/geometry and route planning can help; if either flips it is intermittency, and no route plan rescues G4.
+
+**A procedural fault that nearly contaminated the analysis.** The front leg's MAP session had been running since before S0, so its saved pose log spans **2246 s** of which only the first ~166 s contain motion. Analysed untrimmed, `duration_s` and every correction-step percentile are meaningless. Caught because the log duration and the video duration disagreed by 13×. **Trim to the moving window before reading any run.** The idle tail did pay for itself once: across ~2080 s parked, the pose graph produced **zero** corrections — consistent with §17.44, and it establishes that S0's measured scan instability does **not** leak into corrections while the robot is stationary.
+
+**A third `run_analyzer`-family false positive, found and deliberately not patched.** `run_report.py`'s *"Diagonal mismatch is visible"* fired at FR−RL 1.214 / FL−RR 1.070 rad/s against a fixed 0.3 threshold. Read from source, it is `RMS(FR_actual − RL_actual)` and `RMS(FL_actual − RR_actual)` — and on a mecanum chassis those diagonal pairs are exactly what carries strafe and yaw, so a drive that deliberately strafed and turned makes them large by construction. Against it: all four motors 0.076–0.082 rad/s tracking error, 0% saturation, 0% sign mismatch, travel ratio 1.11. The threshold appears to date from a straight-line open-loop stutter investigation. **Scheduled, not patched** — standing rule #9 forbids changing an instrument mid-campaign without re-baselining, and the campaign is live.
+
+**Where this leaves the week.** Three of Monday's four items are done (§2 health check, §4 S0, §6 items 1–2, all logged above). **The fourth — the commissioning drive itself, the only one that moves G4 — was not driven.** G4 has four sub-criteria; exactly one of them has now been met once, and the three map-quality ones (not FOLDED, D2 < 1.0%, unknown < 50%) have never been met in this project's history. Four working days remain before the 5 Sep demo, and Phase 2 (AMCL, point-and-go) has still never executed and is gated on a map that does not exist.
+
 Every supporting document, organised by category. Update this as new artefacts are produced.
 
 > *Repository note (v2.0): the project's own authored documents now live as Markdown under `docs/` in the `NarrowAisleBot` GitHub repo, with the original `.docx`/`.pdf` in `docs/originals/`. The catalogue below predates that consolidation and lists documents by their original working titles; several are now the `docs/*.md` files. The repo is the current home of record.*

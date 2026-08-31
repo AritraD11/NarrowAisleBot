@@ -1,17 +1,24 @@
 # Next Session Kickoff — one accepted map, then Nav
 
-**Rewritten 29 Aug 2026 after §17.44, for the session of Monday 31 Aug.**
+**Rewritten 31 Aug 2026 after §17.47, for the session of Tuesday 1 Sep.**
 Paste §0 into a fresh session.
 
-**Schedule reality.** Demo is **Sat 5 Sep**. Sunday 30 Aug is not a lab day,
-so Monday is the commissioning-map day and there are five working days left.
-`Autonomy_Endgame.md`'s Day 2 (CPU headroom, G3) is **deferred** — it is a
-quality-of-life gain, and G4 is the critical path.
+**Schedule reality, stated plainly.** Demo is **Sat 5 Sep**. After today there
+are **four working days: Tue 1, Wed 2, Thu 3, Fri 4 Sep.** G4 has four
+sub-criteria; **exactly one has ever been met** (return-to-mark 0.085 m, once,
+on 31 Aug) and the three map-quality ones — not FOLDED, D2 < 1.0%, unknown
+< 50% — have **never** been met in ~70 maps of project history. Phase 2 (AMCL,
+point-and-go) has never executed once and is gated entirely on a map that does
+not exist.
 
-The order is unchanged and is not a preference: **SLAM must be trustworthy
-before Nav means anything.** What changed on 29 Aug is *why* the maps have
-been failing — the commissioning procedure itself was discarding its own
-corner observations. That is fixed by driving differently, not by tuning.
+**That combination is the real risk to the demo, and it needs a decision on
+Tuesday, not on Friday.** See §11 — the time-box and the fallback.
+
+The order is still not a preference: **SLAM must be trustworthy before Nav
+means anything.** But §17.47 changed what "trustworthy" is blocked on. It is no
+longer the corner-rotation procedure fault (fixed 29 Aug) — it is that two legs
+on the *same configuration, same afternoon* differed **6.8× in return-to-mark**,
+and nobody yet knows whether that is route geometry or intermittency.
 
 ---
 
@@ -25,24 +32,31 @@ Continue NarrowAisleBot on branch `claude/narrowaislebot-mapping-reliability-038
 
 **Read first, before doing anything:** `docs/Next_Session_Kickoff.md` (this
 whole file), then `docs/Where_We_Stand.md` §2, §4 and §6, then
-`docs/Research_Journal.md` §17.44. `docs/evidence/rotation_deadzone/README.md`
-if anything about rotation or the circle tests comes up.
+`docs/Research_Journal.md` §17.44 and §17.47.
+`docs/evidence/monday_recon/README.md` for the two legs and the 6.8× spread;
+`docs/evidence/rotation_deadzone/README.md` if rotation or the circle tests
+come up.
 
 **Closed, do not reopen:** the §17.38 map-frame rotation fix. **Never fix an
 axis, placement or trajectory-shape complaint in the dashboard** — §17.38 hid
 for two weeks that way, and §17.44 caught the same reflex a third time when
 the spiky trail looked like a rendering bug and was not.
 
-**Passed, do not re-litigate:** G1 (deployment, verified on the live node) and
-G2 (max correction 0.202 m, max heading step 4.57°).
+**Passed, do not re-litigate:** G1 (deployment, verified on the live node).
+G2 passed *on one route* on 29 Aug — **its generalisation is retracted**: on
+31 Aug the same config produced 0.678 m max correction and 0.562 m/m
+cumulative, worse than the pre-Stage-D baseline (§17.47).
 
 **Retracted, do not re-derive:** "strafe is the weak axis"; `minimum_travel_heading`
-as the rotation gate; `angle_variance_penalty` as a useful lever.
+as the rotation gate; `angle_variance_penalty` as a useful lever; **"G2's pass
+is a property of the robot"**. ⛔ And do **not** re-derive "`+X` is good, `+Y`
+is bad" from §17.47's two legs — that is the retracted strafe-axis claim
+wearing a new hat, on n=1 per direction.
 
 **Treat as hypotheses:** §17.28–§17.32's loop-closure conclusions, the
 false-closure co-location, "speed matters", the degenerate-geometry
-explanation, and the `shouldProcessScan()` distance-only mechanism.
-Tell me which category any claim you make is in.
+explanation (and its narrow-aisle extension), and the `shouldProcessScan()`
+distance-only mechanism. Tell me which category any claim you make is in.
 
 **The goal, in order:**
 1. **SLAM** — produce **one accepted commissioning map**. There has never
@@ -63,23 +77,31 @@ Tell me which category any claim you make is in.
 - **Short and crisp.** Command block, what to look for, one line of why.
   Prose goes in the journal.
 
-**Monday's order, and do not skip S0 for the drive:**
-1. **§2 health check.** Nothing is pending deployment — confirm what is
-   running before anything else.
-2. **§4 S0 — `scan_quality.py` at two positions.** 10 minutes, no driving.
-   It has never met real data and it tests the one open hypothesis. The
-   prediction is already written down; read the row we land on.
-3. **§6 items 1 and 2** — the two `run_analyzer.py` guards, while the robot
-   is idle. Re-run a 29 Aug baseline through both versions so the change is
-   attributable.
-4. **§4 S1 — the commissioning drive**, by the §3 rules.
+**Tuesday's order. Item 1 decides whether items 2–3 are worth driving at all:**
+1. **The repeat test — 15 minutes, and it is the highest-information test
+   available.** Re-drive §17.47's two legs, once each, same routes, same style.
+   Front leg returned 0.577 m; right leg returned 0.085 m. **Write the
+   prediction down first.** If each reproduces its own number it is route
+   geometry and route planning can help; if either flips it is intermittency
+   and no route plan rescues G4 — go straight to §11's fallback.
+2. **§4 S1 — the commissioning drive**, by the §3 rules, route informed by
+   what item 1 said. 10–15 min, wide outer-wall perimeter, **not** through the
+   narrow furniture aisles.
+3. **Analyse, and if G4 fails, one more attempt.** Budget two attempts, not
+   three — see the time-box.
+4. **Hard decision point, end of Tuesday** (§11). Not Friday.
 
-**I owe you this before the drive plan is final:** usable floor dimensions
-(length × width, tape-measured), a photographed hand sketch marking the zero
-mark and the obstacles, and three photos — down the long axis from the mark,
-the narrowest point, the widest open area. **My space is tight**, which is
-why a wide-radius corner may not be available and the plan has to fit what
-the room allows.
+**Already in hand, do not re-collect:** the floor plan with zero mark, axes and
+NOSE (`docs/evidence/monday_recon/lab_floor_sketch.png` — **NOSE is toward the
+Entrance and that is `+Y`**); tile pitch **62 × 62 cm** tape-measured; the
+mast-camera rig, which gives metric ground truth by tile-crossing count.
+
+**The room is cross-shaped** — variable width, no single length × width. Extent
+reached so far: `Y ≈ 3.59 m` on the front leg, `X ≈ 3.4 m` on the right leg.
+
+**Trim every run to its moving window before reading it.** §17.47's front-leg log
+spans 2246 s of which 166 s contain motion; untrimmed, duration and every
+correction-step percentile are garbage.
 
 Do not deploy anything until I confirm what is actually running.
 
@@ -429,3 +451,43 @@ not address the measured fault.**
 | What is still only a hypothesis? | `Where_We_Stand.md` §4 |
 | The day-by-day plan and fallbacks | `Autonomy_Endgame.md` Parts 4–5 |
 | Session-by-session record | `Research_Journal.md` §17.38–§17.44 |
+
+---
+
+## 11. The time-box, and the fallback demo — decide Tuesday
+
+**The arithmetic.** Four working days. G4 needs four things at once; three of
+them have never been achieved once in ~70 maps. Nav is gated on G4 and has
+never run. Continuing to spend every remaining day on G4 risks arriving at
+Saturday with **neither** a map **nor** a demonstrated navigation capability —
+the worst available outcome, and it is reachable by simply doing the obvious
+thing four days running.
+
+**The time-box.** G4 gets **Tuesday and Wednesday morning**. Two commissioning
+attempts, not five. If no map passes by Wednesday midday, G4 is declared
+missed for this demo and the remaining days go to the fallback.
+
+**The fallback is not a climb-down — most of it already works.** What is
+already demonstrated on hardware and needs no accepted map:
+
+| Capability | Evidence | Needs a map? |
+|---|---|---|
+| Live SLAM mapping, shown building on the dashboard | every run this week | no |
+| Teleop drive from the dashboard, phone or browser | daily | no |
+| Obstacle avoidance — local costmap inflates live LiDAR, MPPI plans around it | §17.17 chain confirmed | **no** |
+| `collision_monitor` forward-simulating the padded footprint | §17.17 | no |
+| Goal-seeking under live SLAM | two `Goal succeeded` (25.9 s, 21.0 s) | no |
+| Per-wheel closed-loop control, 0% saturation, 0% sign error | §17.42, §17.47 | no |
+| The measurement stack itself — six instruments, self-tested | this whole file | no |
+
+**A demo built on those is honest and substantial**: drive it, watch the map
+build live, put an obstacle in front of it and watch the local planner route
+around, and present the instrumentation as the engineering result. What it
+cannot claim is *"point at a saved map and go"* — that is AMCL, and AMCL needs
+G4.
+
+**Read this the right way.** The fallback is the floor, not the plan. Tuesday
+is still a real attempt at G4, and if the repeat test says "route geometry,"
+a wide outer-wall perimeter has a genuine chance. The point of writing the
+fallback down now is that the decision gets made on evidence Tuesday, by
+someone who is not tired, instead of at midnight on Friday.

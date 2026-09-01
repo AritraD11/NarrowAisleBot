@@ -208,6 +208,38 @@ with sync_playwright() as pw:
     chk(any(m.get('type') == 'arm' and m.get('cmd') == 'ENABLE' for m in msgs),
         'normal reconnect still auto-enables the arm')
 
+    # --- 2f. the DRIFT block, fed the real numbers that fooled us ---------
+    # run_20260901_184810 finished with map (-0.0094, 0.0123) -- looks like a
+    # perfect return to the mark -- while odom said (0.1041, 0.0161) and the
+    # tape said 9 cm right. The card must make that visible.
+    pg.evaluate("""() => {
+        robotPose = { x:-0.0094, y:0.0123, yaw:-0.0026,
+                      ox:0.1041, oy:0.0161, cx:-0.1142, cy:0.0011 };
+        updateHud(); updateLivePoseCard();
+    }""")
+    hud = pg.evaluate("() => document.getElementById('mapHud').innerText")
+    chk('0.114' in hud,        f'DRIFT shows the 11.4 cm the map hid')
+    chk('0.104' in hud,        'ODOM row shows the independent witness')
+    chk('-0.009' in hud,       'MAP row still shows the estimate verbatim')
+    bad = pg.evaluate("() => !!document.querySelector('#mapHud .drift-bad')")
+    chk(bad,                   'drift over 5 cm is flagged red, not printed quietly')
+    dv = pg.evaluate("() => document.getElementById('liveDrift').innerText")
+    chk('0.114' in dv,         f'DRIVE-view card agrees ("{dv}")')
+
+    # a healthy pose must NOT cry wolf
+    pg.evaluate("""() => {
+        robotPose = { x:0.01, y:0.02, yaw:0, ox:0.012, oy:0.021, cx:-0.002, cy:0.001 };
+        updateHud(); updateLivePoseCard();
+    }""")
+    ok_ = pg.evaluate("() => !!document.querySelector('#mapHud .drift-ok')")
+    chk(ok_,                   'a 2 mm drift stays green')
+
+    # and with no odom transform at all the block must hide, not render NaN
+    pg.evaluate("() => { robotPose = { x:0, y:0, yaw:0 }; updateHud(); updateLivePoseCard(); }")
+    hud2 = pg.evaluate("() => document.getElementById('mapHud').innerText")
+    chk('NaN' not in hud2 and 'DRIFT' not in hud2,
+        'no odom transform -> block hides instead of printing NaN')
+
     if errs:
         print(f'  JS ERRORS: {errs}'); p2 += 1
     pg.close(); b.close()

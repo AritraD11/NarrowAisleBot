@@ -185,7 +185,7 @@ button{font:inherit}
 body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 0;gap:7px;border-bottom:1px solid var(--line)}.yaw-lbl{font-size:8px;color:#98a2b3;letter-spacing:1px;font-weight:800}.yaw-track{width:24px;flex:1;max-height:120px;background:#f2f4f7;border-radius:12px;border:1px solid #c9d2dc;position:relative;cursor:pointer;touch-action:none}.yaw-thumb{width:38px;height:38px;border-radius:50%;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 35% 30%,#ffd591,#f79009 70%);box-shadow:0 6px 14px rgba(247,144,9,.25)}
 .arm-section,.lift-section{display:flex;flex-direction:column;padding:7px;gap:6px;justify-content:center}.arm-section{flex:3;border-bottom:1px solid var(--line)}.lift-section{flex:2}body.map-mode .arm-section,body.map-mode .lift-section{display:none}body.map-mode .yaw-wrap{flex:1;border-bottom:none;padding:14px 0}.arm-btn,.lift-btn{flex:1;border-radius:7px;cursor:pointer;touch-action:manipulation;font-weight:800}.arm-btn{border:1px solid #b7e6d0;background:#f1fbf6;color:#087443;font-size:9px}.arm-btn:active,.arm-btn.held{background:#dff5e9}.lift-btn{border:1px solid #b9d5ff;background:#f3f7ff;color:#1457b9;font-size:10px}.lift-btn:active,.lift-btn.held{background:#e5efff}
 .bottom{height:74px;display:flex;flex-shrink:0;border-top:1px solid var(--line);background:#fff;box-shadow:0 -4px 18px rgba(16,24,40,.04)}.bottom>button{flex:1;border:none;border-right:1px solid var(--line);background:#fff;cursor:pointer;touch-action:manipulation}.map-btn,.cal-btn,.uv-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:900}.map-btn{color:#1457b9}.map-btn.mapping{background:#edf5ff;color:#1457b9}.cal-btn{color:#a15c00}.cal-btn.disabled{color:#98a2b3;background:#f8fafc;pointer-events:none}.cal-btn.armed,.cal-btn.running{background:#fff5e8;color:#9a6700}.uv-btn{color:#7a4fb3}.uv-btn.on{background:#f7f1ff;color:#6d3ea0}.map-icon,.cal-icon,.uv-icon{font-size:18px;line-height:1}.estop-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}.estop-circle{width:48px;height:48px;border-radius:50%;background:#fff0ee;border:2px solid #e99b93;color:#b42318;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;box-shadow:0 3px 10px rgba(217,45,32,.08)}.estop-btn:active .estop-circle{transform:scale(.92)}.estop-btn.armed .estop-circle{background:#d92d20;border-color:#b42318;color:#fff;box-shadow:0 5px 18px rgba(217,45,32,.25)}.estop-lbl{font-size:8px;color:#667085;font-weight:800}
-.map-view{position:absolute;inset:0;background:#f4f6f8;display:none;z-index:6}.map-view.show{display:block}#mapCanvas{width:100%;height:100%;display:block;touch-action:none}.stale{opacity:.45;filter:grayscale(1)}.map-hud{position:absolute;top:11px;left:11px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:9px;padding:9px 10px;box-shadow:var(--shadow);font-size:10px;color:var(--text);pointer-events:none;min-width:175px}.hud-title{font-size:8px;font-weight:900;color:var(--muted);letter-spacing:.7px;margin-bottom:6px}.hud-grid{display:grid;grid-template-columns:42px 1fr;gap:4px 8px}.hud-grid span{color:var(--muted);font-weight:800;font-size:9px}.hud-grid strong{font-size:13px}.hud-muted{font-size:9px;color:var(--muted)}.map-status{position:absolute;left:12px;bottom:10px;background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:7px;padding:5px 8px;color:#667085;font-size:8px;font-weight:800;pointer-events:none}.map-tools{position:absolute;top:11px;right:11px;display:flex;flex-direction:column;gap:5px}.mt-btn{min-width:42px;height:30px;border-radius:7px;border:1px solid var(--line);background:rgba(255,255,255,.95);color:#344054;font-size:9px;font-weight:900;box-shadow:0 2px 8px rgba(16,24,40,.06);touch-action:manipulation}.mt-btn.armed,.mt-btn.active{background:var(--amber-soft);color:#9a6700;border-color:#f2c27a}.map-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:800;letter-spacing:.4px;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.94);color:#667085;border:1px solid var(--line);pointer-events:none;white-space:nowrap}.map-hint.armed{background:var(--amber-soft);color:#9a6700;border-color:#f2c27a}
+.map-view{position:absolute;inset:0;background:#f4f6f8;display:none;z-index:6}.map-view.show{display:block}#mapCanvas{width:100%;height:100%;display:block;touch-action:none}.stale{opacity:.45;filter:grayscale(1)}.map-hud{position:absolute;top:11px;left:11px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:9px;padding:9px 10px;box-shadow:var(--shadow);font-size:10px;color:var(--text);pointer-events:none;min-width:175px}.hud-title{font-size:8px;font-weight:900;color:var(--muted);letter-spacing:.7px;margin-bottom:6px}.hud-grid{display:grid;grid-template-columns:42px 1fr;gap:4px 8px}.hud-grid span{color:var(--muted);font-weight:800;font-size:9px}.hud-grid strong{font-size:13px}.hud-muted{font-size:9px;color:var(--muted)}.hud-sep{height:1px;background:var(--line);margin:7px 0 6px}.drift-ok{color:#087443}.drift-bad{color:#b42318}.map-status{position:absolute;left:12px;bottom:10px;background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:7px;padding:5px 8px;color:#667085;font-size:8px;font-weight:800;pointer-events:none}.map-tools{position:absolute;top:11px;right:11px;display:flex;flex-direction:column;gap:5px}.mt-btn{min-width:42px;height:30px;border-radius:7px;border:1px solid var(--line);background:rgba(255,255,255,.95);color:#344054;font-size:9px;font-weight:900;box-shadow:0 2px 8px rgba(16,24,40,.06);touch-action:manipulation}.mt-btn.armed,.mt-btn.active{background:var(--amber-soft);color:#9a6700;border-color:#f2c27a}.map-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:800;letter-spacing:.4px;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.94);color:#667085;border:1px solid var(--line);pointer-events:none;white-space:nowrap}.map-hint.armed{background:var(--amber-soft);color:#9a6700;border-color:#f2c27a}
 .layer-panel{position:absolute;top:50px;right:58px;width:204px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px;display:none;z-index:12}.layer-panel.show{display:block}.layer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.layer-title{font-size:10px;font-weight:900}.layer-close{border:0;background:none;color:#667085;font-size:14px}.layer-row{display:flex;align-items:center;justify-content:space-between;padding:7px 2px;border-top:1px solid #eef2f6;font-size:9px;color:#475467}.layer-row input{accent-color:#1677ff}.layer-note{margin-top:8px;font-size:8px;line-height:1.35;color:#98a2b3}.layer-clear{width:100%;margin-top:9px;padding:7px 6px;border:1px solid var(--line);border-radius:7px;background:#fff;color:#475467;font-size:8px;font-weight:900;letter-spacing:.4px;cursor:pointer}.layer-clear:active{background:#f2f4f7}.research-chip{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:10;background:#17202a;color:#fff;border-radius:999px;padding:5px 10px;font-size:8px;font-weight:900;letter-spacing:.5px;display:none;pointer-events:none}.research-chip.show{display:block}
 .cal-status{position:absolute;top:0;left:0;right:0;z-index:20;display:none;background:rgba(255,255,255,.97);border-bottom:1px solid #f2c27a;padding:7px 9px;font-size:8px;line-height:1.35;color:#9a6700;box-shadow:0 3px 12px rgba(16,24,40,.06);font-family:inherit;max-height:82px;overflow:hidden}.cal-status.show{display:block}.cal-status .cal-hd{font-weight:900;letter-spacing:.7px;color:#a15c00}
 .flash{position:fixed;inset:0;background:rgba(217,45,32,.12);pointer-events:none;opacity:0;transition:opacity .25s;z-index:999}.flash.show{opacity:1}
@@ -215,6 +215,7 @@ body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-directi
       <div class="info-card"><div class="k">MAP Y</div><div class="v" id="liveY">—</div></div>
       <div class="info-card"><div class="k">NOSE</div><div class="v" id="liveNose">—</div></div>
       <div class="info-card"><div class="k">PATH</div><div class="v" id="liveDist">0.00 m</div></div>
+      <div class="info-card"><div class="k">DRIFT map−odom</div><div class="v" id="liveDrift">—</div></div>
     </div>
     <div class="motion-card">
       <div class="title">MOTION COMMAND</div><div class="motion-state" id="motionState">IDLE</div>
@@ -365,6 +366,15 @@ function updateLivePoseCard() {
   const noseDeg = ((robotPose.yaw * 180 / Math.PI + 180) % 360 + 360) % 360 - 180;
   if (n) n.textContent = noseDeg.toFixed(1) + '°';
   if (d) d.textContent = pathLength.toFixed(2) + ' m';
+  const dr = document.getElementById('liveDrift');
+  if (dr) {
+    if (robotPose.cx === undefined) { dr.textContent = '—'; dr.className = 'v'; }
+    else {
+      const c = Math.hypot(robotPose.cx, robotPose.cy);
+      dr.textContent = c.toFixed(3) + ' m';
+      dr.className = 'v ' + (c >= 0.05 ? 'drift-bad' : 'drift-ok');
+    }
+  }
 }
 
 function updateDriveCommandCard(vx, vy, wz) {
@@ -465,7 +475,11 @@ function connect() {
       clearTimeout(noticeTimer);
       noticeTimer = setTimeout(() => goalHint(defaultHint(), false), 4000);
     } else if (m.type === 'pose') {
-      robotPose = { x: m.x, y: m.y, yaw: m.yaw };
+      // ox/oy/cx/cy are odom and map->odom (§17.49). Spread rather than
+      // listed so a missing transform simply leaves them undefined and the
+      // DRIFT block hides itself, instead of rendering NaN.
+      robotPose = { x: m.x, y: m.y, yaw: m.yaw,
+                    ox: m.ox, oy: m.oy, cx: m.cx, cy: m.cy };
       updateLivePoseCard();
       if (lastTrajectoryPose) {
         const d = Math.hypot(m.x - lastTrajectoryPose.x, m.y - lastTrajectoryPose.y);
@@ -1574,13 +1588,35 @@ function updateHud() {
     // on the ZERO mark that is 0 deg, which is what the old +90 deg offset
     // used to produce artificially.
     const noseDeg = ((robotPose.yaw * 180 / Math.PI + 180) % 360 + 360) % 360 - 180;
+    // DRIFT block (§17.49). The map pose alone cannot tell you the robot is
+    // in the wrong place: on 1 Sep it read (-0.011, 0.013) with the robot
+    // 9 cm off the mark, because map->odom carried -0.114 m and the estimate
+    // is self-consistent by construction. odom is the independent witness --
+    // it agreed with the tape to ~1 cm on both runs -- so show the gap.
+    // This is NOT a correction applied to anything; nothing here changes a
+    // published value. It is the raw third transform, displayed.
+    let drift = '';
+    if (robotPose.cx !== undefined) {
+      const c = Math.hypot(robotPose.cx, robotPose.cy);
+      // 0.05 m is a deliberate operator threshold, not a spec: below it the
+      // estimate and the odometry agree to about the goal tolerance, above
+      // it the robot is somewhere the map does not think it is.
+      const cls = c >= 0.05 ? 'drift-bad' : 'drift-ok';
+      drift = `
+      <div class="hud-sep"></div>
+      <div class="hud-grid">
+        <span>ODOM</span><strong>${robotPose.ox.toFixed(3)}, ${robotPose.oy.toFixed(3)}</strong>
+        <span>DRIFT</span><strong class="${cls}">${c.toFixed(3)} m</strong>
+      </div>
+      <div class="hud-muted">map−odom ${robotPose.cx.toFixed(3)}, ${robotPose.cy.toFixed(3)}</div>`;
+    }
     hud.innerHTML = `
       <div class="hud-title">ROBOT POSE · MAP FRAME</div>
       <div class="hud-grid">
         <span>X</span><strong>${robotPose.x.toFixed(3)} m</strong>
         <span>Y</span><strong>${robotPose.y.toFixed(3)} m</strong>
         <span>NOSE</span><strong>${noseDeg.toFixed(1)}°</strong>
-      </div>`;
+      </div>${drift}`;
     if (status) status.textContent = mapGrid ? `${mapGrid.w} × ${mapGrid.h} · ${mapGrid.res.toFixed(2)} m/cell` : 'MAP GRID WAITING';
   } else {
     hud.innerHTML = '<div class="hud-title">ROBOT POSE</div><div class="hud-muted">NO POSE (map → base_link)</div>';
@@ -2043,6 +2079,20 @@ class PhoneDashboard(Node):
 
         if pose is not None:
             self.latest_pose = {'x': pose[0], 'y': pose[1], 'yaw': pose[2]}
+            # §17.49: SHIP THE DIVERGENCE, NOT JUST THE ESTIMATE. Two runs on
+            # 1 Sep finished 9-10 cm off the physical mark (tape-measured)
+            # while this card read zero, because map->odom had absorbed the
+            # error and Nav2 closes its loop on the map pose. Nothing on
+            # screen was wrong -- the screen only ever held the estimate.
+            # odom and corr are already looked up on this same tick for the
+            # pose log below, so sending them costs one dict write and puts
+            # the one number that matters in front of the operator.
+            if odom is not None:
+                self.latest_pose['ox'] = odom[0]
+                self.latest_pose['oy'] = odom[1]
+            if corr is not None:
+                self.latest_pose['cx'] = corr[0]
+                self.latest_pose['cy'] = corr[1]
 
         if self._pose_csv_writer is None:
             return

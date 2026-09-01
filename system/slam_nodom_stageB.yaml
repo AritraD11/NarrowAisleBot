@@ -52,7 +52,19 @@ slam_toolbox:
     mode: mapping
 
     use_scan_matching: true
-    use_scan_barycenter: true
+    # STAGE F, one value, §17.49. true -> false.
+    # With barycenter ON, karto measures node-to-node travel and seeds the
+    # match from the CENTROID OF THE RETURNED POINTS rather than the sensor
+    # origin. On this scanner that centroid is computed over a cloud that is
+    # ~49% valid, 86% flickering scan-to-scan while parked, and missing a
+    # permanently masked rear 90 deg -- so it sits off-centre and MOVES even
+    # when the robot does not. A wandering reference point is a candidate for
+    # the coupled position/heading drift measured on 1 Sep.
+    # This is deliberately NOT a search parameter. §17.44 found cumulative
+    # correction invariant to 2% across three sets of those (2.80/2.85/2.86 m);
+    # every one of them changed how the matcher SEARCHES. This changes what it
+    # registers. That is why it is worth a drive.
+    use_scan_barycenter: false
     minimum_travel_distance: 0.2
     minimum_travel_heading: 0.2
     scan_buffer_size: 10

@@ -453,9 +453,18 @@ def run_live(args):
         print('\nstopped')
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        # Close the log BEFORE touching rclpy. On Ctrl-C rclpy's own signal
+        # handler has already shut the context down, so rclpy.shutdown()
+        # raises RCLError('rcl_shutdown already called') — and with the close
+        # sequenced after it, that exception skipped log.close() entirely.
+        # Every record survived only because the writer flushes per line.
+        # Found on the tool's first live run against the node, 27 Aug 2026.
         if log:
             log.close()
+        try:
+            rclpy.shutdown()
+        except Exception:
+            pass
 
     if state['markers'] is None:
         sys.exit(f'\nno message on {args.topic} in {args.timeout} s.\n'

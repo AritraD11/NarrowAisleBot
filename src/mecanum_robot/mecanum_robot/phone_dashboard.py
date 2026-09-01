@@ -185,8 +185,8 @@ button{font:inherit}
 body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 0;gap:7px;border-bottom:1px solid var(--line)}.yaw-lbl{font-size:8px;color:#98a2b3;letter-spacing:1px;font-weight:800}.yaw-track{width:24px;flex:1;max-height:120px;background:#f2f4f7;border-radius:12px;border:1px solid #c9d2dc;position:relative;cursor:pointer;touch-action:none}.yaw-thumb{width:38px;height:38px;border-radius:50%;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 35% 30%,#ffd591,#f79009 70%);box-shadow:0 6px 14px rgba(247,144,9,.25)}
 .arm-section,.lift-section{display:flex;flex-direction:column;padding:7px;gap:6px;justify-content:center}.arm-section{flex:3;border-bottom:1px solid var(--line)}.lift-section{flex:2}body.map-mode .arm-section,body.map-mode .lift-section{display:none}body.map-mode .yaw-wrap{flex:1;border-bottom:none;padding:14px 0}.arm-btn,.lift-btn{flex:1;border-radius:7px;cursor:pointer;touch-action:manipulation;font-weight:800}.arm-btn{border:1px solid #b7e6d0;background:#f1fbf6;color:#087443;font-size:9px}.arm-btn:active,.arm-btn.held{background:#dff5e9}.lift-btn{border:1px solid #b9d5ff;background:#f3f7ff;color:#1457b9;font-size:10px}.lift-btn:active,.lift-btn.held{background:#e5efff}
 .bottom{height:74px;display:flex;flex-shrink:0;border-top:1px solid var(--line);background:#fff;box-shadow:0 -4px 18px rgba(16,24,40,.04)}.bottom>button{flex:1;border:none;border-right:1px solid var(--line);background:#fff;cursor:pointer;touch-action:manipulation}.map-btn,.cal-btn,.uv-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:900}.map-btn{color:#1457b9}.map-btn.mapping{background:#edf5ff;color:#1457b9}.cal-btn{color:#a15c00}.cal-btn.disabled{color:#98a2b3;background:#f8fafc;pointer-events:none}.cal-btn.armed,.cal-btn.running{background:#fff5e8;color:#9a6700}.uv-btn{color:#7a4fb3}.uv-btn.on{background:#f7f1ff;color:#6d3ea0}.map-icon,.cal-icon,.uv-icon{font-size:18px;line-height:1}.estop-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}.estop-circle{width:48px;height:48px;border-radius:50%;background:#fff0ee;border:2px solid #e99b93;color:#b42318;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;box-shadow:0 3px 10px rgba(217,45,32,.08)}.estop-btn:active .estop-circle{transform:scale(.92)}.estop-btn.armed .estop-circle{background:#d92d20;border-color:#b42318;color:#fff;box-shadow:0 5px 18px rgba(217,45,32,.25)}.estop-lbl{font-size:8px;color:#667085;font-weight:800}
-.map-view{position:absolute;inset:0;background:#f4f6f8;display:none;z-index:6}.map-view.show{display:block}#mapCanvas{width:100%;height:100%;display:block;touch-action:none}.map-hud{position:absolute;top:11px;left:11px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:9px;padding:9px 10px;box-shadow:var(--shadow);font-size:10px;color:var(--text);pointer-events:none;min-width:175px}.hud-title{font-size:8px;font-weight:900;color:var(--muted);letter-spacing:.7px;margin-bottom:6px}.hud-grid{display:grid;grid-template-columns:42px 1fr;gap:4px 8px}.hud-grid span{color:var(--muted);font-weight:800;font-size:9px}.hud-grid strong{font-size:13px}.hud-muted{font-size:9px;color:var(--muted)}.map-status{position:absolute;left:12px;bottom:10px;background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:7px;padding:5px 8px;color:#667085;font-size:8px;font-weight:800;pointer-events:none}.map-tools{position:absolute;top:11px;right:11px;display:flex;flex-direction:column;gap:5px}.mt-btn{min-width:42px;height:30px;border-radius:7px;border:1px solid var(--line);background:rgba(255,255,255,.95);color:#344054;font-size:9px;font-weight:900;box-shadow:0 2px 8px rgba(16,24,40,.06);touch-action:manipulation}.mt-btn.armed,.mt-btn.active{background:var(--amber-soft);color:#9a6700;border-color:#f2c27a}.map-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:800;letter-spacing:.4px;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.94);color:#667085;border:1px solid var(--line);pointer-events:none;white-space:nowrap}.map-hint.armed{background:var(--amber-soft);color:#9a6700;border-color:#f2c27a}
-.layer-panel{position:absolute;top:50px;right:58px;width:204px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px;display:none;z-index:12}.layer-panel.show{display:block}.layer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.layer-title{font-size:10px;font-weight:900}.layer-close{border:0;background:none;color:#667085;font-size:14px}.layer-row{display:flex;align-items:center;justify-content:space-between;padding:7px 2px;border-top:1px solid #eef2f6;font-size:9px;color:#475467}.layer-row input{accent-color:#1677ff}.layer-note{margin-top:8px;font-size:8px;line-height:1.35;color:#98a2b3}.research-chip{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:10;background:#17202a;color:#fff;border-radius:999px;padding:5px 10px;font-size:8px;font-weight:900;letter-spacing:.5px;display:none;pointer-events:none}.research-chip.show{display:block}
+.map-view{position:absolute;inset:0;background:#f4f6f8;display:none;z-index:6}.map-view.show{display:block}#mapCanvas{width:100%;height:100%;display:block;touch-action:none}.stale{opacity:.45;filter:grayscale(1)}.map-hud{position:absolute;top:11px;left:11px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:9px;padding:9px 10px;box-shadow:var(--shadow);font-size:10px;color:var(--text);pointer-events:none;min-width:175px}.hud-title{font-size:8px;font-weight:900;color:var(--muted);letter-spacing:.7px;margin-bottom:6px}.hud-grid{display:grid;grid-template-columns:42px 1fr;gap:4px 8px}.hud-grid span{color:var(--muted);font-weight:800;font-size:9px}.hud-grid strong{font-size:13px}.hud-muted{font-size:9px;color:var(--muted)}.hud-sep{height:1px;background:var(--line);margin:7px 0 6px}.drift-ok{color:#087443}.drift-bad{color:#b42318}.map-status{position:absolute;left:12px;bottom:10px;background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:7px;padding:5px 8px;color:#667085;font-size:8px;font-weight:800;pointer-events:none}.map-tools{position:absolute;top:11px;right:11px;display:flex;flex-direction:column;gap:5px}.mt-btn{min-width:42px;height:30px;border-radius:7px;border:1px solid var(--line);background:rgba(255,255,255,.95);color:#344054;font-size:9px;font-weight:900;box-shadow:0 2px 8px rgba(16,24,40,.06);touch-action:manipulation}.mt-btn.armed,.mt-btn.active{background:var(--amber-soft);color:#9a6700;border-color:#f2c27a}.map-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:800;letter-spacing:.4px;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.94);color:#667085;border:1px solid var(--line);pointer-events:none;white-space:nowrap}.map-hint.armed{background:var(--amber-soft);color:#9a6700;border-color:#f2c27a}
+.layer-panel{position:absolute;top:50px;right:58px;width:204px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px;display:none;z-index:12}.layer-panel.show{display:block}.layer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.layer-title{font-size:10px;font-weight:900}.layer-close{border:0;background:none;color:#667085;font-size:14px}.layer-row{display:flex;align-items:center;justify-content:space-between;padding:7px 2px;border-top:1px solid #eef2f6;font-size:9px;color:#475467}.layer-row input{accent-color:#1677ff}.layer-note{margin-top:8px;font-size:8px;line-height:1.35;color:#98a2b3}.layer-clear{width:100%;margin-top:9px;padding:7px 6px;border:1px solid var(--line);border-radius:7px;background:#fff;color:#475467;font-size:8px;font-weight:900;letter-spacing:.4px;cursor:pointer}.layer-clear:active{background:#f2f4f7}.research-chip{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:10;background:#17202a;color:#fff;border-radius:999px;padding:5px 10px;font-size:8px;font-weight:900;letter-spacing:.5px;display:none;pointer-events:none}.research-chip.show{display:block}
 .cal-status{position:absolute;top:0;left:0;right:0;z-index:20;display:none;background:rgba(255,255,255,.97);border-bottom:1px solid #f2c27a;padding:7px 9px;font-size:8px;line-height:1.35;color:#9a6700;box-shadow:0 3px 12px rgba(16,24,40,.06);font-family:inherit;max-height:82px;overflow:hidden}.cal-status.show{display:block}.cal-status .cal-hd{font-weight:900;letter-spacing:.7px;color:#a15c00}
 .flash{position:fixed;inset:0;background:rgba(217,45,32,.12);pointer-events:none;opacity:0;transition:opacity .25s;z-index:999}.flash.show{opacity:1}
 @media (max-width:560px){.hdr-sub{display:none}.status-pills{max-width:150px}.speed-label{display:none}.spd-btn{min-width:48px;padding:6px 5px}.hdr{padding:0 9px}.drive-info{left:7px;top:7px;gap:5px}.motion-card{right:7px;top:7px;min-width:116px}.info-card{min-width:78px;padding:6px 7px}.info-card .v{font-size:12px}.motion-card{padding:7px 8px}.layer-panel{right:55px;width:190px}}
@@ -215,6 +215,7 @@ body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-directi
       <div class="info-card"><div class="k">MAP Y</div><div class="v" id="liveY">—</div></div>
       <div class="info-card"><div class="k">NOSE</div><div class="v" id="liveNose">—</div></div>
       <div class="info-card"><div class="k">PATH</div><div class="v" id="liveDist">0.00 m</div></div>
+      <div class="info-card"><div class="k">DRIFT map−odom</div><div class="v" id="liveDrift">—</div></div>
     </div>
     <div class="motion-card">
       <div class="title">MOTION COMMAND</div><div class="motion-state" id="motionState">IDLE</div>
@@ -242,12 +243,15 @@ body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-directi
         <div class="layer-head"><div class="layer-title">VIEW SETTINGS</div><button class="layer-close" id="btnLayersClose">×</button></div>
         <label class="layer-row">Grid <input id="layer-grid" type="checkbox" checked></label>
         <label class="layer-row">Scale bar <input id="layer-scale" type="checkbox" checked></label>
-        <label class="layer-row">Trajectory <input id="layer-trajectory" type="checkbox"></label>
+        <label class="layer-row">Trajectory &mdash; current <input id="layer-trajectory" type="checkbox"></label>
+        <label class="layer-row">Trajectory &mdash; past runs <input id="layer-pastTrails" type="checkbox"></label>
+        <label class="layer-row">Goal markers <input id="layer-goals" type="checkbox" checked></label>
         <label class="layer-row">Robot footprint <input id="layer-footprint" type="checkbox" checked></label>
         <label class="layer-row">Map axes <input id="layer-axes" type="checkbox"></label>
         <label class="layer-row">Zero mark <input id="layer-zero" type="checkbox" checked></label>
         <label class="layer-row">Research mode <input id="researchToggle" type="checkbox"></label>
-        <div class="layer-note">Grid spacing and scale-bar length adapt automatically to zoom. Rendering options do not change ROS behavior.</div>
+        <button class="layer-clear" id="btnClearTrails">CLEAR TRAILS &amp; GOALS</button>
+        <div class="layer-note">A new run starts at MAP or re-ZERO; the previous trail moves to &ldquo;past runs&rdquo;. Clearing is display-only &mdash; it discards nothing ROS has recorded, and no option here changes ROS behavior.</div>
       </div>
       <div class="map-hint" id="mapHint">DRAG TO PAN · PINCH TO ZOOM</div>
     </div>
@@ -293,14 +297,58 @@ const mapLayers = {
   grid: true,
   scale: true,
   trajectory: false,
+  pastTrails: false,
+  goals: true,
   footprint: true,
   axes: false,
   zero: true,
 };
 let mapResearchMode = false;
+
+// TRAILS. `trajectory` is the CURRENT run only. Completed runs move into
+// `pastTrails` as separate polylines rather than being concatenated, so a
+// re-zero or a fresh MAP does not draw a straight line across the room
+// between where the old run ended and the new one starts. Each is toggled
+// independently: after several attempts the accumulated past trails are
+// what makes the canvas unreadable, and that is exactly when you still
+// want to see the live one.
 let trajectory = [];
+let pastTrails = [];
 let lastTrajectoryPose = null;
 let pathLength = 0;
+
+// GOALS. goalDrag is transient (only while placing). activeGoal is the one
+// actually SENT and survives the release, because "where did I tell it to
+// go" is worth seeing while it drives there. Superseded goals fall back to
+// pastGoals so a sequence of commands stays legible.
+let activeGoal = null;
+let pastGoals  = [];
+
+// Bounded so a long session cannot grow these without limit.
+const MAX_TRAIL_PTS   = 2500;
+const MAX_PAST_TRAILS = 8;
+const MAX_PAST_GOALS  = 12;
+const MIN_TRAIL_KEEP  = 4;    // shorter than this is a twitch, not a run
+
+// Close the current trail and start a new one. Called on the events that
+// genuinely begin a new run — MAP start and re-zero — never on a goal,
+// because a trail records where the robot went, not why.
+function startNewTrail() {
+  if (trajectory.length >= MIN_TRAIL_KEEP) {
+    pastTrails.push(trajectory);
+    while (pastTrails.length > MAX_PAST_TRAILS) pastTrails.shift();
+  }
+  trajectory = [];
+  lastTrajectoryPose = null;
+  pathLength = 0;
+}
+
+function clearAllTrails() {
+  trajectory = []; pastTrails = [];
+  lastTrajectoryPose = null; pathLength = 0;
+  activeGoal = null; pastGoals = [];
+  if (mapView) drawMap();
+}
 
 // ── Operator display helpers ──────────────────────────────────────
 function updateLivePoseCard() {
@@ -318,6 +366,15 @@ function updateLivePoseCard() {
   const noseDeg = ((robotPose.yaw * 180 / Math.PI + 180) % 360 + 360) % 360 - 180;
   if (n) n.textContent = noseDeg.toFixed(1) + '°';
   if (d) d.textContent = pathLength.toFixed(2) + ' m';
+  const dr = document.getElementById('liveDrift');
+  if (dr) {
+    if (robotPose.cx === undefined) { dr.textContent = '—'; dr.className = 'v'; }
+    else {
+      const c = Math.hypot(robotPose.cx, robotPose.cy);
+      dr.textContent = c.toFixed(3) + ' m';
+      dr.className = 'v ' + (c >= 0.05 ? 'drift-bad' : 'drift-ok');
+    }
+  }
 }
 
 function updateDriveCommandCard(vx, vy, wz) {
@@ -341,8 +398,17 @@ function setPill(id, state, text) {
 
 function updateConnectionUI() {
   setPill('rosPill', wsOk ? 'good' : 'bad', wsOk ? 'ROS ●' : 'ROS ×');
-  setPill('mapPill', mapGrid ? 'good' : 'muted', mapGrid ? 'MAP ●' : 'MAP —');
-  setPill('posePill', robotPose ? 'good' : 'muted', robotPose ? 'POSE ●' : 'POSE —');
+  setPill('mapPill', (wsOk && mapGrid) ? 'good' : 'muted', mapGrid ? 'MAP ●' : 'MAP —');
+  // POSE used to read green off `robotPose` alone, so a dropped socket left
+  // the last coordinate on screen looking live -- and those numbers are what
+  // the operator drives by. robotPose is deliberately NOT cleared (the trail
+  // and the last known position are still worth seeing); the pill and the
+  // card just stop claiming they are current.
+  const fresh = wsOk && !!robotPose;
+  setPill('posePill', fresh ? 'good' : 'muted',
+          robotPose ? (fresh ? 'POSE ●' : 'POSE ⌛') : 'POSE —');
+  document.querySelectorAll('.info-card, .map-hud')
+          .forEach(el => el.classList.toggle('stale', !!robotPose && !wsOk));
 }
 
 function syncLayerPanel() {
@@ -391,8 +457,15 @@ function connect() {
     wsOk = true;
     document.getElementById('dot').classList.add('on');
     updateConnectionUI();
-    // FIX: Auto-enable arm on every connection so we never need a manual ENABLE button
-    send({ type: 'arm', cmd: 'ENABLE' });
+    // Auto-enable the arm on connect so no manual ENABLE button is needed --
+    // BUT NEVER BEHIND A LATCHED E-STOP. This used to send ENABLE
+    // unconditionally, so a Wi-Fi blip while the operator had the robot
+    // E-STOPped re-armed it with nobody touching anything, and the button
+    // still read CLEAR / TAP TO RESUME. Re-assert the stop instead: if the
+    // drive stack restarted during the outage its own latch is gone, so
+    // re-sending is strictly safer than assuming it held.
+    if (estopped) send({ type: 'estop' });
+    else          send({ type: 'arm', cmd: 'ENABLE' });
   };
   ws.onmessage = (ev) => {
     let m;
@@ -402,14 +475,18 @@ function connect() {
       clearTimeout(noticeTimer);
       noticeTimer = setTimeout(() => goalHint(defaultHint(), false), 4000);
     } else if (m.type === 'pose') {
-      robotPose = { x: m.x, y: m.y, yaw: m.yaw };
+      // ox/oy/cx/cy are odom and map->odom (§17.49). Spread rather than
+      // listed so a missing transform simply leaves them undefined and the
+      // DRIFT block hides itself, instead of rendering NaN.
+      robotPose = { x: m.x, y: m.y, yaw: m.yaw,
+                    ox: m.ox, oy: m.oy, cx: m.cx, cy: m.cy };
       updateLivePoseCard();
       if (lastTrajectoryPose) {
         const d = Math.hypot(m.x - lastTrajectoryPose.x, m.y - lastTrajectoryPose.y);
         if (d >= 0.005) {
           pathLength += d;
           trajectory.push({ x: m.x, y: m.y });
-          if (trajectory.length > 2500) trajectory.shift();
+          if (trajectory.length > MAX_TRAIL_PTS) trajectory.shift();
           lastTrajectoryPose = { x: m.x, y: m.y };
         }
       } else {
@@ -434,7 +511,28 @@ function connect() {
 }
 connect();
 
-function send(obj) { if (wsOk) ws.send(JSON.stringify(obj)); }
+// Returns TRUE only if the command actually reached the socket. This used to
+// be `if (wsOk) ws.send(...)` with no return and no notice, so a GOAL or an
+// E-STOP tapped while the socket was down vanished silently and the UI went
+// on to report success. A control surface that swallows an E-STOP and then
+// says "TAP TO RESUME" is lying about the state of a 45 kg robot.
+//
+// wsOk alone is not enough: it is set in onopen and cleared in onclose, which
+// leaves a window in CLOSING where ws.send() throws. Check readyState too.
+//
+// quiet=true is for the 20 Hz drive loop, which must not spam the hint line.
+// A dropped socket there is already covered three ways: the ROS pill, the
+// velocity_smoother's 1.0 s velocity_timeout, and esp32_bridge's own 500 ms
+// watchdog, which stops the wheels when commands stop arriving (§17.14).
+function send(obj, quiet) {
+  if (wsOk && ws && ws.readyState === WebSocket.OPEN) {
+    try { ws.send(JSON.stringify(obj)); return true; } catch (e) { /* fall through */ }
+  }
+  wsOk = false;
+  updateConnectionUI();
+  if (!quiet) goalHint('NOT CONNECTED — COMMAND NOT SENT', true);
+  return false;
+}
 
 // ── SPEED MODE ────────────────────────────────────────────────────
 // FIX: Speed buttons now use touchstart event listeners instead of onclick.
@@ -618,7 +716,9 @@ function sendDrive() {
   const vy = applyDead(-joyX)  * m * MAX_LINEAR;
   const wz = applyDead(yawVal) * m * MAX_ANGULAR;
   updateDriveCommandCard(vx, vy, wz);
-  send({ type: 'drive', vx: +vx.toFixed(3), vy: +vy.toFixed(3), wz: +wz.toFixed(3) });
+  // quiet: this fires at 20 Hz; a dead socket is reported by the ROS pill,
+  // not by 20 hint updates a second. See send().
+  send({ type: 'drive', vx: +vx.toFixed(3), vy: +vy.toFixed(3), wz: +wz.toFixed(3) }, true);
 }
 
 setInterval(() => {
@@ -689,6 +789,9 @@ function toggleMapping() {
     mapReset();
   } else {
     mapping = true;
+    // A new mapping session re-anchors the map frame, so the old trail is
+    // no longer in the same coordinates as the new one. Close it off.
+    startNewTrail();
     send({ type: 'map_start' });
     document.getElementById('mapBtn').classList.add('mapping');
     document.getElementById('mapIcon').textContent  = '⏹';
@@ -853,8 +956,13 @@ const flash       = document.getElementById('flash');
 
 function toggleEstop() {
   if (!estopped) {
+    // Latch locally FIRST, unconditionally, then try to send. If the socket
+    // is down the stop did not reach the robot, and the operator has to know
+    // that rather than read TAP TO RESUME on a robot that is still driving.
+    // The latch still sets, so the reconnect handler re-asserts it the
+    // moment the socket returns.
     estopped = true;
-    send({ type: 'estop' });
+    const stopSent = send({ type: 'estop' });
     uvReset();                       // firmware drops UV on <S>; mirror it here
     calReset();                      // server already SIGKILLed it; clear the UI
     joyX = 0; joyY = 0; yawVal = 0;
@@ -864,7 +972,8 @@ function toggleEstop() {
     if (mapping) { send({ type: 'map_stop' }); mapReset(); }
     estopBtn.classList.add('armed');
     estopCircle.textContent = 'CLEAR';
-    estopLbl.textContent    = 'TAP TO RESUME';
+    estopLbl.textContent    = stopSent ? 'TAP TO RESUME' : 'NOT SENT ×';
+    if (!stopSent) goalHint('E-STOP NOT DELIVERED — NO LINK TO ROBOT', true);
     flash.classList.add('show');
     setTimeout(() => flash.classList.remove('show'), 400);
   } else {
@@ -978,6 +1087,26 @@ function sizeCanvas() {
 }
 window.addEventListener('resize', () => { sizeCanvas(); if (mapView) drawMap(); });
 
+// THE RESIZE EVENT IS NOT ENOUGH, and the gap is a real click-accuracy bug.
+// sizeCanvas() caches cssW/cssH, and s2w()/w2s() work off that cache while
+// the pointer handler reads a LIVE getBoundingClientRect() for r.left. The
+// canvas backing store is cssW*dpr px, which the browser then rescales to
+// the element's real CSS width -- so when the two disagree the marker lands
+// at sx * (r.width / cssW): zero error at the left edge, growing to the
+// right. That is the "goal marker sits right of my mouse" report.
+//
+// Two ways the cache goes stale with no resize event: the handler above
+// bails out via `if (!r.width || !r.height) return` every time the map view
+// is hidden (display:none => a 0x0 rect), and a devicePixelRatio change from
+// dragging the window to a monitor with different scaling does not reliably
+// fire resize at all. A ResizeObserver watches the element itself and closes
+// both. Guarded because it is absent on very old browsers, where the
+// pointerdown check below still catches it.
+if (window.ResizeObserver) {
+  new ResizeObserver(() => { sizeCanvas(); if (mapView) drawMap(); })
+    .observe(mapCanvas);
+}
+
 // ── Map-frame display orientation ────────────────────────────────────────
 // This whole section used to carry two compensations. Both are gone, and
 // the history is kept here because the temptation to re-add them is exactly
@@ -1007,6 +1136,28 @@ window.addEventListener('resize', () => { sizeCanvas(); if (mapView) drawMap(); 
 // rotation instead is how the display drifted from the frame in the first
 // place. Keeping them means setting DISPLAY_ROT non-zero stays safe.
 const DISPLAY_ROT = 0;
+
+// ── THE ROBOT'S YAW CONVENTION, IN ONE PLACE ────────────────────────────
+// base_link yaw is measured from +Y (the NOSE), not from +X. Every standard
+// 2-D helper -- Math.atan2, cos/sin -- measures from +X, so any conversion
+// between "a direction on the map" and "a robot yaw" carries a 90 deg term.
+//
+// THIS PAIR EXISTS BECAUSE THE TWO DIRECTIONS ONCE DISAGREED (§17.49).
+// drawRobot() drew the nose from +Y while drawGoalMarker() drew the goal
+// arrow from +X -- same canvas, same frame, 90 deg apart -- and the drag
+// handler wrote a raw atan2 angle into the very variable that
+// robotPose.yaw initialises. Every goal dragged more than 5 cm went out
+// with its heading 90 deg wrong, and the marker drawn on screen agreed
+// with the wrong value, so it looked right.
+//
+// Route EVERY vector<->yaw conversion through these two. They are exact
+// inverses, so the renderers and the command path cannot drift apart
+// again. Do NOT add a compensating offset anywhere else -- least of all in
+// goal_pose_adapter, whose yaw_offset_deg is 0.0 and must stay 0.0
+// (§17.38). A display-side offset is what hid the last frame fault for
+// two weeks.
+function vecToYaw(dx, dy) { return Math.atan2(dy, dx) - Math.PI / 2; }
+function yawToVec(yaw)    { return { x: -Math.sin(yaw), y: Math.cos(yaw) }; }
 
 // Draws text upright in real screen space at the real-screen point that
 // local point (localX, localY) maps to under DISPLAY_ROT -- use this for
@@ -1111,12 +1262,17 @@ function drawMap() {
 
   if (mapLayers.grid) drawGrid();
   if (mapLayers.axes) drawAxes();
+  // Past first, so the live trail always draws on top of the clutter.
+  if (mapLayers.pastTrails) drawPastTrails();
   if (mapLayers.trajectory) drawTrajectory();
 
   // Zero mark is a coordinate reference, never a command.
   if (mapLayers.zero) drawZeroMark();
 
-  if (goalDrag) drawGoal(goalDrag);
+  if (mapLayers.goals) drawGoals();
+  // The goal being placed right now is always drawn, toggle or not: it is
+  // direct feedback on a gesture in progress, not a display layer.
+  if (goalDrag) drawGoalMarker(goalDrag, true);
   if (mapLayers.footprint && robotPose) drawRobot(robotPose);
 
   updateHud();
@@ -1305,20 +1461,59 @@ function drawZeroMark() {
   drawUpright('ZERO (0,0)', o.x + 10, o.y + 4, 'left');
 }
 
-function drawTrajectory() {
-  if (trajectory.length < 2) return;
+function strokePolyline(pts) {
+  if (pts.length < 2) return;
   mctx.beginPath();
-  trajectory.forEach((p, i) => {
+  pts.forEach((p, i) => {
     const q = w2s(p.x, p.y);
     if (i === 0) mctx.moveTo(q.x, q.y); else mctx.lineTo(q.x, q.y);
   });
+  mctx.stroke();
+}
+
+function drawTrajectory() {
+  if (trajectory.length < 2) return;
   mctx.strokeStyle = 'rgba(22, 119, 255, 0.68)';
   mctx.lineWidth = 2.5;
-  mctx.stroke();
+  strokePolyline(trajectory);
 
   const start = w2s(trajectory[0].x, trajectory[0].y);
   mctx.fillStyle = '#12b76a';
   mctx.beginPath(); mctx.arc(start.x, start.y, 4, 0, Math.PI * 2); mctx.fill();
+}
+
+// Past runs: thinner and grey, and each drawn as its OWN polyline so no
+// line is ever drawn between the end of one run and the start of the next.
+// Older runs fade further, so the most recent past run stays readable
+// underneath the live one.
+function drawPastTrails() {
+  const n = pastTrails.length;
+  pastTrails.forEach((pts, i) => {
+    const age = n > 1 ? i / (n - 1) : 1;          // 0 = oldest, 1 = newest
+    mctx.strokeStyle = 'rgba(102, 112, 133, ' + (0.16 + 0.26 * age).toFixed(3) + ')';
+    mctx.lineWidth = 1.6;
+    strokePolyline(pts);
+  });
+}
+
+// Goal markers. The active goal is the one currently commanded; past goals
+// are drawn hollow and faint so a sequence reads as a sequence.
+function drawGoalMarker(g, active) {
+  const a = w2s(g.wx, g.wy);
+  mctx.strokeStyle = active ? '#f79009' : 'rgba(247, 144, 9, 0.32)';
+  mctx.lineWidth = active ? 2.5 : 1.4;
+  mctx.beginPath(); mctx.arc(a.x, a.y, active ? 9 : 6, 0, 6.2832); mctx.stroke();
+  const r = active ? 0.6 : 0.35;
+  // yawToVec, NOT cos/sin -- this arrow and drawRobot()'s nose line must
+  // come from the same function or they disagree by 90 deg (§17.49).
+  const v = yawToVec(g.yaw);
+  const b = w2s(g.wx + v.x * r, g.wy + v.y * r);
+  mctx.beginPath(); mctx.moveTo(a.x, a.y); mctx.lineTo(b.x, b.y); mctx.stroke();
+}
+
+function drawGoals() {
+  pastGoals.forEach(g => drawGoalMarker(g, false));
+  if (activeGoal) drawGoalMarker(activeGoal, true);
 }
 
 function drawScaleBar() {
@@ -1371,21 +1566,15 @@ function drawRobot(p) {
   mctx.fill(); mctx.stroke();
 
   const ctr = w2s(p.x, p.y);
-  const nose = w2s(p.x - s * (FOOT_HALF_Y + 0.22),
-                   p.y + c * (FOOT_HALF_Y + 0.22));
+  // Same helper the goal marker uses. Numerically identical to the old
+  // inline (-sin, +cos); shared so the two can never diverge again.
+  const nv = yawToVec(p.yaw), nl = FOOT_HALF_Y + 0.22;
+  const nose = w2s(p.x + nv.x * nl, p.y + nv.y * nl);
   mctx.beginPath();
   mctx.moveTo(ctr.x, ctr.y); mctx.lineTo(nose.x, nose.y);
   mctx.strokeStyle = '#17202a'; mctx.lineWidth = 2.5; mctx.stroke();
   mctx.beginPath(); mctx.arc(nose.x, nose.y, 3.8, 0, 6.2832);
   mctx.fillStyle = '#17202a'; mctx.fill();
-}
-
-function drawGoal(g) {
-  const a = w2s(g.wx, g.wy);
-  mctx.beginPath(); mctx.arc(a.x, a.y, 9, 0, 6.2832);
-  mctx.strokeStyle = '#f79009'; mctx.lineWidth = 2.5; mctx.stroke();
-  const b = w2s(g.wx + Math.cos(g.yaw) * 0.6, g.wy + Math.sin(g.yaw) * 0.6);
-  mctx.beginPath(); mctx.moveTo(a.x, a.y); mctx.lineTo(b.x, b.y); mctx.stroke();
 }
 
 function updateHud() {
@@ -1399,13 +1588,35 @@ function updateHud() {
     // on the ZERO mark that is 0 deg, which is what the old +90 deg offset
     // used to produce artificially.
     const noseDeg = ((robotPose.yaw * 180 / Math.PI + 180) % 360 + 360) % 360 - 180;
+    // DRIFT block (§17.49). The map pose alone cannot tell you the robot is
+    // in the wrong place: on 1 Sep it read (-0.011, 0.013) with the robot
+    // 9 cm off the mark, because map->odom carried -0.114 m and the estimate
+    // is self-consistent by construction. odom is the independent witness --
+    // it agreed with the tape to ~1 cm on both runs -- so show the gap.
+    // This is NOT a correction applied to anything; nothing here changes a
+    // published value. It is the raw third transform, displayed.
+    let drift = '';
+    if (robotPose.cx !== undefined) {
+      const c = Math.hypot(robotPose.cx, robotPose.cy);
+      // 0.05 m is a deliberate operator threshold, not a spec: below it the
+      // estimate and the odometry agree to about the goal tolerance, above
+      // it the robot is somewhere the map does not think it is.
+      const cls = c >= 0.05 ? 'drift-bad' : 'drift-ok';
+      drift = `
+      <div class="hud-sep"></div>
+      <div class="hud-grid">
+        <span>ODOM</span><strong>${robotPose.ox.toFixed(3)}, ${robotPose.oy.toFixed(3)}</strong>
+        <span>DRIFT</span><strong class="${cls}">${c.toFixed(3)} m</strong>
+      </div>
+      <div class="hud-muted">map−odom ${robotPose.cx.toFixed(3)}, ${robotPose.cy.toFixed(3)}</div>`;
+    }
     hud.innerHTML = `
       <div class="hud-title">ROBOT POSE · MAP FRAME</div>
       <div class="hud-grid">
         <span>X</span><strong>${robotPose.x.toFixed(3)} m</strong>
         <span>Y</span><strong>${robotPose.y.toFixed(3)} m</strong>
         <span>NOSE</span><strong>${noseDeg.toFixed(1)}°</strong>
-      </div>`;
+      </div>${drift}`;
     if (status) status.textContent = mapGrid ? `${mapGrid.w} × ${mapGrid.h} · ${mapGrid.res.toFixed(2)} m/cell` : 'MAP GRID WAITING';
   } else {
     hud.innerHTML = '<div class="hud-title">ROBOT POSE</div><div class="hud-muted">NO POSE (map → base_link)</div>';
@@ -1466,6 +1677,12 @@ document.getElementById('researchToggle').addEventListener('change', (e) => {
   syncLayerPanel();
   if (mapView) drawMap();
 });
+document.getElementById('btnClearTrails').addEventListener('click', (e) => {
+  e.preventDefault();
+  clearAllTrails();
+  goalHint('TRAILS AND GOAL MARKERS CLEARED', false);
+});
+
 document.getElementById('btnLayersClose').addEventListener('click', () => {
   document.getElementById('layerPanel').classList.remove('show');
 });
@@ -1491,6 +1708,7 @@ document.getElementById('btnFollow').addEventListener('click', () => {
 function defaultHint() { return 'DRAG TO PAN · PINCH TO ZOOM'; }
 function goalHint(txt, armed) {
   const h = document.getElementById('mapHint');
+  if (!h) return;   // send() can call this before the map view exists
   h.textContent = txt;
   h.classList.toggle('armed', !!armed);
 }
@@ -1526,6 +1744,9 @@ document.getElementById('btnZero').addEventListener('click', () => {
     return;
   }
   zeroDisarm();
+  // Re-zero redefines what every coordinate on this map means, so points
+  // recorded before it cannot be plotted against points recorded after.
+  startNewTrail();
   send({ type: 'rezero' });   // server replies over the notice channel
 });
 
@@ -1537,6 +1758,11 @@ mapCanvas.addEventListener('pointerdown', (e) => {
 
   if (goalArmed && ptrs.size === 1) {
     const r = mapCanvas.getBoundingClientRect();
+    // Belt-and-braces behind the ResizeObserver: a goal is the one gesture
+    // where a stale cssW puts the commanded point somewhere the operator did
+    // not click, so re-sync before converting rather than trusting the cache.
+    // Costs one float compare on a gesture that happens seconds apart.
+    if (Math.abs(r.width - cssW) > 0.5 || Math.abs(r.height - cssH) > 0.5) sizeCanvas();
     const p = unrotatePtr(e.clientX - r.left, e.clientY - r.top);
     const w = s2w(p.x, p.y);
     goalDrag = { wx: w.x, wy: w.y, yaw: robotPose ? robotPose.yaw : 0 };
@@ -1558,7 +1784,10 @@ mapCanvas.addEventListener('pointermove', (e) => {
     const p = unrotatePtr(e.clientX - r.left, e.clientY - r.top);
     const w = s2w(p.x, p.y);
     const dx = w.x - goalDrag.wx, dy = w.y - goalDrag.wy;
-    if (Math.hypot(dx, dy) > 0.05) goalDrag.yaw = Math.atan2(dy, dx);
+    // vecToYaw, NOT a bare atan2: this writes into the same field that
+    // pointerdown initialises from robotPose.yaw, so both must be in the
+    // robot's convention (0 = nose along +Y). See vecToYaw above (§17.49).
+    if (Math.hypot(dx, dy) > 0.05) goalDrag.yaw = vecToYaw(dx, dy);
     drawMap();
     return;
   }
@@ -1585,18 +1814,37 @@ mapCanvas.addEventListener('pointermove', (e) => {
 function endPtr(e) {
   e.stopPropagation();
   if (goalDrag && ptrs.size === 1) {
+    // yaw is where the NOSE should end up, already in base_link's
+    // convention (0 = +Y) via vecToYaw. goal_pose_adapter adds NOTHING --
+    // its yaw_offset_deg is 0.0 and the live node logs "yaw +0.0 deg". The
+    // comment that used to sit here claimed the adapter applied a -90,
+    // which stopped being true at §17.38 and is why nobody looked at this
+    // line while every dragged heading came out sideways.
+    const sent = !estopped &&
+                 send({ type: 'goal', x: goalDrag.wx, y: goalDrag.wy,
+                        yaw: goalDrag.yaw });
     if (estopped) {
       goalHint('E-STOP ACTIVE — GOAL NOT SENT', true);
-    } else {
-      // yaw here is where the NOSE should end up; goal_pose_adapter
-      // applies the -90 deg base_link conversion on the robot side.
-      send({ type: 'goal', x: goalDrag.wx, y: goalDrag.wy, yaw: goalDrag.yaw });
+    } else if (sent) {
+      // Keep the sent goal on the canvas. Previously goalDrag was nulled on
+      // release and the marker disappeared the instant it was commanded,
+      // which is the one moment you most want to see where it is heading.
+      if (activeGoal) {
+        pastGoals.push(activeGoal);
+        while (pastGoals.length > MAX_PAST_GOALS) pastGoals.shift();
+      }
+      activeGoal = { wx: goalDrag.wx, wy: goalDrag.wy, yaw: goalDrag.yaw };
       goalHint('GOAL SENT → ' + goalDrag.wx.toFixed(2) + ', ' +
                goalDrag.wy.toFixed(2), false);
     }
+    // send() has already put NOT CONNECTED on the hint line. Stay ARMED in
+    // that one case so a retry costs one tap instead of a re-arm; disarm on
+    // success and on the E-STOP refusal, where re-arming is the point.
     goalDrag = null;
-    goalArmed = false;
-    document.getElementById('btnGoal').classList.remove('armed');
+    if (sent || estopped) {
+      goalArmed = false;
+      document.getElementById('btnGoal').classList.remove('armed');
+    }
     drawMap();
   }
   ptrs.delete(e.pointerId);
@@ -1831,6 +2079,20 @@ class PhoneDashboard(Node):
 
         if pose is not None:
             self.latest_pose = {'x': pose[0], 'y': pose[1], 'yaw': pose[2]}
+            # §17.49: SHIP THE DIVERGENCE, NOT JUST THE ESTIMATE. Two runs on
+            # 1 Sep finished 9-10 cm off the physical mark (tape-measured)
+            # while this card read zero, because map->odom had absorbed the
+            # error and Nav2 closes its loop on the map pose. Nothing on
+            # screen was wrong -- the screen only ever held the estimate.
+            # odom and corr are already looked up on this same tick for the
+            # pose log below, so sending them costs one dict write and puts
+            # the one number that matters in front of the operator.
+            if odom is not None:
+                self.latest_pose['ox'] = odom[0]
+                self.latest_pose['oy'] = odom[1]
+            if corr is not None:
+                self.latest_pose['cx'] = corr[0]
+                self.latest_pose['cy'] = corr[1]
 
         if self._pose_csv_writer is None:
             return

@@ -146,28 +146,37 @@ eduroam), swap `10.42.0.1` for `aritra-desktop.local`. Pulling to a
 different folder some other time, swap out the destination path — it's
 just the last argument to `scp`/`rsync`.
 
-### 3.1 The staging folder — one place, both directions (27 Aug 2026)
+### 3.1 Staging folders — one per direction (28 Aug 2026)
 
-**Every transfer between the Pi and Windows goes through one folder, in
-both directions:**
+**The Pi never needs internet, and should not be put on eduroam to get it.**
+It hosts its own AP with no uplink, so it cannot reach GitHub at all. The
+PC has internet; the PC and the Pi can always see each other on
+`10.42.0.1`. So every file moves in two hops, and the PC is always the
+one that talks to the outside world:
 
 ```
-C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download
+GitHub  ──curl──▶  Windows  ──scp──▶  Pi          (deploying code/config)
+                   Windows  ◀──scp──  Pi          (pulling data to analyse)
 ```
 
-Pulled off the Pi, or downloaded on Windows on its way *to* the Pi — it
-lands here first. The destination paths in the examples above predate this
-and should be pointed at the staging folder instead.
+**One folder per direction**, so a directory listing answers "what did I
+just send" and "what did I just pull" separately:
 
-Why one folder: the alternative is what already happened once. Files got
-downloaded to `$HOME\Documents`, and a batch of three `scp`s went out with
-one of them silently mistyped — see the warning below. A single staging
-folder makes "what did I actually just transfer" answerable by looking at
-one directory listing.
+| Direction | Folder |
+|---|---|
+| **To the Pi** — anything downloaded on Windows on its way to the robot | `C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download` |
+| **From the Pi** — logs, bundles, maps, CSVs pulled back for analysis | `C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Analysis` |
 
-Organising it into subfolders is deferred deliberately: anything worth
-keeping gets committed to the repo, so the staging folder is scratch space,
-not an archive.
+Why staging folders at all: the alternative is what already happened once.
+Files got downloaded to `$HOME\Documents`, and a batch of three `scp`s went
+out with one of them silently mistyped — see the warning below.
+
+Both are scratch space, not archives. Anything worth keeping gets committed
+to the repo.
+
+> **A `curl.exe` line in this repo's docs always runs on Windows, never on
+> the Pi.** If one is ever pasted into the Pi's shell it will hang and then
+> fail on DNS, which looks like a broken URL and is not.
 
 > ⚠ **`scp` reporting `100%` does not mean the file arrived where you
 > meant.** A password typed onto the end of a destination path before Enter
@@ -183,6 +192,122 @@ not an archive.
 >
 > A destination path that ends in anything other than the filename you
 > intended is the tell. §17.39.
+
+---
+
+## 3.2 The deploy recipe — one procedure, every time (28 Aug 2026)
+
+**Every file that reaches the robot goes through these five steps, in this
+order, with no step skipped.** The rule this encodes: *a value in the repo is
+not a value on the robot* (§17.32), and *`scp` reporting `100%` says a file
+arrived somewhere, not that it arrived where you meant* (§17.39).
+
+```powershell
+# 1. WINDOWS downloads.  Always Windows -- the Pi hosts its own AP with no
+#    uplink and cannot reach GitHub.  A curl.exe line in these docs is never
+#    a Pi command.
+cd "C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download"
+curl.exe -sSL --retry 3 --retry-all-errors -o <FILE> ^
+  "https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/narrowaislebot-mapping-reliability-038ike/<REPO PATH>"
+
+# 2. WINDOWS pushes.  Type the WHOLE destination path including the filename.
+scp <FILE> aritra@10.42.0.1:<DEST PATH>
+```
+
+```bash
+# 3. PI hashes ON ARRIVAL, per file, never per batch.  Two of three landing
+#    correctly is exactly why a per-batch assumption fails (§17.39).
+sha256sum <DEST PATH>
+ls -la $(dirname <DEST PATH>)      # nothing with a password stuck on the end
+
+# 4. PI rebuilds -- ONLY for files under ~/ros2_ws/src.  Tools in ~/tools run
+#    from source and need no build.
+cd ~/ros2_ws && colcon build --packages-select mecanum_robot --symlink-install
+sudo systemctl restart aislebot.service
+
+# 5. PI verifies against the LIVE NODE, never by reading the file back.
+ros2 node list                                   # is it even running?
+ros2 param get /<node> <param>                   # for a config change
+ros2 run tf2_ros tf2_echo odom base_link         # for anything frame-touching
+```
+
+⚠ **A BUILD THAT SAYS `Finished` IS NOT A PACKAGE THAT RUNS.** On 1 Sep
+`colcon build --packages-select mecanum_robot mecanum_navigation
+--symlink-install` reported *"Summary: 2 packages finished"* and had silently
+destroyed `mecanum_navigation`'s installed dist metadata, because that package
+had previously been built WITHOUT `--symlink-install` and colcon does not
+reconcile the two. Both of its Python nodes then died at launch with
+`PackageNotFoundError: No package metadata was found for mecanum-navigation`,
+which killed `goal_pose_adapter` (so no goal ever reached `bt_navigator`) and
+`cmd_vel_axis_adapter` (so no velocity ever reached the wheels). A whole
+session's autonomy was lost to it.
+
+**Switching a package between symlink and normal install requires a clean:**
+
+```bash
+rm -rf build/<pkg> install/<pkg>
+colcon build --packages-select <pkg> --symlink-install
+source ~/ros2_ws/install/setup.bash
+python3 -c "from importlib.metadata import distribution as d; \
+  x=d('mecanum-navigation'); print(x.version, [e.name for e in x.entry_points])"
+```
+
+**And step 5 must LAUNCH what it deployed.** Verifying the params file proved
+the yaml was right and said nothing about whether the executables still
+existed. If a change touches `mecanum_navigation`, launching
+`nav2_slam.launch.py` and seeing both adapter nodes print their startup lines
+IS the verification — nothing less counts.
+
+**Step 5 is the one people skip and it is the one that has caught every
+silent failure this project has had** — §17.32's never-deployed config,
+§17.34's inert parameter file, §17.39's mistyped `scp`, and §17.42's
+`Parameter goal_checker.xy_goal_tolerance not found`.
+
+### Currently pending deployment
+
+**The four rows that used to sit here were all cleared on 29 Aug** and are
+confirmed live (Kickoff §2's expected hashes). One file is pending again:
+
+| Repo file | Destination on the Pi | sha256 | takes effect on |
+|---|---|---|---|
+| `src/mecanum_robot/mecanum_robot/phone_dashboard.py` **(§17.49)** | `~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py` | `8c41c6fa7e7ec867c1c1e4e823f154f1db6a3e47b78f7bba232b9bbf52268f5a` | build `mecanum_robot` + `systemctl restart` |
+| `src/mecanum_navigation/config/nav2_params.yaml` **(§17.49)** | `~/ros2_ws/src/mecanum_navigation/config/nav2_params.yaml` | `40fdf96ea7906f20d726bdd440a94f3c38690842b3b442cdaadcadc5e4a4617f` | build `mecanum_navigation` + next `nav2_slam.launch.py` |
+| `system/slam_nodom_stageB.yaml` **(Stage F)** | `~/ros2_ws/slam_nodom.yaml` ⚠ **renamed in flight** | `e8825eda73e67526860fb5adfde3b7e2cb8dac270ba59818a1038c2a80882fe5` | no build — **STOP MAP → ZERO → MAP** |
+
+⚠ **The raw URL for this one is the autonomy branch, not the mapping branch:**
+`.../NarrowAisleBot/claude/narrowaislebot-goal-obstacle-avoidance-f2t3aa/...`
+
+`phone_dashboard.py` needs step 4 (rebuild + restart). **Press STOP MAP from
+the dashboard BEFORE restarting the service** — a `systemctl restart` loses an
+open mapping session outright (§3.5), and the restart is what picks up the new
+file.
+
+**What changes on the robot after these land:**
+- the pose card gains an `ODOM` row and a `DRIFT` figure (red past 5 cm). The
+  existing X / Y / NOSE rows are byte-identical.
+- a goal no longer aborts with `Failed to make progress` while the robot is
+  driving normally — the floor drops from 0.030 m/s to 0.010 m/s.
+- AMCL, whenever it first runs, seeds at yaw 0 instead of −90°.
+- **Stage F is an ABLATION, not a setting.** `docs/StageF_Ablation.md` holds
+  the pre-registered thresholds. Do not keep it on a single good result.
+
+⚠ **Verify Stage F actually took** before reading anything into the drive:
+corrections currently arrive every **0.175 ± 0.006 m** of odometry against a
+`minimum_travel_distance` of 0.2. With the barycenter off that spacing should
+move toward **0.200 m**. If it stays at 0.175, the parameter did not take.
+
+**Stage D** (`coarse_search_angle_offset` stock 0.349 → 0.175, §17.43) needs no
+rebuild, but slam_toolbox only reloads parameters on a fresh bring-up: after
+landing the file, **STOP MAP → park on the mark → ZERO (two taps) → MAP**, then
+verify on the live node:
+
+```bash
+ros2 param get /slam_toolbox coarse_search_angle_offset          # 0.175
+ros2 param get /slam_toolbox correlation_search_space_dimension  # 0.3
+```
+
+If either reads a stock value the file did not take, and nothing measured after
+that point means anything.
 
 ---
 

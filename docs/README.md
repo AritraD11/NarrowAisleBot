@@ -2,6 +2,20 @@
 
 Markdown is the source of truth here (diffs cleanly, renders on GitHub, greppable). Original `.docx`/`.pdf` files are kept in `originals/` as the source of record.
 
+
+## ⭐ Start here — the 28 Aug 2026 strategic package
+
+Four documents written together as one package. Read them in this order.
+
+| # | Document | What it answers |
+|---|---|---|
+| 1 | [`Where_We_Stand.md`](Where_We_Stand.md) | **Where does the project actually stand?** A full-stack audit with an evidence grade on every claim — measured / measured-once / hypothesis / retracted / never-run. Layer-by-layer state, what is confirmed about the SLAM break, what must be re-confirmed, and what is holding the project. |
+| 2 | [`Autonomy_Endgame.md`](Autonomy_Endgame.md) | **How do we get to "tap a point, it drives there"?** The full autonomy chain link by link, why a saved map + AMCL is the mechanism rather than an optimisation, seven numbered gates, and a day-by-day plan to Saturday 5 Sept with exact commands and a fallback ladder. |
+| 3 | [`APS_Study_Guide.md`](APS_Study_Guide.md) | **What do I need to know for the review?** The numbers to memorise, full derivations (including the slip residual and why it is the disagreement between two independent yaw estimates), SLAM front end vs back end, costmaps, MPPI, AMCL, and a tiered question bank with answers. |
+| 4 | [`Vision_Indian_Market.md`](Vision_Indian_Market.md) | **Where does this go commercially?** The narrow-aisle thesis, why labour-arbitrage pitches fail in India, who pays, the wedge, what is actually defensible, the honest kill-risks, and the numbers that must be sourced before citing any of it. |
+
+---
+
 | Document | What it covers | Currency |
 |---|---|---|
 | [`Research_Journal.md`](Research_Journal.md) | The living project journal — vision, mechanical/electrical design, control-system debugging narrative, hurdles catalogue, autonomy roadmap, ESP32 firmware deep-dive, LiDAR/SLAM bringup (Part XIII), infrastructure & repo history (Part XIV), current status (Part XV), open TODOs. **This is the primary document — keep it updated as the project progresses.** | v2.0, 8 July 2026 (most current) |

@@ -92,7 +92,19 @@ amcl:
     #   restart-at-the-mark procedure so 0,0 genuinely means the mark, or
     #   set set_initial_pose: false and supply the pose live (Foxglove's
     #   2D Pose Estimate / the /initialpose topic) instead of guessing.
-    initial_pose: {x: 0.0, y: 0.0, z: 0.0, yaw: -1.5708}
+    # yaw -1.5708 -> 0.0 (§17.49). The -90 was reasoned in §17.18 as "base_link
+    # +X is the robot's RIGHT, so a robot facing along map +X has yaw -90" --
+    # correct while the map frame still used REP-103 axes. §17.38 rotated the
+    # map frame; Axis_Convention.md is now explicit that a freshly-zeroed
+    # robot on the mark reads [0,0,0] @ 0 deg. Left as it was, AMCL seeds its
+    # particle filter 90 deg off the truth on the very first frame -- and AMCL
+    # has never once been run, so nothing would have caught it.
+    # NOTE the remaining assumption, which is procedural not code: x/y = 0,0
+    # takes the saved map's origin to be the physical mark. slam_toolbox
+    # plants map on odom at its first scan, so that holds only if the stack
+    # was zeroed on the mark immediately before mapping. If it wasn't, set
+    # set_initial_pose: false and supply the pose live instead.
+    initial_pose: {x: 0.0, y: 0.0, z: 0.0, yaw: 0.0}
     tf_broadcast: true
     transform_tolerance: 1.0
     recovery_alpha_slow: 0.001
@@ -189,7 +201,18 @@ controller_server:
     # "is the robot still doing something" was always meant to mean here.
     progress_checker:
       plugin: "nav2_controller::PoseProgressChecker"
-      required_movement_radius: 0.3
+      # 0.30 -> 0.10 (§17.49). 0.30 m in 10 s is a floor of 0.030 m/s, and
+      # this robot's measured autonomous cruise is 0.027-0.037 m/s -- the bar
+      # sat INSIDE the speed distribution, so goals aborted while the robot
+      # was driving perfectly well. Audited against the runs that exposed it:
+      # 31 Aug's abort had moved 0.288 m (short by 12 mm, a false positive
+      # this kills) while G3's three aborts had moved 0.075/0.053/0.048 m
+      # (genuinely stuck, and all three still fire at 0.10). New floor is
+      # 0.010 m/s, 2.7x under the measured cruise.
+      # movement_time_allowance stays 10 s ON PURPOSE: it is the timer that
+      # will detect a collision_monitor halt, and widening it would slow the
+      # obstacle response by exactly the amount it was widened.
+      required_movement_radius: 0.10
       # radians, ~14°. Deliberately under one 20° scan step, so a single
       # step's rotation resets the timer on its own. Not smaller: this also
       # sets how much yaw wobble counts as "progress", and too small would

@@ -3017,6 +3017,26 @@ The commissioning drive was **not** driven today. What was driven instead were t
 
 **Where this leaves the week.** Three of Monday's four items are done (§2 health check, §4 S0, §6 items 1–2, all logged above). **The fourth — the commissioning drive itself, the only one that moves G4 — was not driven.** G4 has four sub-criteria; exactly one of them has now been met once, and the three map-quality ones (not FOLDED, D2 < 1.0%, unknown < 50%) have never been met in this project's history. Four working days remain before the 5 Sep demo, and Phase 2 (AMCL, point-and-go) has still never executed and is gated on a map that does not exist.
 
+## 17.48 1 Sep 2026: the repeat test resolves in favour of intermittency, and the project splits onto a second branch
+
+Tuesday's session, short. One drive — §17.47's repeat test, front leg re-driven — plus a strategic decision at the end. Evidence in `docs/evidence/tuesday_repeat/`.
+
+**The repeat test's own prediction, written down before driving:** reproduce near 0.577 m/0.678 m (route geometry) or move toward the right leg's 0.085 m/0.280 m (intermittency). **Neither happened.** `run_20260901_112335` — same aisle, same style, same deployed config — returned **0.209 m** with a max correction of **0.857 m**, the single worst correction recorded in this project's history, exceeding even the pre-Stage-D baseline.
+
+| | Front (31 Aug) | Front (repeat, 1 Sep) | Right (31 Aug) |
+|---|---|---|---|
+| Return to mark | 0.577 m | 0.209 m | 0.085 m |
+| Max correction | 0.678 m | **0.857 m** | 0.280 m |
+| Cumulative ÷ path | 0.562 m/m | 0.484 m/m | 0.305 m/m |
+
+**A third distinct number on the identical route is the cleanest evidence this project has produced that the spread is intermittency, not geometry.** A stable route/geometry story predicts reproduction; this instead shows the SLAM front end varying run to run on the *same* aisle, better on some measures and record-worse on another. ✅ **measured.**
+
+**`graph_residuals.py --watch`, run alongside, again confirms the back end is not the fault.** 9 loop closures fired over the 230 s drive; `moved=0`, `max_shift=0.000 m`, every closure at 0.0% implied drift, start to finish. The map's internal consistency is fine. The estimate the operator actually sees — `map→odom` — is where all of tonight's variance lives, same conclusion as §17.40 and §17.42, now on a fourth independent drive.
+
+**The actual S1 commissioning drive was set up and not executed.** Robot re-zeroed, MAP restarted, the wide-outer-wall-perimeter instructions given — and the session ended there. G4 was not attempted today beyond the repeat test. It remains at exactly one of four sub-criteria ever met, once, on 31 Aug.
+
+**The strategic decision, made explicitly rather than by default.** Rather than continuing to spend the remaining time-box exclusively chasing G4, the project now runs on **two branches in parallel**: this branch continues SLAM reliability work as issues surface, while a new branch and session begin building **autonomous drive-to-goal with real-time obstacle detection and avoidance** — MPPI + local costmap + `collision_monitor`, all of which `Where_We_Stand.md`'s fallback table (§8) already establishes work **without needing an accepted map**. The hard requirement carried into that branch: **a detected obstacle must stop the robot regardless of an active goal, using the already-configured cushioning/inflation value** — the safety chain takes priority over goal-seeking, not the reverse. This is not G4 declared solved or abandoned; it is Nav work no longer waiting on it, per the reasoning `Next_Session_Kickoff.md` §11 wrote down in advance for exactly this situation.
+
 Every supporting document, organised by category. Update this as new artefacts are produced.
 
 > *Repository note (v2.0): the project's own authored documents now live as Markdown under `docs/` in the `NarrowAisleBot` GitHub repo, with the original `.docx`/`.pdf` in `docs/originals/`. The catalogue below predates that consolidation and lists documents by their original working titles; several are now the `docs/*.md` files. The repo is the current home of record.*

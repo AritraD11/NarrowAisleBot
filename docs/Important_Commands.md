@@ -241,9 +241,11 @@ silent failure this project has had** — §17.32's never-deployed config,
 **The four rows that used to sit here were all cleared on 29 Aug** and are
 confirmed live (Kickoff §2's expected hashes). One file is pending again:
 
-| Repo file | Destination on the Pi | sha256 |
-|---|---|---|
-| `src/mecanum_robot/mecanum_robot/phone_dashboard.py` **(§17.49)** | `~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py` | `c33ea00cdff421e0363515412201f2fbfa510b81b9285decf18879c4f9f64abb` |
+| Repo file | Destination on the Pi | sha256 | takes effect on |
+|---|---|---|---|
+| `src/mecanum_robot/mecanum_robot/phone_dashboard.py` **(§17.49)** | `~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py` | `8c41c6fa7e7ec867c1c1e4e823f154f1db6a3e47b78f7bba232b9bbf52268f5a` | build `mecanum_robot` + `systemctl restart` |
+| `src/mecanum_navigation/config/nav2_params.yaml` **(§17.49)** | `~/ros2_ws/src/mecanum_navigation/config/nav2_params.yaml` | `40fdf96ea7906f20d726bdd440a94f3c38690842b3b442cdaadcadc5e4a4617f` | build `mecanum_navigation` + next `nav2_slam.launch.py` |
+| `system/slam_nodom_stageB.yaml` **(Stage F)** | `~/ros2_ws/slam_nodom.yaml` ⚠ **renamed in flight** | `e8825eda73e67526860fb5adfde3b7e2cb8dac270ba59818a1038c2a80882fe5` | no build — **STOP MAP → ZERO → MAP** |
 
 ⚠ **The raw URL for this one is the autonomy branch, not the mapping branch:**
 `.../NarrowAisleBot/claude/narrowaislebot-goal-obstacle-avoidance-f2t3aa/...`
@@ -253,10 +255,19 @@ the dashboard BEFORE restarting the service** — a `systemctl restart` loses an
 open mapping session outright (§3.5), and the restart is what picks up the new
 file.
 
-**What changes on the robot after this one lands:** a dragged goal now
-commands the heading the on-screen arrow has always shown. The arrow itself
-renders identically — same pixels — so the map view looks unchanged; what
-moves is the robot. If anyone has been aiming 90° off to compensate, stop.
+**What changes on the robot after these land:**
+- the pose card gains an `ODOM` row and a `DRIFT` figure (red past 5 cm). The
+  existing X / Y / NOSE rows are byte-identical.
+- a goal no longer aborts with `Failed to make progress` while the robot is
+  driving normally — the floor drops from 0.030 m/s to 0.010 m/s.
+- AMCL, whenever it first runs, seeds at yaw 0 instead of −90°.
+- **Stage F is an ABLATION, not a setting.** `docs/StageF_Ablation.md` holds
+  the pre-registered thresholds. Do not keep it on a single good result.
+
+⚠ **Verify Stage F actually took** before reading anything into the drive:
+corrections currently arrive every **0.175 ± 0.006 m** of odometry against a
+`minimum_travel_distance` of 0.2. With the barycenter off that spacing should
+move toward **0.200 m**. If it stays at 0.175, the parameter did not take.
 
 **Stage D** (`coarse_search_angle_offset` stock 0.349 → 0.175, §17.43) needs no
 rebuild, but slam_toolbox only reloads parameters on a fresh bring-up: after

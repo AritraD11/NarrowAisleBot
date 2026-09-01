@@ -238,16 +238,25 @@ silent failure this project has had** — §17.32's never-deployed config,
 
 ### Currently pending deployment
 
+**The four rows that used to sit here were all cleared on 29 Aug** and are
+confirmed live (Kickoff §2's expected hashes). One file is pending again:
+
 | Repo file | Destination on the Pi | sha256 |
 |---|---|---|
-| `src/mecanum_robot/mecanum_robot/phone_dashboard.py` | `~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py` | `5b30a91dc7614d73848357bcedd66771cb332eddd12d1de06ed58dce47ad43d1` |
-| `tools/wheel_forensics.py` | `~/tools/wheel_forensics.py` | `27858ce417f3f39e56db3b87b31644fc11a9292aba7247f1c8d9a2d80bf96236` |
-| `src/mecanum_robot/urdf/aislebot.urdf` | `~/ros2_ws/src/mecanum_robot/urdf/aislebot.urdf` | `ea6619ff3999b856fc3c1632041bd3a151eb8732f9c782d90207831ce1b0a81c` |
-| `system/slam_nodom_stageB.yaml` **(Stage D)** | `~/ros2_ws/slam_nodom.yaml` ⚠ **note the different filename** | `0e88d60c34dfd9aada3f0fb5ab39523f45800bc8e4fba2385c6f9a3ba4ce3e5f` |
+| `src/mecanum_robot/mecanum_robot/phone_dashboard.py` **(§17.49)** | `~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py` | `c33ea00cdff421e0363515412201f2fbfa510b81b9285decf18879c4f9f64abb` |
 
-`wheel_forensics.py` needs no rebuild. `phone_dashboard.py` needs step 4.
-`aislebot.urdf` is comment-only (§17.42) — deploy it whenever the workspace
-is next rebuilt for another reason, not on its own.
+⚠ **The raw URL for this one is the autonomy branch, not the mapping branch:**
+`.../NarrowAisleBot/claude/narrowaislebot-goal-obstacle-avoidance-f2t3aa/...`
+
+`phone_dashboard.py` needs step 4 (rebuild + restart). **Press STOP MAP from
+the dashboard BEFORE restarting the service** — a `systemctl restart` loses an
+open mapping session outright (§3.5), and the restart is what picks up the new
+file.
+
+**What changes on the robot after this one lands:** a dragged goal now
+commands the heading the on-screen arrow has always shown. The arrow itself
+renders identically — same pixels — so the map view looks unchanged; what
+moves is the robot. If anyone has been aiming 90° off to compensate, stop.
 
 **Stage D** (`coarse_search_angle_offset` stock 0.349 → 0.175, §17.43) needs no
 rebuild, but slam_toolbox only reloads parameters on a fresh bring-up: after

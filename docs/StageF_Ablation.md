@@ -42,13 +42,27 @@ Re-drive the **same route**: (0,0) → (0, 1.02) → (−0.16, 2.03) → (0, 0).
 
 ## Did the parameter actually take effect?
 
-Independent of the outcome, one observable says whether it is live. Corrections
-in the baseline arrive every **0.175 m ± 0.006 m** of odometry, against
-`minimum_travel_distance: 0.2`. That 12.5% shortfall is the barycenter offset.
-With it off, node spacing should move toward **0.200 m**.
+⛔ **RETRACTED 1 Sep, before the ablation was ever scored.** This section
+originally claimed baseline corrections arrive every **0.175 ± 0.006 m** and
+that the spacing should move toward 0.200 m with the barycenter off.
 
-**If spacing stays at 0.175 m, the parameter did not take** — re-check the live
-node before reading anything else into the run.
+**That 0.175 m was measured wrong.** It came from differencing
+`hypot(odom_x, odom_y)` — straight-line displacement from the origin — on an
+out-and-back route, not distance travelled along the path. On a there-and-back
+leg that quantity shrinks on the return, so the "spacing" was an artefact of
+the route's shape. Measured properly along the path, the baseline spacing is
+**0.441 m (sd 0.192)** and `run_20260901_193822` gives **0.391 m (sd 0.147)** —
+indistinguishable, at any detection threshold from 0.5 mm to 5 mm.
+
+**There is therefore no node-spacing test.** The only way to know whether
+Stage F is live is the live node, during the session:
+
+```bash
+ros2 param get /slam_toolbox use_scan_barycenter      # must read false
+```
+
+A file on disk is not a value in the node — the rule this project already runs
+on (§17.32), which this section briefly forgot.
 
 ## Pre-registered outcomes
 

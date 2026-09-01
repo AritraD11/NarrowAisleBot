@@ -96,7 +96,9 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import LifecycleNode, Node
 
@@ -163,9 +165,38 @@ def generate_launch_description():
             default_value='true',
             description='Auto-transition the lifecycle nodes to active',
         ),
+        DeclareLaunchArgument(
+            'with_sensors',
+            default_value='true',
+            description='Start the LiDAR chain (sensors.launch.py). TRUE is '
+                        'correct for this file: AMCL cannot run alongside '
+                        'mapping_full.launch.py, which was the only other '
+                        'thing that started the scanner (§17.49). Set false '
+                        'ONLY if you have already started sensors.launch.py '
+                        'by hand — two ydlidar drivers on one serial port is '
+                        'not a soft failure.',
+        ),
     ]
 
     common = [params_file, {'use_sim_time': use_sim_time}]
+
+    # ── THE LIDAR CHAIN — the thing this file could not previously have ──
+    # Before §17.49 the only launcher of the scanner was
+    # mapping_full.launch.py, which also starts slam_toolbox, which this
+    # file's own header forbids running alongside. AMCL would therefore
+    # activate with no /scan and never localise, which reads as an AMCL
+    # fault and is not one. Started first so /scan and the TF chain are up
+    # before the lifecycle manager activates amcl.
+    sensors = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory('mecanum_robot'),
+                'launch', 'sensors.launch.py',
+            )
+        ),
+        condition=IfCondition(LaunchConfiguration('with_sensors')),
+        launch_arguments={'zero_point': 'true'}.items(),
+    )
 
     nodes = [
         LifecycleNode(
@@ -251,4 +282,4 @@ def generate_launch_description():
         ),
     ]
 
-    return LaunchDescription([*args, *nodes])
+    return LaunchDescription([*args, sensors, *nodes])

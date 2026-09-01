@@ -231,6 +231,33 @@ ros2 param get /<node> <param>                   # for a config change
 ros2 run tf2_ros tf2_echo odom base_link         # for anything frame-touching
 ```
 
+⚠ **A BUILD THAT SAYS `Finished` IS NOT A PACKAGE THAT RUNS.** On 1 Sep
+`colcon build --packages-select mecanum_robot mecanum_navigation
+--symlink-install` reported *"Summary: 2 packages finished"* and had silently
+destroyed `mecanum_navigation`'s installed dist metadata, because that package
+had previously been built WITHOUT `--symlink-install` and colcon does not
+reconcile the two. Both of its Python nodes then died at launch with
+`PackageNotFoundError: No package metadata was found for mecanum-navigation`,
+which killed `goal_pose_adapter` (so no goal ever reached `bt_navigator`) and
+`cmd_vel_axis_adapter` (so no velocity ever reached the wheels). A whole
+session's autonomy was lost to it.
+
+**Switching a package between symlink and normal install requires a clean:**
+
+```bash
+rm -rf build/<pkg> install/<pkg>
+colcon build --packages-select <pkg> --symlink-install
+source ~/ros2_ws/install/setup.bash
+python3 -c "from importlib.metadata import distribution as d; \
+  x=d('mecanum-navigation'); print(x.version, [e.name for e in x.entry_points])"
+```
+
+**And step 5 must LAUNCH what it deployed.** Verifying the params file proved
+the yaml was right and said nothing about whether the executables still
+existed. If a change touches `mecanum_navigation`, launching
+`nav2_slam.launch.py` and seeing both adapter nodes print their startup lines
+IS the verification — nothing less counts.
+
 **Step 5 is the one people skip and it is the one that has caught every
 silent failure this project has had** — §17.32's never-deployed config,
 §17.34's inert parameter file, §17.39's mistyped `scp`, and §17.42's

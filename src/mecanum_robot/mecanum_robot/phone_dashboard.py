@@ -317,6 +317,91 @@ let pastTrails = [];
 let lastTrajectoryPose = null;
 let pathLength = 0;
 
+// PATH is accumulated from ODOMETRY, never from the map pose. A map delta
+// includes the map->odom rewrites, which are not motion: on
+// run_20260902_114339 the map path came to 5.915 m against 3.227 m actually
+// driven, so this card read 83% high with nothing on screen to say so.
+let lastOdomPose  = null;
+let haveOdomPath  = false;
+// Rewrites seen in the current run. Countable on purpose -- it is the
+// number that says how much of the trail is estimate rather than travel.
+let jumpCount     = 0;
+let lastCorr      = null;
+
+// Did slam_toolbox rewrite map->odom on this sample? Between rewrites the
+// map pose IS odometry, exactly; at one, the whole frame is redefined and
+// the drawn pose moves without the robot moving. Two runs on 2 Sep gave 17
+// rewrites each, 3.66 s apart, up to 0.198 m of apparent motion in a single
+// 0.1 s tick against 0.005 m of real travel.
+//
+// Compared with a tolerance, not for equality: the transform is resampled
+// every tick and arrives as floats. The thresholds -- 0.1 mm and ~0.0006 deg
+// -- sit far below the smallest real correction measured across those two
+// runs (translation 0.0466 m, heading 0.230 deg), so no genuine rewrite is
+// missed, and far above float resampling noise, so none is invented. cyaw
+// may be absent if the robot runs an older node, in which case this
+// degrades to translation-only detection rather than throwing.
+function corrChanged(m) {
+  if (m.cx === undefined) { lastCorr = null; return false; }
+  const prev = lastCorr;
+  lastCorr = { x: m.cx, y: m.cy, yaw: m.cyaw };
+  if (!prev) return false;
+  const dyaw = Math.abs((m.cyaw === undefined ? 0 : m.cyaw) -
+                        (prev.yaw === undefined ? 0 : prev.yaw));
+  return Math.abs(m.cx - prev.x) > 1e-4 ||
+         Math.abs(m.cy - prev.y) > 1e-4 ||
+         dyaw > 1e-5;
+}
+
+// One pose sample, applied. Lifted out of ws.onmessage so the trail rules
+// below can be driven directly by tools/tests/dashboard_goal_roundtrip.py:
+// a renderer fault that only reproduces through a live socket is a fault
+// nothing guards. ox/oy/cx/cy/cyaw are odom and map->odom (§17.49), spread
+// rather than listed so a missing transform leaves them undefined and the
+// DRIFT block hides itself instead of rendering NaN.
+function applyPose(m) {
+      robotPose = { x: m.x, y: m.y, yaw: m.yaw,
+                    ox: m.ox, oy: m.oy,
+                    cx: m.cx, cy: m.cy, cyaw: m.cyaw };
+
+      // Order matters: read the rewrite flag BEFORE anything else consumes
+      // the sample, because corrChanged() latches the correction it saw.
+      const jumped = corrChanged(m);
+
+      // Distance travelled is a wheel question. See lastOdomPose above.
+      if (m.ox !== undefined) {
+        if (lastOdomPose) {
+          pathLength += Math.hypot(m.ox - lastOdomPose.x, m.oy - lastOdomPose.y);
+        }
+        lastOdomPose = { x: m.ox, y: m.oy };
+        haveOdomPath = true;
+      }
+
+      // AFTER pathLength and jumpCount, not before: the card renders both,
+      // and drawing it first left PATH one sample stale -- 3.11 m against a
+      // measured 3.13 m in the guard below. Small, and exactly the kind of
+      // off-by-one a card nobody cross-checks keeps forever.
+      updateLivePoseCard();
+
+      if (lastTrajectoryPose) {
+        const d = Math.hypot(m.x - lastTrajectoryPose.x, m.y - lastTrajectoryPose.y);
+        // `|| jumped` so a rewrite is never dropped for being small: the
+        // break has to be recorded even when the frame barely moved, or the
+        // trail silently reconnects across it.
+        if (d >= 0.005 || jumped) {
+          trajectory.push({ x: m.x, y: m.y, brk: jumped });
+          if (jumped) jumpCount++;
+          if (trajectory.length > MAX_TRAIL_PTS) trajectory.shift();
+          lastTrajectoryPose = { x: m.x, y: m.y };
+        }
+      } else {
+        trajectory.push({ x: m.x, y: m.y, brk: false });
+        lastTrajectoryPose = { x: m.x, y: m.y };
+      }
+      if (mapFollow) { camX = m.x; camY = m.y; }
+      if (mapView) drawMap();
+}
+
 // GOALS. goalDrag is transient (only while placing). activeGoal is the one
 // actually SENT and survives the release, because "where did I tell it to
 // go" is worth seeing while it drives there. Superseded goals fall back to
@@ -341,11 +426,13 @@ function startNewTrail() {
   trajectory = [];
   lastTrajectoryPose = null;
   pathLength = 0;
+  lastOdomPose = null; haveOdomPath = false; jumpCount = 0; lastCorr = null;
 }
 
 function clearAllTrails() {
   trajectory = []; pastTrails = [];
   lastTrajectoryPose = null; pathLength = 0;
+  lastOdomPose = null; haveOdomPath = false; jumpCount = 0; lastCorr = null;
   activeGoal = null; pastGoals = [];
   if (mapView) drawMap();
 }
@@ -365,7 +452,9 @@ function updateLivePoseCard() {
   if (y) y.textContent = robotPose.y.toFixed(3) + ' m';
   const noseDeg = ((robotPose.yaw * 180 / Math.PI + 180) % 360 + 360) % 360 - 180;
   if (n) n.textContent = noseDeg.toFixed(1) + '°';
-  if (d) d.textContent = pathLength.toFixed(2) + ' m';
+  // Em dash, not 0.00, when there is no odom transform to measure with.
+  // A confident zero would be a claim we cannot make.
+  if (d) d.textContent = haveOdomPath ? (pathLength.toFixed(2) + ' m') : '\u2014';
   const dr = document.getElementById('liveDrift');
   if (dr) {
     if (robotPose.cx === undefined) { dr.textContent = '—'; dr.className = 'v'; }
@@ -475,26 +564,7 @@ function connect() {
       clearTimeout(noticeTimer);
       noticeTimer = setTimeout(() => goalHint(defaultHint(), false), 4000);
     } else if (m.type === 'pose') {
-      // ox/oy/cx/cy are odom and map->odom (§17.49). Spread rather than
-      // listed so a missing transform simply leaves them undefined and the
-      // DRIFT block hides itself, instead of rendering NaN.
-      robotPose = { x: m.x, y: m.y, yaw: m.yaw,
-                    ox: m.ox, oy: m.oy, cx: m.cx, cy: m.cy };
-      updateLivePoseCard();
-      if (lastTrajectoryPose) {
-        const d = Math.hypot(m.x - lastTrajectoryPose.x, m.y - lastTrajectoryPose.y);
-        if (d >= 0.005) {
-          pathLength += d;
-          trajectory.push({ x: m.x, y: m.y });
-          if (trajectory.length > MAX_TRAIL_PTS) trajectory.shift();
-          lastTrajectoryPose = { x: m.x, y: m.y };
-        }
-      } else {
-        trajectory.push({ x: m.x, y: m.y });
-        lastTrajectoryPose = { x: m.x, y: m.y };
-      }
-      if (mapFollow) { camX = m.x; camY = m.y; }
-      if (mapView) drawMap();
+      applyPose(m);
     } else if (m.type === 'map') {
       ingestMap(m);
       if (mapView) drawMap();
@@ -1461,13 +1531,23 @@ function drawZeroMark() {
   drawUpright('ZERO (0,0)', o.x + 10, o.y + 4, 'left');
 }
 
+// A point carrying brk was sampled on the tick slam_toolbox rewrote
+// map->odom. The segment leading up to it is a line the robot never
+// travelled, in any frame -- the frame moved underneath a stationary robot
+// -- so lift the pen across it rather than drawing motion that did not
+// happen. Drawing it was the same class of fault as the 90 deg goal arrow
+// in 17.49: the picture agreed with the number and both misdescribed what
+// the robot did. With the pen lifted, run_20260902_114339 reads as 18 arcs
+// of one circle, displaced from each other, which is what it was.
 function strokePolyline(pts) {
   if (pts.length < 2) return;
   mctx.beginPath();
-  pts.forEach((p, i) => {
+  let pen = false;
+  for (const p of pts) {
     const q = w2s(p.x, p.y);
-    if (i === 0) mctx.moveTo(q.x, q.y); else mctx.lineTo(q.x, q.y);
-  });
+    if (!pen || p.brk) { mctx.moveTo(q.x, q.y); pen = true; }
+    else mctx.lineTo(q.x, q.y);
+  }
   mctx.stroke();
 }
 
@@ -1476,6 +1556,17 @@ function drawTrajectory() {
   mctx.strokeStyle = 'rgba(22, 119, 255, 0.68)';
   mctx.lineWidth = 2.5;
   strokePolyline(trajectory);
+
+  // One hollow tick where each rewrite landed. The gap beside it is how far
+  // the ESTIMATE moved while the robot did not, and making that countable
+  // by eye is the entire point of the break.
+  mctx.strokeStyle = 'rgba(217, 89, 38, 0.85)';
+  mctx.lineWidth = 1.4;
+  for (const p of trajectory) {
+    if (!p.brk) continue;
+    const q = w2s(p.x, p.y);
+    mctx.beginPath(); mctx.arc(q.x, q.y, 3, 0, Math.PI * 2); mctx.stroke();
+  }
 
   const start = w2s(trajectory[0].x, trajectory[0].y);
   mctx.fillStyle = '#12b76a';
@@ -1607,6 +1698,7 @@ function updateHud() {
       <div class="hud-grid">
         <span>ODOM</span><strong>${robotPose.ox.toFixed(3)}, ${robotPose.oy.toFixed(3)}</strong>
         <span>DRIFT</span><strong class="${cls}">${c.toFixed(3)} m</strong>
+        <span>JUMPS</span><strong>${jumpCount}</strong>
       </div>
       <div class="hud-muted">map−odom ${robotPose.cx.toFixed(3)}, ${robotPose.cy.toFixed(3)}</div>`;
     }
@@ -2093,6 +2185,12 @@ class PhoneDashboard(Node):
             if corr is not None:
                 self.latest_pose['cx'] = corr[0]
                 self.latest_pose['cy'] = corr[1]
+                # The YAW of the correction too, because a rewrite that turns
+                # the frame without shifting it still teleports the drawn
+                # pose: on run_20260902_114339 corr_yaw swung to -26.28 deg,
+                # which about a half-metre lever arm is ~0.23 m of apparent
+                # motion on its own. The trail break needs all three.
+                self.latest_pose['cyaw'] = corr[2]
 
         if self._pose_csv_writer is None:
             return

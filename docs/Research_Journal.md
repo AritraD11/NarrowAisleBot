@@ -3240,6 +3240,31 @@ The registered prediction was "corrections ≈ 0, the 0.175 m metronome stops". 
 **The video could not be analysed and was not guessed at.** The only ffmpeg available in the analysis environment is Playwright's encoder-only build with no MP4 demuxer and no H.264 decoder. The pose CSV answered every question the video would have, more precisely.
 
 
+## 17.55 3 Sep 2026: the video says the robot did not turn, and the odometry says it turned 3.85 degrees
+
+**Photogrammetry on the run video, against `run_20260903_162401`'s own endpoint.** The recording is the mastcam side-by-side (robot left, dashboard right). Sampled at the frame where the HUD reads `X −0.016 · Y 0.008 · NOSE −3.8° · DRIFT 0.000 · JUMPS 0`, and compared against the frame at `NOSE −0.3°` seconds after the run began.
+
+| measurement | rotation | translation |
+|---|---|---|
+| odometry (HUD, pose CSV) | **−3.85°** | 1.84 cm |
+| floor L-brackets (world-static) | **−0.03°** | ~0.3 cm |
+| floor grout orientation (world-static) | **+0.00°** | — |
+
+**The method was validated before its result was believed, and the first attempt failed, which is why it is trustworthy now.** The first pass measured the robot's own wheels against the frame and returned "no rotation" — then a validation frame where the HUD read −28.3° also returned ~0°, which is impossible. Looking at that frame explained it: **the camera is mounted on the robot's own mast.** The robot sits still in frame while the floor and the background chairs swing around it. Measuring the robot against a robot-mounted camera measures nothing. Redone with the floor as the reference, the same validation frame gives **grout −27.07° against the HUD's −28.0°, agreeing to within 1°.** The instrument detects real rotation; at the endpoint it detects none.
+
+**Noise floor and discrimination.** Centroid repeatability is ~1 px over a 325 px bracket baseline = **0.18°**. A genuine −3.5° would have swung the brackets roughly **13 px**; the measured motion was **2.4 px**. The result is not near the noise floor.
+
+**What this means, and it is not a small thing.** The −3.85° is **phantom yaw in the estimator, not physical rotation of the robot.** Over 723.8° of commanded rotation that is 0.48% — and it is the same 0.53% figure §17.54 computed from the CSV and attributed to physical drift. **The robot is mechanically more repeatable than its own estimate claims.**
+
+This bears directly on a load-bearing assumption. §17.42 measured 10.53° of heading drift over 18 m and this project has treated that as physical slip. **Physical slip cannot be fixed by better estimation; estimator drift can.** If some fraction of that 10.53° is also phantom, the wheel odometry is a better instrument than its numbers suggest, and a gyro recovers the difference directly rather than merely bounding it. That converts the BNO055 from a general recommendation into one with a measurement behind it.
+
+**Grade 🟡 SINGLE, deliberately.** One run, one endpoint pair, on a tight-circle drive. The rotation figure is the strong half (validated against a known 28°, confirmed by two independent world-static features). The translation figure is weaker: a mast camera at an oblique angle is sensitive to small pitch and roll of the mast, so ~0.3 cm is indicative rather than exact. **Needs replication on a route that is not two circles before anything is built on it.**
+
+**An unresolved discrepancy, recorded rather than smoothed over.** The operator reported roughly **−4, −3 cm and nose −3°** at the end of the run. The −3° matches the dashboard's NOSE reading exactly, which raises the possibility those numbers were read off the dashboard rather than measured against the brackets with a tape. If they were a genuine tape measurement, this section's analysis is wrong somewhere and that needs finding. **The tape-measured ground truth at the mark, which Appendix B.7 has wanted for a week, still has not been captured.**
+
+**Method note for reuse.** `ffmpeg` frame extraction plus a threshold centroid on the floor brackets, and a gradient-orientation histogram on the grout lines, is enough to measure return-to-mark to a few millimetres and a fraction of a degree from an ordinary phone video — no fiducials, no calibration. It is a cheaper and more precise ground truth than a tape measure for rotation, and it works retrospectively on footage already recorded. The one thing it requires is knowing where the camera is mounted.
+
+
 Every supporting document, organised by category. Update this as new artefacts are produced.
 
 > *Repository note (v2.0): the project's own authored documents now live as Markdown under `docs/` in the `NarrowAisleBot` GitHub repo, with the original `.docx`/`.pdf` in `docs/originals/`. The catalogue below predates that consolidation and lists documents by their original working titles; several are now the `docs/*.md` files. The repo is the current home of record.*

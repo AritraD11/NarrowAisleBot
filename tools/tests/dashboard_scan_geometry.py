@@ -170,7 +170,8 @@ with sync_playwright() as pw:
             else                   r.push(1.2 + (i % 13) * 0.1);
           }
           liveScan = { angle_min: -Math.PI, angle_inc: 2*Math.PI/n, r: r,
-                       trust: 5.0, valid: 190, total: 833, flicker: 0.76 };
+                       trust: 5.0, valid: 190, total: 430, live: 323,
+                       masked: 107, churn: 0.17 };
           scanStamp = performance.now();
           drawMap();
           return null;
@@ -179,19 +180,22 @@ with sync_playwright() as pw:
     chk(err is None, f'drawMap() with a mixed scan does not throw ({err})')
 
     hud = page.evaluate("() => document.getElementById('mapHud').innerHTML")
-    chk('FLICKER' in hud and '76%' in hud,
-        'HUD shows the live flicker percentage')
-    chk('VALID' in hud and '833' in hud,
-        'HUD shows valid rays against the full sweep size')
-    chk('drift-bad' in hud,
-        '76% flicker is flagged, not shown as if it were normal')
+    chk('CHURN' in hud and '17%' in hud,
+        'HUD shows the live per-sweep churn rate')
+    chk('VALID' in hud and '323' in hud,
+        'VALID is against LIVE beams (323), not total (430) — the masked\n         rear wedge can never be valid and must not deflate the figure')
+    chk('107 masked' in hud,
+        'the HUD names the masked-beam count rather than hiding it')
+    chk('scan_quality' in hud,
+        'the HUD warns CHURN is not scan_quality.py flicker — the two were\n         conflated once and 76% vs 17% was read as an improvement it is not')
 
     # An all-null scan is what a fully masked or dead sensor looks like.
     err = page.evaluate("""() => {
         try {
           liveScan = { angle_min: -Math.PI, angle_inc: 0.05,
                        r: new Array(126).fill(null),
-                       trust: 5.0, valid: 0, total: 833, flicker: 0.0 };
+                       trust: 5.0, valid: 0, total: 430, live: 0,
+                       masked: 430, churn: 0.0 };
           scanStamp = performance.now();
           drawMap();
           return null;
@@ -206,7 +210,8 @@ with sync_playwright() as pw:
     stale = page.evaluate("""() => {
         liveScan = { angle_min: -Math.PI, angle_inc: 0.05,
                      r: new Array(126).fill(2.0), trust: 5.0,
-                     valid: 126, total: 833, flicker: 0.1 };
+                     valid: 126, total: 430, live: 323, masked: 107,
+                     churn: 0.1 };
         scanStamp = performance.now() - 5000;   // 5 s old
         let drew = false;
         const realArc = mctx.arc;
@@ -252,6 +257,12 @@ chk('pts.append(round(r, 3) if valid[i] else None)' in src,
     'masked/invalid beams are serialised as null, never 0.0')
 chk("'/scan_reliable'" in src and "LaserScan, '/scan'," not in src,
     'the dashboard subscribes /scan_reliable, not raw /scan (QoS, §13.4)')
+chk("'churn':" in src and "'flicker'" not in src,
+    'the publisher emits churn, not a field named flicker — scan_quality.py\n'
+    '         owns that word and means something else by it')
+chk("if not masked[i] and valid[i] != prev[i]" in src,
+    'churn counts only LIVE beams; masked beams cannot change state and\n'
+    '         would only dilute the rate')
 chk("if tick % _node.scan_tick_divisor == 0 and _node.latest_scan" in src,
     'the broadcast rate comes from scan_publish_hz, not a hardcoded tick')
 chk("self.scan_tick_divisor = max(1, round(10.0 / _hz))" in src,

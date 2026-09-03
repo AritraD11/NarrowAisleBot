@@ -142,7 +142,7 @@ sha256sum ~/ros2_ws/install/ydlidar_ros2_driver/share/ydlidar_ros2_driver/params
 sha256sum ~/ros2_ws/slam_nodom.yaml
 # b10a13839759764c0a41af654f17e064e4e8e5532f5aa4e4e27f8ab0c8138e96
 sha256sum ~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py
-# 59871777d93df3dedcc73d70c10172a7456d4b2670686225e1eb78f4041fd6e3
+# 32f6a32111136554ec4e6a7f3dd21b3713ee2594ed64a72f69411376327a60cc
 sha256sum ~/ros2_ws/src/mecanum_navigation/config/nav2_params.yaml
 # 7d9adfac6aee2035538bd5b1f6eaa470e3e11e84f68e6fd25cd8685edd54f162
 sha256sum ~/tools/verify_live_config.sh
@@ -189,11 +189,12 @@ Score every row. A wrong prediction is a result, not a failure.
 | `ros2 topic hz /scan` | 6.0 Hz ± 0.3, **deviation tight** | ⛔ **WRONG** — 11.35 Hz. The request is inert (`support_motor_dtr: false`). Deviation *was* tight (~9%), so half the prediction held for a reason that turned out not to matter |
 | Beams per scan | ~833 (5000 / 6) | ⛔ **WRONG on the number, RIGHT on the model** — measured 430 against 5000/11.35 ≈ 441, a 2.5% error. `Stack_Assessment` §3A's formula is confirmed; `README.md`'s ~1258 figure was stale and is now corrected |
 | Dashboard VALID, parked | 40–55% | not yet run |
-| Dashboard FLICKER, parked | **60–80%**, on a robot that is not moving | not yet run |
+| Dashboard CHURN, parked | ⛔ **PREDICTION WITHDRAWN.** It said 60-80%, quoting §17.45's *windowed* flicker against a *per-sweep* churn metric. Different quantities; the prediction was never testable as written. Measured 17% over all beams / ~23% over live beams. See §17.52 |
 | `map → odom` at bringup | identity, and it **stays** identity | not yet run |
 
-The FLICKER row is the one to photograph. It is §17.45's central finding,
-readable live for the first time.
+The CHURN row is worth photographing, but read it for what it is: an
+instantaneous per-sweep rate on live beams, NOT §17.45's windowed flicker.
+The two were conflated when this document was written (§17.52).
 
 ### 3.2 During the drive
 
@@ -268,7 +269,7 @@ README figure was wrong and has been corrected.
 2. `ZERO` the odometry.
 3. Start mapping. **Do not run Nav2** — a manual drive gives slam_toolbox
    a whole Pi instead of a starved one, for free.
-4. Open the map view. Watch VALID and FLICKER for **60 seconds without
+4. Open the map view. Watch VALID and CHURN for **60 seconds without
    touching anything**. Screenshot.
 5. Drive the perimeter with **rolling turns**. Never rotate in place:
    §17.44 measured 714° of in-place rotation producing 43 occupied cells

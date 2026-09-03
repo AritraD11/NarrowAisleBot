@@ -1790,21 +1790,28 @@ function updateHud() {
     // These are DIAGNOSTICS. Nothing here feeds a publisher.
     let scanLine = '';
     if (liveScan) {
-      const vPct = 100 * liveScan.valid / Math.max(1, liveScan.total);
-      const fPct = liveScan.flicker === null ? null : 100 * liveScan.flicker;
-      // 40% valid is an operator threshold, not a spec: below it the sweep
-      // is more gap than geometry and any match built on it is a guess.
-      const vCls = vPct < 40 ? 'drift-bad' : 'drift-ok';
-      // 50% flicker means half the cloud is different from one sweep to
-      // the next — the condition no search parameter can be tuned around.
-      const fCls = (fPct !== null && fPct > 50) ? 'drift-bad' : 'drift-ok';
+      // Denominator is LIVE beams, not total. The ~107-beam rear wedge is
+      // NaN by design (§17.15) and can never be valid, so counting it makes
+      // every percentage look worse than the sensor is. 215 of 430 reads as
+      // 50%; the honest figure is 215 of 323 = 67%.
+      const live = Math.max(1, liveScan.live ?? liveScan.total);
+      const vPct = 100 * liveScan.valid / live;
+      const cPct = liveScan.churn == null ? null : 100 * liveScan.churn;
+      // Operator thresholds, not specs.
+      const vCls = vPct < 50 ? 'drift-bad' : 'drift-ok';
+      const cCls = (cPct !== null && cPct > 35) ? 'drift-bad' : 'drift-ok';
+      // CHURN, never "flicker". scan_quality.py's flicker_pct is a windowed
+      // cumulative metric over rays-ever-valid; this is a per-sweep rate
+      // over live beams. Different denominators, different windows, not
+      // comparable — §17.45's 74.8-78% must NOT be read against this.
       scanLine = `
       <div class="hud-sep"></div>
       <div class="hud-grid">
-        <span>VALID</span><strong class="${vCls}">${vPct.toFixed(0)}% of ${liveScan.total}</strong>
-        <span>FLICKER</span><strong class="${fCls}">${fPct === null ? '—' : fPct.toFixed(0) + '%'}</strong>
+        <span>VALID</span><strong class="${vCls}">${vPct.toFixed(0)}% of ${live}</strong>
+        <span>CHURN</span><strong class="${cCls}">${cPct === null ? '—' : cPct.toFixed(0) + '%/sweep'}</strong>
       </div>
-      <div class="hud-muted">grey dots = past ${Number(liveScan.trust ?? 0).toFixed(1)} m, discarded by SLAM</div>`;
+      <div class="hud-muted">${liveScan.masked ?? 0} masked (rear wedge) · grey = past ${Number(liveScan.trust ?? 0).toFixed(1)} m</div>
+      <div class="hud-muted">CHURN ≠ scan_quality flicker — different metric</div>`;
     }
     hud.innerHTML = `
       <div class="hud-title">ROBOT POSE · MAP FRAME</div>
@@ -2273,25 +2280,52 @@ class PhoneDashboard(Node):
 
         rmin, rmax = msg.range_min, msg.range_max
 
-        # Validity is judged on the FULL scan, before decimation, so the
-        # statistics describe the sensor rather than our sampling of it.
+        # THREE states, not two, and conflating the last two is how the
+        # first version of this got its denominator wrong:
+        #   MASKED       NaN, written by scan_relay.py over the 90 deg rear
+        #                wedge (§17.15). Structurally blind. ~107 of 430
+        #                beams. Can NEVER be valid, so counting them in a
+        #                denominator silently deflates every percentage.
+        #   NO RETURN    a real beam that got nothing back — out of range,
+        #                too dark, too oblique. This is sensor performance.
+        #   VALID        a usable distance.
         valid = [False] * n
+        masked = [False] * n
         n_valid = 0
+        n_masked = 0
         for i in range(n):
             r = rng[i]
-            # NaN fails every comparison, which is exactly the test wanted.
-            if rmin <= r <= rmax:
+            if r != r:                      # NaN: masked, not a failure
+                masked[i] = True
+                n_masked += 1
+            elif rmin <= r <= rmax:
                 valid[i] = True
                 n_valid += 1
 
-        flicker = None
+        # CHURN, deliberately NOT called flicker. tools/scan_quality.py's
+        # `flicker_pct` is a DIFFERENT measurement and the two must never be
+        # compared:
+        #   scan_quality  (ever_valid - always_valid) / ever_valid, over a
+        #                 whole capture window. "Of rays that ever returned,
+        #                 how many were not PERFECTLY consistent?" A ray that
+        #                 drops out once in 200 scans scores as flickering.
+        #   churn (here)  beams that changed state since the PREVIOUS sweep,
+        #                 over beams that could have returned. An
+        #                 instantaneous rate, not a cumulative one.
+        # A windowed metric is mechanically far larger than a per-pair one,
+        # so §17.45's 74.8-78% and this number are not the same quantity and
+        # a difference between them is not an improvement. Measured 3 Sep:
+        # 17% churn against a 76% windowed flicker, which says nothing about
+        # whether the sensor got better.
+        n_live = n - n_masked
+        churn = None
         if self._prev_valid is not None and len(self._prev_valid) == n:
             flips = 0
             prev = self._prev_valid
             for i in range(n):
-                if valid[i] != prev[i]:
+                if not masked[i] and valid[i] != prev[i]:
                     flips += 1
-            flicker = flips / n
+            churn = flips / max(1, n_live)
         self._prev_valid = valid
 
         # Keep every step-th beam. The browser draws a few hundred dots
@@ -2313,7 +2347,9 @@ class PhoneDashboard(Node):
             'trust':     self.scan_trust_range,
             'valid':     n_valid,
             'total':     n,
-            'flicker':   None if flicker is None else round(flicker, 4),
+            'live':      n_live,     # beams that are not structurally masked
+            'masked':    n_masked,
+            'churn':     None if churn is None else round(churn, 4),
         }
 
     def _map_callback(self, msg: OccupancyGrid):

@@ -242,8 +242,33 @@ controller_server:
       #
       # ⚠ If goals start timing out or the robot hunts near the target,
       #   this is the first parameter to relax, not the speeds.
-      xy_goal_tolerance: 0.02           # 2 cm
-      yaw_goal_tolerance: 0.025         # ~1.4 degrees
+      #
+      # ══ STAGE G, 3 Sep 2026: 0.02 -> 0.05, 0.025 -> 0.05. ══
+      # The measurement above is right and is NOT being discarded: MPPI
+      # does report the tolerance back as error, so a tighter tolerance
+      # genuinely lands the robot closer. What that reasoning assumed, and
+      # what was never true, is that the POSE ESTIMATE could resolve 2 cm.
+      # It could not: map->odom was stepping 26-163 mm per node (§17.49),
+      # so the controller was asked to converge inside its own noise floor
+      # and instead burned progress-checker timeouts and Spin recoveries
+      # (§17.24's ~10.2 s cadence).
+      #
+      # Deliberately 0.05, NOT Appendix B.7's proposed 0.12. B.7's number
+      # was written while map->odom was jumping 150-370 mm; with
+      # use_scan_matching now false that jitter should collapse to
+      # odometry-smooth. 0.12 would give away precision this robot has
+      # DEMONSTRATED (1.7 cm cross-track on a 0.30 m run, 8.5 mm centre
+      # movement on a 42 deg in-place rotation) and leaves only 3 cm of
+      # margin against G6's 0.15 m floor-measured gate. 0.05 leaves 10 cm
+      # of margin and is 3x the demonstrated capability.
+      #
+      # yaw 0.025 -> 0.05 rad (~2.9 deg) against G6's 10 deg gate, for the
+      # same reason: enough margin to stop hunting, far inside the gate.
+      #
+      # ⚠ RE-TIGHTEN toward 0.02 only after a run PROVES the pose estimate
+      #   is quieter than the tolerance. Not before, and not on feel.
+      xy_goal_tolerance: 0.05           # 5 cm  (G6 gate: 0.15 m)
+      yaw_goal_tolerance: 0.05          # ~2.9 degrees (G6 gate: 10 deg)
       stateful: true
 
     # ── CONTROLLER: MPPI, replacing DWB (§17.23) ─────────────────────────
@@ -337,7 +362,21 @@ controller_server:
       # ⚠ WATCH THE FIRST RUN for "Control loop missed its desired rate"
       #   from controller_server. If it appears, drop batch_size to 300
       #   before touching anything else — it is the cheapest knob here.
-      batch_size: 500
+      # ══ STAGE G, 3 Sep 2026: 500 -> 300. ══
+      # The warning above fired. Measured across §17.42/§17.43: the control
+      # loop runs 7.5-13.7 Hz against the 20 Hz requested, and the planner
+      # 1.25 Hz against 5. §17.25 is a recorded case of this same
+      # starvation killing slam_toolbox and the LiDAR pipeline outright
+      # mid-run, with bt_navigator driving a Spin recovery blind.
+      #
+      # This file already named 300 as the response and named it FIRST,
+      # before any other knob. Taking its own advice.
+      # 300 x 40 = 12k rollout points per cycle, down from 20k.
+      #
+      # A controller that samples 300 trajectories at 20 Hz beats one that
+      # samples 500 at 8 Hz. The extra options are worthless if they arrive
+      # after the moment they were computed for.
+      batch_size: 300
       time_steps: 40
       model_dt: 0.05
       iteration_count: 1

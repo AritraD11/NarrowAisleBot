@@ -63,7 +63,14 @@ import time
 from pathlib import Path
 
 TOPIC = '/scan_reliable'          # what slam_toolbox consumes (stageB yaml)
-SLAM_MAX_RANGE = 10.0             # max_laser_range: beyond this is discarded
+# max_laser_range: beyond this, slam_toolbox discards the return.
+# DEFAULT DELIBERATELY LEFT AT 10.0 even though Stage G deployed 5.0 on
+# 3 Sep 2026. §17.46's rule: changing an instrument mid-campaign destroys
+# the baseline it is being compared against, and every figure already in
+# the journal was computed against 10.0. Pass --slam-max-range 5.0 to see
+# the deployed reality; the default output stays byte-comparable with
+# §17.45 and every run before it.
+SLAM_MAX_RANGE = 10.0
 CONTINUITY_M = 0.10               # adjacent rays within this = one surface
 MIN_SURFACE_PTS = 20
 COND_POOR = 0.15                  # below this, one axis is barely constrained
@@ -502,6 +509,10 @@ def main():
     ap.add_argument('--save')
     ap.add_argument('--load')
     ap.add_argument('--json')
+    ap.add_argument('--slam-max-range', type=float, default=None,
+                    help='override max_laser_range for the "discarded" figure '
+                         '(deployed value is 5.0 since Stage G; the default '
+                         'stays 10.0 so historical runs remain comparable)')
     ap.add_argument('--selftest', action='store_true')
     args = ap.parse_args()
 
@@ -509,6 +520,10 @@ def main():
         return selftest(args)
 
     scans = json.loads(Path(args.load).read_text()) if args.load else run_live(args)
+    if args.slam_max_range is not None:
+        global SLAM_MAX_RANGE
+        SLAM_MAX_RANGE = args.slam_max_range
+
     if args.save:
         Path(args.save).write_text(json.dumps(scans))
         print(f'wrote {args.save} ({len(scans)} scans)')

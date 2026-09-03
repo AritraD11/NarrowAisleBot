@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AisleBot Map Viewer</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; background:#0a0e17; color:#e0e0e0;
+              font-family:'Courier New',monospace; overflow:hidden; }
+  .hdr { padding:10px 16px; background:#111827; border-bottom:1.5px solid #1e3a5f;
+         font-size:13px; font-weight:700; color:#38bdf8; letter-spacing:1px; }
+  .hdr span { color:#64748b; font-weight:400; margin-left:12px; }
+  .dropzone { position:absolute; inset:44px 0 0 0; display:flex; align-items:center;
+              justify-content:center; flex-direction:column; gap:8px;
+              border:2px dashed #1e3a5f; margin:12px; border-radius:8px;
+              cursor:pointer; transition:border-color .15s, background .15s; }
+  .dropzone.is-over { border-color:#38bdf8; background:#0c1220; }
+  .dropzone strong { font-size:14px; color:#7dd3fc; }
+  .dropzone small { font-size:11px; color:#475569; }
+  #stage { position:absolute; inset:44px 0 0 0; display:none; }
+  #stage.show { display:block; }
+  #canvasWrap { position:absolute; inset:0; overflow:hidden; touch-action:none; cursor:grab; }
+  #canvasWrap.grabbing { cursor:grabbing; }
+  #mapCanvas { position:absolute; image-rendering:pixelated; }
+  .hud { position:absolute; top:8px; left:8px; font-size:10px; color:#7dd3fc;
+         background:#0c1220cc; border:1px solid #1e3a5f; border-radius:4px;
+         padding:6px 10px; line-height:1.6; pointer-events:none; }
+  .hud .dim { color:#475569; }
+  .tools { position:absolute; top:8px; right:8px; display:flex; flex-direction:column; gap:5px; }
+  .tbtn { width:36px; height:28px; border-radius:4px; font-size:11px; font-weight:700;
+          border:1.5px solid #1e3a5f; background:#0c1220cc; color:#7dd3fc;
+          font-family:inherit; cursor:pointer; }
+  .tbtn:hover { border-color:#38bdf8; }
+  .legend { position:absolute; bottom:8px; left:8px; font-size:9px; color:#64748b;
+            display:flex; gap:14px; background:#0c1220cc; border:1px solid #1e3a5f;
+            border-radius:4px; padding:5px 10px; }
+  .legend i { display:inline-block; width:9px; height:9px; margin-right:4px;
+              vertical-align:-1px; border:1px solid #334155; }
+  .reload { position:absolute; bottom:8px; right:8px; font-size:10px; color:#7dd3fc;
+            background:#0c1220cc; border:1px solid #1e3a5f; border-radius:4px;
+            padding:5px 10px; cursor:pointer; }
+  .err { position:fixed; inset:0; background:#000000cc; display:none;
+         align-items:center; justify-content:center; z-index:10; }
+  .err.show { display:flex; }
+  .err-box { background:#111827; border:1px solid #ef4444; border-radius:8px;
+             padding:20px 24px; max-width:420px; color:#fca5a5; font-size:12px;
+             line-height:1.5; }
+  .err-box b { color:#f87171; }
+  .err-box button { margin-top:14px; background:#1e3a5f; color:#e0e0e0; border:none;
+                     border-radius:4px; padding:6px 14px; cursor:pointer; font-family:inherit; }
+</style>
+</head>
+<body>
+
+<div class="hdr">AISLEBOT MAP VIEWER <span>drag a .pgm + .yaml pair from map_saver_cli, no server needed</span></div>
+
+<div class="dropzone" id="dropzone">
+  <strong>Drop .pgm + .yaml here</strong>
+  <small>both files together, from the same map_saver_cli save</small>
+</div>
+
+<div id="stage">
+  <div id="canvasWrap">
+    <canvas id="mapCanvas"></canvas>
+  </div>
+  <div class="hud" id="hud"></div>
+  <div class="tools">
+    <button class="tbtn" id="zoomIn">+</button>
+    <button class="tbtn" id="zoomOut">&minus;</button>
+    <button class="tbtn" id="zoomFit">FIT</button>
+  </div>
+  <div class="legend">
+    <span><i style="background:#f8fafc"></i>free</span>
+    <span><i style="background:#1a2332"></i>unknown</span>
+    <span><i style="background:#0a0e17"></i>occupied</span>
+  </div>
+  <div class="reload" id="reload">LOAD DIFFERENT MAP</div>
+</div>
+
+<div class="err" id="err">
+  <div class="err-box">
+    <b>Couldn't load that.</b>
+    <div id="errMsg" style="margin-top:8px"></div>
+    <button id="errOk">OK</button>
+  </div>
+</div>
+
+<input id="fileInput" type="file" accept=".pgm,.yaml,.yml" multiple hidden>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  YAML (map_saver_cli's flat key: value output -- not a general parser)
+// ═══════════════════════════════════════════════════════════════════
+function parseMapYaml(text) {
+  const out = {};
+  for (const line of text.split('\n')) {
+    const s = line.replace(/#.*$/, '').trim();
+    if (!s) continue;
+    const i = s.indexOf(':');
+    if (i < 0) continue;
+    const key = s.slice(0, i).trim();
+    let val = s.slice(i + 1).trim();
+    if (key === 'origin') {
+      // [x, y, yaw]
+      val = val.replace(/[\[\]]/g, '').split(',').map(v => parseFloat(v.trim()));
+    } else if (['resolution', 'occupied_thresh', 'free_thresh'].includes(key)) {
+      val = parseFloat(val);
+    } else if (key === 'negate') {
+      val = parseInt(val, 10);
+    } else {
+      val = val.replace(/^["']|["']$/g, '');
+    }
+    out[key] = val;
+  }
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PGM (P2 ascii or P5 binary, 8-bit grayscale -- what map_saver_cli writes)
+// ═══════════════════════════════════════════════════════════════════
+function parsePgm(buf) {
+  const bytes = new Uint8Array(buf);
+  let pos = 0;
+  function skipWs() {
+    while (pos < bytes.length) {
+      const c = bytes[pos];
+      if (c === 0x23) { while (pos < bytes.length && bytes[pos] !== 0x0a) pos++; continue; } // # comment
+      if (c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0d) { pos++; continue; }
+      break;
+    }
+  }
+  function readToken() {
+    skipWs();
+    const start = pos;
+    while (pos < bytes.length && !/\s/.test(String.fromCharCode(bytes[pos]))) pos++;
+    return String.fromCharCode(...bytes.subarray(start, pos));
+  }
+
+  const magic = readToken();
+  if (magic !== 'P5' && magic !== 'P2') {
+    throw new Error(`Unrecognised PGM header "${magic}" -- expected P5 (binary) or P2 (ascii).`);
+  }
+  const w = parseInt(readToken(), 10);
+  const h = parseInt(readToken(), 10);
+  const maxval = parseInt(readToken(), 10);
+  const pixels = new Uint8Array(w * h);
+
+  if (magic === 'P5') {
+    pos += 1; // single whitespace byte after maxval, per the PGM spec
+    for (let i = 0; i < w * h; i++) pixels[i] = bytes[pos + i];
+  } else {
+    for (let i = 0; i < w * h; i++) pixels[i] = parseInt(readToken(), 10);
+  }
+  return { w, h, maxval, pixels };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Render: map_saver_cli's own convention, not OccupancyGrid's int8 one.
+//  Pixel value / 255 is a free-space PROBABILITY (unless negate flips it):
+//  high value (white) = free, low value (black) = occupied, and
+//  map_saver_cli itself paints anything between the thresholds mid-grey
+//  (unknown) -- so the raw pixel already IS the visualisation, no
+//  threshold math needed here to match what map_saver_cli intended.
+// ═══════════════════════════════════════════════════════════════════
+function render(pgm, yaml) {
+  const { w, h, pixels } = pgm;
+  const negate = yaml.negate || 0;
+  const img = new ImageData(w, h);
+  const px = img.data;
+  for (let i = 0; i < w * h; i++) {
+    let v = pixels[i];
+    if (negate) v = 255 - v;
+    // map_saver_cli's mid-grey unknown is ~205 (its own uint8 constant);
+    // recolour it toward this UI's palette instead of leaving it literal
+    // grey, so it reads clearly against the free/occupied extremes.
+    let r, g, b;
+    if (v > 250)      { r = 248; g = 250; b = 252; }              // free
+    else if (v < 5)   { r = 10;  g = 14;  b = 23;  }               // occupied
+    else              { r = 26;  g = 35;  b = 50;  }               // unknown
+    const o = i * 4;
+    px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255;
+  }
+  const off = document.createElement('canvas');
+  off.width = w; off.height = h;
+  off.getContext('2d').putImageData(img, 0, 0);
+  return off;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Pan / zoom
+// ═══════════════════════════════════════════════════════════════════
+let bitmap = null, meta = null;
+let scale = 4, offX = 0, offY = 0;
+const canvas = document.getElementById('mapCanvas');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('canvasWrap');
+
+function fit() {
+  if (!bitmap) return;
+  const r = wrap.getBoundingClientRect();
+  scale = Math.max(1, Math.min(r.width / bitmap.width, r.height / bitmap.height) * 0.92);
+  offX = (r.width - bitmap.width * scale) / 2;
+  offY = (r.height - bitmap.height * scale) / 2;
+  draw();
+}
+
+function draw() {
+  const r = wrap.getBoundingClientRect();
+  canvas.width = r.width; canvas.height = r.height;
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#060a12';
+  ctx.fillRect(0, 0, r.width, r.height);
+  if (bitmap) ctx.drawImage(bitmap, offX, offY, bitmap.width * scale, bitmap.height * scale);
+  updateHud();
+}
+
+function updateHud() {
+  const hud = document.getElementById('hud');
+  if (!meta) return;
+  const realW = (bitmap.width * meta.resolution).toFixed(2);
+  const realH = (bitmap.height * meta.resolution).toFixed(2);
+  hud.innerHTML =
+    `${bitmap.width}&times;${bitmap.height} px &middot; ${meta.resolution} m/px<br>` +
+    `<span class="dim">${realW}m &times; ${realH}m real space</span><br>` +
+    `<span class="dim">origin (${meta.origin[0].toFixed(2)}, ${meta.origin[1].toFixed(2)})</span>`;
+}
+
+wrap.addEventListener('resize', draw);
+window.addEventListener('resize', draw);
+
+let dragging = false, lastX = 0, lastY = 0;
+wrap.addEventListener('pointerdown', e => {
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  wrap.classList.add('grabbing');
+  wrap.setPointerCapture(e.pointerId);
+});
+wrap.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  offX += e.clientX - lastX; offY += e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  draw();
+});
+wrap.addEventListener('pointerup', e => { dragging = false; wrap.classList.remove('grabbing'); });
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = wrap.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const before = scale;
+  scale = Math.max(0.25, Math.min(60, scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+  offX = mx - (mx - offX) * (scale / before);
+  offY = my - (my - offY) * (scale / before);
+  draw();
+}, { passive: false });
+
+document.getElementById('zoomIn').addEventListener('click', () => { scale *= 1.3; draw(); });
+document.getElementById('zoomOut').addEventListener('click', () => { scale /= 1.3; draw(); });
+document.getElementById('zoomFit').addEventListener('click', fit);
+document.getElementById('reload').addEventListener('click', () => {
+  document.getElementById('stage').classList.remove('show');
+  document.getElementById('dropzone').style.display = 'flex';
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  File handling
+// ═══════════════════════════════════════════════════════════════════
+function showError(msg) {
+  document.getElementById('errMsg').textContent = msg;
+  document.getElementById('err').classList.add('show');
+}
+document.getElementById('errOk').addEventListener('click',
+  () => document.getElementById('err').classList.remove('show'));
+
+async function handleFiles(fileList) {
+  const files = Array.from(fileList);
+  const yamlFile = files.find(f => /\.ya?ml$/i.test(f.name));
+  const pgmFile  = files.find(f => /\.pgm$/i.test(f.name));
+  if (!yamlFile || !pgmFile) {
+    showError('Drop both the .pgm and .yaml files from the same map_saver_cli save together.');
+    return;
+  }
+  try {
+    const yamlText = await yamlFile.text();
+    const yaml = parseMapYaml(yamlText);
+    if (!yaml.resolution || !yaml.origin) {
+      throw new Error('yaml is missing "resolution" or "origin" -- is this really a map_saver_cli file?');
+    }
+    const pgmBuf = await pgmFile.arrayBuffer();
+    const pgm = parsePgm(pgmBuf);
+    bitmap = render(pgm, yaml);
+    meta = yaml;
+    document.getElementById('dropzone').style.display = 'none';
+    document.getElementById('stage').classList.add('show');
+    fit();
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+const dz = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dz.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('is-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('is-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('is-over');
+  handleFiles(e.dataTransfer.files);
+});
+// Also accept a drop anywhere on the page once the map is loaded (reload flow).
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => {
+  if (document.getElementById('dropzone').style.display === 'none' &&
+      !document.getElementById('stage').classList.contains('show')) return;
+  e.preventDefault();
+  if (e.target.closest('#dropzone')) return;
+  handleFiles(e.dataTransfer.files);
+});
+</script>
+</body>
+</html>

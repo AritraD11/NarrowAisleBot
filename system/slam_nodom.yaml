@@ -41,4 +41,79 @@ slam_toolbox:
     max_laser_range: 12.0
     transform_publish_period: 0.02
     map_update_interval: 1.0
-    enable_interactive_mode: true
+    # Interactive mode lets you drag pose-graph nodes by hand in rviz. We
+    # never do that, and it keeps extra state alive for the whole session
+    # on a Pi that ran out of CPU and killed slam_toolbox outright on
+    # 19 Aug 2026 (sec 17.25). Off.
+    enable_interactive_mode: false
+
+    # ── LOOP CLOSURE (sec 17.25) ─────────────────────────────────────────
+    # THE ACCEPTANCE TEST THIS BLOCK EXISTS TO PASS: park on the physical
+    # zero mark, drive anywhere, drive back to the same physical mark, and
+    # read map->base_link ~ (0,0). On 19 Aug 2026 that read (0.5033,
+    # -0.0445) -- half a metre of accumulated drift that was never
+    # corrected. Loop closure is the mechanism that is supposed to snap
+    # that back, and none of its parameters had ever been set here: the
+    # file ran entirely on slam_toolbox's stock defaults, which assume a
+    # feature-rich environment and a full 360 deg scan. This robot has
+    # neither.
+    #
+    # Two conditions make matching unusually hard here, both measured
+    # rather than assumed:
+    #   1. 107 of 430 beams are masked NaN -- the 90 deg rear blind sector
+    #      behind the mast (sec 17.15). A quarter of every scan is absent,
+    #      permanently, in a fixed body-relative direction.
+    #   2. The space is a junction with several radiating aisles that look
+    #      alike (sec 17.13's "flower" map shape), so scan matching has
+    #      genuinely ambiguous constraints, not just noisy ones.
+    #
+    # do_loop_closing defaults to true and was already active -- stated
+    # explicitly here so nobody has to go and check the default again.
+    do_loop_closing: true
+
+    # Stock is 10 nodes. At minimum_travel_distance 0.2 m that is ~2 m of
+    # driving before loop closure is even ELIGIBLE to fire, which in a
+    # workspace only a few metres across means most real revisits never
+    # qualify. Lowered so returning to the zero mark can actually trigger
+    # a closure rather than being structurally ineligible for one.
+    loop_match_minimum_chain_size: 5
+
+    # Stock 3.0 m. Raised so a revisit is still recognised after the pose
+    # estimate has already drifted -- 0.5 m of drift was measured, and a
+    # search radius has to comfortably exceed the drift it is meant to
+    # correct, or it looks for the loop in the wrong place.
+    loop_search_maximum_distance: 5.0
+
+    # Match-quality gates, both RELAXED from stock (coarse 0.35, fine
+    # 0.45). With a quarter of the scan permanently missing, a genuine
+    # revisit legitimately scores lower than it would on a full scan, so
+    # stock thresholds reject real loop closures as if they were bad
+    # matches. Relaxing these trades a higher risk of a WRONG closure for
+    # any closure at all -- the right trade when the current measured
+    # state is zero closures and half a metre of drift.
+    # >> If the map ever visibly folds or tears, these two are the first
+    #    thing to raise back, before anything else in this file. <<
+    loop_match_minimum_response_coarse: 0.25
+    loop_match_minimum_response_fine: 0.35
+
+    # ── SCAN MATCHER ─────────────────────────────────────────────────────
+    # Search window for matching each new scan against the running map.
+    # Widened from stock 0.5 m because the odometry prior feeding this is
+    # itself imperfect -- mecanum lateral slip is corrected but not
+    # eliminated (lateral_scale, sec 17.21), and residual cross-coupling
+    # of ~0.6 cm per 0.25 m nudge was measured and deliberately left
+    # unmodelled. The matcher needs room to find the true pose beyond
+    # where the prior says it should be.
+    correlation_search_space_dimension: 0.7
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    # How much the matcher is allowed to disagree with the odometry prior.
+    # Both RAISED from stock (0.5 / 1.0) = trusting odometry LESS. This is
+    # the deliberate consequence of sec 17.21's finding: wheel odometry on
+    # a mecanum base over-reported strafe by 25% before correction, and
+    # the correction is a single empirical scale factor for one floor, not
+    # a model. Where scan geometry and wheel odometry disagree here, the
+    # scan is more likely to be right.
+    distance_variance_penalty: 0.7
+    angle_variance_penalty: 1.2

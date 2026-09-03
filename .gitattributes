@@ -11,3 +11,6 @@
 # Binary source-of-record documents — never diff or line-normalize these.
 *.docx  binary
 *.pdf   binary
+
+# Hardware evidence recordings — binary, never line-normalized or diffed.
+*.mp4   binary

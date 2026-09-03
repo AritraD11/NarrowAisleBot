@@ -21,10 +21,23 @@
 #   +Y = forward (odometry_publisher.py publishes a constant -90 deg
 #   rotation to match the LiDAR's validated calibration rather than the
 #   textbook convention — Research_Journal.md §17.10). Every x/y-labelled
-#   parameter below (footprint, DWB velocity limits, sample counts) is
-#   swapped from what a stock Nav2 config would have, on purpose. If this
-#   axis convention is ever changed back, every one of these needs
-#   re-swapping too, not just the odometry node.
+#   parameter below (footprint, MPPI's vx/vy limits and std-devs, the
+#   velocity_smoother arrays) is swapped from what a stock Nav2 config
+#   would have, on purpose. If this axis convention is ever changed back,
+#   every one of these needs re-swapping too, not just the odometry node.
+#
+#   THIS IS THE STACK'S DEEPEST OPEN ISSUE, not a quirk. Nav2 has no
+#   parameter anywhere for "which axis is the nose", so every component
+#   carrying a notion of "forward" is wrong here by default and must be
+#   caught by reading its source. That has now happened five times
+#   (§17.14, §17.17, §17.19's GoalAlign/PathAlign, and §17.23's
+#   PathAngleCritic and PreferForwardCritic). The permanent fix is to
+#   make base_link REP-103 and move the -90 deg rotation into the URDF's
+#   laser_joint instead — a large, cross-cutting refactor touching
+#   odometry_publisher, the URDF, this file, cmd_vel_axis_adapter,
+#   goal_pose_adapter and the zero_point marker. Deliberately NOT done
+#   today; recorded here so the next surprise is recognised as the same
+#   root cause rather than diagnosed from scratch a sixth time.
 # ==============================================================
 
 amcl:
@@ -41,8 +54,56 @@ amcl:
     max_particles: 2000
     min_particles: 500
     odom_frame_id: "odom"
-    robot_model_type: "omnidirectional"    # Mecanum = omnidirectional
+    # ⚠ THIS IS A PLUGINLIB CLASS NAME, NOT A DESCRIPTIVE WORD. It was
+    #   "omnidirectional" until 26 Aug, which is not a class anyone exports.
+    #   Verified against upstream nav2_amcl (jazzy AND humble), not guessed:
+    #     - plugins.xml declares exactly two classes,
+    #       nav2_amcl::DifferentialMotionModel and nav2_amcl::OmniMotionModel
+    #     - amcl_node.cpp's default is the fully-qualified
+    #       "nav2_amcl::DifferentialMotionModel", not "differential"
+    #     - amcl_node.cpp does `plugin_loader_.createSharedInstance(
+    #       robot_model_type_)` with NO string translation, no legacy-name
+    #       shim, and no try/catch, on the on_configure path
+    #   So the old value threw out of on_configure, AMCL never reached
+    #   ACTIVE, and lifecycle_manager would have aborted the ENTIRE
+    #   navigation bringup — not just localisation. Never run on hardware,
+    #   so it had never announced itself.
+    robot_model_type: "nav2_amcl::OmniMotionModel"   # mecanum = omni, strafes
     set_initial_pose: true
+    # ⚠ BOTH NUMBERS HERE WERE WRONG UNTIL §17.18, and this block has never
+    #   been run, so treat the corrected values as derived rather than
+    #   confirmed on hardware.
+    #
+    #   yaw: this robot's base_link +X is its RIGHT, not its front
+    #   (see the AXES note at the top of this file). A robot whose front
+    #   points along map +X therefore has yaw -90°, not 0. yaw: 0.0 meant
+    #   "the robot is standing sideways" and would have made AMCL's first
+    #   scan match fail against a map built the other way round.
+    #
+    #   x/y: the old 0,0 assumed a saved map's origin sits at the physical
+    #   zero mark. It does not. slam_toolbox plants the map frame on the
+    #   ODOM frame at the first scan (map->odom starts as identity), so a
+    #   saved map's (0,0) is wherever odometry happened to be zeroed —
+    #   i.e. wherever the robot stood when aislebot.service last started.
+    #   Unless the drive stack is deliberately restarted at the mark
+    #   immediately before mapping, (0,0) is NOT the mark.
+    #
+    #   Before this mode is ever used for real: either adopt that
+    #   restart-at-the-mark procedure so 0,0 genuinely means the mark, or
+    #   set set_initial_pose: false and supply the pose live (Foxglove's
+    #   2D Pose Estimate / the /initialpose topic) instead of guessing.
+    # yaw -1.5708 -> 0.0 (§17.49). The -90 was reasoned in §17.18 as "base_link
+    # +X is the robot's RIGHT, so a robot facing along map +X has yaw -90" --
+    # correct while the map frame still used REP-103 axes. §17.38 rotated the
+    # map frame; Axis_Convention.md is now explicit that a freshly-zeroed
+    # robot on the mark reads [0,0,0] @ 0 deg. Left as it was, AMCL seeds its
+    # particle filter 90 deg off the truth on the very first frame -- and AMCL
+    # has never once been run, so nothing would have caught it.
+    # NOTE the remaining assumption, which is procedural not code: x/y = 0,0
+    # takes the saved map's origin to be the physical mark. slam_toolbox
+    # plants map on odom at its first scan, so that holds only if the stack
+    # was zeroed on the mark immediately before mapping. If it wasn't, set
+    # set_initial_pose: false and supply the pose live instead.
     initial_pose: {x: 0.0, y: 0.0, z: 0.0, yaw: 0.0}
     tf_broadcast: true
     transform_tolerance: 1.0
@@ -63,23 +124,48 @@ bt_navigator:
     odom_topic: /wheel_odom
     bt_loop_duration: 10
     default_server_timeout: 20
-    wait_for_service_timeout: 5
-    # Default BT — navigates, recovers, replans
-    default_nav_to_pose_bt_xml: ""
-    plugin_lib_names:
-      - nav2_compute_path_to_pose_action_bt_node
-      - nav2_follow_path_action_bt_node
-      - nav2_spin_action_bt_node
-      - nav2_wait_action_bt_node
-      - nav2_back_up_action_bt_node
-      - nav2_clear_costmap_service_bt_node
-      - nav2_is_stuck_condition_bt_node
-      - nav2_goal_reached_condition_bt_node
-      - nav2_rate_controller_bt_node
-      - nav2_recovery_node_bt_node
-      - nav2_pipeline_sequence_bt_node
-      - nav2_round_robin_node_bt_node
-      - nav2_transform_available_condition_bt_node
+    # MILLISECONDS, not seconds — and that unit is the whole bug this line
+    # used to carry. It was 5, i.e. bt_navigator gave every action server on
+    # the graph FIVE MILLISECONDS to appear before declaring it missing, and
+    # then failed activation outright:
+    #     "compute_path_to_pose" action server not available after waiting
+    #     for 0.01s  ->  Exception when loading BT  ->  Failed to bring up
+    #     all requested nodes. Aborting bringup.
+    # planner_server was demonstrably already ACTIVE and bonded ~340 ms
+    # earlier in the same log; the gap is DDS discovery latency, not a dead
+    # server. This is a latent timing bug, not one the MPPI switch created —
+    # it was simply never lost before, because whether 5 ms is enough is a
+    # race. Restored to Nav2's own default of 1000 ms (§17.23).
+    wait_for_service_timeout: 1000
+    # default_nav_to_pose_bt_xml / default_nav_through_poses_bt_xml are
+    # DELIBERATELY NOT SET HERE. nav2_slam.launch.py supplies both as an
+    # absolute path resolved from nav2_bt_navigator's own installed share
+    # directory at launch time — see that file's comments.
+    #
+    # An earlier version of this file set default_nav_to_pose_bt_xml: ""
+    # here, on the theory that an empty string falls back to Nav2's
+    # built-in default file. IT DOES NOT, on this Nav2 build — confirmed
+    # on hardware, 14 Aug 2026 (Research_Journal.md §17.19). The first
+    # goal ever sent came back "Behavior tree threw exception: Empty
+    # Tree. Exiting with failure" with no path ever loaded, and
+    # `ros2 param get /bt_navigator default_nav_to_pose_bt_xml` on the
+    # live node showed the parameter as an empty string, not the
+    # computed default — an explicitly-provided empty value is not the
+    # same as an omitted one, and only the latter triggers Nav2's
+    # internal fallback here. Providing the real, resolved path from the
+    # launch file removes the guess entirely rather than trusting that
+    # fallback a second time.
+    #
+    # plugin_lib_names is CORRECTLY left unset, unlike the above —
+    # checked directly against this Nav2 build's own reference config
+    # (/opt/ros/jazzy/share/nav2_bringup/params/nav2_params.yaml), which
+    # also omits it and states plainly: "Built-in plugins are added
+    # automatically." `ros2 param get` showing `[]` on the live node
+    # looked, at first, like the same bug as the BT-xml path above — it
+    # is not. An empty plugin_lib_names is this build's normal, working
+    # state. Re-add this key ONLY to register genuinely custom BT
+    # plugins, and only as an ADDITION to Nav2's own built-in
+    # registration, never a replacement of it.
 
 controller_server:
   ros__parameters:
@@ -91,63 +177,307 @@ controller_server:
     goal_checker_plugins: ["goal_checker"]
     controller_plugins: ["FollowPath"]
 
+    # PoseProgressChecker, NOT SimpleProgressChecker. Simple measures progress
+    # as straight-line XY distance only (pose_distance() ignores yaw entirely),
+    # so a pure in-place rotation scores as ZERO progress no matter how fast
+    # the robot is actually turning. Every autonomous goal this robot has ever
+    # been sent (§17.19) was a translation, which is why this never surfaced.
+    #
+    # zero_point_scan.py (§17.20) is built entirely out of rotate-in-place
+    # goals — same position, new heading — so it walks straight into it. The
+    # arithmetic: max_vel_theta is 0.20 rad/s, so a 90° step is 7.9 s at the
+    # cap alone, against this 10 s allowance, before RotateToGoal's slowing
+    # near the goal yaw eats what little margin is left. The controller would
+    # abort mid-turn with "Failed to make progress".
+    #
+    # That failure is not just a stalled scan. A failed goal hands control to
+    # bt_navigator's recovery branch, i.e. exactly the Spin/BackUp path that
+    # was unremapped until this same commit — so the two bugs chained: an
+    # unmeasurable rotation triggers a recovery that reverses 0.30 m into the
+    # blind rear sector. Both halves are fixed together, deliberately.
+    #
+    # PoseProgressChecker is the same check plus a rotational term: turning
+    # more than required_movement_angle also counts as progress. That is what
+    # "is the robot still doing something" was always meant to mean here.
     progress_checker:
-      plugin: "nav2_controller::SimpleProgressChecker"
-      required_movement_radius: 0.3
+      plugin: "nav2_controller::PoseProgressChecker"
+      # 0.30 -> 0.10 (§17.49). 0.30 m in 10 s is a floor of 0.030 m/s, and
+      # this robot's measured autonomous cruise is 0.027-0.037 m/s -- the bar
+      # sat INSIDE the speed distribution, so goals aborted while the robot
+      # was driving perfectly well. Audited against the runs that exposed it:
+      # 31 Aug's abort had moved 0.288 m (short by 12 mm, a false positive
+      # this kills) while G3's three aborts had moved 0.075/0.053/0.048 m
+      # (genuinely stuck, and all three still fire at 0.10). New floor is
+      # 0.010 m/s, 2.7x under the measured cruise.
+      # movement_time_allowance stays 10 s ON PURPOSE: it is the timer that
+      # will detect a collision_monitor halt, and widening it would slow the
+      # obstacle response by exactly the amount it was widened.
+      required_movement_radius: 0.10
+      # radians, ~14°. Deliberately under one 20° scan step, so a single
+      # step's rotation resets the timer on its own. Not smaller: this also
+      # sets how much yaw wobble counts as "progress", and too small would
+      # let a robot oscillating in place look busy forever.
+      required_movement_angle: 0.25
       movement_time_allowance: 10.0
 
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.05           # 5cm tolerance (tight for narrow aisle)
-      yaw_goal_tolerance: 0.05          # ~3 degrees
+      # TIGHTENED 0.05 -> 0.02 / 0.025 (§17.23), from measured behaviour
+      # rather than taste. SimpleGoalChecker stops the moment the robot is
+      # inside tolerance, and MPPI — being a cost-minimiser with no term
+      # rewarding "closer than required" — reliably stops AT the boundary,
+      # not near it. Three consecutive hardware runs, first ever on MPPI:
+      #     0.50 m goal -> stopped 4.6 cm short   (tol 5 cm)
+      #     0.30 m goal -> stopped 4.5 cm short   (tol 5 cm)
+      #     45 deg goal -> stopped 2.80 deg short (tol 2.86 deg)
+      # That is not scatter, it is the tolerance being reported back as
+      # error. A 5 cm systematic undershoot is most of this robot's 5 cm
+      # budget, and zero_point_scan.py chains 18 goals in sequence.
+      #
+      # Lower bound is set by what the robot can actually resolve, so these
+      # are not arbitrarily small: a 0.30 m run held heading to 0.7 deg and
+      # closed to 1.7 cm of cross-track, and an in-place 42 deg rotation
+      # moved the centre only 8.5 mm. 2 cm and ~1.4 deg are inside
+      # demonstrated capability with margin.
+      #
+      # ⚠ If goals start timing out or the robot hunts near the target,
+      #   this is the first parameter to relax, not the speeds.
+      xy_goal_tolerance: 0.02           # 2 cm
+      yaw_goal_tolerance: 0.025         # ~1.4 degrees
       stateful: true
 
+    # ── CONTROLLER: MPPI, replacing DWB (§17.23) ─────────────────────────
+    # DWB was removed here for a source-confirmed structural reason, not a
+    # preference. §17.22 traced this robot's rotation stalls to
+    # dwb_critics/rotate_to_goal.cpp: once RotateToGoalCritic judges the
+    # robot "at goal position", it enforces a bit-exact
+    #     fabs(traj.velocity.x) > 0 || fabs(traj.velocity.y) > 0  -> throw
+    # and a thrown critic ELIMINATES that trajectory. Combined with DWB's
+    # fixed vx_samples x vy_samples x vtheta_samples cross-product grid,
+    # only the single (x=0, y=0) pair out of 50 survived, so ~20 of ~1000
+    # candidates could even reach the check — hence the logged
+    # "No valid trajectories out of 1343!" on every rotation-only goal.
+    #
+    # MPPI cannot reproduce that failure mode BY CONSTRUCTION. Its critics
+    # are purely additive — every one of them does `data.costs += ...` and
+    # the optimizer takes a weighted average over the whole sampled
+    # population. There is no throw-and-eliminate path anywhere in
+    # nav2_mppi_controller, so "no valid trajectories" is not a state it
+    # can reach. Verified against source, not assumed:
+    #   - goal_angle_critic.cpp  (MPPI's RotateToGoal counterpart) is
+    #     `data.costs += mean(angular_distances) * weight_` and gates on
+    #     threshold_to_consider. Additive. Never rejects.
+    #   - twirling_critic.cpp returns EARLY when
+    #     withinPositionGoalTolerance(...) is true — so it does not fight
+    #     rotation-in-place at a goal, which is exactly our case.
+    #
+    # Second reason, equally load-bearing for this robot: real
+    # omnidirectional sampling. motion_models.hpp defines
+    # OmniMotionModel::isHolonomic() -> true, and the base predict() only
+    # runs `state.vy(i, j) = cvy_curr` when holonomic (DiffDrive skips that
+    # block entirely). With motion_model "Omni", vy is genuinely sampled
+    # and propagated through every rollout, blended continuously with vx
+    # and wz. DWB's fixed grid could only ever offer discrete combinations.
+    # This is what "use the robot's full mecanum freedom" actually requires.
     FollowPath:
-      plugin: "dwb_core::DWBLocalPlanner"
-      debug_trajectory_details: true
-      # x = strafe axis, y = forward/reverse axis on this robot (see the
-      # AXES note at the top of this file) — swapped from a stock config.
-      min_vel_x: -0.10                   # Can strafe the other way (mecanum!)
-      min_vel_y: -0.10                   # Can reverse
-      max_vel_x: 0.15                    # Full strafe capability
-      max_vel_y: 0.15                    # Conservative for narrow aisles
-      max_vel_theta: 0.30
-      min_speed_xy: 0.0
-      max_speed_xy: 0.20
-      min_speed_theta: 0.0
-      acc_lim_x: 0.5                     # Mecanum can accelerate laterally
-      acc_lim_y: 0.5
-      acc_lim_theta: 1.0
-      decel_lim_x: -0.5
-      decel_lim_y: -0.5
-      decel_lim_theta: -1.0
-      vx_samples: 5                      # Sample lateral (strafe) velocities
-      vy_samples: 10                     # Finer sampling on forward/reverse
-      vtheta_samples: 20
-      sim_time: 1.5
-      linear_granularity: 0.05
-      angular_granularity: 0.025
-      transform_tolerance: 0.2
-      short_circuit_trajectory_evaluation: true
-      xy_goal_tolerance: 0.05
-      trans_stopped_velocity: 0.25
+      plugin: "nav2_mppi_controller::MPPIController"
+
+      # ⚠ AXES, same swap as everywhere else in this file. base_link is
+      #   +X = RIGHT, +Y = FORWARD (§17.10). MPPI names its axes vx/vy in
+      #   the robot body frame, so on THIS robot:
+      #       vx = STRAFE   (positive = right)
+      #       vy = FORWARD / REVERSE (positive = forward)
+      #   Note MPPI provides vx_min but NO vy_min: it assumes vx is the
+      #   forward axis and gives it asymmetric forward/reverse limits,
+      #   while the lateral axis is symmetric +/-vy_max. On this robot that
+      #   lands backwards — our strafe axis gets the asymmetric pair and
+      #   our forward axis gets the symmetric one. Harmless, because we
+      #   want strafe symmetric anyway: vx_min is set to -vx_max below.
+      motion_model: "Omni"
+
+      # SPEEDS: raised from DWB's 0.08 m/s, which was itself halved from
+      # 0.15 after the §17.19 axis-bug incident. That caution was aimed at
+      # a bug that is now fixed and hardware-confirmed (cmd_vel_axis_
+      # adapter.py), plus an odometry error also now fixed (lateral_scale).
+      # Raised only partway to the original 0.15, not all the way, because
+      # the Phase 1 tape-measure validation of the corrected odometry has
+      # NOT been completed on hardware yet. Revert with one command if the
+      # first runs look wrong:
+      #     ros2 param set /controller_server FollowPath.vy_max 0.08
+      vx_max: 0.12          # strafe right
+      vx_min: -0.12         # strafe left — symmetric, see AXES note above
+      vy_max: 0.12          # forward AND reverse (symmetric in MPPI)
+      # ROTATION raised 0.20 -> 0.30 rad/s. At 0.20 a 90 deg turn needs
+      # 7.9 s at the cap alone, against progress_checker's 10 s allowance —
+      # margin so thin that §17.21's stalls were partly a timeout problem
+      # on top of the DWB rejection. At 0.30 the same turn is 5.2 s, a
+      # real margin. Still slow in absolute terms for a 45 kg base.
+      wz_max: 0.30
+
+      # Sampling spread. These are std-devs of the Gaussian noise added
+      # around the current control sequence, i.e. how widely MPPI explores.
+      # Nav2's defaults (0.2/0.2/0.4) are tuned for vx_max 0.5 / wz_max 1.9
+      # — roughly 0.2-0.4x the cap. Ours are ~0.5x, deliberately a little
+      # wider: at these very low speeds too narrow a spread collapses the
+      # population onto near-identical rollouts and the optimizer stops
+      # discriminating. Too wide and most samples clip at the limit and are
+      # wasted.
+      vx_std: 0.06
+      vy_std: 0.06
+      wz_std: 0.15
+
+      # HORIZON: 40 steps x 0.05 s = 2.0 s, ~24 cm of lookahead at vy_max.
+      # Comparable to DWB's sim_time of 1.5 s (~12 cm) and deliberately not
+      # much longer — a narrow aisle gives little to plan around far ahead.
+      #
+      # BATCH SIZE reduced from Nav2's default 1000 to 500 for the Pi 5.
+      # MPPI is far more compute-hungry than DWB and this is an ARM SBC
+      # also running SLAM, the LiDAR driver and the dashboard. 500 x 40 =
+      # 20k rollout points per control cycle at 20 Hz.
+      # ⚠ WATCH THE FIRST RUN for "Control loop missed its desired rate"
+      #   from controller_server. If it appears, drop batch_size to 300
+      #   before touching anything else — it is the cheapest knob here.
+      batch_size: 500
+      time_steps: 40
+      model_dt: 0.05
+      iteration_count: 1
+      temperature: 0.3
+      gamma: 0.015
+      retry_attempt_limit: 1
+      regenerate_noises: false
+      # Publishing candidate trajectories is genuinely useful in Foxglove
+      # but costs real CPU on this Pi. Off by default; turn on live with
+      #   ros2 param set /controller_server FollowPath.visualize true
+      visualize: false
+
+      # ── CRITICS ──────────────────────────────────────────────────────
+      # TWO OF MPPI's STOCK CRITICS ARE DELIBERATELY ABSENT, and it is the
+      # SAME BUG CLASS that has now bitten this stack four times (§17.14
+      # velocity_smoother, §17.17 collision_monitor, §17.19 GoalAlign/
+      # PathAlign): a Nav2 default that is silently wrong here purely
+      # because base_link's axes are non-standard. Both were checked
+      # against nav2_mppi_controller source before being dropped.
+      #
+      #   PathAngleCritic — DROPPED. Computes
+      #       atan2(goal_y - traj_y, goal_x - traj_x)
+      #   and penalises the difference against the trajectory's yaw, i.e.
+      #   it assumes +X is the nose. On this robot +X is the RIGHT SIDE,
+      #   so it would score the robot as well-aligned when travelling
+      #   SIDEWAYS and actively rotate a 1.12 x 0.48 m chassis ~90 deg
+      #   mid-aisle to achieve it. Exactly what GoalAlign/PathAlign would
+      #   have done under DWB. There is no parameter to tell it which axis
+      #   is forward. (mode: 1 / NO_DIRECTIONAL_PREFERENCE only relaxes
+      #   front-vs-back, not which AXIS is front — it does not save this.)
+      #
+      #   PreferForwardCritic — DROPPED, for two independent reasons.
+      #   Its cost is `max(-vx, 0)`, penalising negative vx: on this robot
+      #   that penalises strafing LEFT, which is meaningless. And even with
+      #   correct axes the critic exists to stop a differential-drive base
+      #   reversing when it should turn around — a constraint a mecanum
+      #   base does not have. Wrong twice over.
+      #
+      # Every critic kept below is axis-agnostic, verified individually:
+      #   ConstraintCritic  — penalises exceeding the configured limits.
+      #   CostCritic        — scores the costmap under the FOOTPRINT
+      #                       polygon (already swapped, see local_costmap).
+      #   GoalCritic        — Euclidean distance to goal position.
+      #   GoalAngleCritic   — |shortest_angular_distance(yaw, goal_yaw)|.
+      #   PathAlignCritic   — trajectory POSITIONS vs path positions, with
+      #                       use_path_orientations false (the default) so
+      #                       no heading assumption enters at all.
+      #   PathFollowCritic  — distance to a lookahead point on the path.
+      #   TwirlingCritic    — penalises |wz| while travelling, and returns
+      #                       early inside position goal tolerance so it
+      #                       never fights a rotation-only goal.
       critics:
-        - RotateToGoal
-        - Oscillation
-        - ObstacleFootprint
-        - GoalAlign
-        - PathAlign
-        - PathDist
-        - GoalDist
-      ObstacleFootprint.scale: 0.02
-      PathAlign.scale: 32.0
-      PathAlign.forward_point_distance: 0.1
-      GoalAlign.scale: 24.0
-      GoalAlign.forward_point_distance: 0.1
-      PathDist.scale: 32.0
-      GoalDist.scale: 24.0
-      RotateToGoal.scale: 32.0
-      RotateToGoal.slowing_factor: 5.0
+        - "ConstraintCritic"
+        - "CostCritic"
+        - "GoalCritic"
+        - "GoalAngleCritic"
+        - "PathAlignCritic"
+        - "PathFollowCritic"
+        - "TwirlingCritic"
+
+      ConstraintCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 4.0
+
+      # consider_footprint MUST be true on this robot, not the default
+      # false. The default approximates the robot by its INSCRIBED radius
+      # (half-width, 0.24 m) — but this chassis is 1.12 m long, giving a
+      # circumscribed radius of sqrt(0.24^2 + 0.56^2) = 0.61 m. A 0.24 m
+      # circle standing in for a 0.61 m half-length is not conservative,
+      # it is confidently wrong along the robot's entire length, which is
+      # the axis most likely to hit an aisle wall while strafing.
+      # This costs CPU; it is the second knob to try (after batch_size) if
+      # the control loop cannot hold rate — but prefer slowing the robot
+      # over lying to it about its own size.
+      CostCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 3.81
+        critical_cost: 300.0
+        collision_cost: 1000000.0
+        near_goal_distance: 0.5
+        trajectory_point_step: 2
+        consider_footprint: true
+
+      GoalCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        # Lowered from the 1.4 default: at 0.12 m/s, 1.4 m of approach is
+        # ~12 s of travel, far too early to start weighting goal distance
+        # over path following.
+        threshold_to_consider: 1.0
+
+      # THE DIRECT REPLACEMENT for DWB's RotateToGoalCritic — the critic
+      # whose zero-tolerance rejection rule was §17.22's root cause. This
+      # one is `data.costs += mean(|angular distance to goal yaw|) *
+      # weight`, purely additive, and only active within
+      # threshold_to_consider of the goal position. It steers rotation by
+      # making wrong headings expensive rather than by deleting every
+      # candidate that also translates.
+      GoalAngleCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 3.0
+        threshold_to_consider: 0.5
+
+      PathAlignCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 14.0
+        max_path_occupancy_ratio: 0.05
+        trajectory_point_step: 4
+        threshold_to_consider: 0.5
+        offset_from_furthest: 20
+        # Left false (the default) ON PURPOSE. Setting it true makes this
+        # critic score the trajectory's HEADING against the path's
+        # orientation, which reintroduces exactly the forward-axis
+        # assumption that PathAngleCritic was dropped for.
+        use_path_orientations: false
+
+      PathFollowCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        offset_from_furthest: 6
+        threshold_to_consider: 1.0
+
+      # Weighted at half Nav2's default 10.0. This critic's job is to stop
+      # an omni base spinning pointlessly while it translates — genuinely
+      # wanted here, since this robot has a wide blind rear sector (§17.8)
+      # and holding heading while strafing keeps the LiDAR pointed
+      # usefully. But it is halved because rotation must stay CHEAP enough
+      # to actually happen when a goal calls for it; over-weighting it
+      # would re-create a rotation-reluctant robot by a different route
+      # than DWB did.
+      TwirlingCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
 
 planner_server:
   ros__parameters:
@@ -253,12 +583,36 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 5.0
-        # Must be >= the footprint's inscribed radius (half-width = 0.24 m) or
-        # poses that are certainly in collision get non-lethal cost. But too
-        # large closes narrow aisles entirely — inflation from both walls meets
-        # in the middle and the planner sees no corridor (Navigation_Theory.md
-        # §1.1). Tune against the narrowest aisle that must be traversable.
-        inflation_radius: 0.35
+        # RAISED 0.35 -> 0.65 (§17.23), because Nav2 rejected 0.35 outright
+        # at MPPI bringup:
+        #     The inflation radius (0.350000) is smaller than the
+        #     circumscribed radius (0.622415) ... it cannot use costmap
+        #     potential field to speed up collision checking ... This may
+        #     significantly slow down planning times!
+        # 0.622415 is this robot's own padded footprint: the corner
+        # (0.24, 0.56) plus the default footprint_padding of 0.01 gives
+        # hypot(0.25, 0.57) = 0.6224 m. When inflation_radius is below that,
+        # a footprint-aware checker can never rule a pose out cheaply and
+        # must test the FULL polygon every time. MPPI does roughly 500
+        # trajectories x 40 steps / trajectory_point_step 2 = ~10,000
+        # footprint tests per control cycle at 20 Hz — this is exactly the
+        # workload that optimization exists for, on exactly the hardware
+        # (a Pi 5, also running SLAM) that cannot absorb losing it.
+        #
+        # The previous comment's worry — that a large radius "closes narrow
+        # aisles entirely" — does not apply at this value, and it is worth
+        # writing down why rather than deleting it. Inflation only makes a
+        # cell UNTRAVERSABLE within the INSCRIBED radius (0.25 m here);
+        # beyond that the cost merely decays, cost = 253 * exp(-5.0 * (d -
+        # 0.25)):
+        #     d = 0.25 m -> 253  (lethal to the footprint checker)
+        #     d = 0.45 m ->  93
+        #     d = 0.65 m ->  34
+        # So extending 0.35 -> 0.65 adds only a low-cost tail (93 down to
+        # 34). It does not narrow the traversable corridor by a single
+        # cell; it lengthens the gradient that pulls the robot toward the
+        # middle of the aisle. Nothing that was passable becomes impassable.
+        inflation_radius: 0.65
 
 global_costmap:
   global_costmap:
@@ -292,7 +646,11 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 5.0
-        inflation_radius: 0.45
+        # Raised 0.45 -> 0.65 for the same reason as local_costmap's, and to
+        # the same value: both costmaps describe the same physical robot, so
+        # a planner and a controller disagreeing about how much clearance it
+        # needs is a bug waiting to happen. See the full derivation there.
+        inflation_radius: 0.65
 
 map_server:
   ros__parameters:
@@ -315,3 +673,163 @@ waypoint_follower:
       plugin: "nav2_waypoint_follower::WaitAtWaypoint"
       enabled: true
       waypoint_pause_duration: 200   # ms
+
+# ==============================================================
+# COLLISION MONITOR
+#
+# The last node in the cmd_vel chain, and a hard safety layer independent
+# of the planner:
+#   controller_server -> cmd_vel_nav -> velocity_smoother
+#     -> cmd_vel_smoothed -> collision_monitor -> cmd_vel
+# Nothing reaches the wheels without passing through here.
+#
+# ⚠ THIS BLOCK IS NOT OPTIONAL, AND ITS ABSENCE IS NOT A SOFT FAILURE.
+#   `observation_sources` has no default — Nav2 cannot guess what sensors
+#   a robot has — so with no block at all the node fails to configure,
+#   lifecycle_manager aborts the ENTIRE bringup, and nothing publishes
+#   /cmd_vel, so the robot cannot move at all. That is exactly what
+#   happened on the first-ever Nav2 launch attempt (§17.17): every other
+#   server configured cleanly and the run still died here.
+#
+#   This Nav2 build is newer than the one this file was originally
+#   written against — it also starts route_server and opennav_docking,
+#   neither of which existed then. Both configure fine on their own
+#   defaults (route_server logs "No graph file provided to load yet" and
+#   carries on); collision_monitor is the one that genuinely cannot.
+#
+# WHAT THIS GIVES US, beyond unblocking the launch: this is the
+# "stop before you hit something" guard, native to Nav2, working against
+# the real footprint polygon rather than a point approximation. It is a
+# better answer than a hand-written guarded-teleop node for the
+# autonomous case, because it sits below the planner and cannot be
+# reasoned around by it.
+# ==============================================================
+collision_monitor:
+  ros__parameters:
+    base_frame_id: "base_link"
+    odom_frame_id: "odom"
+    # Topic names, not remappings — nav2_bringup's navigation_launch.py
+    # expects collision_monitor to be wired through parameters.
+    cmd_vel_in_topic: "cmd_vel_smoothed"
+    # NOT "cmd_vel" -- output goes to cmd_vel_axis_adapter, which rotates it
+    # from base_link's TF axes (+X=right, +Y=forward) into the wheel
+    # kinematics' REP-103 axes (+X=forward, +Y=left) and publishes the real
+    # /cmd_vel. Everything upstream of the adapter, this node included,
+    # works in TF axes -- which is what makes the FootprintApproach polygon
+    # below correct, since it forward-simulates that same footprint along
+    # this same velocity. See cmd_vel_axis_adapter.py and §17.19.
+    cmd_vel_out_topic: "cmd_vel_baselink"
+    state_topic: "collision_monitor_state"
+    transform_tolerance: 0.2
+    source_timeout: 1.0
+    base_shift_correction: True
+    # If the monitor itself stops publishing, downstream must not coast on
+    # a stale command. esp32_bridge's own 500 ms watchdog is the harder
+    # backstop underneath this (§17.14).
+    stop_pub_timeout: 2.0
+
+    polygons: ["FootprintApproach"]
+    FootprintApproach:
+      type: "polygon"
+      # "approach" is velocity-aware: it forward-simulates the footprint
+      # along the currently commanded velocity and only intervenes if that
+      # path actually collides. Deliberately chosen over a static "stop"
+      # polygon at the cushion boundary, which would halt the robot any
+      # time it sat near a wall — including the legitimate 7 cm-from-a-wall
+      # case measured in §17.15, and including normal narrow-aisle
+      # transit, which is the entire point of this robot.
+      action_type: "approach"
+      # The live footprint Nav2 actually collision-checks against — the
+      # 1.12 x 0.48 m cushioned rectangle, correct by construction rather
+      # than duplicated here (see aislebot.urdf's safety_cushion note).
+      footprint_topic: "/local_costmap/published_footprint"
+      time_before_collision: 1.2
+      simulation_time_step: 0.1
+      # Points required inside the projected footprint before acting. Low
+      # enough to catch a real obstacle, high enough that a single noisy
+      # return does not stop a 45 kg robot mid-aisle.
+      min_points: 6
+      # Publishes the polygon for Foxglove. On deliberately: the first
+      # autonomous runs are exactly when seeing what the safety layer
+      # thinks is worth the small overhead.
+      visualize: True
+      polygon_pub_topic: "collision_monitor_polygon"
+      enabled: True
+
+    observation_sources: ["scan"]
+    scan:
+      type: "scan"
+      # /scan_reliable, NOT /scan — two independent reasons, both already
+      # cost this project real debugging time:
+      #   1. QoS. /scan is best-effort from the driver; this subscribes
+      #      reliable. That mismatch is §13.4's silent hang, recurring in
+      #      yet another consumer.
+      #   2. The self-occlusion mask (§17.15) lives in scan_relay.py. On
+      #      raw /scan the rear mast reads as a permanent obstacle ~0.13 m
+      #      behind the robot, and this node would refuse to ever reverse.
+      topic: "/scan_reliable"
+      enabled: True
+
+# ==============================================================
+# VELOCITY SMOOTHER
+#
+# Last stage of the Nav2 cmd_vel chain, and easy to miss:
+#   controller_server -> /cmd_vel_nav -> velocity_smoother -> /cmd_vel
+# /cmd_vel is what teleop_asym consumes, so EVERY autonomous command
+# passes through here. Nav2's navigation_launch.py starts this node
+# whether or not this block exists.
+#
+# ⚠ THIS BLOCK IS NOT OPTIONAL ON THIS ROBOT. Nav2's stock defaults are
+#   written for a differential-drive base and set the y limits to 0.0 —
+#   "this robot cannot move sideways." On a standard robot that is
+#   correct and harmless. Here, +Y IS FORWARD (see the AXES note at the
+#   top of this file), so inheriting those defaults would clamp all
+#   forward and reverse motion to zero and the robot would refuse to
+#   drive anywhere, while the planner happily produced paths and the
+#   controller happily published velocities into a silent wall.
+#
+# Arrays are [x, y, theta] = [strafe, forward/reverse, yaw] on this
+# robot. Values match the DWB limits in controller_server above; keep
+# the two in step if either is retuned.
+# ==============================================================
+velocity_smoother:
+  ros__parameters:
+    smoothing_frequency: 20.0
+    scale_velocities: false
+    feedback: "OPEN_LOOP"          # CLOSED_LOOP reads odom to estimate the
+                                   # current velocity; OPEN_LOOP integrates
+                                   # its own last command. Open-loop first —
+                                   # one less coupling while proving the
+                                   # chain end-to-end.
+    # KEEP IN STEP WITH FollowPath's limits above. This node clamps
+    # whatever the controller commands, so a limit left behind here does
+    # not merely disagree with the controller — it silently WINS, and the
+    # controller's raised limits would look like they had no effect.
+    # Raised alongside the MPPI switch (§17.23): 0.08 -> 0.12 m/s
+    # translation, 0.20 -> 0.30 rad/s rotation.
+    #
+    # ⚠ AXES, as everywhere: these arrays are [x, y, theta] in base_link,
+    #   so on this robot element 0 is STRAFE and element 1 is
+    #   FORWARD/REVERSE (§17.10), not the other way round.
+    #
+    # min_velocity is now symmetric with max_velocity. Previously it was
+    # -0.06 against a +0.08 max, an asymmetry inherited from DWB's
+    # min_vel_x/min_vel_y that had no justification on a mecanum base —
+    # this robot's reverse and left-strafe are mechanically identical to
+    # its forward and right-strafe.
+    #
+    # max_decel is NOT raised, for the same reason it was never lowered:
+    # it caps braking effort, so it is the one limit where a larger
+    # magnitude is strictly safer. Gentle starts, hard stops.
+    max_velocity: [0.12, 0.12, 0.30]
+    min_velocity: [-0.12, -0.12, -0.30]
+    max_accel: [0.3, 0.3, 0.6]
+    max_decel: [-0.5, -0.5, -1.0]
+    odom_topic: "/wheel_odom"      # odometry_publisher's topic, same as
+                                   # bt_navigator. NOT /odometry/filtered —
+                                   # that EKF has never run (§17.6).
+    odom_duration: 0.1
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0          # stop if no command for 1 s — the
+                                   # dead-man for a planner that stops
+                                   # publishing mid-drive.

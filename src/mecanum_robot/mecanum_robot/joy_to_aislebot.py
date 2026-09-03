@@ -7,9 +7,12 @@ Subscribes
     /joy           sensor_msgs/Joy
 
 Publishes
-    /cmd_vel       geometry_msgs/Twist  — drive (chassis)
-    /arm/cmd_vel   geometry_msgs/Twist  — arm (continuous)
-    /arm/command   std_msgs/String      — arm (discrete: HOME/ESTOP/CLEAR)
+    /cmd_vel_manual   geometry_msgs/Twist  — drive (chassis). Goes through
+                      twist_mux (config/twist_mux.yaml, aislebot_full.launch.py)
+                      before reaching teleop_asym, so it wins over Nav2
+                      whenever this is actively publishing.
+    /arm/cmd_vel      geometry_msgs/Twist  — arm (continuous)
+    /arm/command      std_msgs/String      — arm (discrete: HOME/ESTOP/CLEAR)
 
 DEFAULT MAPPING (Xbox / PS-style controllers, axes_layout = 'xbox'):
     Left stick  X  →  strafe   (vy, +ve = left)
@@ -89,7 +92,7 @@ class JoyToAislebot(Node):
 
         # Subscribers / publishers
         self.create_subscription(Joy, '/joy', self.cb_joy, 10)
-        self.pub_drive    = self.create_publisher(Twist,  '/cmd_vel',     10)
+        self.pub_drive    = self.create_publisher(Twist,  '/cmd_vel_manual', 10)
         self.pub_arm_vel  = self.create_publisher(Twist,  '/arm/cmd_vel', 10)
         self.pub_arm_cmd  = self.create_publisher(String, '/arm/command', 10)
 

@@ -3,14 +3,59 @@
   AisleBot URDF — Asymmetric Mecanum Mobile Robot
   IIT Bombay — Aritra Das (25D0074) — Prof. Ambarish Kunwar
 
-  Geometry:
-    Chassis: 1000mm × 360mm (L × W), tape-measured 8 Aug 2026 (§17.7).
-             Header previously read 500mm wide × 200mm high; the width was
-             wrong (see the chassis link comment) and the height disagreed
-             with the model's own 150mm box. Height left at the model's 150mm.
+  ⚠⚠ AXIS CONVENTION — READ BEFORE EDITING ANY xyz OR size ⚠⚠
+  ================================================================
+  base_link on this robot is NOT standard REP-103.
+
+        +X = RIGHT        +Y = FORWARD        +Z = up
+
+  This is deliberate, load-bearing, and confirmed on hardware
+  (Research_Journal.md §17.10–§17.11). odometry_publisher.py publishes
+  its pose rotated by −90° from the REP-103 value it computes
+  internally, so that base_link's axes agree with the LiDAR's
+  independently-validated scan calibration rather than with the textbook.
+  nav2_params.yaml's footprint and DWB velocity limits are swapped to
+  match. Do not "fix" this file back to +X=forward in isolation — every
+  one of those would have to move together, and the LiDAR calibration
+  has the strongest hardware evidence of the three.
+
+  UPDATED 27 Aug 2026 (§17.38): that rotation used to be applied to the
+  published ORIENTATION only, leaving the published TRANSLATION in
+  REP-103 axes — which quietly gave odom and map REP-103's axes while
+  base_link had these. Translation is rotated too now, so odom, map and
+  base_link all share +X=right/+Y=forward and driving forward increases
+  map Y. NOTHING IN THIS FILE CHANGED for that fix: base_link's geometry
+  was correct throughout, and the whole point of the fix was to make the
+  other frames agree with what is modelled here. See
+  docs/Axis_Convention.md.
+
+  This file was converted to that convention on 12 Aug 2026 (§17.12).
+  Everything below was previously modelled with +X=forward and was
+  therefore rendering the chassis rotated 90° from the real robot — the
+  landmine §17.10 flagged and deferred. The conversion applied
+  (x, y) -> (−y, x) to every joint origin, swapped the chassis box's
+  X and Y extents, and re-pointed the wheel spin axes from Y to X.
+
+  Geometry (all tape-measured, not estimated):
+    Chassis     : 360mm wide (X) × 1000mm long (Y) × 150mm high (Z)
+                  Width is wheel-outer to wheel-outer, the widest part
+                  (§17.7). Height is the model's own long-standing value,
+                  never independently measured.
+    base_link   : at the TRUE geometric centre of the chassis in both
+                  axes — 500mm from the front edge (of 1000mm total) and
+                  125mm from the chassis-plate edge (of 250mm total).
+                  Located physically by rotating the robot in place and
+                  marking the point that stayed fixed, then tape-measuring
+                  to it (§17.12). Previously assumed; now confirmed.
     l1 = 403mm (outer: FR, RL), l2 = 333mm (inner: FL, RR)
     d  = 157.69mm (half-track), wheel_r = 76.2mm
     Total mass ≈ 45.5 kg
+
+  NOTE the two different width numbers, which are NOT interchangeable:
+    360mm = wheel outer to wheel outer — the collision-relevant width,
+            what the chassis box and the Nav2 footprint use.
+    250mm = the bare chassis plate — what the LiDAR's mounting position
+            was measured against. Used only to derive laser_joint below.
 -->
 <robot name="aislebot" xmlns:xacro="http://ros.org/wiki/xacro">
 
@@ -27,6 +72,12 @@
   <material name="black">
     <color rgba="0.1 0.1 0.1 1.0"/>
   </material>
+  <!-- Translucent amber: the safety cushion is a boundary to look through,
+       not a solid to look at. Alpha kept low enough that scan returns
+       crossing into it stay readable. -->
+  <material name="cushion_amber">
+    <color rgba="1.0 0.65 0.0 0.28"/>
+  </material>
 
   <!-- ==================== BASE LINK (ground reference) ==================== -->
   <link name="base_link"/>
@@ -39,6 +90,10 @@
   </joint>
 
   <!-- ==================== CHASSIS ====================
+       box size is X Y Z = WIDTH LENGTH HEIGHT on this robot, because +X is
+       right and +Y is forward (see the axis banner at the top of this file).
+       A stock REP-103 URDF would write these first two the other way round.
+
        Width corrected 0.50 -> 0.36 m on 8 Aug 2026 from a tape measurement
        (Research_Journal.md §17.7). The old 0.50 was wrong: the real robot is
        36 cm across at its widest (wheel outer to wheel outer). The wheel joint
@@ -47,27 +102,34 @@
        error was confined to this <box> — the kinematic parameters the
        PID/odometry actually use were never affected.
 
-       Inertia below is still the value computed for the old 0.50 m box and is
-       therefore stale. Left as-is deliberately: it only affects Gazebo
-       simulation dynamics, nothing on the real robot, and guessing a
-       replacement would be no better than the known-stale value. Recompute
-       properly if the simulation is ever used quantitatively.
+       Inertia RE-DERIVED 12 Aug 2026, no longer stale. The previous values
+       were computed for the pre-correction 0.50 m-wide box and were left in
+       place deliberately (§17.7) on the grounds that an un-derived guess would
+       be worse than a known-stale number. That reasoning no longer applies:
+       the box's real dimensions are now tape-measured, so the tensor can be
+       derived rather than guessed. Solid cuboid about its centre, m = 40.0 kg,
+       x = 0.36, y = 1.00, z = 0.15:
+         ixx = m(y² + z²)/12 = 40(1.0000 + 0.0225)/12 = 3.408
+         iyy = m(x² + z²)/12 = 40(0.1296 + 0.0225)/12 = 0.507
+         izz = m(x² + y²)/12 = 40(0.1296 + 1.0000)/12 = 3.765
+       Still Gazebo-simulation-only in effect — nothing on the real robot
+       reads it — but now correct rather than merely flagged.
   -->
   <link name="chassis">
     <visual>
       <geometry>
-        <box size="1.0 0.36 0.15"/>
+        <box size="0.36 1.0 0.15"/>
       </geometry>
       <material name="dark_gray"/>
     </visual>
     <collision>
       <geometry>
-        <box size="1.0 0.36 0.15"/>
+        <box size="0.36 1.0 0.15"/>
       </geometry>
     </collision>
     <inertial>
       <mass value="40.0"/>
-      <inertia ixx="1.354" ixy="0" ixz="0" iyy="3.688" iyz="0" izz="4.792"/>
+      <inertia ixx="3.408" ixy="0" ixz="0" iyy="0.507" iyz="0" izz="3.765"/>
     </inertial>
   </link>
 
@@ -77,6 +139,51 @@
     <origin xyz="0 0 0.075" rpy="0 0 0"/>
   </joint>
 
+  <!-- ==================== SAFETY CUSHION (visual only) ====================
+       The 6 cm clearance margin, drawn. This is the SAME rectangle
+       nav2_params.yaml declares as the costmap footprint:
+
+           chassis   0.36 x 1.00 m
+           + 6 cm all round
+           = 0.48 x 1.12 m   ->  x = +/-0.24, y = +/-0.56
+
+       Purpose is to make the stop condition something you can SEE rather
+       than infer. When a /scan_reliable return crosses inside this
+       rectangle, the robot is at the cushion boundary in that direction —
+       which is exactly the condition the guarded-drive feature will act on.
+
+       ⚠ THIS IS A MIRROR, NOT A SOURCE. The numbers here are duplicated
+         from nav2_params.yaml's footprint, and nothing enforces that they
+         stay in step. Change one and change the other, or the picture will
+         start lying about what the collision check actually does. Once Nav2
+         is running, local_costmap/published_footprint is the authoritative
+         live version of this same polygon — correct by construction because
+         the planner publishes what it actually collision-checks against.
+         This link is what gives you the picture in the meantime, and it
+         stays useful afterwards for teleop, when Nav2 is not running.
+
+       Visual only: no <collision>, so Gazebo cannot mistake a safety margin
+       for a physical object. No <inertial> either — it is massless, same as
+       base_footprint, and KDL folds fixed-joint links into the parent.
+
+       Sits at floor level and 1 cm thin so it reads as a footprint decal
+       under the chassis rather than a box around it, and so it cannot
+       z-fight with the chassis visual above it.
+  -->
+  <link name="safety_cushion">
+    <visual>
+      <geometry>
+        <box size="0.48 1.12 0.01"/>
+      </geometry>
+      <material name="cushion_amber"/>
+    </visual>
+  </link>
+  <joint name="safety_cushion_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="safety_cushion"/>
+    <origin xyz="0 0 0.005" rpy="0 0 0"/>
+  </joint>
+
   <!-- ==================== WHEELS ==================== -->
   <!-- Wheel macro: name, parent, xyz offset -->
 
@@ -84,12 +191,12 @@
   <link name="wheel_fr">
     <visual>
       <geometry><cylinder radius="0.0762" length="0.06"/></geometry>
-      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
       <material name="orange"/>
     </visual>
     <collision>
       <geometry><cylinder radius="0.0762" length="0.06"/></geometry>
-      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
     </collision>
     <inertial>
       <mass value="1.385"/>
@@ -99,20 +206,20 @@
   <joint name="wheel_fr_joint" type="continuous">
     <parent link="base_link"/>
     <child link="wheel_fr"/>
-    <origin xyz="0.403 -0.15769 0" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
+    <origin xyz="0.15769 0.403 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
   </joint>
 
   <!-- Front-Left (inner: l2 forward, d left) -->
   <link name="wheel_fl">
     <visual>
       <geometry><cylinder radius="0.0762" length="0.06"/></geometry>
-      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
       <material name="orange"/>
     </visual>
     <collision>
       <geometry><cylinder radius="0.0762" length="0.06"/></geometry>
-      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
     </collision>
     <inertial>
       <mass value="1.385"/>
@@ -122,20 +229,20 @@
   <joint name="wheel_fl_joint" type="continuous">
     <parent link="base_link"/>
     <child link="wheel_fl"/>
-    <origin xyz="0.333 0.15769 0" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
+    <origin xyz="-0.15769 0.333 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
   </joint>
 
   <!-- Rear-Right (inner: l2 backward, d right) -->
   <link name="wheel_rr">
     <visual>
       <geometry><cylinder radius="0.0762" length="0.06"/></geometry>
-      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
       <material name="orange"/>
     </visual>
     <collision>
       <geometry><cylinder radius="0.0762" length="0.06"/></geometry>
-      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
     </collision>
     <inertial>
       <mass value="1.385"/>
@@ -145,20 +252,20 @@
   <joint name="wheel_rr_joint" type="continuous">
     <parent link="base_link"/>
     <child link="wheel_rr"/>
-    <origin xyz="-0.333 -0.15769 0" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
+    <origin xyz="0.15769 -0.333 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
   </joint>
 
   <!-- Rear-Left (outer: l1 backward, d left) -->
   <link name="wheel_rl">
     <visual>
       <geometry><cylinder radius="0.0762" length="0.06"/></geometry>
-      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
       <material name="orange"/>
     </visual>
     <collision>
       <geometry><cylinder radius="0.0762" length="0.06"/></geometry>
-      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
     </collision>
     <inertial>
       <mass value="1.385"/>
@@ -168,17 +275,42 @@
   <joint name="wheel_rl_joint" type="continuous">
     <parent link="base_link"/>
     <child link="wheel_rl"/>
-    <origin xyz="-0.403 0.15769 0" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
+    <origin xyz="-0.15769 -0.403 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
   </joint>
 
   <!-- ==================== SENSOR FRAMES ==================== -->
 
   <!-- LiDAR mount: on top of the battery (Position 2, Research_Journal.md §17.4).
-       Derived from the pre-trial estimate (0.35, 0, 0.20) plus the user-reported
-       deltas from that mount to this one (+0.075 height, -0.20 pushed back) -- not
-       an independent measurement. Refine with calipers if TF accuracy ever matters
-       for something beyond visualization. -->
+
+       IN-PLANE POSITION TAPE-MEASURED 12 Aug 2026 (§17.12) — this is no
+       longer the derived-from-deltas estimate it used to be. Measured to the
+       marked centre point on the LiDAR housing (its true optical origin, NOT
+       the robot's centre — a distinction worth keeping, they are 0.27 m apart):
+
+         Y (forward) : front edge -> base_link      = 0.500 m
+                       front edge -> LiDAR centre   = 0.230 m
+                       => LiDAR is 0.270 m FORWARD of base_link.
+
+         X (right)   : chassis-plate half-width     = 0.125 m  (of 0.250 m)
+                       plate edge -> LiDAR centre   = 0.120 m
+                       => 0.005 m off the centreline. Modelled as 0, which is
+                          well inside tape-measure precision and inside the
+                          5 cm costmap resolution this ultimately feeds.
+
+       Z (height) IS STILL THE OLD ESTIMATE, not measured — carried over from
+       the §17.4 derivation (pre-trial estimate 0.20 + the reported +0.075
+       "one battery height" delta). Everything above it in this comment is
+       measured; this one number is not. Measure it if the LiDAR's height ever
+       matters — it does not for a 2-D occupancy grid, which is why it wasn't
+       chased.
+
+       ⚠ ydlidar_ros2_driver's own launch file publishes a COMPETING static
+         base_link -> laser_frame transform, and as of §17.9 the live one is
+         its stale placeholder (0, 0, 0.02) with zero rotation, not this. Two
+         publishers of one transform fight. Before robot_state_publisher is
+         added to aislebot_full.launch.py, the driver's must be suppressed, or
+         this correct value will flicker against that wrong one. -->
   <link name="laser_frame">
     <visual>
       <geometry><cylinder radius="0.04" length="0.04"/></geometry>
@@ -192,7 +324,7 @@
   <joint name="laser_joint" type="fixed">
     <parent link="base_link"/>
     <child link="laser_frame"/>
-    <origin xyz="0.15 0 0.275" rpy="0 0 0"/>
+    <origin xyz="0 0.27 0.275" rpy="0 0 0"/>
   </joint>
 
   <!-- IMU (center of chassis) -->
@@ -254,9 +386,15 @@
             <max_angle>3.14159</max_angle>
           </horizontal>
         </scan>
+        <!-- 0.12-10 m is the YDLIDAR X4 Pro's actual spec. The 12.0 that was
+             here was inherited from the originally-planned RPLiDAR A1 and
+             exceeded this hardware's real maximum, the same stale figure
+             already corrected in nav2_params.yaml (§17.6). Simulation-only,
+             but a simulated sensor that outranges the real one is a way to
+             make the sim quietly easier than reality. -->
         <range>
-          <min>0.15</min>
-          <max>12.0</max>
+          <min>0.12</min>
+          <max>10.0</max>
           <resolution>0.01</resolution>
         </range>
         <noise>

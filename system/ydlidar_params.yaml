@@ -1,18 +1,25 @@
-# Confirmed working parameters for the YDLIDAR X4 Pro on /dev/ydlidar.
-# Transcribed verbatim from docs/LiDAR_SLAM_Bringup.md ("read off the
-# hardware, not copied from a forum"). Copied by install.sh into
-# ~/ros2_ws/src/ydlidar_ros2_driver/params/ydlidar.yaml, overwriting that
-# repo's defaults.
-#
-# NOTE: shown flat, exactly as documented. If your checkout of
-# ydlidar_ros2_driver expects these wrapped under a node name (e.g.
-# `ydlidar_ros2_driver_node: ros__parameters: ...`), add that wrapper —
-# it wasn't specified in the source document, so it isn't guessed here.
-port: /dev/ydlidar
-baudrate: 128000
-lidar_type: 1
-device_type: 0
-sample_rate: 5
-isSingleChannel: true
-intensity: false
-frequency: 10.0
+ydlidar_ros2_driver_node:
+  ros__parameters:
+    port: /dev/ydlidar
+    frame_id: laser_frame
+    ignore_array: ""
+    baudrate: 128000
+    lidar_type: 1
+    device_type: 0
+    isSingleChannel: true
+    intensity: false
+    intensity_bit: 0
+    sample_rate: 5
+    abnormal_check_count: 4
+    fixed_resolution: true
+    reversion: false
+    inverted: false
+    auto_reconnect: true
+    support_motor_dtr: false
+    angle_max: 180.0
+    angle_min: -180.0
+    range_max: 12.0
+    range_min: 0.1
+    frequency: 10.0
+    invalid_range_is_inf: false
+    debug: false

@@ -227,11 +227,10 @@ class ESP32Bridge(Node):
                 time.sleep(0.1)
                 continue
             try:
-                if self.serial_conn.in_waiting > 0:
-                    line = self.serial_conn.readline().decode('ascii', errors='ignore').strip()
-                    if not line:
-                        continue
-                    self.parse_esp32_line(line)
+                line = self.serial_conn.readline().decode('ascii', errors='ignore').strip()
+                if not line:
+                    continue
+                self.parse_esp32_line(line)
             except Exception as e:
                 self.error_count += 1
                 if self.error_count > 10:

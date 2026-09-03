@@ -1,0 +1,248 @@
+# ══════════════════════════════════════════════════════════════════════
+# STAGE B VARIANT — anti-aliasing tuning. DO NOT DEPLOY UNTIL STAGE A SAYS SO.
+#
+# This is system/slam_nodom.yaml with exactly THREE values changed. It exists
+# as a separate file so the §17.27 hardware-validated baseline stays intact
+# and the comparison stays attributable — §17.25 changed six parameters at
+# once and that is part of why its side effect took three sessions to find.
+#
+# Apply ONLY if Stage A returns row 1 of the decision tree in
+# docs/Dashboard_Map_System.md §1: map->odom stepping 10-30 cm while
+# odom->base_link stays smooth. If BOTH step together the problem is
+# upstream (odometry/encoders) and this file is the wrong fix.
+#
+#   1. loop_search_maximum_distance   5.0 -> 2.0
+#   2. loop_match_minimum_chain_size    5 -> 8
+#   3. max_laser_range               12.0 -> 10.0
+#
+# Deliberately NOT changed: loop_match_minimum_response_coarse/_fine stay at
+# 0.25/0.35. They are the parameters that fixed §17.25's total closure
+# failure, and raising them risks going straight back to 50 cm of
+# uncorrected drift. If the map STILL folds after this file, raise them to
+# 0.30/0.40 next — one step, not both at once.
+# ══════════════════════════════════════════════════════════════════════
+# Verified working slam_toolbox config for the current (no external
+# odometry, scan-matching only) LiDAR mapping bringup — pulled directly
+# from the Pi on 8 July 2026. Confirmed exact match with the copy at
+# ~/ros2_ws/slam_nodom.yaml.
+#
+# Lives directly in the ROS2 workspace ROOT on the Pi (NOT inside any
+# package's config/ folder), and is launched with an absolute path:
+#   ros2 launch slam_toolbox online_async_launch.py \
+#     slam_params_file:=/home/aritra/ros2_ws/slam_nodom.yaml
+# (a `~` there silently fails — see docs/LiDAR_SLAM_Bringup.md)
+#
+# This is a different, simpler file from
+# src/mecanum_navigation/config/slam_params.yaml, which targets the
+# future Phase 4 EKF-fused-odometry setup and is not what's actually
+# running today.
+slam_toolbox:
+  ros__parameters:
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan_reliable
+    mode: mapping
+
+    use_scan_matching: true
+    # STAGE F, one value, §17.49. true -> false.
+    # With barycenter ON, karto measures node-to-node travel and seeds the
+    # match from the CENTROID OF THE RETURNED POINTS rather than the sensor
+    # origin. On this scanner that centroid is computed over a cloud that is
+    # ~49% valid, 86% flickering scan-to-scan while parked, and missing a
+    # permanently masked rear 90 deg -- so it sits off-centre and MOVES even
+    # when the robot does not. A wandering reference point is a candidate for
+    # the coupled position/heading drift measured on 1 Sep.
+    # This is deliberately NOT a search parameter. §17.44 found cumulative
+    # correction invariant to 2% across three sets of those (2.80/2.85/2.86 m);
+    # every one of them changed how the matcher SEARCHES. This changes what it
+    # registers. That is why it is worth a drive.
+    use_scan_barycenter: false
+    minimum_travel_distance: 0.2
+    minimum_travel_heading: 0.2
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+    minimum_time_interval: 0.5
+    transform_timeout: 0.2
+    tf_buffer_duration: 30.0
+    resolution: 0.05
+    # STAGE B: 12.0 -> 10.0. A correctness fix independent of the loop
+    # closure work, already an open item in Appendix B (§17.6): 12.0 was
+    # inherited from the originally-planned RPLiDAR A1 and exceeds the
+    # YDLIDAR X4 Pro's actual 10 m maximum. Telling the matcher to use
+    # returns beyond the sensor's rated range feeds it noise as if it were
+    # geometry.
+    max_laser_range: 10.0
+    transform_publish_period: 0.02
+    map_update_interval: 1.0
+    # Interactive mode lets you drag pose-graph nodes by hand in rviz. We
+    # never do that, and it keeps extra state alive for the whole session
+    # on a Pi that ran out of CPU and killed slam_toolbox outright on
+    # 19 Aug 2026 (sec 17.25). Off.
+    enable_interactive_mode: false
+
+    # ── LOOP CLOSURE (sec 17.25) ─────────────────────────────────────────
+    # THE ACCEPTANCE TEST THIS BLOCK EXISTS TO PASS: park on the physical
+    # zero mark, drive anywhere, drive back to the same physical mark, and
+    # read map->base_link ~ (0,0). On 19 Aug 2026 that read (0.5033,
+    # -0.0445) -- half a metre of accumulated drift that was never
+    # corrected. Loop closure is the mechanism that is supposed to snap
+    # that back, and none of its parameters had ever been set here: the
+    # file ran entirely on slam_toolbox's stock defaults, which assume a
+    # feature-rich environment and a full 360 deg scan. This robot has
+    # neither.
+    #
+    # Two conditions make matching unusually hard here, both measured
+    # rather than assumed:
+    #   1. 107 of 430 beams are masked NaN -- the 90 deg rear blind sector
+    #      behind the mast (sec 17.15). A quarter of every scan is absent,
+    #      permanently, in a fixed body-relative direction.
+    #   2. The space is a junction with several radiating aisles that look
+    #      alike (sec 17.13's "flower" map shape), so scan matching has
+    #      genuinely ambiguous constraints, not just noisy ones.
+    #
+    # do_loop_closing defaults to true and was already active -- stated
+    # explicitly here so nobody has to go and check the default again.
+    do_loop_closing: true
+
+    # STAGE B: 5 -> 8. This buys DISCRIMINATION, which is different from
+    # strictness. The response thresholds ask "does this one scan look like
+    # that one place?" -- a question a self-similar corridor answers wrongly
+    # all the time. Chain size asks "do N CONSECUTIVE nodes match N
+    # consecutive nodes over there?" A single false match is easy; one
+    # sustained over a chain of 8 is much harder, because the geometry has
+    # to alias continuously rather than momentarily. At
+    # minimum_travel_distance 0.2 m a chain of 8 needs ~1.6 m of driving --
+    # still reachable in this workspace, unlike stock 10's ~2 m.
+    loop_match_minimum_chain_size: 8
+
+    # STAGE B: 5.0 -> 2.0. The §17.25 reasoning (radius must exceed the
+    # drift it corrects) was right as far as it went, but ignored the other
+    # side of the trade. The explored workspace is only a few metres across
+    # (§17.31's recording spans ~1.0 x 1.15 m), so a 5 m radius makes
+    # essentially EVERY node in the map a loop-closure candidate for every
+    # new scan -- precisely the condition under which look-alike aisles
+    # produce false matches. 2.0 m is still 4x the measured 0.5 m drift
+    # while excluding the far side of the junction.
+    loop_search_maximum_distance: 2.0
+
+    # Match-quality gates, both RELAXED from stock (coarse 0.35, fine
+    # 0.45). With a quarter of the scan permanently missing, a genuine
+    # revisit legitimately scores lower than it would on a full scan, so
+    # stock thresholds reject real loop closures as if they were bad
+    # matches. Relaxing these trades a higher risk of a WRONG closure for
+    # any closure at all -- the right trade when the current measured
+    # state is zero closures and half a metre of drift.
+    # >> If the map ever visibly folds or tears, these two are the first
+    #    thing to raise back, before anything else in this file. <<
+    loop_match_minimum_response_coarse: 0.25
+    loop_match_minimum_response_fine: 0.35
+
+    # ── SCAN MATCHER ─────────────────────────────────────────────────────
+    # STAGE C: 0.7 -> 0.3. THIS IS THE FRONT END, NOT LOOP CLOSURE, AND IT
+    # IS WHERE THE JUMPS COME FROM (sec 17.40, measured 27 Aug 2026).
+    #
+    # The value below used to be 0.7, widened from stock 0.5 on the
+    # reasoning preserved here:
+    #
+    #   "Widened from stock 0.5 m because the odometry prior feeding this
+    #    is itself imperfect -- mecanum lateral slip is corrected but not
+    #    eliminated (lateral_scale, sec 17.21), and residual cross-coupling
+    #    of ~0.6 cm per 0.25 m nudge was measured and deliberately left
+    #    unmodelled. The matcher needs room to find the true pose beyond
+    #    where the prior says it should be."
+    #
+    # That premise was true when written and is now false. It cites
+    # sec 17.21, BEFORE lateral_scale. The same odometry has since closed
+    # a 4 m out-and-back path to 4.3 cm (1.1%) and sec 17.39's square to
+    # 2.58 cm. Between two consecutive pose-graph nodes -- 0.36 m apart on
+    # the leg where matching works -- odometry's expected error is about
+    # 4 mm. A 0.7 m window lets the matcher place each scan up to 0.35 m
+    # from the prior: ~90x the actual uncertainty of the thing it is
+    # allowed to overrule.
+    #
+    # Measured consequence, dashboard HUD read frame by frame against
+    # tf2_echo odom base_link on the same drives:
+    #   at 0.10 m/s, seven corrections of 0.36-0.45 m in 48 s. Every one
+    #   lands between this window's half-width (0.35) and its diagonal
+    #   reach (0.495). They are saturating the search window.
+    #   at 0.05 m/s the W/S leg is clean (<= 6 cm, nose within 0.8 deg)
+    #   while the D/A leg still throws 0.34 / 0.30 / 0.24 m with nose
+    #   steps to -13.4 deg. Strafe is the weak axis.
+    #
+    # 0.3 leaves +/-0.15 m, still ~37x the per-node odometry error, and
+    # makes a 0.24-0.34 m single-step correction impossible by
+    # construction. Deliberately ONE parameter (sec 17.25 changed six at
+    # once and paid for it for three sessions):
+    # distance_variance_penalty and angle_variance_penalty below rest on
+    # the same stale premise and are the NEXT step, not this one.
+    #
+    # If corrections simply reappear pinned at 0.15 m, the window was the
+    # wrong lever and the penalties are the right one -- that is the
+    # result this change is designed to produce cleanly either way.
+    correlation_search_space_dimension: 0.3
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    # STAGE D: stock 0.349 rad (20 deg) -> 0.175 rad (10 deg). This parameter
+    # was never written in this file before; it ran on slam_toolbox's default
+    # through every session in this project's history, including both Stage B
+    # and Stage C. It is the ANGULAR half of the same search window Stage C
+    # closed translationally.
+    #
+    # Why it is the next lever, measured 28 Aug 2026 (sec 17.42):
+    #   The 1047 s commissioning drive threw a 0.696 m single correction
+    #   against a deployed translational half-width of 0.150 m. 4.6x the
+    #   window. That cannot be a translational snap. Checked against a pure
+    #   yaw about the map origin, 2*r*sin(theta/2):
+    #
+    #     corr    yaw       lever r   predicted   ratio
+    #     0.696   -18.40    2.06 m    0.660       0.95
+    #     0.500    15.00    2.13 m    0.555       1.11
+    #     0.431    12.80    2.53 m    0.563       1.31
+    #     0.388    12.00    2.30 m    0.481       1.24
+    #     0.261    -7.20    1.94 m    0.244       0.93
+    #
+    #   The large corrections are HEADING snaps whose position error is pure
+    #   lever arm. 18.40 deg is 92% of the 20 deg window -- the same
+    #   saturation signature Stage C found translationally, on the axis
+    #   nobody had closed.
+    #
+    # Why 10 deg is safe despite minimum_travel_heading being 0.2 rad
+    # (11.46 deg). sec 17.42 flagged the risk that the angular search must not
+    # fall below the inter-node heading change. That caveat is conservative:
+    # the search is centred on the ODOMETRY-PROPAGATED prior, which has
+    # already rotated by the inter-node heading change before matching
+    # starts. What the window has to cover is the ERROR in that prior, not
+    # the rotation itself. Measured: odometry accumulated 10.53 deg over
+    # ~18 m (sec 17.42) = 0.58 deg/m, so over a 0.36 m node hop the prior's
+    # heading error is about 0.2 deg. 10 deg is still ~50x that.
+    #
+    # THE RISK IS REAL BUT BOUNDED AND IT HAS A SIGNATURE. If the prior is
+    # ever worse than 10 deg -- a wheel slipping through a corner rotation,
+    # a stall -- the matcher loses track rather than snapping. That failure
+    # looks DIFFERENT from the current one: the map tears or the pose
+    # freezes at a corner, instead of the pose jumping mid-leg.
+    #   -> If corner rotations lose track, go to 0.25 (14.3 deg), which is
+    #      above minimum_travel_heading, NOT back to 0.349.
+    #
+    # Deliberately ONE parameter again. angle_variance_penalty (1.2 below)
+    # rests on the same stale sec 17.21 premise and is Stage E, not this one.
+    coarse_search_angle_offset: 0.175
+
+    # How much the matcher is allowed to disagree with the odometry prior.
+    # Both RAISED from stock (0.5 / 1.0) = trusting odometry LESS. This is
+    # the deliberate consequence of sec 17.21's finding: wheel odometry on
+    # a mecanum base over-reported strafe by 25% before correction, and
+    # the correction is a single empirical scale factor for one floor, not
+    # a model. Where scan geometry and wheel odometry disagree here, the
+    # scan is more likely to be right.
+    distance_variance_penalty: 0.7
+    angle_variance_penalty: 1.2

@@ -3265,6 +3265,59 @@ This bears directly on a load-bearing assumption. §17.42 measured 10.53° of he
 **Method note for reuse.** `ffmpeg` frame extraction plus a threshold centroid on the floor brackets, and a gradient-orientation histogram on the grout lines, is enough to measure return-to-mark to a few millimetres and a fraction of a degree from an ordinary phone video — no fiducials, no calibration. It is a cheaper and more precise ground truth than a tape measure for rotation, and it works retrospectively on footage already recorded. The one thing it requires is knowing where the camera is mounted.
 
 
+## 17.56 3 Sep 2026 (17:43): the perimeter drive — zero corrections again, and the phantom yaw replicates
+
+**`run_20260903_174352`. 482 s, 12.04 m, one full turn (−364.5°), out to 3.66 m from the mark and back.** A structurally different route from §17.54's two circles, on the same Stage G config, verified live before the drive (12 pass, 0 fail, 1 warn).
+
+**`map→odom` was zero again. Exactly.**
+
+```
+corr_x / corr_y / corr_yaw   min = max = 0.000000   over 4769 samples
+correction events            0
+```
+
+Two runs now, 698 s and 18.5 m of combined driving, on routes with completely different geometry: **not one correction.** §17.54's result was not an artefact of the tight-circle geometry §17.44 flagged as degenerate. `use_scan_matching: false` removes the mechanism, and the mechanism was the whole observed fault.
+
+**Odometry closure 9.9 cm over 12.04 m = 0.83% of path**, against the 1.27% spec. Heading closure −4.49°.
+
+### The phantom yaw replicates, and the method now has two validations
+
+Photogrammetry on the run video, using tile-grout orientation as a world-static reference (the operator's own zero criterion is *"chassis edge parallel to the tile line"*, so this measures exactly what they align by):
+
+| | odometry | physical | validation |
+|---|---|---|---|
+| §17.55, two circles, 723.8° rot | −3.85° | −0.03° / −0.01° | HUD −28.0° vs grout −27.07° |
+| **§17.56, 12 m out-and-back, 364.5° rot** | **−4.49°** | **+0.00°** | **HUD −19.4° vs grout −18.50°** |
+
+Both runs: the robot physically returned to its starting heading; the estimator did not. **Upgraded from 🟡 SINGLE to ✅ MEASURED** — reproduced on a different route, different rotation profile, different video, with the method independently validated in each.
+
+Phantom yaw rate: **0.60°/m** on run 1, **0.37°/m** on run 2. §17.42 measured 10.53° over 18 m = **0.58°/m** and attributed it to physical slip. Those are the same order. **A large fraction of this project's assumed heading drift may be estimator error rather than physical slip** — which matters because slip cannot be fixed by better estimation and estimator error can. This is now the strongest measured argument for the IMU on the hardware list.
+
+### Two instrument failures, both caught by validation, both recorded
+
+The method failed twice before it worked, and the failures are more instructive than the result.
+
+**First failure (§17.55):** measured the robot's own wheels against the video frame, got "no rotation", then a validation frame at a known −28.3° also returned ~0°. Cause: **the camera is on the robot's own mast.** The robot sits still in frame while the world moves around it. Measuring the robot against a robot-mounted camera measures nothing.
+
+**Second failure (this run):** the grout-orientation window returned 90.2° at start, middle *and* end — suspiciously identical. Cause: **this video has a different panel split from the previous one**, and the measurement window extended into the dashboard's own border, a fixed UI edge that never rotates. It was measuring the screenshot, not the floor. Re-run on a floor-only window (x 85–755, clear of both the cabinet at left and the panel edge at right), the validation passed at 0.90°.
+
+**Both were caught only because a validation frame with a known answer was checked before the result was believed.** Neither would have been visible in the output. A measurement that cannot fail its own check is not a measurement.
+
+### What is NOT established, stated plainly
+
+**Translation was not reliably measured and no number is claimed.** Phase correlation on the floor gave a weak peak (0.034) and the tile-pitch autocorrelation found no usable period, so there is no trustworthy scale. The brackets and wheels sit at different distances from an uncalibrated oblique camera, so their pixel scales differ and cannot be reconciled without calibration. **The video replaces the tape measure for heading and does not replace it for position.** The tape-measured ground truth Appendix B.7 has wanted for a week is still needed, and now specifically for position only.
+
+**G4 is still not scored.** `map_integrity.py` was not run and the `.pgm` was not transferred. From `run_report.py`: 76.7% unknown over a 9.65 × 11.7 m extent, 2.76% occupied. Unknown is *worse* than §17.54's 75.4% and far outside the <50% gate — consistent with the prediction that the 5 m cut would cost coverage, but neither figure is a controlled comparison.
+
+**And the route was not actually a perimeter.** The pose trace spans X −0.42…+0.51 m against Y −0.68…+3.64 m: an out-and-back along a single corridor arm, not a loop around the room. The map's cross shape is what the LiDAR *saw* from that corridor, not where the robot *drove*. A genuine perimeter, closing a loop, is still outstanding and is what G4 needs.
+
+### Loop closure: the graph never published, twice
+
+`graph_residuals.py --watch` reported no message on `/slam_toolbox/graph_visualization` in 15 s — the second time, and this time with mapping unambiguously running and 8 minutes of driving behind it. The earlier explanation (started while parked, before nodes existed) does not cover this run.
+
+`enable_interactive_mode: false` is the obvious suspect but is contradicted by §17.42, which ran `graph_residuals` successfully through 19 closures with that same setting. **The live hypothesis is therefore that `use_scan_matching: false` suppresses pose-graph construction entirely** — in which case slam_toolbox is operating as a pure scan-stamper, loop closure cannot fire because there is no graph, and the `do_loop_closing: true` in the config is inert. That would be a real and important limitation of the current configuration, not a tooling problem. **HYPOTHESIS, unverified.** Settled cheaply by `ros2 topic info /slam_toolbox/graph_visualization` during a live mapping session: a publisher count of zero, or a topic that does not exist, decides it.
+
+
 Every supporting document, organised by category. Update this as new artefacts are produced.
 
 > *Repository note (v2.0): the project's own authored documents now live as Markdown under `docs/` in the `NarrowAisleBot` GitHub repo, with the original `.docx`/`.pdf` in `docs/originals/`. The catalogue below predates that consolidation and lists documents by their original working titles; several are now the `docs/*.md` files. The repo is the current home of record.*

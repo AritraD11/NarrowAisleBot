@@ -252,8 +252,33 @@ chk('pts.append(round(r, 3) if valid[i] else None)' in src,
     'masked/invalid beams are serialised as null, never 0.0')
 chk("'/scan_reliable'" in src and "LaserScan, '/scan'," not in src,
     'the dashboard subscribes /scan_reliable, not raw /scan (QoS, §13.4)')
-chk("if tick % 2 == 0 and _node.latest_scan" in src,
-    'scan broadcasts at 5 Hz, not at the pose rate')
+chk("if tick % _node.scan_tick_divisor == 0 and _node.latest_scan" in src,
+    'the broadcast rate comes from scan_publish_hz, not a hardcoded tick')
+chk("self.scan_tick_divisor = max(1, round(10.0 / _hz))" in src,
+    'scan_publish_hz is actually READ — no declared-but-dead parameter')
+
+# The red/grey split on the map is only honest if the dashboard's trust
+# radius equals what slam_toolbox is really discarding. Two files, one
+# number: exactly the shape that drifts silently. This is the guard.
+import re as _re
+m = _re.search(r"declare_parameter\('scan_trust_range',\s*([0-9.]+)\)", src)
+chk(m is not None, 'scan_trust_range default is findable in the dashboard')
+dash_trust = float(m.group(1)) if m else None
+
+slam = Path('system/slam_nodom_stageB.yaml').read_text(encoding='utf-8')
+m2 = _re.search(r'^\s*max_laser_range:\s*([0-9.]+)\s*$', slam, _re.M)
+chk(m2 is not None, 'max_laser_range is findable in slam_nodom_stageB.yaml')
+slam_trust = float(m2.group(1)) if m2 else None
+
+chk(dash_trust is not None and slam_trust is not None
+    and abs(dash_trust - slam_trust) < 1e-9,
+    f'dashboard scan_trust_range ({dash_trust}) == slam max_laser_range '
+    f'({slam_trust}) — the grey dots mark what SLAM actually discards')
+
+# updateHud() runs inside drawMap(). A throw there blanks the whole canvas,
+# not one line, so no field of liveScan may be dereferenced unguarded.
+chk('liveScan.trust.toFixed' not in src,
+    'the HUD cannot throw on a missing trust field and take the map down')
 
 print('=' * 68)
 if fails:

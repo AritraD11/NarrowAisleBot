@@ -1804,7 +1804,7 @@ function updateHud() {
         <span>VALID</span><strong class="${vCls}">${vPct.toFixed(0)}% of ${liveScan.total}</strong>
         <span>FLICKER</span><strong class="${fCls}">${fPct === null ? '—' : fPct.toFixed(0) + '%'}</strong>
       </div>
-      <div class="hud-muted">grey dots = past ${liveScan.trust.toFixed(1)} m, discarded by SLAM</div>`;
+      <div class="hud-muted">grey dots = past ${Number(liveScan.trust ?? 0).toFixed(1)} m, discarded by SLAM</div>`;
     }
     hud.innerHTML = `
       <div class="hud-title">ROBOT POSE · MAP FRAME</div>
@@ -2173,10 +2173,23 @@ class PhoneDashboard(Node):
         # EXACTLY what SLAM and the costmaps are fed — including the mask,
         # which is the honest thing to display.
         self.declare_parameter('scan_max_points', 240)
+        # ⚠ MUST TRACK slam_nodom.yaml's max_laser_range. This is the
+        # red/grey split on the map: red is what slam_toolbox consumes, grey
+        # is what it discards. If the two drift apart the picture lies about
+        # which returns are being used, which is worse than not drawing them
+        # at all. tools/tests/dashboard_scan_geometry.py fails when they
+        # disagree, so the drift cannot go unnoticed.
         self.declare_parameter('scan_trust_range', 5.0)
         self.declare_parameter('scan_publish_hz', 5.0)
         self.scan_max_points  = int(self.get_parameter('scan_max_points').value)
         self.scan_trust_range = float(self.get_parameter('scan_trust_range').value)
+        # The broadcast loop ticks at 10 Hz, so the scan goes out every Nth
+        # tick. Computed here rather than hardcoded in the loop: a declared
+        # parameter that nothing reads is worse than no parameter, because it
+        # reads as a working knob and silently is not one. That is the §17.32
+        # failure in miniature.
+        _hz = max(0.5, float(self.get_parameter('scan_publish_hz').value))
+        self.scan_tick_divisor = max(1, round(10.0 / _hz))
 
         self.create_subscription(LaserScan, '/scan_reliable',
                                  self._scan_callback, 10)
@@ -2974,7 +2987,7 @@ async def _broadcast_loop():
         # which is nothing next to the map, and it is dropped entirely when
         # nobody is looking at the map view.
         tick += 1
-        if tick % 2 == 0 and _node.latest_scan:
+        if tick % _node.scan_tick_divisor == 0 and _node.latest_scan:
             payloads.append({'type': 'scan', **_node.latest_scan})
 
         # The map is large and changes slowly (map_update_interval: 1.0), so

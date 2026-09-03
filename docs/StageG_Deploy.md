@@ -128,7 +128,7 @@ sha256sum ~/ros2_ws/install/ydlidar_ros2_driver/share/ydlidar_ros2_driver/params
 sha256sum ~/ros2_ws/slam_nodom.yaml
 # b10a13839759764c0a41af654f17e064e4e8e5532f5aa4e4e27f8ab0c8138e96
 sha256sum ~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py
-# 597fa120021862e4757ce7a5d5c0f57a73d5cc67f926c4f3525cc7639843b778
+# 59871777d93df3dedcc73d70c10172a7456d4b2670686225e1eb78f4041fd6e3
 sha256sum ~/ros2_ws/src/mecanum_navigation/config/nav2_params.yaml
 # 7d9adfac6aee2035538bd5b1f6eaa470e3e11e84f68e6fd25cd8685edd54f162
 sha256sum ~/tools/verify_live_config.sh

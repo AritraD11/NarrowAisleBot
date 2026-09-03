@@ -46,23 +46,41 @@ def valid_mask(ranges, rmin, rmax):
     return out
 
 
-def flicker_over(masks):
-    """scan_quality.py's stability() metric, for one window of scans."""
+def flicker_over(masks, scans=None, lo=None, hi=None):
+    """scan_quality.py's stability() metric, for one window of scans.
+
+    Also returns per-ray range noise when the raw scans are supplied, because
+    that number carries the SAME window confound and for the same reason:
+    the std is computed only over rays valid in EVERY scan, and lengthening
+    the window shrinks that set to the most stable rays, biasing the noise
+    figure DOWN. §17.45's p90 22.8-24.5 mm and a 30 s capture's p90 11.9 mm
+    are no more comparable than the flicker numbers were."""
     if len(masks) < 2:
         return None
     n = min(len(m) for m in masks)
-    always = sum(1 for i in range(n) if all(m[i] for m in masks))
+    always_idx = [i for i in range(n) if all(m[i] for m in masks)]
     ever = sum(1 for i in range(n) if any(m[i] for m in masks))
     if ever == 0:
         return None
-    return {
-        'always': always,
+    out = {
+        'always': len(always_idx),
         'ever': ever,
-        'flicker_pct': round(100.0 * (ever - always) / ever, 1),
+        'flicker_pct': round(100.0 * (ever - len(always_idx)) / ever, 1),
     }
+    if scans is not None and always_idx:
+        stds = []
+        for i in always_idx:
+            vals = [scans[k]['ranges'][i] for k in range(lo, hi)]
+            if len(vals) >= 2:
+                stds.append(statistics.pstdev(vals))
+        if stds:
+            ss = sorted(stds)
+            out['noise_p90_mm'] = round(
+                1000 * ss[min(len(ss) - 1, int(0.9 * len(ss)))], 1)
+    return out
 
 
-def sweep(masks, hz, windows=None):
+def sweep(masks, hz, windows=None, scans=None):
     """flicker_pct at each window length, averaged over every disjoint
     window of that length in the capture. Disjoint rather than sliding:
     overlapping windows share scans and would understate the spread."""
@@ -74,11 +92,14 @@ def sweep(masks, hz, windows=None):
             windows.append(total)
     rows = []
     for w in windows:
-        vals = []
+        vals, noise, always = [], [], []
         for start in range(0, total - w + 1, w):
-            r = flicker_over(masks[start:start + w])
+            r = flicker_over(masks[start:start + w], scans, start, start + w)
             if r:
                 vals.append(r['flicker_pct'])
+                always.append(r['always'])
+                if 'noise_p90_mm' in r:
+                    noise.append(r['noise_p90_mm'])
         if not vals:
             continue
         rows.append({
@@ -88,6 +109,8 @@ def sweep(masks, hz, windows=None):
             'flicker_mean': round(statistics.mean(vals), 1),
             'flicker_min': min(vals),
             'flicker_max': max(vals),
+            'always_mean': round(statistics.mean(always), 1),
+            'noise_p90_mm': round(statistics.mean(noise), 1) if noise else None,
         })
     return rows
 
@@ -164,7 +187,7 @@ def main():
     ts = [s.get('t') or s.get('stamp') for s in scans]
     if all(isinstance(t, (int, float)) for t in ts) and ts[-1] > ts[0]:
         hz = (len(ts) - 1) / (ts[-1] - ts[0])
-    rows = sweep(masks, hz or 11.45)
+    rows = sweep(masks, hz or 11.45, scans=scans)
 
     print('=' * 70)
     print(f'  SCAN FLICKER vs WINDOW LENGTH   {a.capture}')
@@ -176,12 +199,20 @@ def main():
     print('  always_valid can only SHRINK as the window grows, so this rises')
     print('  monotonically. Compare captures ONLY at equal window length.')
     print()
-    print(f"  {'scans':>7} {'~sec':>6} {'n':>4}   {'mean':>6} {'min':>6} {'max':>6}")
-    print('  ' + '-' * 44)
+    print(f"  {'scans':>7} {'~sec':>6} {'n':>4}   {'flick':>6} {'min':>6} {'max':>6}"
+          f"   {'always':>6} {'noise':>7}")
+    print('  ' + '-' * 62)
     for r in rows:
+        npm = r.get('noise_p90_mm')
         print(f"  {r['window_scans']:>7} {r['window_s'] or 0:>6.1f} "
               f"{r['n_windows']:>4}   {r['flicker_mean']:>6.1f} "
-              f"{r['flicker_min']:>6.1f} {r['flicker_max']:>6.1f}")
+              f"{r['flicker_min']:>6.1f} {r['flicker_max']:>6.1f}   "
+              f"{r['always_mean']:>6.1f} "
+              f"{(f'{npm:.1f}mm' if npm else '—'):>7}")
+    print()
+    print('  always = rays valid in EVERY scan of the window. It shrinks as')
+    print('  the window grows, which is what drives flicker up AND drags the')
+    print('  noise p90 down — both numbers carry the same confound.')
 
     if a.match is not None:
         best = min(rows, key=lambda r: abs(r['flicker_mean'] - a.match))

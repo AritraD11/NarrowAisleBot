@@ -1,139 +1,66 @@
-# Next Session Kickoff — one accepted map, then Nav
+# Next Session Kickoff — the obstacle test, and AMCL's first breath
 
-**Rewritten 31 Aug 2026 after §17.47, for the session of Tuesday 1 Sep.**
-Paste §0 into a fresh session.
+Self-contained. Assumes no memory of the previous conversation — everything
+needed is here or in the repo (`docs/Stack_Assessment_2026-09-01.md`,
+`docs/Where_We_Stand.md`, `docs/Axis_Convention.md`,
+`docs/Research_Journal.md`, `docs/Important_Commands.md`).
 
-**Schedule reality, stated plainly.** Demo is **Sat 5 Sep**. After today there
-are **four working days: Tue 1, Wed 2, Thu 3, Fri 4 Sep.** G4 has four
-sub-criteria; **exactly one has ever been met** (return-to-mark 0.085 m, once,
-on 31 Aug) and the three map-quality ones — not FOLDED, D2 < 1.0%, unknown
-< 50% — have **never** been met in ~70 maps of project history. Phase 2 (AMCL,
-point-and-go) has never executed once and is gated entirely on a map that does
-not exist.
-
-**That combination is the real risk to the demo, and it needs a decision on
-Tuesday, not on Friday.** See §11 — the time-box and the fallback.
-
-The order is still not a preference: **SLAM must be trustworthy before Nav
-means anything.** But §17.47 changed what "trustworthy" is blocked on. It is no
-longer the corner-rotation procedure fault (fixed 29 Aug) — it is that two legs
-on the *same configuration, same afternoon* differed **6.8× in return-to-mark**,
-and nobody yet knows whether that is route geometry or intermittency.
+**Rewritten 1 Sep 2026 (§17.49).** The 29 Aug version is superseded in full.
+It was organised around getting a commissioning map (G4). That is no longer
+the top of the list, and §17.49 explains why with a tape measure.
 
 ---
 
 ## 0. THE PASTE BLOCK
 
-> Copy everything between the rules into a new Claude Code session.
+> Continue AritraD11/NarrowAisleBot. `main` is current at `5cace67` and
+> everything is merged into it — cut a fresh branch from `main`. Read
+> `docs/Next_Session_Kickoff.md` first, then `docs/Research_Journal.md`
+> §17.49 and `docs/Stack_Assessment_2026-09-01.md`.
+>
+> **The goal is to take every layer to 10/10 except the LiDAR, which is a
+> hardware limit.** Seven layers can genuinely get there in software; four
+> cannot, because they *are* the LiDAR's output. §1 below has the split.
+>
+> **Today's job, in order:** (1) the obstacle-avoidance test — this branch's
+> actual purpose and never once run; (2) AMCL's first-ever bringup, now that
+> `sensors.launch.py` makes it possible; (3) whatever's left in §6.
+>
+> **Do not re-derive these** — all measured, all in §17.49: the SLAM front
+> end causes *physical* positioning error because Nav2 closes its loop on the
+> map pose (two tape measurements, 9 cm and on-the-mark, from opposite ends);
+> wheel odometry is excellent (4.582 m closed to 3.1 mm) and agrees with the
+> tape to ~1 cm; peak `map→odom` is 20.3 cm and 56–59% of every run sits past
+> 5 cm regardless of route, controller or `use_scan_barycenter`.
+>
+> Operational discipline, unchanged: copy-paste commands, one step at a time,
+> never assume a step succeeded, verify config with `ros2 param get` against
+> the **live node** not a file, hash every transferred file **per file** on
+> arrival, short and crisp in chat with the prose in the journal.
 
 ---
 
-Continue NarrowAisleBot on branch `claude/narrowaislebot-mapping-reliability-038ike`.
+## 1. What can and cannot reach 10/10
 
-**Read first, before doing anything:** `docs/Next_Session_Kickoff.md` (this
-whole file), then `docs/Where_We_Stand.md` §2, §4 and §6, then
-`docs/Research_Journal.md` §17.44 and §17.47.
-`docs/evidence/monday_recon/README.md` for the two legs and the 6.8× spread;
-`docs/evidence/rotation_deadzone/README.md` if rotation or the circle tests
-come up.
+The rating that matters, from `Stack_Assessment_2026-09-01.md`. **This is a
+cliff, not a slope: everything below the LiDAR is 9–10, everything from the
+LiDAR up is 1–3.**
 
-**Closed, do not reopen:** the §17.38 map-frame rotation fix. **Never fix an
-axis, placement or trajectory-shape complaint in the dashboard** — §17.38 hid
-for two weeks that way, and §17.44 caught the same reflex a third time when
-the spiky trail looked like a rendering bug and was not.
+| reachable in software | now | capped by the sensor | now |
+|---|---|---|---|
+| Kinematics | **10** | LiDAR (excluded by decision) | 3 |
+| Motor control | 9 | **SLAM front end** | 2 |
+| TF / axes | 9 | **Occupancy map** | 1 |
+| Instrumentation | 9 | **Global positioning** | 1 |
+| Process | **10** ✅ | Wheel odometry (heading needs a magnetometer) | 9 |
+| Nav2 config | 8 | | |
+| Dashboard | 9 | | |
+| **Local nav + obstacle chain** | **7** ← today | | |
 
-**Passed, do not re-litigate:** G1 (deployment, verified on the live node).
-G2 passed *on one route* on 29 Aug — **its generalisation is retracted**: on
-31 Aug the same config produced 0.678 m max correction and 0.562 m/m
-cumulative, worse than the pre-Stage-D baseline (§17.47).
-
-**Retracted, do not re-derive:** "strafe is the weak axis"; `minimum_travel_heading`
-as the rotation gate; `angle_variance_penalty` as a useful lever; **"G2's pass
-is a property of the robot"**. ⛔ And do **not** re-derive "`+X` is good, `+Y`
-is bad" from §17.47's two legs — that is the retracted strafe-axis claim
-wearing a new hat, on n=1 per direction.
-
-**Treat as hypotheses:** §17.28–§17.32's loop-closure conclusions, the
-false-closure co-location, "speed matters", the degenerate-geometry
-explanation (and its narrow-aisle extension), and the `shouldProcessScan()`
-distance-only mechanism. Tell me which category any claim you make is in.
-
-**The goal, in order:**
-1. **SLAM** — produce **one accepted commissioning map**. There has never
-   been one. Everything else is downstream of this.
-2. **Nav** — save it, bring up AMCL, point-and-go on a *fixed* frame.
-
-**How I want to work:**
-- Robot is SSH'd and parked on the zero mark. Dashboard is up. Pi is on its
-  own AP (`10.42.0.1`), no internet. **Every file: Windows downloads → `scp`
-  to Pi.** Never `curl` on the Pi.
-- **Copy-paste commands for everything.** One step at a time. Wait for me to
-  report back. **Never assume a step succeeded.**
-- **Verify config with `ros2 param get` against the live node, never by
-  reading a file. Hash every transferred file on arrival, per file.**
-- Every logger and every analysis on every drive — `graph_residuals.py
-  --watch` live, then `run_bundle.py`, `map_integrity.py`,
-  `wheel_forensics.py`, `run_analyzer.py`.
-- **Short and crisp.** Command block, what to look for, one line of why.
-  Prose goes in the journal.
-
-**Tuesday's order. Item 1 decides whether items 2–3 are worth driving at all:**
-1. **The repeat test — 15 minutes, and it is the highest-information test
-   available.** Re-drive §17.47's two legs, once each, same routes, same style.
-   Front leg returned 0.577 m; right leg returned 0.085 m. **Write the
-   prediction down first.** If each reproduces its own number it is route
-   geometry and route planning can help; if either flips it is intermittency
-   and no route plan rescues G4 — go straight to §11's fallback.
-2. **§4 S1 — the commissioning drive**, by the §3 rules, route informed by
-   what item 1 said. 10–15 min, wide outer-wall perimeter, **not** through the
-   narrow furniture aisles.
-3. **Analyse, and if G4 fails, one more attempt.** Budget two attempts, not
-   three — see the time-box.
-4. **Hard decision point, end of Tuesday** (§11). Not Friday.
-
-**Already in hand, do not re-collect:** the floor plan with zero mark, axes and
-NOSE (`docs/evidence/monday_recon/lab_floor_sketch.png` — **NOSE is toward the
-Entrance and that is `+Y`**); tile pitch **62 × 62 cm** tape-measured; the
-mast-camera rig, which gives metric ground truth by tile-crossing count.
-
-**The room is cross-shaped** — variable width, no single length × width. Extent
-reached so far: `Y ≈ 3.59 m` on the front leg, `X ≈ 3.4 m` on the right leg.
-
-**Trim every run to its moving window before reading it.** §17.47's front-leg log
-spans 2246 s of which 166 s contain motion; untrimmed, duration and every
-correction-step percentile are garbage.
-
-Do not deploy anything until I confirm what is actually running.
-
----
-
-## 1. Session constants — memorise, do not re-derive
-
-| | |
-|---|---|
-| **Pi login** | `ssh aritra@10.42.0.1` — password typed **interactively only** |
-| ⚠ | **Never put the password on a command line.** It once got appended to an `scp` destination and created `mapping_full.launch.py<PASSWORD>` |
-| **Pi on eduroam instead** | address changes daily — `ip -4 -br addr` on the Pi. `aritra-desktop.local` often fails to resolve from Windows |
-| **Branch** | `claude/narrowaislebot-mapping-reliability-038ike` |
-| **Raw base URL** | `https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/narrowaislebot-mapping-reliability-038ike` |
-| **Windows staging** | `C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download` |
-| **Windows data drop** | `C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test` |
-| **ROS workspace** | `~/ros2_ws` · deployed code in `~/ros2_ws/src/mecanum_robot/` |
-| **Live SLAM config** | `~/ros2_ws/slam_nodom.yaml` ⚠ repo file is `slam_nodom_stageB.yaml` |
-| **Tools** | `~/tools/` — **except** `run_bundle.py`, `map_integrity.py`, `run_analyzer.py`, `scan_quality.py`, which live in `~/aislebot_logs/` |
-| **Run data + maps** | `~/aislebot_logs/run_<stamp>.{csv,pgm,yaml,_report.json}` |
-| **Node log** | `~/aislebot_boot.log` (binary; `grep -a`) |
-| **Dashboard** | `http://10.42.0.1:8080` — HTTP **and** WebSocket both on 8080 |
-| ⚠ | **8765 is `foxglove_bridge`, not the dashboard.** Earlier versions of this file said otherwise |
-| **ROS domain** | `42` |
-
-**The transfer rule.** The Pi hosts its own AP and has **no uplink**. A `curl`
-line in these docs is **never** a Pi command.
-
-**Dashboard keys** (`phone_dashboard.py:975–999`): `W`/`A`/`S`/`D` translate,
-`Q` = CCW, `E` = CW, `m` toggles MAP. Held keys accumulate in a `Set`, so
-**`W`+`E` together is a forward arc** — that is how you turn while rolling.
-A drag on the YAW slider overrides the keys and gives a gentler turn.
+⚠ **You cannot exempt the sensor and demand its outputs be perfect.** The map
+*is* the LiDAR's output; global positioning is the map's. Chasing those to 10
+in software is the thing this project has already done five times, and
+§17.44's invariance result says it does not work.
 
 ---
 
@@ -141,353 +68,289 @@ A drag on the YAW slider overrides the keys and gives a gentler turn.
 
 ```bash
 echo "=== NETWORK ==="; ip -4 -br addr | grep -v " lo "
-echo "=== ROS ENV ==="; echo "DOMAIN=$ROS_DOMAIN_ID  RMW=$RMW_IMPLEMENTATION"
 echo "=== NODES ==="; ros2 node list
-echo "=== SLAM LIVE PARAMS ==="
-ros2 param get /slam_toolbox coarse_search_angle_offset
-ros2 param get /slam_toolbox correlation_search_space_dimension
-ros2 param get /slam_toolbox minimum_travel_distance
-ros2 param get /slam_toolbox minimum_travel_heading
-ros2 param get /slam_toolbox angle_variance_penalty
 echo "=== DEPLOYED HASHES ==="
 sha256sum ~/ros2_ws/slam_nodom.yaml \
           ~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py \
-          ~/ros2_ws/src/mecanum_robot/urdf/aislebot.urdf 2>&1
+          ~/ros2_ws/src/mecanum_navigation/config/nav2_params.yaml 2>&1
 echo "=== CPU / THERMAL ==="; uptime
 awk '{printf "%.1f C\n", $1/1000}' /sys/class/thermal/thermal_zone0/temp
 cat /sys/devices/platform/soc/soc:firmware/get_throttled
-echo "=== SCAN RATE ==="; timeout 8 ros2 topic hz /scan_reliable --window 30
 ```
 
-**Expected, as deployed 29 Aug:**
+**Expected, as deployed 1 Sep:**
 
-| Reading | Expect |
+| file | sha256 |
 |---|---|
-| `coarse_search_angle_offset` | **0.175** |
-| `correlation_search_space_dimension` | 0.3 |
-| `minimum_travel_distance` / `_heading` | 0.2 / 0.2 |
-| `angle_variance_penalty` | 1.2 |
-| `slam_nodom.yaml` | `0e88d60c34dfd9aada3f0fb5ab39523f45800bc8e4fba2385c6f9a3ba4ce3e5f` |
-| `phone_dashboard.py` | `5b30a91dc7614d73848357bcedd66771cb332eddd12d1de06ed58dce47ad43d1` |
-| `aislebot.urdf` | `ea6619ff3999b856fc3c1632041bd3a151eb8732f9c782d90207831ce1b0a81c` |
+| `slam_nodom.yaml` | `e8825eda73e67526860fb5adfde3b7e2cb8dac270ba59818a1038c2a80882fe5` (Stage F) |
+| `phone_dashboard.py` | `8c41c6fa7e7ec867c1c1e4e823f154f1db6a3e47b78f7bba232b9bbf52268f5a` |
+| `nav2_params.yaml` | `40fdf96ea7906f20d726bdd440a94f3c38690842b3b442cdaadcadc5e4a4617f` |
 | `get_throttled` | `0` |
-| `/scan_reliable` | ~11.4 Hz, std dev <0.01 s |
 
-⚠ **Parameters can only be read while a MAP session is running.** No
-`/slam_toolbox` in the node list means no session — start MAP, then re-read.
+⚠ **`sensors.launch.py` is NOT yet deployed** — it was written on 1 Sep after
+the robot was switched off. See §5.
 
-⚠ **Runtime `ros2 param set` does not survive.** Every value reverts from the
-YAML when the next MAP starts a fresh node. Set *after* MAP, never before,
-and always re-verify.
-
-**Nothing is pending deployment.** The debt was cleared on 29 Aug.
+**Rollback point:** `~/ros2_ws/slam_nodom.pre_stageF.yaml`, sha
+`0e88d60c34dfd9aada3f0fb5ab39523f45800bc8e4fba2385c6f9a3ba4ce3e5f` — the
+Stage D config that passed G2 on 29 Aug.
 
 ---
 
-## 3. HOW TO DRIVE — the rules that changed
+## 3. TODAY'S MAIN EVENT — the obstacle test
 
-**This section is the product of 29 Aug. Read it before the drive, not after.**
+**This is the branch's stated purpose from §17.48 and it has never been run.**
+The hard requirement, in the operator's words: *a detected obstacle must stop
+the robot regardless of an active goal, using the cushioning value already
+configured.* Not a new safety system to design — the existing one to verify.
 
-### 3.1 Never stop and spin
+### Why it is worth doing before anything else
 
-**Rotating in place adds no pose-graph node and no map cell.** Measured three
-times (§17.44): a deliberate 714° turn over 642 s produced **43 occupied
-cells = 2.1 m of wall** and zero corrections. It is not a threshold that can
-be tuned — `minimum_travel_heading` was set to 0.05 and verified live, and a
-full 360° still gave `n=1, e=0`.
+It is the one big win **completely insulated from the LiDAR's accuracy
+problem**. `local_costmap` is `global_frame: odom`, `rolling_window: true`,
+3×3 m; `collision_monitor` works in `base_link` against
+`/local_costmap/published_footprint`. **Nothing in that chain reads
+`map→odom`.** A 20 cm map error does not touch it. 7 → 10 in one session.
 
-Every stop-and-spin corner driven since §17.39 contributed **nothing**. That
-is the best explanation available for maps returning 63–87% unknown.
+### What is already confirmed (do not re-verify)
 
-### 3.2 Turn only while rolling
+- `collision_monitor` **active and bonded** on every Nav2 launch
+- it is **not** spuriously blocking — the robot drove 2.3 m through it on
+  1 Sep with zero interventions logged
+- `FootprintApproach`, `action_type: approach`, `time_before_collision: 1.2`,
+  `min_points: 6`, footprint from `/local_costmap/published_footprint`,
+  `inflation_radius: 0.65` on both costmaps
+- goals reach `bt_navigator`, and **abort-free** since
+  `required_movement_radius` went to 0.10
 
-Hold `W` and feather the yaw. A 111 s `W`+`E` arc produced **18 nodes and
-1545 cells = 77.2 m of wall** — 88% of the 621 s perimeter drive's coverage
-in 18% of its time.
+### The three questions to ask the operator FIRST
 
-### 3.3 But do not turn *tightly*
+Asked on 1 Sep and never answered — the drive cannot be designed without them.
 
-`W`+`E` at full deflection gives a **0.54 m radius** circle, and that is a
-degenerate geometry: from a 1 m disc in a 10 m room, 1° of heading error is
-indistinguishable from 8.7 cm of translation, so the matcher cannot separate
-them. Measured cost: **5.3 corrections/m and a 0.367 m maximum**, against the
-perimeter drive's **1.0/m and 0.202 m**.
+1. **Which aisle**, and its clear length and width **in tiles** (62 × 62 cm,
+   tape-measured, §17.47) from the zero mark.
+2. **The obstacle** — what object, rough footprint, and **height**. The LiDAR
+   plane is at **0.351 m** (`0.275` laser_joint + `0.0762` base_footprint), so
+   anything under ~40 cm is invisible to it and the test measures nothing.
+3. **The gap either side.** This decides the whole test: with
+   `inflation_radius: 0.65` and a 1.12 m robot, an obstacle in an open aisle
+   just gets planned around and `collision_monitor` never fires — which proves
+   avoidance but **not** the override. A gap narrow enough that a centred
+   obstacle leaves no route is the stronger test and the one §17.48 asked for.
 
-**Corners as wide as the floor allows.** Drag the YAW slider partway instead
-of holding `E`, which overrides the key and gives a gentler radius.
+### The run
 
-### 3.4 Hug the walls, 0.5–1.5 m
+**Part A — static.** Obstacle placed before the goal is sent. MPPI should route
+around it. Proves the local costmap sees it and the inflation is respected.
 
-Close walls are what makes the matcher well-conditioned. The circle failed
-partly because it stared at far walls from a tiny disc.
+**Part B — the real one.** Same goal, obstacle walked into the path mid-drive.
 
-### 3.5 MAP again to stop — it is the only thing that saves the map
+⚠ **HANDS COMPLETELY OFF THE KEYBOARD.** `twist_mux.yaml` gives `manual`
+priority **100** against `navigation`'s **10**, and `collision_monitor` sits
+only in the navigation branch. One keypress bypasses the safety layer entirely
+and the test measures nothing.
 
-A `systemctl restart`, a reboot, or forgetting entirely loses it. **This cost
-a run on 29 Aug**: `run_20260829_163147` was analysed with `-- pgm -- yaml`
-because the session was never stopped.
+Record the intervention rather than inferring it:
 
-### 3.6 Change nothing
+```bash
+ros2 topic echo /collision_monitor_state
+```
 
-The deployed YAML is the configuration that passed G2. Carry no parameters
-over from the circle work — they revert on the next MAP anyway.
+**Ordering, from §17.49:** MAP first, **then** `nav2_slam.launch.py`. Launched
+the other way round the global costmap has no map and logs `Received map
+message is malformed. Rejecting.` once a second — measured at 29 consecutive
+seconds.
 
 ---
 
-## 4. PHASE 1 — the commissioning map → gate **G4**
+## 4. AMCL's first-ever bringup
 
-### S0 · First: measure what the LiDAR gives the matcher — 10 min, no drive
+Split cleanly in two, because only one half is blocked:
 
-`scan_quality.py` is the only instrument in this project that has **never met
-real data**, and it measures exactly what the degenerate-geometry hypothesis
-predicts: conditioning as `λ_min/λ_max` over surface normals, with the bearing
-of the weak direction. **MAP must be running** — `/scan_reliable` only exists
-while `mapping_full.launch.py` is up.
-
-```bash
-python3 ~/aislebot_logs/scan_quality.py --selftest
-```
-
-Parked on the zero mark, MAP on, room still:
-```bash
-python3 ~/aislebot_logs/scan_quality.py --seconds 30 --save ~/aislebot_logs/scan_mark.json
-```
-
-Moved to within ~0.7 m of a wall, parked:
-```bash
-python3 ~/aislebot_logs/scan_quality.py --seconds 30 --save ~/aislebot_logs/scan_wall.json
-```
-
-**Read `conditioning`** — `< 0.15` poor, `< 0.35` marginal — plus the weak
-direction's bearing and the stationary stability.
-
-**Prediction, pre-registered 29 Aug:** poor in the open middle, better near
-the wall. If it holds, the degenerate-geometry hypothesis is measured rather
-than reasoned, and it names which parts of the lab the robot can localise in
-at all. Stability steady to a few mm means the sensor is fine and the fault
-is the matcher's; ranges wandering centimetres mean the matcher is fed a
-moving target and no tuning fixes it.
-
-### S1 · The drive
-
-1. **STOP MAP** if anything is running. Discard it.
-2. Park on the mark. **Note which way the nose points** — ZERO fixes position,
-   not orientation, and on 29 Aug two otherwise-identical runs came back with
-   wall-orientation histograms 44° apart, most likely for that reason.
-3. **ZERO** (two taps), then **MAP**, then **VIEW** and keep it open.
-4. Perimeter, nose leading, **0.5–1.5 m off the walls**, SLOW (0.05 m/s),
-   one direction, **corners as wide rounded turns taken while rolling**.
-5. **10–15 minutes.** Longer beats shorter.
-6. Close at the mark. **MAP again to stop.**
-
-Live, in a second window:
-
-```bash
-python3 ~/tools/graph_residuals.py --watch --log ~/aislebot_logs/graph_commission.jsonl
-```
-
-**Watch `n=`.** It must climb steadily. If it plateaus for more than ~15 s
-while the robot is moving, something is being rejected — note the time and
-what you were doing.
-
-### S2 · The analysis, every drive
-
-```bash
-cd ~/aislebot_logs
-TS=$(ls -1t run_*.csv | head -1 | sed 's/^run_//; s/\.csv$//'); echo "TS=$TS"
-python3 ~/aislebot_logs/run_bundle.py --latest --folder ~/aislebot_logs
-python3 ~/aislebot_logs/map_integrity.py run_$TS.pgm
-python3 ~/aislebot_logs/run_analyzer.py run_$TS
-python3 ~/tools/wheel_forensics.py run_$TS --csv ~/aislebot_logs/${TS}_wheels.csv
-```
-
-⚠ `map_integrity.py` takes **one** target, not pgm + yaml.
-⚠ `wheel_forensics.py`'s `--csv` is an **output** path; the run is positional.
-
-### S3 · Acceptance — G4
-
-| Check | Pass |
-|---|---|
-| `map_integrity.py` verdict | **not `FOLDED`** |
-| D2 doubled walls | **< 1.0%** (29 Aug best: 1.9%) |
-| unknown | < 50% |
-| physical return-to-mark, tape | **< 0.15 m** (29 Aug best: 0.257 m) |
-
-**Budget three attempts.** A bad map poisons everything downstream.
-
-Once accepted:
-
-```bash
-mkdir -p ~/maps
-cp ~/aislebot_logs/run_<TS>.pgm  ~/maps/lab_commission_v1.pgm
-cp ~/aislebot_logs/run_<TS>.yaml ~/maps/lab_commission_v1.yaml
-sed -i 's|^image:.*|image: lab_commission_v1.pgm|' ~/maps/lab_commission_v1.yaml
-cat ~/maps/lab_commission_v1.yaml && sha256sum ~/maps/lab_commission_v1.*
-```
-
-### If G4 still fails after three attempts
-
-**Do not reach for another parameter.** Three sets left cumulative correction
-at 2.80 / 2.85 / 2.86 m — invariant to within 2%. The next move is diagnosis,
-in this order:
-
-1. **Record a rosbag** of `/scan_reliable` + `/tf` + `/odom` on the next
-   drive. Everything so far has been un-replayable, so every experiment has
-   cost a physical drive. A bag makes offline A/B possible and is the single
-   biggest speed-up available.
-2. **Run `scan_quality.py` on real scans** — it has self-tests and has
-   *never* met real data. If the matcher's *input* is degraded, no amount of
-   matcher tuning helps.
-3. **Read `shouldProcessScan()`** in the installed `slam_toolbox` and settle
-   the distance-only hypothesis from source rather than inference.
-
----
-
-## 5. PHASE 2 — Nav, unchanged and still never run
-
-Gates and procedure as written in `Autonomy_Endgame.md` Part 3 (G5–G7). The
-one hazard to check *before* the first launch:
-
-```bash
-grep -rn "OmniMotionModel" /opt/ros/jazzy/share/nav2_amcl/*.xml
-ros2 node list | grep slam_toolbox     # MUST be empty before AMCL starts
-```
-
----
-
-## 6. Scheduled work that needs no robot
-
-| # | Item | Why |
+| | needs | status |
 |---|---|---|
-| 1 | **`run_analyzer.py` — turn-rate guard on the wheel-spread alarm** | Fires on every arc. At radius 0.54 m the ICR sits on the inner wheels (`K_o` = 0.56069 m), so 37–56:1 is correct. Suppress or rescale when integrated yaw is large relative to path |
-| 2 | **`run_analyzer.py` — geometry guard on the co-location cross-check** | "Two independent witnesses" counted one wall seven times. Require *distinct* clusters, and suppress entirely when the trajectory's own extent is smaller than the coincidence radius |
-| 3 | **`map_integrity.py --corpus`** over the ~70-map archive | Replaces guessed thresholds with percentiles. Still never run |
-| 4 | **Turn off `foxglove_bridge`** (`use_foxglove:=false` in `~/start_aislebot.sh`) | Nothing in the dashboard path uses it; it predates the dashboard's map view. Free CPU toward G3 |
-| 5 | **Journal revision table** has no rows for 27–28 Aug (§17.38–§17.43) | Pre-existing gap, noticed 29 Aug, deliberately not back-filled by guesswork |
+| **(a) does the AMCL block bring up at all?** | *a* map file — any of the ~70 archived | **unblocked** |
+| **(b) does it localise accurately?** | a *good* map | blocked on G4 |
 
-**Do #1 and #2 before the next drive** — an instrument that cries wolf on
-every arc will cost a real diagnosis eventually. Do them as a separate
-commit with the baseline runs re-analysed before and after, so the change is
-attributable.
+**(a) is the valuable half** and it is what `Where_We_Stand.md` §8 item 5 asked
+for: *"a one-line plugin-name error can abort the ENTIRE bringup — discover
+that on a Tuesday, not on demo day."* `robot_model_type` was corrected to
+`nav2_amcl::OmniMotionModel` against upstream source and **never verified on
+hardware**. 1 → 4 without a good map.
+
+**And there is reason for optimism.** AMCL does not use slam_toolbox's
+correlative matcher — it scores rays independently against a precomputed
+likelihood field, so flickering rays cost it *votes* rather than deforming a
+cost surface. `max_beams: 60` already subsamples 432 rays down to 60. **The
+sensor defect that wrecks the SLAM front end is a much weaker problem for a
+particle filter.** Global positioning may be more reachable than 1/10 suggests.
+
+```bash
+ros2 node list | grep slam_toolbox     # MUST come back EMPTY first
+ros2 launch mecanum_navigation navigation.launch.py \
+    map:=/home/aritra/aislebot_logs/run_<pick one>.yaml
+ros2 param get /amcl robot_model_type
+ros2 param get /amcl initial_pose      # expect yaw 0.0, fixed §17.49
+```
+
+`navigation.launch.py` now starts the LiDAR itself (`with_sensors`, default
+true), so **do not** have MAP running — that is two ydlidar drivers on one
+serial port.
 
 ---
 
-## 7. Capture list — what to photograph and record
+## 5. Pending deployment
 
-29 Aug produced good video and lost several stills, because dashboard
-screenshots were pasted into chat rather than saved. **Save everything to the
-Windows staging folder with the run stamp in the filename.**
+| repo file | destination | takes effect on |
+|---|---|---|
+| `src/mecanum_robot/launch/sensors.launch.py` **(new)** | `~/ros2_ws/src/mecanum_robot/launch/` | build `mecanum_robot` |
+| `src/mecanum_robot/launch/mapping_full.launch.py` | same dir | build `mecanum_robot` |
+| `src/mecanum_navigation/launch/navigation.launch.py` | `~/ros2_ws/src/mecanum_navigation/launch/` | build `mecanum_navigation` |
+| `src/mecanum_navigation/package.xml` | `~/ros2_ws/src/mecanum_navigation/` | build `mecanum_navigation` |
 
-**Per drive, minimum:**
+All four are the §17.49 launch split. Deploy them together — `mapping_full`
+now *includes* `sensors.launch.py` and will fail without it.
 
-| # | What | When | Why |
+⚠ **Two traps, both paid for on 1 Sep:**
+
+1. **Switching a package between symlink and normal install needs a clean.**
+   `rm -rf build/<pkg> install/<pkg>` first. A `colcon build` reported
+   *"2 packages finished"* while leaving `mecanum_navigation` unable to load
+   its own entry points, and both its nodes died at launch.
+2. **Step 5 must LAUNCH what it deployed.** Verifying the file proved the yaml
+   was right and said nothing about whether the executables existed.
+
+**Verification for this one is: MAP still works.** Press MAP, then
+
+```bash
+ros2 node list | grep -E "ydlidar|scan_relay|zero_point|slam_toolbox"
+```
+
+All four must appear, exactly as before the split.
+
+---
+
+## 6. The rest of the road to 10, ranked
+
+| | item | robot? | layer |
 |---|---|---|---|
-| 1 | Dashboard full screen, `X`/`Y`/`NOSE` legible | **freshly zeroed, before MAP** | the run's zero reference |
-| 2 | Photo of the robot on the floor mark, showing **which way the nose points** | before MAP | §17.44's 44° histogram flip is probably this, and it is unrecoverable afterwards |
-| 3 | Screen recording, dashboard + `graph_residuals.py` in one frame | **the whole drive** | the only way to align `n=` against what the robot was doing |
-| 4 | Dashboard full screen | immediately after **MAP-to-stop**, before moving | SLAM's terminal claim |
-| 5 | Photo of the robot where it actually stopped, next to the mark | before moving it | ground truth |
-| 6 | **Tape measure**, two numbers, your convention (cm, +Y forward, +X right) | before moving it | the referee. State the axes explicitly — 29 Aug had one "0,−3, so just x drift" that reads as a Y offset |
-| 7 | Dashboard full screen | after manually returning to the mark | SLAM's error at a known truth |
-
-**For the accepted map, additionally:** tape-measure the robot's distance to
-**two** walls, and photograph both. Thirty seconds, and it cannot be
-recovered afterwards.
-
-**Pull to Windows after every drive:**
-
-```powershell
-scp aritra@10.42.0.1:~/aislebot_logs/run_<TS>.* "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
-scp aritra@10.42.0.1:~/aislebot_logs/*_bundle.json "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
-```
-
-Then open the bundle in `docs/tools/run_viewer.html` and the map in
-`docs/tools/map_viewer.html` (**not** `telemetry_analyzer.html` — its map
-dropzone only unlocks after a valid 13-column run CSV).
+| 1 | **Obstacle test** (§3) | yes | local nav 7→10 |
+| 2 | **AMCL first bringup** (§4) | yes | global pos 1→4 |
+| 3 | `--corpus` over the ~70-map archive — replaces `map_integrity.py`'s guessed thresholds with measured percentiles | no | instrumentation 9→10 |
+| 4 | Patch `run_analyzer.py`'s two known false positives — deliberately deferred mid-campaign, and we are now between campaigns | no | instrumentation |
+| 5 | One long goal, **3–4 m** — settles why MPPI cruises at 23–31% of its 0.12 m/s cap. **Every goal ever sent has been ≤ 1.16 m**, inside `GoalCritic`'s `threshold_to_consider: 1.0` and 4× the 2.0 s horizon. This robot has never been asked to just *travel*. | yes | nav config 8→10 |
+| 6 | `xy_goal_tolerance: 0.02` is below the estimate's own noise floor | yes | nav config |
+| 7 | Move the axis rotation into the URDF and delete the last two conversion points | no | TF 9→10 |
+| 8 | Stage F re-drive, properly, under Nav2 (§7) | yes | closes the last software lever |
 
 ---
 
-## 8. Decisions taken and closed — do not re-open casually
+## 7. Stage F — open, and deliberately not scored
 
-| Decision | When | Why |
-|---|---|---|
-| **No camera** — USB webcam(s) under the LiDAR | 29 Aug | `slam_toolbox` is 2D laser SLAM with **no camera input**; frames reach nothing. Using vision means replacing it, days before the demo, for a fault already diagnosed. Also: control loop already 7.5–13.7 Hz vs 20 requested; two UVC devices on one Pi bus commonly fail to negotiate; matching a 360°−90° field needs four cameras. Revisit only as a post-demo direction, or as a POV camera for report footage |
-| **No IMU** | 22 Aug | No magnetometer means no absolute heading, which is the entire point; `ekf_params.yaml` fuses IMU yaw as truth, so a drifting signal would actively hurt. BNO055 remains the right part if ever prioritised |
-| **Do not change the yaw estimator** | 28 Aug | Both forms unbiased; equal weighting costs 0.89% yaw-rate noise, which cannot produce 10.53° over 18 m. Good theory, bad engineering priority |
-| **Do not smooth the trail display** | 29 Aug | The spikes are the per-node disagreement made visible. See rule 5 |
+`use_scan_barycenter: true → false`, deployed and **confirmed `False` on the
+live node**. `docs/StageF_Ablation.md` holds the thresholds, registered before
+the drive.
 
-The pattern in all four: **do not add a component, or hide a signal, that does
-not address the measured fault.**
+**It is unscored because the one run on it was hand-driven, not Nav2-driven**
+(the goal path was broken by the build mistake in §17.49). By the letter of the
+registration the net of 0.064 m falls between CONFIRMED (<0.06) and REFUTED
+(0.091–0.137): **AMBIGUOUS**.
 
----
+⚠ **Do not score it on the over-5 cm fraction or the peak.** Both point at
+refutation, and both were chosen *after* seeing the data. That is exactly what
+pre-registration exists to prevent.
 
-## 9. Standing rules
+⛔ Its took-effect check is **RETRACTED** — the 0.175 m baseline was an artefact
+of measuring displacement-from-origin instead of path length. Real spacings:
+baseline 0.441 m (sd 0.192), Stage F 0.391 m (sd 0.147), indistinguishable.
 
-1. **One parameter at a time.** §17.25 changed six and paid for three sessions.
-2. **Write the prediction down before the test.**
-3. **Verify against the live node, never the file.** And a runtime `param set`
-   dies at the next MAP.
-4. **Hash every file on arrival, per file.**
-5. **Never fix an axis, placement or trajectory-shape complaint in the
-   dashboard.** The display being ugly is usually the display being honest.
-6. **STOP MAP is the only thing that saves a map.**
-7. **Never stop and spin.** Turn only while rolling, and never tightly.
-8. **Label every claim** — measured / measured-once / hypothesis / retracted /
-   never-run.
-9. **Do not change an instrument mid-campaign** without re-running the
-   baseline through both versions.
-10. **Do not derive map coverage from a screenshot.** Dark pixels include
-    trail lines and UI chrome; the saved `.pgm` is the only truth.
+**One clean Nav2 re-drive settles it.** Route: (0, 1.02) → (−0.16, 2.03) →
+(0, 0). Beat: peak 13.0 cm, 59% over 5 cm, 9 cm on the tape.
+
+**Honest expectation: refutation.** Which is worth having — it closes the last
+software lever and is what justifies a ToF scanner over a guess.
 
 ---
 
-## 10. Where the reasoning lives
+## 8. What's true right now — don't re-derive
 
-| Question | Document |
-|---|---|
-| Why is the map worse than the odometry? | `Where_We_Stand.md` §3 |
-| Why does rotating in place do nothing? | `Research_Journal.md` §17.44, `docs/evidence/rotation_deadzone/` |
-| Why does the goal not land where I clicked? | `Autonomy_Endgame.md` §1.2 |
-| What is still only a hypothesis? | `Where_We_Stand.md` §4 |
-| The day-by-day plan and fallbacks | `Autonomy_Endgame.md` Parts 4–5 |
-| Session-by-session record | `Research_Journal.md` §17.38–§17.44 |
+### The front end causes physical error (§17.49) — ✅ MEASURED, tape-confirmed
+
+Nav2 closes its loop on the map pose. A corrupted estimate therefore becomes
+*physical* mis-positioning, not just mis-reporting. Two runs prove it from
+opposite ends, and wheel odometry agreed with the tape to ~1 cm in both.
+
+### Odometry is the most trustworthy layer — ✅ MEASURED
+
+4.582 m closed to **3.1 mm (0.07%)**. Integrator verified offline to 0.0000 m.
+1.1–1.5% closed-loop. **Do not re-test.** Its one limit is heading: 10.53° over
+18 m, which needs an absolute reference and is therefore capped in software.
+
+### The sensor is in spec and the spec is not enough — ✅ MEASURED
+
+X4 Pro is **triangulation**, rated **<2% of range**: 32 mm at the 1.6 m median,
+200 mm at 10 m. §17.45 measured p90 22.8 mm — *within* spec. 48.8% valid rays,
+**86% flickering while parked**, 44 of 314 rays present in every scan.
+
+### Search parameters cannot fix it — ✅ MEASURED
+
+§17.44: cumulative correction **2.80 / 2.85 / 2.86 m** across three parameter
+sets, invariant to 2%. Every one of them changed how the matcher *searches*.
+Read against §17.45's flicker, the matcher is handed a **different point cloud
+every scan** — no search parameter fixes a moving objective function.
+
+### Axes: closed (§17.38)
+
+`base_link`, `odom`, `map` all `+X = right, +Y = forward`. A freshly-zeroed
+robot on the mark reads `[0,0,0] @ 0°`. Guarded by
+`tools/verify_axis_chain.py` (43 checks). **Never fix an axis complaint at the
+display** — and note §17.49 found the *fifth* stale −90° compensation, in
+AMCL's `initial_pose`.
+
+### The dashboard tells the truth now (§17.49)
+
+Goal headings correct, E-STOP survives reconnects, `send()` reports delivery,
+and the pose card shows `ODOM` + `DRIFT` (red past 5 cm). Guarded by
+`tools/tests/dashboard_goal_roundtrip.py`, 19 checks.
+**Run it after any change to the pointer handlers, `w2s`/`s2w`, `vecToYaw`,
+`send()`, or the E-STOP path.**
 
 ---
 
-## 11. The time-box, and the fallback demo — decide Tuesday
+## 9. Standing traps
 
-**The arithmetic.** Four working days. G4 needs four things at once; three of
-them have never been achieved once in ~70 maps. Nav is gated on G4 and has
-never run. Continuing to spend every remaining day on G4 risks arriving at
-Saturday with **neither** a map **nor** a demonstrated navigation capability —
-the worst available outcome, and it is reachable by simply doing the obvious
-thing four days running.
+- **`base_link` is NOT REP-103: `+X` = RIGHT, `+Y` = NOSE.** Any new component
+  with a notion of "forward" needs checking.
+- **A repo value is not a robot value.** Check the live node.
+- **A build that says `Finished` is not a package that runs.** §17.49.
+- **MAP before Nav2**, always.
+- **Never run AMCL and `slam_toolbox` together** — both publish `map→odom`.
+  And since the split, `navigation.launch.py` starts its own LiDAR, so running
+  it alongside MAP is two drivers on one serial port.
+- **`slam_toolbox` 2.8.5 emits no loop-closure signal.** Don't grep for one.
+- **Check the Pi's address every session** (`ip -4 -br addr`). `10.42.0.1` only
+  exists while the Pi hosts its own AP, which has **no internet uplink** — a
+  `curl` line in these docs is never a Pi command.
+- **`scp` reporting `100%` does not mean the file arrived where you meant.**
+  Hash on arrival, **per file**.
+- **Nothing that stores a coordinate before AMCL works.** Live-SLAM
+  coordinates don't survive a restart.
 
-**The time-box.** G4 gets **Tuesday and Wednesday morning**. Two commissioning
-attempts, not five. If no map passes by Wednesday midday, G4 is declared
-missed for this demo and the remaining days go to the fallback.
+## 10. Deferred, still worth remembering
 
-**The fallback is not a climb-down — most of it already works.** What is
-already demonstrated on hardware and needs no accepted map:
-
-| Capability | Evidence | Needs a map? |
-|---|---|---|
-| Live SLAM mapping, shown building on the dashboard | every run this week | no |
-| Teleop drive from the dashboard, phone or browser | daily | no |
-| Obstacle avoidance — local costmap inflates live LiDAR, MPPI plans around it | §17.17 chain confirmed | **no** |
-| `collision_monitor` forward-simulating the padded footprint | §17.17 | no |
-| Goal-seeking under live SLAM | two `Goal succeeded` (25.9 s, 21.0 s) | no |
-| Per-wheel closed-loop control, 0% saturation, 0% sign error | §17.42, §17.47 | no |
-| The measurement stack itself — six instruments, self-tested | this whole file | no |
-
-**A demo built on those is honest and substantial**: drive it, watch the map
-build live, put an obstacle in front of it and watch the local planner route
-around, and present the instrumentation as the engineering result. What it
-cannot claim is *"point at a saved map and go"* — that is AMCL, and AMCL needs
-G4.
-
-**Read this the right way.** The fallback is the floor, not the plan. Tuesday
-is still a real attempt at G4, and if the repeat test says "route geometry,"
-a wide outer-wall perimeter has a genuine chance. The point of writing the
-fallback down now is that the decision gets made on evidence Tuesday, by
-someone who is not tired, instead of at midnight on Friday.
+- Location library + teach flow (gated on AMCL)
+- `scan_quality.py` at a third position, and at a different time of day —
+  **ambient IR is an untested candidate for the §17.47/§17.48 intermittency**,
+  and the split now lets it run without starting a mapping session
+- LiDAR driver: `frequency: 10.0` against the X4 Pro's 7 Hz nominal (500 vs
+  714 points/rev) and `range_max: 12.0` against a rated 10 m. **`range_max` is
+  measured inert** — 0.0% of returns exceed 10 m — but `frequency` is untested
+- `invalid_range_is_inf: false` means no-return beams clear no free space,
+  which may explain maps at 77–83% unknown. **Dangerous to change** — it would
+  clear through real obstacles the sensor failed to see. Needs a per-consumer
+  split before it is safe
+- `phone_dashboard.pre_light_theme.py` sitting in the package dir; dashboard
+  reconnect has no backoff
+- `src/mecanum_navigation/config/slam_params.yaml` is a third SLAM config that
+  nothing launches
+- IMU: decided against (22 Aug). BNO055 is the right part if ever prioritised.
+  **Don't re-open unless the operator raises it.**

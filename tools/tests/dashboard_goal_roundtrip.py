@@ -244,7 +244,157 @@ with sync_playwright() as pw:
         print(f'  JS ERRORS: {errs}'); p2 += 1
     pg.close(); b.close()
 
-total = fail + p2
-print('\n' + ('ALL PASS — position, heading, renderers and failure paths'
+# ── PHASE 3 — the trail is a claim about where the robot WENT ────────────
+# Added 2 Sep 2026. Two circle runs that morning drew a spiky starburst on a
+# robot whose wheels held a 0.507 m circle to 5.2 mm RMS. Nothing was wrong
+# with the pose: map_x is odom rotated and shifted by map->odom, and
+# slam_toolbox rewrote that correction 17 times per run. The renderer joined
+# the samples either side of each rewrite, drawing up to 0.198 m of straight
+# line for a robot that had moved 0.005 m -- a frame change painted as
+# motion, and the same class of fault as the 90 deg goal arrow above.
+#
+# PATH was worse: it accumulated MAP deltas, so it read 5.92 m for 3.23 m
+# driven, an 83% overstatement with nothing on screen to flag it.
+#
+# Every check below is verified by reverting its own fix in-page and
+# watching it fail, per the 1 Sep discipline.
+print('\nPHASE 3 — trail breaks and PATH')
+p3 = 0
+def chk3(cond, msg):
+    global p3
+    print(('  PASS  ' if cond else '  FAIL  ') + msg)
+    if not cond: p3 += 1
+
+with sync_playwright() as pw:
+    b = pw.chromium.launch(executable_path='/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+                           args=['--no-sandbox'])
+    pg = b.new_page(viewport={'width': 1400, 'height': 900})
+    errs = []
+    pg.on('pageerror', lambda e: errs.append(str(e)))
+    pg.goto(page_file.as_uri()); pg.wait_for_timeout(400)
+    pg.evaluate("setMapView(true)"); pg.wait_for_timeout(300)
+    pg.evaluate("""() => { camX=0; camY=0; camScale=100; sizeCanvas(); }""")
+
+    # A circle in ODOM with four map->odom rewrites injected, and map
+    # computed from it exactly as the robot does: map = R(cyaw)*odom + ct.
+    r = pg.evaluate("""() => {
+        clearAllTrails();
+        const N = 200, R = 0.5, STEP = 2*Math.PI/N;
+        let corr = {x:0, y:0, yaw:0}, odomPath = 0, mapPath = 0;
+        let pO = null, pM = null;
+        for (let i = 0; i < N; i++) {
+          const a = i*STEP, ox = R - R*Math.cos(a), oy = R*Math.sin(a);
+          if (i > 0 && i % 40 === 0)
+            corr = {x: corr.x - 0.18, y: corr.y + 0.12, yaw: corr.yaw - 0.09};
+          const c = Math.cos(corr.yaw), s = Math.sin(corr.yaw);
+          const mx = c*ox - s*oy + corr.x, my = s*ox + c*oy + corr.y;
+          if (pO) odomPath += Math.hypot(ox-pO[0], oy-pO[1]);
+          if (pM) mapPath  += Math.hypot(mx-pM[0], my-pM[1]);
+          pO = [ox,oy]; pM = [mx,my];
+          applyPose({type:'pose', x:mx, y:my, yaw:0, ox:ox, oy:oy,
+                     cx:corr.x, cy:corr.y, cyaw:corr.yaw});
+        }
+        return {odomPath, mapPath, jumpCount, pathLength,
+                brks: trajectory.filter(p => p.brk).length,
+                pts: trajectory.length};
+    }""")
+
+    chk3(r['jumpCount'] == 4,  f"four rewrites counted four times (jumpCount={r['jumpCount']})")
+    chk3(r['brks'] == 4,       f"four trail points carry brk (got {r['brks']})")
+
+    # The pen must lift at each break: one moveTo to start, one per break.
+    mv = pg.evaluate("""() => {
+        const real = mctx.moveTo.bind(mctx); let n = 0;
+        mctx.moveTo = function(){ n++; return real.apply(mctx, arguments); };
+        drawTrajectory();
+        mctx.moveTo = real; return n;
+    }""")
+    chk3(mv == 5, f'pen lifts at every break: {mv} moveTo for 1 start + 4 breaks')
+
+    # REVERT THE FIX: clear the flags and the same trail draws unbroken.
+    mv0 = pg.evaluate("""() => {
+        const saved = trajectory.map(p => p.brk);
+        trajectory.forEach(p => p.brk = false);
+        const real = mctx.moveTo.bind(mctx); let n = 0;
+        mctx.moveTo = function(){ n++; return real.apply(mctx, arguments); };
+        drawTrajectory();
+        mctx.moveTo = real;
+        trajectory.forEach((p,i) => p.brk = saved[i]);
+        return n;
+    }""")
+    chk3(mv0 == 1, f'and without brk it draws one unbroken line ({mv0} moveTo) — the guard has teeth')
+
+    # PATH is the wheels, not the estimate.
+    chk3(abs(r['pathLength'] - r['odomPath']) < 1e-9,
+         f"PATH = odom path ({r['pathLength']:.4f} m, want {r['odomPath']:.4f} m)")
+    chk3(abs(r['mapPath'] - r['odomPath']) > 0.2,
+         f"the old map-delta sum would have read {r['mapPath']:.4f} m "
+         f"({100*(r['mapPath']/r['odomPath']-1):+.0f}%) — what this replaces")
+    card = pg.evaluate("() => document.getElementById('liveDist').innerText")
+    chk3(card.startswith(f"{r['odomPath']:.2f}"), f'PATH card shows it ("{card}")')
+
+    # No odom transform at all: say so, do not print a confident 0.00.
+    dash = pg.evaluate("""() => {
+        clearAllTrails();
+        applyPose({type:'pose', x:0.4, y:0.2, yaw:0});
+        applyPose({type:'pose', x:0.6, y:0.3, yaw:0});
+        return document.getElementById('liveDist').innerText;
+    }""")
+    chk3('\u2014' in dash or '—' in dash, f'no odom -> PATH reads em dash, not 0.00 ("{dash}")')
+
+    # Real corrections, lifted from run_20260902_114339 (t+142.0 -> t+145.7).
+    real_jump = pg.evaluate("""() => {
+        clearAllTrails();
+        applyPose({type:'pose', x:0, y:0, yaw:0, ox:0, oy:0,
+                   cx:-0.1212, cy:-0.1332, cyaw:-0.0494});
+        const before = jumpCount;
+        applyPose({type:'pose', x:0, y:0, yaw:0, ox:0.01, oy:0,
+                   cx:-0.3104, cy:-0.1862, cyaw:-0.1267});
+        return jumpCount - before;
+    }""")
+    chk3(real_jump == 1, 'a real recorded correction is detected as one jump')
+
+    # Heading-only rewrite: translation-only detection would sail past this.
+    yaw_only = pg.evaluate("""() => {
+        clearAllTrails();
+        applyPose({type:'pose', x:0, y:0, yaw:0, ox:0, oy:0, cx:0.5, cy:0.5, cyaw:0.00});
+        const before = jumpCount;
+        applyPose({type:'pose', x:0, y:0, yaw:0, ox:0, oy:0, cx:0.5, cy:0.5, cyaw:0.05});
+        return jumpCount - before;
+    }""")
+    chk3(yaw_only == 1, 'a rewrite that turns the frame without shifting it still breaks the trail')
+
+    # And the other way: float jitter must not invent rewrites.
+    noise = pg.evaluate("""() => {
+        clearAllTrails();
+        let n = 0;
+        for (let i = 0; i < 50; i++) {
+          applyPose({type:'pose', x:i*0.01, y:0, yaw:0, ox:i*0.01, oy:0,
+                     cx:0.2 + (i%2 ? 1e-9 : 0), cy:-0.1, cyaw:0.3 + (i%3 ? 1e-9 : 0)});
+        }
+        return jumpCount;
+    }""")
+    chk3(noise == 0, f'sub-micron float jitter invents no rewrites (jumpCount={noise})')
+
+    # A rewrite while parked moves the frame < 5 mm: the break must survive
+    # the distance gate that would otherwise drop the sample entirely.
+    parked = pg.evaluate("""() => {
+        clearAllTrails();
+        applyPose({type:'pose', x:0, y:0, yaw:0, ox:0, oy:0, cx:0, cy:0, cyaw:0});
+        const before = trajectory.filter(p => p.brk).length;
+        applyPose({type:'pose', x:0.002, y:0, yaw:0, ox:0, oy:0, cx:0.002, cy:0, cyaw:0});
+        return trajectory.filter(p => p.brk).length - before;
+    }""")
+    chk3(parked == 1, 'a 2 mm rewrite on a parked robot is still recorded, not swallowed by the 5 mm gate')
+
+    hud = pg.evaluate("""() => { updateHud(); return document.getElementById('mapHud').innerText; }""")
+    chk3('JUMPS' in hud, 'HUD surfaces the rewrite count')
+
+    if errs:
+        print(f'  JS ERRORS: {errs}'); p3 += 1
+    pg.close(); b.close()
+
+total = fail + p2 + p3
+print('\n' + ('ALL PASS — position, heading, renderers, failure paths, trail truth'
                if not total else f'{total} FAILURE(S)'))
 sys.exit(1 if total else 0)

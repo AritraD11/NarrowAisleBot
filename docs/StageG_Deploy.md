@@ -27,7 +27,17 @@ valid/flicker statistics §17.45 could only recover offline.
 
 ### 1.1 Why, in one paragraph each
 
-**#1, 6 Hz.** Points per revolution is `sample_rate / frequency`, so
+**#1, 6 Hz. ⛔ RETRACTED 3 Sep 2026, on the first deploy — this change
+does nothing on this hardware.** `support_motor_dtr: false` means the
+driver never commands the LiDAR's motor, so `frequency:` is inert. The
+head free-runs at a measured **11.35 Hz** (deviation ~8 ms on an ~88 ms
+period, so stable, just not requested). Neither the operator's 6.0 nor the
+7.0 recommended alongside it could ever have taken effect. The reasoning
+below was sound and was applied to a parameter that is not connected to
+anything. Kept unedited as the record — the failure was one of
+verification, not logic, and it is the same shape as §17.32.
+
+Points per revolution is `sample_rate / frequency`, so
 10 Hz gives 500 and 6 Hz gives 833. **+67% angular density, free.**
 §17.44 showed cumulative correction invariant to 2% across three
 parameter sets (2.80 / 2.85 / 2.86 m) — every one of them a *search*
@@ -121,10 +131,14 @@ Never put the password on the command line. It once got appended to an
 ### 2.3 Hash every file on arrival — per file, not per batch
 
 ```bash
+# NOTE: ydlidar.yaml changed COMMENT-ONLY after the 3 Sep deploy (the
+# frequency: block now records that the parameter is inert on this unit).
+# No deployed VALUE changed. Re-copy it only to keep this hash check
+# meaningful; nothing on the robot behaves differently either way.
 sha256sum ~/ros2_ws/src/ydlidar_ros2_driver/params/ydlidar.yaml
-# e201ea2c91c636745dbbee846e54e6d2a40c10449a658cad6acb8c3ff48ef092
+# e527ae25797303198867ddd512f049ee5c55c74935b9c348795cc951a7502365
 sha256sum ~/ros2_ws/install/ydlidar_ros2_driver/share/ydlidar_ros2_driver/params/ydlidar.yaml
-# e201ea2c91c636745dbbee846e54e6d2a40c10449a658cad6acb8c3ff48ef092
+# e527ae25797303198867ddd512f049ee5c55c74935b9c348795cc951a7502365
 sha256sum ~/ros2_ws/slam_nodom.yaml
 # b10a13839759764c0a41af654f17e064e4e8e5532f5aa4e4e27f8ab0c8138e96
 sha256sum ~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py
@@ -132,7 +146,7 @@ sha256sum ~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py
 sha256sum ~/ros2_ws/src/mecanum_navigation/config/nav2_params.yaml
 # 7d9adfac6aee2035538bd5b1f6eaa470e3e11e84f68e6fd25cd8685edd54f162
 sha256sum ~/tools/verify_live_config.sh
-# a5353cdb15fcab057277675228cea53e0d3c3353892558f9291ade5592767c82
+# 8827c3eaee7ee8cb8bceabb5fd9d4d71baee48400e9ac411d5f7f2e0a318dc1d
 ```
 
 A mismatch here means the transfer is the bug. Do not go on.
@@ -170,13 +184,13 @@ Score every row. A wrong prediction is a result, not a failure.
 
 ### 3.1 Immediate, before driving a single metre
 
-| Observation | Prediction |
-|---|---|
-| `ros2 topic hz /scan` | 6.0 Hz ± 0.3, **deviation tight** |
-| Beams per scan | ~833 (5000 / 6) |
-| Dashboard VALID, parked | 40–55% |
-| Dashboard FLICKER, parked | **60–80%**, on a robot that is not moving |
-| `map → odom` at bringup | identity, and it **stays** identity |
+| Observation | Prediction | Outcome, 3 Sep |
+|---|---|---|
+| `ros2 topic hz /scan` | 6.0 Hz ± 0.3, **deviation tight** | ⛔ **WRONG** — 11.35 Hz. The request is inert (`support_motor_dtr: false`). Deviation *was* tight (~9%), so half the prediction held for a reason that turned out not to matter |
+| Beams per scan | ~833 (5000 / 6) | ⛔ **WRONG on the number, RIGHT on the model** — measured 430 against 5000/11.35 ≈ 441, a 2.5% error. `Stack_Assessment` §3A's formula is confirmed; `README.md`'s ~1258 figure was stale and is now corrected |
+| Dashboard VALID, parked | 40–55% | not yet run |
+| Dashboard FLICKER, parked | **60–80%**, on a robot that is not moving | not yet run |
+| `map → odom` at bringup | identity, and it **stays** identity | not yet run |
 
 The FLICKER row is the one to photograph. It is §17.45's central finding,
 readable live for the first time.
@@ -221,16 +235,28 @@ bash ~/tools/verify_live_config.sh
 It checks all six values against the running nodes, measures the actual
 scan rate and beam count, and refuses to clear you to drive on a mismatch.
 
-**The rate check is the one that can surprise you.** `frequency: 6.0` is a
-*request*. `support_motor_dtr` is false, so the driver may not command the
-motor at all and the hardware can ignore it. If the script reports ~10 Hz,
-the density gain did not happen and every prediction in §3 resting on 833
-points is void.
+**The rate check is the one that surprised us, and it has already fired.**
+On the 3 Sep deploy it reported **11.35 Hz** against the requested 6.0.
+`support_motor_dtr: false` means the driver never commands the motor, so
+`frequency:` is inert on this unit and always was. That is a hardware
+ceiling, not a deployment error: the script now reports it as a **WARN**
+and does **not** block the drive. Do not re-deploy trying to "fix" it, and
+do not switch `support_motor_dtr` to true as a reflex — that is a separate,
+riskier change (this unit's motor start/stop behaviour is unknown) and
+belongs in its own single-variable test.
 
-It also settles a contradiction in our own docs: `Stack_Assessment` §3A
-computes 5000/f (833 at 6 Hz) while `README.md` states ~1258 pts/scan at
-~11.5 Hz, which implies ~14.5 kHz rather than 5. Both cannot be right.
-Whichever loses, fix that document before citing it again.
+The density half of Stage G is therefore dead. **The other four values
+(`max_laser_range`, `use_scan_matching`, `xy_goal_tolerance`,
+`batch_size`) are unaffected and all verified deployed** — none of them
+depend on beam density, so the drive is still worth doing exactly as
+planned.
+
+**It also settled the beam-count contradiction, in `Stack_Assessment`'s
+favour.** §3A computes `5000/f`; `README.md` claimed ~1258 pts/scan at
+~11.5 Hz, implying ~14.5 kHz against a configured 5 kHz. Measured: **430
+beams at 11.35 Hz**, against `5000/11.35 = 441` — a 2.5% error, which is
+the formula working. `sample_rate: 5` means 5 kHz and always did. The
+README figure was wrong and has been corrected.
 
 ---
 

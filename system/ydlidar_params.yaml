@@ -85,20 +85,27 @@ ydlidar_ros2_driver_node:
     # NO expected_update_rate set (checked, nav2_params.yaml), so the
     # lower rate cannot trigger a stale-sensor stand-down.
     #
-    # ⚠ THE RISK THAT MADE 7.0 THE RECOMMENDATION, and the check that
-    # settles it. 7 Hz is the X4 Pro's datasheet nominal — the speed the
-    # unit is characterised at. 6 Hz sits nearer the bottom of the motor's
-    # range, where a small DC motor regulates worst. The driver assigns
-    # each sample its bearing by timing against an assumed-constant sweep,
-    # so motor speed ripple becomes ANGULAR error, distributed differently
-    # every revolution. That is the same class of fault this change exists
-    # to reduce. HYPOTHESIS, never measured on this unit.
+    # ⚠ MEASURED 3 Sep 2026, first deploy: THIS PARAMETER HAS NO EFFECT ON
+    # THIS UNIT. support_motor_dtr: false means the driver never commands
+    # the motor; the head free-runs at its own native speed regardless of
+    # what is written here. Measured: 11.35 Hz, deviation ~8 ms on an
+    # ~88 ms period (<10%) — STABLE, just not requested. Neither the
+    # operator's 6.0 nor the 7.0 recommended alongside it could ever have
+    # taken effect; the whole "reduce frequency for more points" lever
+    # does not exist on this hardware without motor control, which
+    # support_motor_dtr would need to be true to attempt — untried, and a
+    # separate, riskier change (motor start/stop behaviour on this exact
+    # unit is unknown), not folded into this session.
     #
-    #     ros2 topic hz /scan          # read the DEVIATION, not the mean
+    # LEFT AT 6.0 rather than reverted to 10.0: it is inert either way, and
+    # changing an inert value teaches nothing. tools/verify_live_config.sh
+    # reads /scan directly and reports the REAL rate every deploy, so this
+    # number is never mistaken for what is actually happening again.
     #
-    # PRE-COMMITTED: if the deviation at 6.0 is materially worse than at
-    # 7.0, go to 7.0 and keep the 43%. If it is comparable, 6.0 is free
-    # and stays. Measure before arguing.
+    # Actual beam count at the native rate: ~5000/11.35 ≈ 441/rev, measured
+    # 430 (2.5% error) — CONFIRMS the 5000/f model (Stack_Assessment §3A)
+    # at the rate that is really running, and settles the contradiction
+    # with README.md's stale ~1258 pts @ ~11.5 Hz figure in §3A's favour.
     frequency: 6.0
 
     invalid_range_is_inf: false

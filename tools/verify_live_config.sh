@@ -20,7 +20,7 @@
 # think you deployed.
 set -uo pipefail
 
-PASS=0; FAIL=0
+PASS=0; FAIL=0; WARN=0
 ok()   { printf '  \033[32mPASS\033[0m  %s\n' "$1"; PASS=$((PASS+1)); }
 bad()  { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; FAIL=$((FAIL+1)); }
 info() { printf '  ....  %s\n' "$1"; }
@@ -31,12 +31,23 @@ get_param() {
     | sed -n 's/^[A-Za-z ]*value is: //p' | tail -1
 }
 
+warn() { printf '  \033[33mWARN\033[0m  %s\n' "$1"; WARN=$((WARN+1)); }
+
 expect() {   # expect <node> <param> <wanted>
-  local node="$1" p="$2" want="$3" got
+  local node="$1" p="$2" want="$3" got got_lc want_lc
   got="$(get_param "$node" "$p")"
   if [ -z "$got" ]; then
     bad "$node $p — NODE OR PARAM UNREACHABLE (is it running?)"
-  elif [ "$got" = "$want" ]; then
+    return
+  fi
+  # ros2 param get prints Python-style booleans (True/False). Compare
+  # case-insensitively so a correctly-deployed `false` is not failed
+  # against a literal "false" — this bug caused three false FAILs on the
+  # first-ever run of this script, 3 Sep 2026, and is recorded here so it
+  # is not silently "fixed" a second time without anyone noticing why.
+  got_lc="$(printf '%s' "$got"  | tr '[:upper:]' '[:lower:]')"
+  want_lc="$(printf '%s' "$want" | tr '[:upper:]' '[:lower:]')"
+  if [ "$got_lc" = "$want_lc" ]; then
     ok "$node $p = $got"
   else
     bad "$node $p = $got   (expected $want)"
@@ -79,23 +90,35 @@ fi
 
 echo
 echo "── 4. The scan itself, measured not assumed ────────────────────"
-# frequency: 6.0 is a REQUEST. support_motor_dtr is false, so the driver may
-# not control the motor at all and the hardware can quietly ignore it.
-# This is the check that settles it, and the deviation matters more than
-# the mean: motor speed ripple becomes angular error in every sweep.
+# frequency: 6.0 is a REQUEST. support_motor_dtr is false, so the driver
+# does not command the motor at all, and on the unit tested 3 Sep 2026 the
+# hardware ignores the request outright and free-runs at its own native
+# speed (measured 11.35 Hz, deviation ~8 ms on an ~88 ms period — STABLE,
+# just not the requested rate). That is a hardware ceiling, not a broken
+# measurement, so it is a WARN: it does not block the drive, but every
+# prediction built on 833 pts/rev (the +67% density case) is void and
+# StageG_Deploy.md needs correcting rather than re-argued.
 echo "  measuring /scan for 10 s ..."
 HZ_OUT="$(timeout 12 ros2 topic hz /scan 2>/dev/null | tail -4)"
+RATE=""
 if [ -n "$HZ_OUT" ]; then
   echo "$HZ_OUT" | sed 's/^/        /'
   RATE="$(echo "$HZ_OUT" | sed -n 's/.*average rate: \([0-9.]*\).*/\1/p' | tail -1)"
+  DEV="$(echo "$HZ_OUT" | sed -n 's/.*std dev: \([0-9.]*\)s.*/\1/p' | tail -1)"
   if [ -n "$RATE" ]; then
     if awk -v r="$RATE" 'BEGIN{exit !(r>5.4 && r<6.6)}'; then
       ok "scan rate ${RATE} Hz — the 6.0 Hz request took effect"
     else
-      bad "scan rate ${RATE} Hz — the hardware IGNORED frequency: 6.0"
-      info "  the X4 Pro sets scan speed by motor PWM and support_motor_dtr"
-      info "  is false. If this reads ~10, the density gain did not happen"
-      info "  and every prediction resting on 833 pts/rev is void."
+      REQ="$(get_param "$LIDAR_NODE" frequency)"
+      STABLE="unknown"
+      if [ -n "$DEV" ] && [ -n "$RATE" ]; then
+        STABLE="$(awk -v d="$DEV" -v r="$RATE" 'BEGIN{p=1/r; print (d/p<0.15)?"stable":"RAGGED"}')"
+      fi
+      warn "scan rate ${RATE} Hz — hardware ignored the ${REQ:-6.0} Hz request (native free-run, $STABLE)"
+      info "  support_motor_dtr is false, so this parameter has no effect on"
+      info "  this unit. NOT a config bug — do not re-deploy to 'fix' this."
+      info "  Density predictions in StageG_Deploy.md assumed 833 pts/rev;"
+      info "  actual is ~$(awk -v r="$RATE" 'BEGIN{printf "%.0f", 5000/r}'). Correct the doc, do not re-drive to chase this."
     fi
   fi
 else
@@ -103,20 +126,26 @@ else
 fi
 
 echo
-echo "── 5. Beam count — settles a contradiction in our own docs ─────"
-# Stack_Assessment §3A computes points/rev = 5000/f, giving 833 at 6 Hz.
-# README.md states ~1258 pts/scan at ~11.5 Hz, which is ~14.5 kHz, not 5.
-# Both cannot be right, and the +67% density prediction rests on the first.
+echo "── 5. Beam count vs the 5000/f model, at the MEASURED rate ─────"
+# Checked against whatever rate section 4 actually measured, not the
+# requested 6.0 — the formula (Stack_Assessment §3A) is the thing under
+# test here, not whether the frequency request took effect (section 4
+# already answered that). README's ~1258 pts @ ~11.5 Hz figure implies a
+# ~14.5 kHz sample rate against a configured 5 kHz; both cannot be true.
 N="$(timeout 10 ros2 topic echo /scan --once --field ranges 2>/dev/null \
      | tr ',' '\n' | grep -c '[0-9]')"
-if [ "${N:-0}" -gt 0 ]; then
-  info "beams per scan: $N   (5000/6 predicts ~833)"
-  if [ "$N" -gt 700 ] && [ "$N" -lt 950 ]; then
-    ok "beam count matches the 5000/f model — Stack_Assessment §3A is right"
+if [ "${N:-0}" -gt 0 ] && [ -n "$RATE" ]; then
+  EXPECT="$(awk -v r="$RATE" 'BEGIN{printf "%.0f", 5000/r}')"
+  info "beams per scan: $N   (5000 / measured ${RATE} Hz predicts ~$EXPECT)"
+  if awk -v n="$N" -v e="$EXPECT" 'BEGIN{d=(n-e)/e; if(d<0) d=-d; exit !(d<0.15)}'; then
+    ok "beam count matches 5000/f AT THE MEASURED RATE — Stack_Assessment §3A"
+    ok "  is right; README.md's ~1258 pts @ ~11.5 Hz figure is stale, fix it"
   else
-    bad "beam count $N does not match 5000/f — README's 1258 figure may be"
-    info "  the correct one. Update whichever doc is wrong BEFORE citing it."
+    bad "beam count $N does not match 5000/f even at the measured rate —"
+    info "  neither existing doc's model fits. Needs a fresh look, not a pick."
   fi
+elif [ "${N:-0}" -gt 0 ]; then
+  info "beams per scan: $N   (no rate measurement to compare against)"
 else
   bad "could not read /scan ranges"
 fi
@@ -143,12 +172,19 @@ fi
 
 echo
 echo "════════════════════════════════════════════════════════════════"
-printf ' %d passed, %d failed\n' "$PASS" "$FAIL"
+printf ' %d passed, %d failed, %d warned\n' "$PASS" "$FAIL" "$WARN"
 if [ "$FAIL" -gt 0 ]; then
   echo " DO NOT DRIVE. Fix the mismatches above first — a drive on an"
   echo " unverified config measures something other than what you deployed."
   echo "════════════════════════════════════════════════════════════════"
   exit 1
 fi
-echo " Config verified against live nodes. Cleared to drive."
+if [ "$WARN" -gt 0 ]; then
+  echo " Config verified against live nodes. WARNINGS above are known"
+  echo " hardware limitations, not deployment errors — cleared to drive,"
+  echo " but correct any doc predictions the warnings named before citing"
+  echo " numbers from this run."
+else
+  echo " Config verified against live nodes. Cleared to drive."
+fi
 echo "════════════════════════════════════════════════════════════════"

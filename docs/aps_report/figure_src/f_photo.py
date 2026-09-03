@@ -55,5 +55,5 @@ ax5.text(0.5, 0.71,
 
 fig.suptitle('The physical platform and the measurements taken on it, 11 August 2026',
              fontsize=9.6, y=0.965, x=0.02, ha='left')
-plt.savefig(f'{FIGDIR}/fig15_platform_photos.png', bbox_inches='tight')
+plt.savefig(f'{FIGDIR}/fig24_platform_photos.png', bbox_inches='tight')
 print('ok')

@@ -57,7 +57,7 @@ a2.text(0.02, 0.155, 'P2 posted the best coverage on a shorter, faster, smaller 
 fig.suptitle('LiDAR mount placement trial, 8 Aug 2026. Three positions, one standardised '
              'test motion,\nautomated map-quality report on every run.',
              fontsize=9.5, y=1.07, x=0.02, ha='left')
-plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig11_lidar_placement.png'); plt.close()
+plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig14_lidar_placement.png'); plt.close()
 
 # ============ map coverage progression ====================================
 fig, ax = plt.subplots(figsize=(7.6, 3.5))
@@ -82,5 +82,5 @@ ax.legend(fontsize=7.6, loc='lower left')
 ax.set_title('Every map produced so far sits in the sparse band. §17.8 explains why:\n'
              'roughly a third of each scan is blocked by the robot\'s own structure.',
              loc='left', fontsize=9.5)
-plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig12_map_coverage.png'); plt.close()
+plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig15_map_coverage.png'); plt.close()
 print('ok')

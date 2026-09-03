@@ -24,14 +24,14 @@ b_br   = box(ax, 42, 52.0, 14, 7.4, 'esp32_bridge\n<V,fr,fl,rr,rl>\n20 Hz', fs=6
 b_odo  = box(ax, 42, 62.5, 14, 5.4, 'odometry_publisher\n/wheel_odom\n+ TF odom→base_link', fs=6.4)
 
 # ---- Pi: perception ------------------------------------------------------
-b_rel  = box(ax, 60.5, 44.5, 16, 6.4, 'scan_relay\nQoS bridge +\nscan re-indexing', fs=6.7,
+b_rel  = box(ax, 60.5, 44.5, 16, 6.4, 'scan_relay\nQoS bridge, scan\nre-indexing, rear mask', fs=6.6,
              fc='#e6eef6', ec=tel, tc=tel)
-b_slam = box(ax, 60.5, 54.5, 16, 7.4, 'slam_toolbox\nonline async\npose graph + /map', fs=6.7,
+b_slam = box(ax, 60.5, 54.5, 16, 7.4, 'slam_toolbox\npose graph + /map\nsequential matcher OFF', fs=6.6,
              fc='#e6eef6', ec=tel, tc=tel)
 b_fox  = box(ax, 60.5, 64.5, 16, 4.0, 'foxglove_bridge :8765', fs=6.5)
-b_nav  = box(ax, 81, 50.0, 15.5, 11.0, 'Nav2\nplanner_server (A*)\ncontroller_server (DWB)\n\n'
-             'configured and\naudited, not yet run', fs=6.7,
-             fc='white', ec=C['grey'], ls='--', tc=C['neutral'])
+b_nav  = box(ax, 81, 50.0, 15.5, 11.0, 'Nav2\nplanner_server (A*)\ncontroller_server (MPPI)\nbehaviour tree, recoveries\n\n'
+             'runs; goals reached', fs=6.7,
+             fc='#e6eef6', ec=tel, tc=tel)
 
 # ---- ESP32 ---------------------------------------------------------------
 b_core0 = box(ax, 14, 23.5, 21, 12.0,
@@ -67,10 +67,13 @@ b_pwr  = box(ax, 3.5, 3.0, 31.5, 5.6,
              fs=6.3, fc='#fdf1e3', ec=cmd)
 
 # ---- command path --------------------------------------------------------
-arr(ax, R(b_dash), (23, 57.5), cmd, txt='/cmd_vel', tdy=1.2)
-arr(ax, R(b_tel),  (23, 54.5), cmd)
+arr(ax, R(b_dash), (23, 47.6), cmd, txt='/cmd_vel_manual', tdy=1.3, tdx=-1.0)
+arr(ax, R(b_tel),  (23, 45.4), cmd)
 arr(ax, R(b_ik), L(b_br), cmd, txt='/wheel_speeds', tdy=1.3)
-arr(ax, B(b_br), (49, 35.5), cmd, txt='USB serial 921600', tdy=4.5, tdx=-4.5)
+b_mux  = box(ax, 23, 43.0, 15, 6.4, 'twist_mux\nmanual priority 100\nnav priority 10\n0.5 s timeouts',
+             fs=6.5, fc='#fdf1e3', ec=cmd)
+arr(ax, T(b_mux), B(b_ik), cmd, txt='/cmd_vel', tdy=0, tdx=-4.5)
+arr(ax, B(b_br), (49, 35.5), cmd, txt='USB serial\n921600', tdy=3.0, tdx=-5.0)
 arr(ax, B(b_pid), T(b_mdd), cmd, txt='signed PWM + DIR', tdy=0, tdx=13.0)
 arr(ax, B(b_mdd), T(b_mot), cmd, txt='24 V', tdy=0, tdx=3.0)
 arr(ax, B(b_arm), (11.5, 16.9), cmd, txt='/dev/mega\n115200', tdy=0, tdx=-6.5, rad=-0.10)
@@ -78,7 +81,7 @@ arr(ax, B(b_arm), (11.5, 16.9), cmd, txt='/dev/mega\n115200', tdy=0, tdx=-6.5, r
 # ---- telemetry path ------------------------------------------------------
 arr(ax, R(b_mot), L(b_lvl), tel, rad=-0.15)
 arr(ax, T(b_lvl), B(b_enc), tel, txt='A/B 5 V', tdy=0, tdx=3.4)
-arr(ax, T(b_enc), B(b_pcnt), tel, txt='3.3 V quadrature', tdy=0, tdx=-8.5)
+arr(ax, T(b_enc), B(b_pcnt), tel, txt='3.3 V quadrature', tdy=-2.0, tdx=-8.5)
 arr(ax, L(b_pcnt), R(b_pid), tel, txt='rad/s', tdy=1.2)
 arr(ax, (52.5, 35.5), (52.5, 52.0), tel, txt='13-column CSV, 20 Hz', tdy=-4.5, tdx=-1.0)
 arr(ax, T(b_br), B(b_odo), tel)
@@ -93,15 +96,18 @@ arr(ax, T(b_slam), B(b_fox), tel)
 arr(ax, (60.5, 66.5), (56.0, 66.5), tel, rad=0.0)
 
 # ---- future closure ------------------------------------------------------
-arr(ax, T(b_nav), (88.75, 70.5), C['grey'], ls='--', style='-')
-arr(ax, (88.75, 70.5), (30.5, 70.5), C['grey'], ls='--', style='-',
-    txt='not yet closed: /cmd_vel from the planner back into the same asymmetric IK',
-    tdy=1.6, tc=C['neutral'], fs=7.2)
-arr(ax, (30.5, 70.5), T(b_ik), C['grey'], ls='--')
+arr(ax, T(b_nav), (88.75, 70.5), cmd, style='-')
+arr(ax, (88.75, 70.5), (40.2, 70.5), cmd, style='-',
+    txt='closed 14 Aug: the planner\'s velocity, through the axis adapter and twist_mux,\ninto the same asymmetric IK the operator drives through',
+    tdy=2.6, fs=7.2)
+ax.plot([40.2, 40.2], [46.2, 70.5], color=cmd, lw=1.2, zorder=5)
+arr(ax, (40.2, 46.2), (38.0, 46.2), cmd)
+ax.text(40.9, 52.0, '/cmd_vel_nav_out', fontsize=6.8, color=cmd, rotation=90,
+        va='center', ha='left')
 
 ax.plot([], [], color=cmd, lw=1.6, label='command path')
 ax.plot([], [], color=tel, lw=1.6, label='telemetry and perception path')
-ax.plot([], [], color=C['grey'], lw=1.4, ls='--', label='configured, not yet exercised')
+ax.plot([], [], color=C['grey'], lw=1.4, ls='--', label='exists, never executed')
 ax.legend(loc='upper left', bbox_to_anchor=(0.0, -0.005), ncol=3, fontsize=7.6)
 
 plt.tight_layout()

@@ -11,12 +11,12 @@ ax = fig.add_subplot(gs[0], projection='polar')
 ax.set_theta_zero_location('E'); ax.set_theta_direction(1)
 th = np.linspace(0, 2*np.pi, 720)
 r = np.full_like(th, 1.0)
-blind_lo, blind_hi = np.radians(150), np.radians(270)   # ~1/3 of sweep, rear
+blind_lo, blind_hi = np.radians(180), np.radians(270)   # measured 90 deg, rear
 ax.fill_between(th, 0, 1.0, where=(th >= blind_lo) & (th <= blind_hi),
                 color=C['defect'], alpha=0.28, zorder=1)
 ax.plot(th, r, color=C['telemetry'], lw=1.6, zorder=3)
 ax.add_patch(mp.Rectangle((0, 0), 2*np.pi, 0.12, color=C['grey'], alpha=0.5, zorder=4))
-ax.text(np.radians(210), 0.55, 'blind sector\n~1/3 of sweep', ha='center', va='center',
+ax.text(np.radians(225), 0.58, 'blind sector\n90° measured', ha='center', va='center',
         fontsize=8.2, color=C['defect'], fontweight='bold')
 ax.text(np.radians(45), 0.55, 'usable\nreturns', ha='center', va='center',
         fontsize=8.2, color=C['telemetry'])
@@ -24,7 +24,7 @@ ax.set_ylim(0, 1.16); ax.set_yticklabels([])
 ax.set_xticks(np.radians([0, 90, 180, 270]))
 ax.set_xticklabels(['right', 'forward', 'left', 'rear'], fontsize=8)
 ax.grid(alpha=0.3)
-ax.set_title('(a) Measured blind sector\n(bearings pre-date the mirror fix)',
+ax.set_title('(a) The rear cone, re-measured in the\ncorrected frame at five headings',
              loc='left', fontsize=9.3, pad=22)
 
 ax2 = fig.add_subplot(gs[1]); ax2.axis('off'); ax2.set_xlim(0,1); ax2.set_ylim(0,1)
@@ -47,17 +47,17 @@ blk(0.365, 0.345, 'False permanent obstacles: damaging',
     'occupied at a fixed bearing in the robot frame, giving an\n'
     'obstacle welded to the chassis that can never be cleared.',
     '#fdecea', C['defect'], C['defect'])
-blk(0.005, 0.345, 'Correct fix: mask, do not reinterpret',
-    'Affected sectors must be marked invalid in scan_relay.py\n'
-    'before the scan reaches SLAM or the costmap, so the beams\n'
-    'neither mark nor clear. Marking them free would erase real\n'
-    'obstacles; marking them occupied is the present bug.',
+blk(0.005, 0.345, 'Implemented: mask, do not reinterpret',
+    'The arc is blanked to NaN in scan_relay.py before the scan\n'
+    'reaches SLAM or the costmap, so those beams neither mark nor\n'
+    'clear. A finite value would mark a phantom obstacle; infinity\n'
+    'would clear straight through whatever really sits behind it.',
     '#eaf5ea', C['fixed'], C['fixed'])
 fig.suptitle('Self-occlusion is a navigation failure, not a mapping annoyance. The '
              'discriminator needs no props:\nreal features move in the laser frame under '
-             'in-place rotation, self-occlusion does not.',
+             'rotation and self-occlusion does not. 107 of 430 beams are now masked.',
              fontsize=9.5, y=1.05, x=0.02, ha='left')
-plt.savefig(f'{FIGDIR}/fig13_self_occlusion.png', bbox_inches='tight'); plt.close()
+plt.savefig(f'{FIGDIR}/fig12_self_occlusion.png', bbox_inches='tight'); plt.close()
 
 # ============ costmap inflation ===========================================
 fig, ax = plt.subplots(figsize=(7.4, 3.6))
@@ -87,5 +87,5 @@ ax.set_yticks([0, 100, 200, 253, 254])
 ax.set_title('Costmap inflation for the measured 1.12 × 0.48 m footprint. Setting\n'
              'the inflation radius generously would make a passable aisle look blocked.',
              loc='left', fontsize=9.5)
-plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig16_costmap_inflation.png'); plt.close()
+plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig20_costmap_inflation.png'); plt.close()
 print('ok')

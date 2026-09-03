@@ -66,5 +66,5 @@ ax.text(1.0, 54.6,
         fontsize=8.0, color=C['neutral'], va='top', linespacing=1.6)
 ax.set_title('The mapping pipeline and the three silent gates that blocked it, 6–7 August 2026',
              loc='left', fontsize=9.5, y=1.0)
-plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig10_mapping_pipeline.png')
+plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig11_mapping_pipeline.png')
 print('ok')

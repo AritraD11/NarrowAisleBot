@@ -8,7 +8,7 @@ def load(p):
         r = csv.reader(f); next(r)
         return np.array([[float(x) for x in row] for row in r if len(row)==13])
 
-A = load(f'{REPO}/data/bench_logs/run_20260804_193703.csv')
+A = load(f'{REPO}/data/bench_logs/bench/run_20260804_193703.csv')
 t = A[:,0]-A[0,0]
 
 fig = plt.figure(figsize=(9.6, 5.6))

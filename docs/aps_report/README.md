@@ -7,8 +7,9 @@ the project record.
 
 | File | What it is |
 |---|---|
-| [`APS_Report_Draft.md`](APS_Report_Draft.md) | The report. Edit this. |
-| [`figures/`](figures/) | 21 figures, PNG at 300 dpi, numbered to match the in-text figure numbers |
+| [`APS_Report_Draft.md`](APS_Report_Draft.md) | The report. **Edit this one.** |
+| [`APS_Report_Draft.docx`](APS_Report_Draft.docx) | Built from the Markdown, all 28 figures embedded, table of contents included. Download and open. Regenerate it after every edit with the command below rather than editing it directly, or the two will diverge. |
+| [`figures/`](figures/) | 28 figures, PNG at 300 dpi, numbered to match the in-text figure numbers |
 | [`figure_src/`](figure_src/) | The scripts that generate every figure |
 
 ## Editing conventions
@@ -32,10 +33,17 @@ pip install numpy matplotlib
 for f in docs/aps_report/figure_src/f_*.py; do python3 "$f"; done
 ```
 
-The scripts read the bench telemetry in `data/bench_logs/` and the photographs
-in `docs/robot_photos/` directly, so the plots are regenerated from source data
-rather than being static images that can silently go stale. Paths are resolved
-relative to the script's own location, so they can be run from anywhere.
+The scripts read the bench telemetry in `data/bench_logs/`, the field pose logs
+in `data/field_runs/`, and the photographs in `docs/robot_photos/` directly, so
+the plots are regenerated from source data rather than being static images that
+can silently go stale. Paths resolve relative to the script's own location, so
+they run from anywhere.
+
+Two figures are computed rather than transcribed, because they carry claims:
+**Figure 10** recomputes the ground-load feedforward increase from the 5 and
+6 August telemetry logs, and **Figure 16** replots the map-to-odom correction
+traces from the three field runs. Both agree with the journal to the digit,
+which is the point of regenerating them rather than screenshotting.
 
 `style.py` holds the shared colour language, and it is worth keeping consistent:
 orange for the command path, blue for telemetry and perception, red for a defect
@@ -54,8 +62,8 @@ pandoc APS_Report_Draft.md -o APS_Report.pdf --resource-path=. \
        --toc --number-sections -V geometry:margin=25mm
 ```
 
-The Word conversion is verified: it produces a roughly 7 MB file with all
-21 figures embedded. The PDF route additionally needs a LaTeX engine
+The Word conversion is verified: it produces a roughly 9 MB file with all
+28 figures embedded. The PDF route additionally needs a LaTeX engine
 (`texlive-latex-recommended` plus `texlive-fonts-recommended` is enough), or
 `--pdf-engine=weasyprint` to avoid LaTeX entirely.
 

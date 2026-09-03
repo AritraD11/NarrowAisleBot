@@ -73,7 +73,7 @@ ax.set_title('Parallel project: instrumentation and control for a UV-C air-disin
              'chamber. Five sensors,\nthree concurrent wireless channels, two independent '
              'control paths, four monitored zones, no cloud dependency.',
              loc='left', fontsize=9.4, y=1.0)
-plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig19_iot_architecture.png'); plt.close()
+plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig26_iot_architecture.png'); plt.close()
 
 # ============ IoT control law ============================================
 fig, (a1x, a2x) = plt.subplots(1, 2, figsize=(9.8, 3.6),
@@ -117,5 +117,5 @@ for head, body in rows:
              va='top', transform=a2x.transAxes)
     a2x.text(0.07, y-0.062, body, fontsize=7.2, va='top', transform=a2x.transAxes)
     y -= 0.19
-plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig20_iot_control_law.png'); plt.close()
+plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig27_iot_control_law.png'); plt.close()
 print('ok')

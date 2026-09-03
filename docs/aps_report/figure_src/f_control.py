@@ -8,8 +8,8 @@ def load(path):
         r = csv.reader(f); next(r)
         return np.array([[float(x) for x in row] for row in r if len(row)==13])
 
-A = load(f'{REPO}/data/bench_logs/run_20260804_193703.csv')   # v3.0
-B = load(f'{REPO}/data/bench_logs/run_20260702_183233.csv')   # v2.0-era
+A = load(f'{REPO}/data/bench_logs/bench/run_20260804_193703.csv')   # v3.0
+B = load(f'{REPO}/data/bench_logs/bench/run_20260702_183233.csv')   # v2.0-era
 
 # ============ FIG: open-loop characterisation, March 2026 ==================
 fig, (a1, a2) = plt.subplots(1, 2, figsize=(9.0, 3.3))
@@ -113,3 +113,46 @@ ax.set_title('The per-motor spread was an instrumentation artefact, not real\n'
              'motor-to-motor variation', loc='left', fontsize=9.5)
 plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig07_kff_artefact.png'); plt.close()
 print('ok')
+
+# ============ ground-load feedforward, measured against the prediction =====
+def _steady_ratio(a, i):
+    tg, ac, pw = a[:,1+3*i], a[:,2+3*i], a[:,3+3*i]
+    d = np.abs(np.diff(tg, prepend=tg[0]))
+    sel = (np.abs(tg) > 0.6) & (d < 1e-6) & (np.abs(pw) > 5) & (np.abs(ac) > 0.3)
+    return np.median(np.abs(pw[sel]) / np.abs(ac[sel]))
+
+AIR = load(f'{REPO}/data/bench_logs/bench/run_20260805_140048.csv')
+GND = load(f'{REPO}/data/bench_logs/ground/run_20260806_152810.csv')
+air = [_steady_ratio(AIR, i) for i in range(4)]
+gnd = [_steady_ratio(GND, i) for i in range(4)]
+inc = [100*(g-a)/a for a, g in zip(air, gnd)]
+
+fig, (g1, g2) = plt.subplots(1, 2, figsize=(9.0, 3.4),
+                             gridspec_kw={'width_ratios':[1.25, 1]})
+xx = np.arange(4); wd = 0.36
+g1.bar(xx-wd/2, air, wd, color=C['light'], edgecolor='k', lw=0.5, label='wheels free (5 Aug)')
+g1.bar(xx+wd/2, gnd, wd, color=C['telemetry'], edgecolor='k', lw=0.5, label='on the floor (6 Aug)')
+for i in range(4):
+    g1.text(i-wd/2, air[i]+0.9, f'{air[i]:.1f}', ha='center', fontsize=7.6)
+    g1.text(i+wd/2, gnd[i]+0.9, f'{gnd[i]:.1f}', ha='center', fontsize=7.6)
+g1.set_xticks(xx); g1.set_xticklabels(MOT); g1.set_ylim(0, 70)
+g1.set_ylabel('steady-state PWM per rad/s')
+g1.legend(fontsize=7.6, loc='upper left')
+g1.set_title('(a) The same controller, unloaded and loaded', loc='left')
+
+g2.bar(xx, inc, 0.55, color=C['fixed'], edgecolor='k', lw=0.5)
+g2.axhspan(10, 30, color=C['command'], alpha=0.16, zorder=0)
+g2.text(-0.42, 35.0, 'the 10–30 % band predicted in\nPID_Calibration.md §7, before the run',
+        ha='left', fontsize=7.4, color='#7a3e00')
+for i, v in enumerate(inc):
+    g2.text(i, v+0.9, f'{v:+.1f} %', ha='center', fontsize=8)
+g2.set_xticks(xx); g2.set_xticklabels(MOT); g2.set_ylim(0, 42)
+g2.set_ylabel('increase under load (%)')
+g2.set_title('(b) The prediction, tested', loc='left')
+
+fig.suptitle('Ground-load feedforward, measured. The increase was predicted in advance '
+             'at 10–30 %;\nall four motors land inside that band, at a mean of '
+             f'{np.mean(inc):.0f} %.',
+             fontsize=9.5, y=1.05, x=0.02, ha='left')
+plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig10_ground_load.png'); plt.close()
+print('ground-load fig ok')

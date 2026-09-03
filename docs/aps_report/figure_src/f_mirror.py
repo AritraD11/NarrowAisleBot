@@ -79,5 +79,5 @@ fig.suptitle('The mirrored-scan fault, 11 Aug 2026. Bearings were defined empiri
              'how the robot\nactually drives, not assumed from the REP-103 convention; '
              'an earlier derivation that did assume it was 90° wrong.',
              fontsize=9.5, y=1.07, x=0.02, ha='left')
-plt.savefig(f'{FIGDIR}/fig14_lidar_mirror.png', bbox_inches='tight'); plt.close()
+plt.savefig(f'{FIGDIR}/fig13_lidar_mirror.png', bbox_inches='tight'); plt.close()
 print('ok')

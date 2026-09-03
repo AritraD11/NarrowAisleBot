@@ -3210,6 +3210,36 @@ The YDLIDAR X4 Pro is a **triangulation** scanner rated at **<2% of range**: 32 
 **What this session still did not establish.** Whether per-ray noise improved. p90 11.9 mm against §17.45's 22.8–24.5 mm is computed over rays valid in *every* scan — 42 of 277 at 347 scans — and a longer window keeps only the most stable rays, biasing it down. `scan_window_sweep.py` now reports noise per window alongside flicker, so this closes from the capture already saved rather than needing another drive. From here on, record `--seconds` with every `scan_quality.py` figure and no future comparison has this problem at all. **Stage G's drive still tests exactly what it was built to test — `use_scan_matching: false` and `max_laser_range: 5.0` — and none of that rests on the scan having got better.**
 
 
+## 17.54 3 Sep 2026 (16:24): the corrections stopped, exactly and completely — `run_20260903_162401`
+
+**`map→odom` did not move once. Not by 1 mm, across 2225 pose samples and 222 seconds of driving.**
+
+```
+corr_x    min / max :  +0.000000 / +0.000000
+corr_y    min / max :  +0.000000 / +0.000000
+corr_yaw  min / max :  +0.0000   / +0.0000
+correction events   :  0
+```
+
+The registered prediction was "corrections ≈ 0, the 0.175 m metronome stops". The measured answer is zero to six decimal places. Against the baseline this replaces — §17.49's Nav2 run: **9 corrections at 0.175 m ± 6 mm spacing, magnitudes 26–163 mm**; §17.42's commissioning drive: **48 correction events**, cumulative 2.80–2.86 m invariant across three parameter sets — this is not an improvement in degree. `use_scan_matching: false` removes the mechanism, and the mechanism was the entire observed fault.
+
+**What was actually driven, reconstructed from the pose CSV rather than from the operator's description.** Total rotation **−723.8° = 2.01 full turns**. Fitted circle centre **(+0.496, −0.004)**, radius **0.502 m with a 6 mm standard deviation** across both laps. Path length 6.42 m against 6.28 m predicted for two circles of r = 0.5 m. The odometry traced two half-metre circles and held the radius to six millimetres — the estimator is not the weak link anywhere in this stack.
+
+**Heading closure −3.85° after 723.8° of rotation = 0.53%.** For context, §17.42 measured 10.53° of drift over 18 m of mixed driving. Rotation is tracked well.
+
+**The estimate is optimistic against the floor, and by exactly the amount encoders cannot see.** Estimate closure **1.84 cm**; the operator's tape measure read approximately **−4, −3 cm and nose −3°** (units to be confirmed). Heading agrees closely (−3.85° estimate against −3° measured). Position does not: ~5 cm on the floor against 1.84 cm believed, a **~3 cm gap over 6.42 m = 0.47%**. That is mecanum roller slip, structurally invisible to wheel encoders, and it is the specific error an optical-flow ground sensor would catch. Well inside the 1.27% odometry spec; recorded because the *direction* matters — the robot always believes it did better than it did.
+
+**What this run does NOT establish, stated plainly so the result is not over-read.** It was **two tight circles at the mark, not a perimeter drive**. G4 is untouched: the map grades 75.4% unknown over a 10.15 × 9.95 m extent observed from essentially one position, which is a coverage figure, not a quality one, and is not comparable to the 82.9% from a full drive. §17.44 also established the tight circle as a *degenerate* geometry for scan matching, so this is close to the easiest case for the front end to have been switched out of. **The decisive claim is narrow and safe: the correction mechanism is gone. Whether the resulting map is geometrically true over a real route is the next run's question.**
+
+**A useful incidental confirmation:** the map extent of 10.15 × 9.95 m is almost exactly 2 × the deployed `max_laser_range: 5.0`, seen from one spot. The range cut is live and behaving.
+
+**Loop closure remains untested, and the reason is procedural.** `graph_residuals.py --watch` reported no message on `/slam_toolbox/graph_visualization` in 15 s — because it was started while the robot was parked and before any pose-graph nodes existed. The topic publishes only once the graph has content. **Start it after pressing MAP, not before.** The "does closure survive `use_scan_matching: false`" question is still HYPOTHESIS, supported only by the source read confirming `m_pLoopScanMatcher` and `m_pSequentialScanMatcher` are separate objects.
+
+**Two instrument notes, neither a hardware fault.** `run_report.py` flagged *"Diagonal mismatch is visible"* (FR-RL 1.091 against FL-RR 0.956). It is the circle geometry: FL and RL carried the drive (|target| 0.730 and 0.781 rad/s) while FR and RR sat at the pivot (0.044 and 0.014), because the instantaneous centre of rotation landed on the right-side wheels at r = 0.502 m against `K_OUTER` = 0.5607 m. **This is precisely the false positive §17.46 built a turn-context guard for in `run_analyzer.py`, and `run_report.py` never received that guard.** Separately, the report's `RR actualRows 1244` is a count of *non-zero* samples, not missing telemetry — all four motors reported all 4534 rows, verified against the raw CSV. No encoder problem.
+
+**The video could not be analysed and was not guessed at.** The only ffmpeg available in the analysis environment is Playwright's encoder-only build with no MP4 demuxer and no H.264 decoder. The pose CSV answered every question the video would have, more precisely.
+
+
 Every supporting document, organised by category. Update this as new artefacts are produced.
 
 > *Repository note (v2.0): the project's own authored documents now live as Markdown under `docs/` in the `NarrowAisleBot` GitHub repo, with the original `.docx`/`.pdf` in `docs/originals/`. The catalogue below predates that consolidation and lists documents by their original working titles; several are now the `docs/*.md` files. The repo is the current home of record.*

@@ -1,9 +1,22 @@
 # APS seminar deck
 
-The slide deck that accompanies `APS_Report_Draft.md`.
+The slide deck that accompanies `APS_Report_Draft.md`. It exists twice.
 
-**Canva design ID:** `DAHUKr3fhsk`
-**Title:** NarrowAisleBot — Annual Progress Seminar
+| | What it is |
+| --- | --- |
+| [`NarrowAisleBot_APS_Seminar.pptx`](NarrowAisleBot_APS_Seminar.pptx) | **The one to use.** 16 slides, every figure and the platform photograph already placed, speaker notes on every slide. Open in PowerPoint, Keynote or Slides. |
+| Canva design `DAHUKr3fhsk` | The same 16 slides with the image panels left empty, because Canva cannot ingest a file from a private repository. Keep it if you would rather edit in Canva and place the images by hand. |
+
+Both carry identical text and identical numbers.
+
+## The PowerPoint file
+
+Built by [`deck_src/build_deck.js`](deck_src/). Edit the `SLIDES` array there and
+rebuild; editing the `.pptx` directly is fine too, but then it is the master and
+the generator is stale. `deck_src/preview.py` renders the layout and fails on any
+text that would overflow its box.
+
+Fifteen generated figures and one photograph are embedded, 5.9 MB in total.
 
 Canva share links rotate on every access, so the design ID above is the stable
 handle. Open the deck from the Canva home page by its title, or ask for a fresh
@@ -55,16 +68,15 @@ Canva cannot pull these in automatically. Its only ingest path,
 this repository is private; publishing your files to make one is not an option
 worth taking for a drag-and-drop that costs ten minutes.
 
-## Editing the deck yourself
+## Editing the deck
 
-Two ways, both fully editable:
-
-- **In Canva.** Open the design and change anything — text, layout, images,
-  colours. This is the copy these notes describe, and the speaker notes live here.
-- **As PowerPoint.** Canva exports this design to `.pptx` (also PDF, PNG, JPG,
-  GIF, MP4). Share > Download > PowerPoint, then edit in PowerPoint or Slides.
-  The export is a snapshot: later edits in Canva do not flow into a downloaded
-  file, so re-export after changing anything.
+- **The `.pptx`** is a normal PowerPoint file. Edit it in PowerPoint, Keynote or
+  Google Slides. To change it from the generator instead, edit the `SLIDES`
+  array in `deck_src/build_deck.js` and re-run `node build_deck.js` — but note
+  that a rebuild overwrites the file, so do not mix the two on one copy.
+- **The Canva design** can be edited in Canva, and Canva also exports it to
+  `.pptx`, PDF, PNG, JPG, GIF and MP4. That export is a snapshot: later edits in
+  Canva do not reach a file you already downloaded.
 
 ## Speaker notes
 

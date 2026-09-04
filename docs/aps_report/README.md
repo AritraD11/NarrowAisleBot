@@ -11,7 +11,9 @@ the project record.
 | [`APS_Report_Draft.docx`](APS_Report_Draft.docx) | Built from the Markdown, all 28 figures embedded, table of contents included. Download and open. Regenerate it after every edit with the command below rather than editing it directly, or the two will diverge. |
 | [`figures/`](figures/) | 28 figures, PNG at 300 dpi, numbered to match the in-text figure numbers |
 | [`figure_src/`](figure_src/) | The scripts that generate every figure |
-| [`SEMINAR_DECK.md`](SEMINAR_DECK.md) | The Canva seminar deck: design ID, which figure belongs on which slide, and the numbers the deck shares with the report |
+| [`NarrowAisleBot_APS_Seminar.pptx`](NarrowAisleBot_APS_Seminar.pptx) | The seminar deck. 16 slides, figures and platform photograph placed, speaker notes on every slide. Built by `deck_src/build_deck.js`. |
+| [`deck_src/`](deck_src/) | The deck generator and its layout-overflow check |
+| [`SEMINAR_DECK.md`](SEMINAR_DECK.md) | How the deck is put together, which figure belongs on which slide, and the numbers the deck shares with the report |
 
 ## Editing conventions
 

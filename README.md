@@ -21,14 +21,25 @@ A Raspberry Pi 5 / ROS 2 Jazzy robot whose defining feature is a non-collinear, 
 
 ## Repository branches
 
+**Rewritten 3 Sep 2026** — the previous version of this table named branches
+(`claude/nab-hardware-calibration`, `claude/nab-raspi-ros`,
+`claude/narrowaislebot-prototype-arch-m9y94t`) that no longer exist and a
+PR (#4) that is closed, not open. It had gone stale silently; this is the
+actual state, confirmed against GitHub rather than remembered.
+
 | Branch | Scope | Status |
 |---|---|---|
-| `main` | Stable baseline | Default branch |
-| `claude/nab-hardware-calibration` | **Main NAB robot** — hardware, encoders, level shifter, PID/feedforward calibration, bench & ground tests, mechanical/electrical design ideas and models | Active |
-| `claude/nab-raspi-ros` | **Raspberry Pi + ROS2 exclusively** — `src/`, `system/`, SLAM/Nav2, teleop, dashboard, every Pi-side change | Active |
-| `claude/narrowaislebot-prototype-arch-m9y94t` | Historical — original mini-scale prototype architecture design, plus the full encoder/level-shifter debugging campaign and firmware v3.0 PID calibration that happened on it before the split above. Left as-is; has an open PR (#4). Mini prototype build itself is deferred, not the current priority. | Frozen — do not rename (breaks the open PR) |
+| `main` | Stable baseline — current through Stage G (§17.50–§17.57): `use_scan_matching: false` removes `map→odom` correction entirely, measured on two independent drives; the AMCL launch split; the live dashboard scan overlay | Default branch |
+| `claude/aps-report-draft-2nywbq` | The year-1 APS report draft, figures, and regeneration scripts — independent of the robot-control work above | Active, PR #12 open (draft) |
+| `claude/nab-charging-safety-hardware` | Cut fresh from `main` after the Stage G merge, for whichever comes first: scoring G4 with a real loop-closing perimeter drive, or building against `docs/Hardware_Roadmap.md` once parts arrive | Active |
 
-`claude/nab-hardware-calibration` and `claude/nab-raspi-ros` both branch from the same confirmed-working commit (firmware v3.0, all 4 encoders + level shifter verified, PID calibrated — see `docs/PID_Calibration.md` and `docs/Bench_Test_Map.md`). Use whichever matches the work: hardware/firmware/calibration on one, Pi/ROS on the other. Two dead branches (`claude/telemetry-and-mecanum-tools`, `claude/zen-volta-ev72sf` — both fully merged into `main` already, PRs #1–#3 all closed) are pending manual deletion in GitHub settings; this environment's git proxy blocks branch deletion.
+Three branches whose work is now fully in `main` —
+`claude/narrowaislebot-mapping-reliability-038ike`,
+`claude/narrowaislebot-goal-obstacle-avoidance-f2t3aa`,
+`claude/autonomous-vehicle-hardware-btgtga` — are pending manual deletion in
+GitHub settings; this environment's git proxy blocks branch deletion (the
+same limitation this note has described before, for a different pair of
+branches).
 
 ---
 
@@ -52,6 +63,7 @@ The full write-up lives in [`docs/`](docs/) — start at [`docs/README.md`](docs
 - [`docs/Master_Reference.md`](docs/Master_Reference.md) — hardware/wiring/firmware deep reference.
 - [`docs/LiDAR_SLAM_Bringup.md`](docs/LiDAR_SLAM_Bringup.md) — YDLIDAR X4 Pro + slam_toolbox bringup.
 - [`docs/Network_SelfHosted_AP.md`](docs/Network_SelfHosted_AP.md) — the Pi's self-hosted WiFi AP setup.
+- [`docs/Hardware_Roadmap.md`](docs/Hardware_Roadmap.md) — **planning only, nothing installed yet.** The collision ring, battery-percentage sensing, and autonomous charging docks argued out and researched, with reasoning and a suggested procurement order.
 - [`docs/originals/`](docs/originals/) — the source-of-record `.docx`/`.pdf` files the Markdown above was converted from.
 - [`docs/tools/`](docs/tools/) — standalone interactive HTML tools (telemetry analyzer, mecanum physics guide) — download and double-click to open, no server needed.
 

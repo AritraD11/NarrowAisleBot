@@ -7,7 +7,12 @@ The slide deck that accompanies `APS_Report_Draft.md`.
 
 Canva share links rotate on every access, so the design ID above is the stable
 handle. Open the deck from the Canva home page by its title, or ask for a fresh
-link. 16 slides, 16:9, white ground, one blue accent, no stock decoration.
+link. 16 slides, 16:9, white ground, one blue accent.
+
+**No stock imagery.** Canva's generator put one of its own stock robot renders on
+the title slide; it has been deleted. Every image that goes into this deck is a
+photograph taken of this robot or a figure generated from this project's own
+logs. Nothing is pulled from the internet.
 
 ## Why the generated text was replaced
 
@@ -16,8 +21,9 @@ utilization", "enhancing overall agility", "record time". It dropped every
 measured number and left its own template's placeholder contact slide
 (`hello@reallygreatsite.com`, `123-456-7890`). All sixteen slides were rewritten
 element by element against the report, the placeholder slide was replaced with a
-closing slide, and the decorative starburst was deleted from every page so the
-left column is free for a figure.
+closing slide, its stock robot photo was deleted from the title slide, and the
+decorative starburst was deleted from every page so the left column is free for
+a figure.
 
 ## Figures to place
 
@@ -27,7 +33,7 @@ written into each slide's speaker notes.
 
 | Slide | Heading | Figure |
 | --- | --- | --- |
-| 1 | NarrowAisleBot | `fig24_platform_photos.png` replaces the stock photo (optional) |
+| 1 | NarrowAisleBot | `docs/robot_photos/2026-08-11_occlusion_trial_cw/cw_000.jpg` — whole platform in three-quarter view, into the empty right panel |
 | 2 | The geometry, and why it is asymmetric | `fig01_asymmetric_geometry.png` |
 | 3 | What was built | `fig02_system_architecture.png` |
 | 4 | Control, in air and on floor | `fig08_v30_tracking.png` |
@@ -44,8 +50,21 @@ written into each slide's speaker notes.
 | 15 | Gaps, and years 2 to 4 | `fig28_roadmap.png` |
 | 16 | Thank you | `fig25_gantt.png` (optional, while taking questions) |
 
-Canva cannot pull these in automatically: `upload-asset-from-url` needs a public
-HTTPS URL and this repository is private. Uploading them by hand is a one-off.
+Canva cannot pull these in automatically. Its only ingest path,
+`upload-asset-from-url`, needs a file that is already on a public HTTPS URL, and
+this repository is private; publishing your files to make one is not an option
+worth taking for a drag-and-drop that costs ten minutes.
+
+## Editing the deck yourself
+
+Two ways, both fully editable:
+
+- **In Canva.** Open the design and change anything — text, layout, images,
+  colours. This is the copy these notes describe, and the speaker notes live here.
+- **As PowerPoint.** Canva exports this design to `.pptx` (also PDF, PNG, JPG,
+  GIF, MP4). Share > Download > PowerPoint, then edit in PowerPoint or Slides.
+  The export is a snapshot: later edits in Canva do not flow into a downloaded
+  file, so re-export after changing anything.
 
 ## Speaker notes
 

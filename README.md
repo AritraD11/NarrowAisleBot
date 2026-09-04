@@ -31,15 +31,17 @@ actual state, confirmed against GitHub rather than remembered.
 |---|---|---|
 | `main` | Stable baseline — current through Stage G (§17.50–§17.57): `use_scan_matching: false` removes `map→odom` correction entirely, measured on two independent drives; the AMCL launch split; the live dashboard scan overlay | Default branch |
 | `claude/aps-report-draft-2nywbq` | The year-1 APS report draft, figures, and regeneration scripts — independent of the robot-control work above | Active, PR #12 open (draft) |
-| `claude/nab-charging-safety-hardware` | Cut fresh from `main` after the Stage G merge, for whichever comes first: scoring G4 with a real loop-closing perimeter drive, or building against `docs/Hardware_Roadmap.md` once parts arrive | Active |
+| `claude/amr-and-slam` | **Reliability of the autonomous vehicle first.** Cut fresh from `main`, scoped to closing G4 with a real loop-closing perimeter drive and confirming whether loop closure fires at all under `use_scan_matching: false` (§17.56's open question). Charging/battery hardware is deliberately **not** this branch's job — it stays future work in `docs/Hardware_Roadmap.md` until the AMR itself is reliable enough to be worth docking automatically. | Active |
 
-Three branches whose work is now fully in `main` —
+Four branches whose work is now fully in `main` —
 `claude/narrowaislebot-mapping-reliability-038ike`,
 `claude/narrowaislebot-goal-obstacle-avoidance-f2t3aa`,
-`claude/autonomous-vehicle-hardware-btgtga` — are pending manual deletion in
-GitHub settings; this environment's git proxy blocks branch deletion (the
-same limitation this note has described before, for a different pair of
-branches).
+`claude/autonomous-vehicle-hardware-btgtga`,
+`claude/nab-charging-safety-hardware` (superseded by `claude/amr-and-slam`
+above before any work landed on it — zero unique commits, confirmed before
+listing it here) — are pending manual deletion in GitHub settings; this
+environment's git proxy blocks branch deletion (the same limitation this
+note has described before, for a different set of branches).
 
 ---
 

@@ -1,25 +1,46 @@
 # ══════════════════════════════════════════════════════════════════════
-# STAGE B VARIANT — anti-aliasing tuning. DO NOT DEPLOY UNTIL STAGE A SAYS SO.
+# STAGE G — 3 Sep 2026. Deployed as ~/ros2_ws/slam_nodom.yaml.
 #
-# This is system/slam_nodom.yaml with exactly THREE values changed. It exists
-# as a separate file so the §17.27 hardware-validated baseline stays intact
-# and the comparison stays attributable — §17.25 changed six parameters at
-# once and that is part of why its side effect took three sessions to find.
+# ⚠ DESTINATION FILENAME IS slam_nodom.yaml, NOT slam_nodom_stageB.yaml.
+# mapping_full.launch.py loads the former. Land it under the wrong name
+# and the old file keeps running, silently. This has bitten before.
 #
-# Apply ONLY if Stage A returns row 1 of the decision tree in
-# docs/Dashboard_Map_System.md §1: map->odom stepping 10-30 cm while
-# odom->base_link stays smooth. If BOTH step together the problem is
-# upstream (odometry/encoders) and this file is the wrong fix.
+# TWO values change from Stage F. Everything else is frozen on purpose.
 #
-#   1. loop_search_maximum_distance   5.0 -> 2.0
-#   2. loop_match_minimum_chain_size    5 -> 8
-#   3. max_laser_range               12.0 -> 10.0
+#   1. use_scan_matching   true -> false   (the estimator choice)
+#   2. max_laser_range     10.0 -> 5.0     (the precision cut)
 #
-# Deliberately NOT changed: loop_match_minimum_response_coarse/_fine stay at
-# 0.25/0.35. They are the parameters that fixed §17.25's total closure
-# failure, and raising them risks going straight back to 50 cm of
-# uncorrected drift. If the map STILL folds after this file, raise them to
-# 0.30/0.40 next — one step, not both at once.
+# WHY TWO AT ONCE, against the one-parameter-at-a-time rule that exists
+# because §17.25 changed six and paid for three sessions: with matching
+# OFF, none of the matcher's parameters are active, so there is no search
+# for the range cut to confound. #2 changes WHAT is drawn into the grid;
+# #1 changes WHERE it is drawn. They are separable in the analysis, and
+# one drive yields two independent results.
+#
+# DELIBERATELY NOT CHANGED, and each for a stated reason:
+#   correlation_search_space_dimension (0.3)  hardware-validated, and
+#       inactive while matching is off. Leave it so the A/B stays clean
+#       when matching is turned back on.
+#   coarse_search_angle_offset (0.175)        same.
+#   distance/angle_variance_penalty (0.7/1.2) yes, they rest on §17.21's
+#       now-false "odometry over-reports strafe by 25%" premise. But
+#       Stage E TESTED this lever (1.2 -> 0.6) and max correction got
+#       WORSE, 0.229 -> 0.366 m. A lever measured as unreliable is not
+#       one to pull while other things move.
+#   loop_match_minimum_response_* (0.25/0.35) the comment below says
+#       raise these if the map folds, and it has folded ~70 times. Fair.
+#       But a denser scan (6 Hz, +67% points) and a 5 m cap will change
+#       how a genuine revisit scores, in a direction not yet known.
+#       Change these AFTER seeing what the new input does.
+#   resolution (0.05)                         0.03 would suit a 250 mm
+#       chassis in narrow aisles, and costs CPU — the ranked-4 blocker.
+#       Next single-variable test, not this one.
+#
+# Stage F (use_scan_barycenter: false) is CARRIED FORWARD unscored. It
+# was run wrong and left AMBIGUOUS on purpose (docs/StageF_Ablation.md).
+# It stays false because that is what was deployed; this drive does not
+# score it either.
+# ══════════════════════════════════════════════════════════════════════
 # ══════════════════════════════════════════════════════════════════════
 # Verified working slam_toolbox config for the current (no external
 # odometry, scan-matching only) LiDAR mapping bringup — pulled directly
@@ -51,7 +72,54 @@ slam_toolbox:
     scan_topic: /scan_reliable
     mode: mapping
 
-    use_scan_matching: true
+    # ══ STAGE G, 3 Sep 2026: true -> false. THE HEADLINE CHANGE. ══
+    #
+    # This does not disable SLAM. It disables ONE step of it. When a scan
+    # arrives slam_toolbox does two things: (1) decide where the robot is
+    # by matching the scan against the map, then (2) draw the scan at that
+    # pose. This turns off (1). The pose comes straight from wheel
+    # odometry and the scan is stamped down there.
+    #
+    # WHY, in one table. Measured over the same 21.85 m drive (§17.42):
+    #
+    #     wheel odometry alone        0.229 m closure   (1.27%, on spec)
+    #     odometry + this front end   0.706 m closure
+    #     ------------------------------------------------
+    #     the front end costs         0.477 m
+    #
+    # The expensive estimator is 3x worse than the cheap one. Until the
+    # scan input is good enough for the matcher to add information rather
+    # than remove it, the correct engineering call is to use the
+    # instrument that measured better. This is not a workaround; it is
+    # picking the better of two measured estimators.
+    #
+    # Projected: on a ~10 m perimeter, odometry alone gives ~0.13 m —
+    # INSIDE G4's <0.15 m return gate, which five sessions of scan-matcher
+    # tuning have never reached (§17.44's 2.80/2.85/2.86 m invariance).
+    #
+    # WHAT SHOULD HAPPEN, written before the drive (standing rule #2):
+    #   - run_analyzer.py corrections drop to ~zero. The 0.175 m metronome
+    #     (§17.49, sd 0.006 m over n=9) stops.
+    #   - The dashboard trail becomes smooth. The spikes WERE the
+    #     corrections: SLAM path 5.63 m against a 3.20 m wheel path.
+    #   - Return to mark ~0.13 m on a 10 m perimeter.
+    #   - Doubled walls improve sharply. Wall doubling is what a pose jump
+    #     between two passes of the same wall LOOKS like.
+    #   - unknown% unchanged BY THIS PARAMETER (see max_laser_range below,
+    #     which does move it).
+    #   - Map cells still accumulate at the same rate: node creation is
+    #     gated upstream by minimum_travel_distance, not by matching.
+    #
+    # IF THE MAP STILL FOLDS WITH THIS OFF, that is the largest finding
+    # this project has produced. It would mean the front end was never the
+    # cause and five sessions of suspicion pointed the wrong way. Record
+    # it either way — that is what makes this test worth a drive.
+    #
+    # ⚠ VERIFY, DO NOT ASSUME: loop closure uses a SEPARATE matcher from
+    # the sequential one this parameter gates, so do_loop_closing below
+    # should still fire. Confirm against the INSTALLED source before
+    # citing it — tools/verify_live_config.sh runs this check for you.
+    use_scan_matching: false
     # STAGE F, one value, §17.49. true -> false.
     # With barycenter ON, karto measures node-to-node travel and seeds the
     # match from the CENTROID OF THE RETURNED POINTS rather than the sensor
@@ -79,7 +147,48 @@ slam_toolbox:
     # YDLIDAR X4 Pro's actual 10 m maximum. Telling the matcher to use
     # returns beyond the sensor's rated range feeds it noise as if it were
     # geometry.
-    max_laser_range: 10.0
+    # ══ STAGE G, 3 Sep 2026: 10.0 -> 5.0. THE PRECISION CUT. ══
+    # (Stage B's 12.0 -> 10.0 correctness fix is preserved below it; the
+    #  driver itself now publishes range_max: 10.0, so 10.0 here had
+    #  become a no-op.)
+    #
+    # This is a TRIANGULATION scanner, not time-of-flight. Its error grows
+    # with the SQUARE of distance, because the laser spot's displacement
+    # on the receiver shrinks as the target gets further away. That is
+    # geometry, not build quality, and no firmware fixes it:
+    #
+    #     at 1.6 m   ~  32 mm   (< 2% of range, the datasheet spec)
+    #     at 5   m   ~ 100 mm
+    #     at 10  m   ~ 200 mm  + 110 mm of angular quantisation
+    #
+    # Measured corrections are 26–163 mm (§17.49). The long rays carry
+    # error of the SAME ORDER as the fault being chased. They are also the
+    # rays most likely to flicker, because a weak return is the one that
+    # falls below the detection threshold on the next revolution.
+    #
+    # WHY 5.0 IS RIGHT *HERE* AND WOULD BE WRONG IN A WAREHOUSE. The
+    # measured MEDIAN scan range in this lab is 1.6 m (Stack Assessment
+    # §2). The workspace is a small cross-shaped room, a few metres
+    # across, cluttered, with 62 cm floor tiles. Half of every scan is
+    # already inside 1.6 m. A 5 m cap therefore discards a small tail
+    # here, and would discard most of the cloud in an open aisle.
+    #
+    # ⚠ THE COST, AND IT LANDS ON THE GATE WE ARE FURTHEST FROM. A ray
+    # that reaches nothing still CLEARS the space it passed through; that
+    # is how free space is painted. Cut the range and less free space is
+    # painted per scan, so unknown% RISES. Currently 82.9%; G4 wants
+    # < 50%. Three G4 criteria should improve and one should degrade:
+    #
+    #     not FOLDED              expect better
+    #     doubled walls < 1.0%    expect better
+    #     return to mark < 0.15   expect better
+    #     unknown < 50%           expect WORSE   <-- watch this one
+    #
+    # PRE-COMMITTED: if unknown% degrades more than the other three
+    # improve, this is the change to reverse — one line, back to 10.0,
+    # re-drive. The driver still publishes to 10 m precisely so that
+    # comparison stays available (see ydlidar_params.yaml).
+    max_laser_range: 5.0
     transform_publish_period: 0.02
     map_update_interval: 1.0
     # Interactive mode lets you drag pose-graph nodes by hand in rviz. We

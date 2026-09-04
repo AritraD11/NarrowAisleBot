@@ -105,6 +105,7 @@ from rclpy.qos import (QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile,
                        QoSReliabilityPolicy)
 from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import OccupancyGrid
+from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Empty, String, Float64MultiArray
 import tf2_ros
 from tf2_ros import TransformException
@@ -242,6 +243,7 @@ body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-directi
       <div class="layer-panel" id="layerPanel">
         <div class="layer-head"><div class="layer-title">VIEW SETTINGS</div><button class="layer-close" id="btnLayersClose">×</button></div>
         <label class="layer-row">Grid <input id="layer-grid" type="checkbox" checked></label>
+        <label class="layer-row">Live LiDAR scan <input id="layer-scan" type="checkbox" checked></label>
         <label class="layer-row">Scale bar <input id="layer-scale" type="checkbox" checked></label>
         <label class="layer-row">Trajectory &mdash; current <input id="layer-trajectory" type="checkbox"></label>
         <label class="layer-row">Trajectory &mdash; past runs <input id="layer-pastTrails" type="checkbox"></label>
@@ -296,6 +298,10 @@ let armInterval = null;
 const mapLayers = {
   grid: true,
   scale: true,
+  // Live LiDAR returns. ON by default, deliberately: this is the layer
+  // that shows the operator the scan instability §17.45 measured, and a
+  // diagnostic nobody switches on is a diagnostic nobody uses.
+  scan: true,
   trajectory: false,
   pastTrails: false,
   goals: true,
@@ -316,6 +322,91 @@ let trajectory = [];
 let pastTrails = [];
 let lastTrajectoryPose = null;
 let pathLength = 0;
+
+// PATH is accumulated from ODOMETRY, never from the map pose. A map delta
+// includes the map->odom rewrites, which are not motion: on
+// run_20260902_114339 the map path came to 5.915 m against 3.227 m actually
+// driven, so this card read 83% high with nothing on screen to say so.
+let lastOdomPose  = null;
+let haveOdomPath  = false;
+// Rewrites seen in the current run. Countable on purpose -- it is the
+// number that says how much of the trail is estimate rather than travel.
+let jumpCount     = 0;
+let lastCorr      = null;
+
+// Did slam_toolbox rewrite map->odom on this sample? Between rewrites the
+// map pose IS odometry, exactly; at one, the whole frame is redefined and
+// the drawn pose moves without the robot moving. Two runs on 2 Sep gave 17
+// rewrites each, 3.66 s apart, up to 0.198 m of apparent motion in a single
+// 0.1 s tick against 0.005 m of real travel.
+//
+// Compared with a tolerance, not for equality: the transform is resampled
+// every tick and arrives as floats. The thresholds -- 0.1 mm and ~0.0006 deg
+// -- sit far below the smallest real correction measured across those two
+// runs (translation 0.0466 m, heading 0.230 deg), so no genuine rewrite is
+// missed, and far above float resampling noise, so none is invented. cyaw
+// may be absent if the robot runs an older node, in which case this
+// degrades to translation-only detection rather than throwing.
+function corrChanged(m) {
+  if (m.cx === undefined) { lastCorr = null; return false; }
+  const prev = lastCorr;
+  lastCorr = { x: m.cx, y: m.cy, yaw: m.cyaw };
+  if (!prev) return false;
+  const dyaw = Math.abs((m.cyaw === undefined ? 0 : m.cyaw) -
+                        (prev.yaw === undefined ? 0 : prev.yaw));
+  return Math.abs(m.cx - prev.x) > 1e-4 ||
+         Math.abs(m.cy - prev.y) > 1e-4 ||
+         dyaw > 1e-5;
+}
+
+// One pose sample, applied. Lifted out of ws.onmessage so the trail rules
+// below can be driven directly by tools/tests/dashboard_goal_roundtrip.py:
+// a renderer fault that only reproduces through a live socket is a fault
+// nothing guards. ox/oy/cx/cy/cyaw are odom and map->odom (§17.49), spread
+// rather than listed so a missing transform leaves them undefined and the
+// DRIFT block hides itself instead of rendering NaN.
+function applyPose(m) {
+      robotPose = { x: m.x, y: m.y, yaw: m.yaw,
+                    ox: m.ox, oy: m.oy,
+                    cx: m.cx, cy: m.cy, cyaw: m.cyaw };
+
+      // Order matters: read the rewrite flag BEFORE anything else consumes
+      // the sample, because corrChanged() latches the correction it saw.
+      const jumped = corrChanged(m);
+
+      // Distance travelled is a wheel question. See lastOdomPose above.
+      if (m.ox !== undefined) {
+        if (lastOdomPose) {
+          pathLength += Math.hypot(m.ox - lastOdomPose.x, m.oy - lastOdomPose.y);
+        }
+        lastOdomPose = { x: m.ox, y: m.oy };
+        haveOdomPath = true;
+      }
+
+      // AFTER pathLength and jumpCount, not before: the card renders both,
+      // and drawing it first left PATH one sample stale -- 3.11 m against a
+      // measured 3.13 m in the guard below. Small, and exactly the kind of
+      // off-by-one a card nobody cross-checks keeps forever.
+      updateLivePoseCard();
+
+      if (lastTrajectoryPose) {
+        const d = Math.hypot(m.x - lastTrajectoryPose.x, m.y - lastTrajectoryPose.y);
+        // `|| jumped` so a rewrite is never dropped for being small: the
+        // break has to be recorded even when the frame barely moved, or the
+        // trail silently reconnects across it.
+        if (d >= 0.005 || jumped) {
+          trajectory.push({ x: m.x, y: m.y, brk: jumped });
+          if (jumped) jumpCount++;
+          if (trajectory.length > MAX_TRAIL_PTS) trajectory.shift();
+          lastTrajectoryPose = { x: m.x, y: m.y };
+        }
+      } else {
+        trajectory.push({ x: m.x, y: m.y, brk: false });
+        lastTrajectoryPose = { x: m.x, y: m.y };
+      }
+      if (mapFollow) { camX = m.x; camY = m.y; }
+      if (mapView) drawMap();
+}
 
 // GOALS. goalDrag is transient (only while placing). activeGoal is the one
 // actually SENT and survives the release, because "where did I tell it to
@@ -341,11 +432,13 @@ function startNewTrail() {
   trajectory = [];
   lastTrajectoryPose = null;
   pathLength = 0;
+  lastOdomPose = null; haveOdomPath = false; jumpCount = 0; lastCorr = null;
 }
 
 function clearAllTrails() {
   trajectory = []; pastTrails = [];
   lastTrajectoryPose = null; pathLength = 0;
+  lastOdomPose = null; haveOdomPath = false; jumpCount = 0; lastCorr = null;
   activeGoal = null; pastGoals = [];
   if (mapView) drawMap();
 }
@@ -365,7 +458,9 @@ function updateLivePoseCard() {
   if (y) y.textContent = robotPose.y.toFixed(3) + ' m';
   const noseDeg = ((robotPose.yaw * 180 / Math.PI + 180) % 360 + 360) % 360 - 180;
   if (n) n.textContent = noseDeg.toFixed(1) + '°';
-  if (d) d.textContent = pathLength.toFixed(2) + ' m';
+  // Em dash, not 0.00, when there is no odom transform to measure with.
+  // A confident zero would be a claim we cannot make.
+  if (d) d.textContent = haveOdomPath ? (pathLength.toFixed(2) + ' m') : '\u2014';
   const dr = document.getElementById('liveDrift');
   if (dr) {
     if (robotPose.cx === undefined) { dr.textContent = '—'; dr.className = 'v'; }
@@ -475,26 +570,11 @@ function connect() {
       clearTimeout(noticeTimer);
       noticeTimer = setTimeout(() => goalHint(defaultHint(), false), 4000);
     } else if (m.type === 'pose') {
-      // ox/oy/cx/cy are odom and map->odom (§17.49). Spread rather than
-      // listed so a missing transform simply leaves them undefined and the
-      // DRIFT block hides itself, instead of rendering NaN.
-      robotPose = { x: m.x, y: m.y, yaw: m.yaw,
-                    ox: m.ox, oy: m.oy, cx: m.cx, cy: m.cy };
-      updateLivePoseCard();
-      if (lastTrajectoryPose) {
-        const d = Math.hypot(m.x - lastTrajectoryPose.x, m.y - lastTrajectoryPose.y);
-        if (d >= 0.005) {
-          pathLength += d;
-          trajectory.push({ x: m.x, y: m.y });
-          if (trajectory.length > MAX_TRAIL_PTS) trajectory.shift();
-          lastTrajectoryPose = { x: m.x, y: m.y };
-        }
-      } else {
-        trajectory.push({ x: m.x, y: m.y });
-        lastTrajectoryPose = { x: m.x, y: m.y };
-      }
-      if (mapFollow) { camX = m.x; camY = m.y; }
-      if (mapView) drawMap();
+      applyPose(m);
+    } else if (m.type === 'scan') {
+      liveScan = m;
+      scanStamp = performance.now();
+      if (mapView && mapLayers.scan) drawMap();
     } else if (m.type === 'map') {
       ingestMap(m);
       if (mapView) drawMap();
@@ -1262,6 +1342,10 @@ function drawMap() {
 
   if (mapLayers.grid) drawGrid();
   if (mapLayers.axes) drawAxes();
+  // Above the occupancy grid (it is the live truth the grid is built from)
+  // but below every trail, goal and the footprint, which are commands and
+  // history and must stay readable on top of it.
+  if (mapLayers.scan) drawScan();
   // Past first, so the live trail always draws on top of the clutter.
   if (mapLayers.pastTrails) drawPastTrails();
   if (mapLayers.trajectory) drawTrajectory();
@@ -1461,13 +1545,23 @@ function drawZeroMark() {
   drawUpright('ZERO (0,0)', o.x + 10, o.y + 4, 'left');
 }
 
+// A point carrying brk was sampled on the tick slam_toolbox rewrote
+// map->odom. The segment leading up to it is a line the robot never
+// travelled, in any frame -- the frame moved underneath a stationary robot
+// -- so lift the pen across it rather than drawing motion that did not
+// happen. Drawing it was the same class of fault as the 90 deg goal arrow
+// in 17.49: the picture agreed with the number and both misdescribed what
+// the robot did. With the pen lifted, run_20260902_114339 reads as 18 arcs
+// of one circle, displaced from each other, which is what it was.
 function strokePolyline(pts) {
   if (pts.length < 2) return;
   mctx.beginPath();
-  pts.forEach((p, i) => {
+  let pen = false;
+  for (const p of pts) {
     const q = w2s(p.x, p.y);
-    if (i === 0) mctx.moveTo(q.x, q.y); else mctx.lineTo(q.x, q.y);
-  });
+    if (!pen || p.brk) { mctx.moveTo(q.x, q.y); pen = true; }
+    else mctx.lineTo(q.x, q.y);
+  }
   mctx.stroke();
 }
 
@@ -1476,6 +1570,17 @@ function drawTrajectory() {
   mctx.strokeStyle = 'rgba(22, 119, 255, 0.68)';
   mctx.lineWidth = 2.5;
   strokePolyline(trajectory);
+
+  // One hollow tick where each rewrite landed. The gap beside it is how far
+  // the ESTIMATE moved while the robot did not, and making that countable
+  // by eye is the entire point of the break.
+  mctx.strokeStyle = 'rgba(217, 89, 38, 0.85)';
+  mctx.lineWidth = 1.4;
+  for (const p of trajectory) {
+    if (!p.brk) continue;
+    const q = w2s(p.x, p.y);
+    mctx.beginPath(); mctx.arc(q.x, q.y, 3, 0, Math.PI * 2); mctx.stroke();
+  }
 
   const start = w2s(trajectory[0].x, trajectory[0].y);
   mctx.fillStyle = '#12b76a';
@@ -1498,6 +1603,68 @@ function drawPastTrails() {
 
 // Goal markers. The active goal is the one currently commanded; past goals
 // are drawn hollow and faint so a sequence reads as a sequence.
+// ── LIVE LiDAR SCAN (§17.50) ──────────────────────────────────────────
+// Drawn in the ROBOT's current frame, not a frame cached with the scan.
+// Pose arrives at 10 Hz and scan at 5 Hz, so binding the dots to whatever
+// pose is current at DRAW time keeps them welded to the footprint instead
+// of trailing half a pose-update behind it while driving.
+//
+// THE TRANSFORM IS DELIBERATELY THE SAME ONE drawRobot() USES. Body coords
+// go (bx*c - by*s, bx*s + by*c) about robotPose, with base_link's
+// non-REP-103 convention: +X is the robot's RIGHT, +Y is its NOSE
+// (§17.10). Bearing 0 in the corrected /scan_reliable frame points along
+// +X and +90 deg along +Y (§17.15's convention), so a beam lands at
+// (r*cos, r*sin) in base_link before the laser's own offset is added.
+// Anything that changes drawRobot()'s rotation must change this too, and
+// the shared convention is why they cannot silently disagree.
+let liveScan = null;
+let scanStamp = 0;
+
+// laser_frame origin in base_link, tape-measured (§17.12): 0.27 m forward
+// along the NOSE axis, on the centreline to within ~0.5 cm. Matches
+// aislebot.urdf's laser_joint xyz="0 0.27 0.275". If the mount ever moves,
+// this and the URDF change together or the dots sit off the walls.
+const LASER_BX = 0.00, LASER_BY = 0.27;
+
+function drawScan() {
+  if (!liveScan || !robotPose) return;
+  // A frozen scan is worse than no scan: §17.25 had /scan and slam_toolbox
+  // stop publishing together while Nav2 kept driving, and the last good
+  // sweep sat on screen looking authoritative. Stop drawing after 1.5 s.
+  if (performance.now() - scanStamp > 1500) return;
+
+  const c = Math.cos(robotPose.yaw), s = Math.sin(robotPose.yaw);
+  const r = liveScan.r, a0 = liveScan.angle_min, da = liveScan.angle_inc;
+  const trust = liveScan.trust || 1e9;
+  const dot = Math.max(1.1, Math.min(2.6, camScale * 0.012));
+
+  // Two passes so the discarded returns never paint over the trusted ones.
+  for (let pass = 0; pass < 2; pass++) {
+    mctx.beginPath();
+    for (let i = 0; i < r.length; i++) {
+      const d = r[i];
+      // null = masked rear wedge, or out of the sensor's own range. Both
+      // mean "no information", and neither may be drawn as a hit.
+      if (d === null) continue;
+      const beyond = d > trust;
+      if (beyond !== (pass === 0)) continue;
+      const th = a0 + i * da;
+      const bx = LASER_BX + d * Math.cos(th);
+      const by = LASER_BY + d * Math.sin(th);
+      const pt = w2s(robotPose.x + bx * c - by * s,
+                     robotPose.y + bx * s + by * c);
+      mctx.moveTo(pt.x + dot, pt.y);
+      mctx.arc(pt.x, pt.y, dot, 0, 6.2832);
+    }
+    // Pass 0 = beyond max_laser_range: published by the driver, THROWN AWAY
+    // by slam_toolbox. Faint, so the cost of the 5 m precision cut is
+    // visible on screen rather than taken on trust.
+    // Pass 1 = what SLAM and the costmaps actually consume.
+    mctx.fillStyle = pass === 0 ? 'rgba(120,130,140,.30)' : 'rgba(232,42,42,.85)';
+    mctx.fill();
+  }
+}
+
 function drawGoalMarker(g, active) {
   const a = w2s(g.wx, g.wy);
   mctx.strokeStyle = active ? '#f79009' : 'rgba(247, 144, 9, 0.32)';
@@ -1607,8 +1774,44 @@ function updateHud() {
       <div class="hud-grid">
         <span>ODOM</span><strong>${robotPose.ox.toFixed(3)}, ${robotPose.oy.toFixed(3)}</strong>
         <span>DRIFT</span><strong class="${cls}">${c.toFixed(3)} m</strong>
+        <span>JUMPS</span><strong>${jumpCount}</strong>
       </div>
       <div class="hud-muted">map−odom ${robotPose.cx.toFixed(3)}, ${robotPose.cy.toFixed(3)}</div>`;
+    }
+    // SCAN block (§17.50). The two numbers §17.45 had to recover offline
+    // from a recording, shown live while driving. VALID is the fraction of
+    // rays returning anything at all (measured 47.4% parked). FLICKER is
+    // the fraction that changed valid<->invalid since the previous sweep
+    // (measured 74.8-78% parked, i.e. with nothing moving).
+    //
+    // Park on the mark and watch FLICKER for sixty seconds: that number,
+    // on a stationary robot, is the project's primary suspect for why
+    // every map folds, and it is now readable without a post-hoc script.
+    // These are DIAGNOSTICS. Nothing here feeds a publisher.
+    let scanLine = '';
+    if (liveScan) {
+      // Denominator is LIVE beams, not total. The ~107-beam rear wedge is
+      // NaN by design (§17.15) and can never be valid, so counting it makes
+      // every percentage look worse than the sensor is. 215 of 430 reads as
+      // 50%; the honest figure is 215 of 323 = 67%.
+      const live = Math.max(1, liveScan.live ?? liveScan.total);
+      const vPct = 100 * liveScan.valid / live;
+      const cPct = liveScan.churn == null ? null : 100 * liveScan.churn;
+      // Operator thresholds, not specs.
+      const vCls = vPct < 50 ? 'drift-bad' : 'drift-ok';
+      const cCls = (cPct !== null && cPct > 35) ? 'drift-bad' : 'drift-ok';
+      // CHURN, never "flicker". scan_quality.py's flicker_pct is a windowed
+      // cumulative metric over rays-ever-valid; this is a per-sweep rate
+      // over live beams. Different denominators, different windows, not
+      // comparable — §17.45's 74.8-78% must NOT be read against this.
+      scanLine = `
+      <div class="hud-sep"></div>
+      <div class="hud-grid">
+        <span>VALID</span><strong class="${vCls}">${vPct.toFixed(0)}% of ${live}</strong>
+        <span>CHURN</span><strong class="${cCls}">${cPct === null ? '—' : cPct.toFixed(0) + '%/sweep'}</strong>
+      </div>
+      <div class="hud-muted">${liveScan.masked ?? 0} masked (rear wedge) · grey = past ${Number(liveScan.trust ?? 0).toFixed(1)} m</div>
+      <div class="hud-muted">CHURN ≠ scan_quality flicker — different metric</div>`;
     }
     hud.innerHTML = `
       <div class="hud-title">ROBOT POSE · MAP FRAME</div>
@@ -1616,7 +1819,7 @@ function updateHud() {
         <span>X</span><strong>${robotPose.x.toFixed(3)} m</strong>
         <span>Y</span><strong>${robotPose.y.toFixed(3)} m</strong>
         <span>NOSE</span><strong>${noseDeg.toFixed(1)}°</strong>
-      </div>${drift}`;
+      </div>${drift}${scanLine}`;
     if (status) status.textContent = mapGrid ? `${mapGrid.w} × ${mapGrid.h} · ${mapGrid.res.toFixed(2)} m/cell` : 'MAP GRID WAITING';
   } else {
     hud.innerHTML = '<div class="hud-title">ROBOT POSE</div><div class="hud-muted">NO POSE (map → base_link)</div>';
@@ -1966,6 +2169,41 @@ class PhoneDashboard(Node):
         )
         self.create_subscription(OccupancyGrid, '/map', self._map_callback, map_qos)
 
+        # ── LIVE SCAN (§17.50) ────────────────────────────────────────
+        # /scan_reliable, NOT /scan. Same QoS reasoning as everywhere else
+        # in this stack: the driver publishes BEST_EFFORT and every
+        # consumer here subscribes RELIABLE, which is the mismatch that
+        # made slam_toolbox hang forever on "Waiting for laser_scans"
+        # (§13.4). scan_relay.py already republishes RELIABLE, with the
+        # mirror/yaw correction (§17.9) and the rear-wedge NaN mask
+        # (§17.15) applied. Subscribing here means the dashboard shows
+        # EXACTLY what SLAM and the costmaps are fed — including the mask,
+        # which is the honest thing to display.
+        self.declare_parameter('scan_max_points', 240)
+        # ⚠ MUST TRACK slam_nodom.yaml's max_laser_range. This is the
+        # red/grey split on the map: red is what slam_toolbox consumes, grey
+        # is what it discards. If the two drift apart the picture lies about
+        # which returns are being used, which is worse than not drawing them
+        # at all. tools/tests/dashboard_scan_geometry.py fails when they
+        # disagree, so the drift cannot go unnoticed.
+        self.declare_parameter('scan_trust_range', 5.0)
+        self.declare_parameter('scan_publish_hz', 5.0)
+        self.scan_max_points  = int(self.get_parameter('scan_max_points').value)
+        self.scan_trust_range = float(self.get_parameter('scan_trust_range').value)
+        # The broadcast loop ticks at 10 Hz, so the scan goes out every Nth
+        # tick. Computed here rather than hardcoded in the loop: a declared
+        # parameter that nothing reads is worse than no parameter, because it
+        # reads as a working knob and silently is not one. That is the §17.32
+        # failure in miniature.
+        _hz = max(0.5, float(self.get_parameter('scan_publish_hz').value))
+        self.scan_tick_divisor = max(1, round(10.0 / _hz))
+
+        self.create_subscription(LaserScan, '/scan_reliable',
+                                 self._scan_callback, 10)
+        self.latest_scan: Optional[dict] = None
+        # Previous scan's validity mask, for the live flicker metric below.
+        self._prev_valid: Optional[list] = None
+
         # Written by ROS callbacks, read by the FastAPI broadcast task. Whole
         # objects are replaced rather than mutated, so a reader either sees the
         # old dict or the new one and never a half-updated one — no lock
@@ -2007,6 +2245,112 @@ class PhoneDashboard(Node):
         self.cmd_vel_pub.publish(msg)
 
     # ── Map / pose streaming ──────────────────────────────────────
+
+    def _scan_callback(self, msg: LaserScan):
+        """Decimate one LaserScan for the browser, and measure it live.
+
+        TWO JOBS, and the second is the reason this exists.
+
+        1. RENDER. Send bearings implicitly (angle_min + i*angle_inc) and
+           one range per beam, rather than x/y pairs — half the bytes for
+           identical information, which is how Foxglove does it too. The
+           browser owns the trigonometry, using the same yawToVec/rotation
+           the footprint already uses, so the dots and the robot outline
+           can never drift apart.
+
+        2. MEASURE. §17.45 established the central fact of this whole
+           investigation offline, after the fact, from a recording:
+           74.8-78% of rays flip valid/invalid between consecutive scans
+           WITH THE ROBOT STATIONARY, and only 47.4% are valid at all.
+           That number has never been visible while driving. It is two
+           integers and one comparison against the previous mask, so it
+           costs nothing to compute here and it turns the project's
+           primary suspect into something the operator can watch happen.
+
+        NaN is deliberate, not a fault: scan_relay.py masks the 90 deg
+        rear wedge behind the mast to NaN so those beams neither mark nor
+        clear (§17.15). JSON cannot carry NaN, so they go out as null and
+        the browser skips them. Sending 0.0 instead would paint a phantom
+        obstacle ring at the robot's own origin.
+        """
+        rng = msg.ranges
+        n = len(rng)
+        if n == 0:
+            return
+
+        rmin, rmax = msg.range_min, msg.range_max
+
+        # THREE states, not two, and conflating the last two is how the
+        # first version of this got its denominator wrong:
+        #   MASKED       NaN, written by scan_relay.py over the 90 deg rear
+        #                wedge (§17.15). Structurally blind. ~107 of 430
+        #                beams. Can NEVER be valid, so counting them in a
+        #                denominator silently deflates every percentage.
+        #   NO RETURN    a real beam that got nothing back — out of range,
+        #                too dark, too oblique. This is sensor performance.
+        #   VALID        a usable distance.
+        valid = [False] * n
+        masked = [False] * n
+        n_valid = 0
+        n_masked = 0
+        for i in range(n):
+            r = rng[i]
+            if r != r:                      # NaN: masked, not a failure
+                masked[i] = True
+                n_masked += 1
+            elif rmin <= r <= rmax:
+                valid[i] = True
+                n_valid += 1
+
+        # CHURN, deliberately NOT called flicker. tools/scan_quality.py's
+        # `flicker_pct` is a DIFFERENT measurement and the two must never be
+        # compared:
+        #   scan_quality  (ever_valid - always_valid) / ever_valid, over a
+        #                 whole capture window. "Of rays that ever returned,
+        #                 how many were not PERFECTLY consistent?" A ray that
+        #                 drops out once in 200 scans scores as flickering.
+        #   churn (here)  beams that changed state since the PREVIOUS sweep,
+        #                 over beams that could have returned. An
+        #                 instantaneous rate, not a cumulative one.
+        # A windowed metric is mechanically far larger than a per-pair one,
+        # so §17.45's 74.8-78% and this number are not the same quantity and
+        # a difference between them is not an improvement. Measured 3 Sep:
+        # 17% churn against a 76% windowed flicker, which says nothing about
+        # whether the sensor got better.
+        n_live = n - n_masked
+        churn = None
+        if self._prev_valid is not None and len(self._prev_valid) == n:
+            flips = 0
+            prev = self._prev_valid
+            for i in range(n):
+                if not masked[i] and valid[i] != prev[i]:
+                    flips += 1
+            churn = flips / max(1, n_live)
+        self._prev_valid = valid
+
+        # Keep every step-th beam. The browser draws a few hundred dots
+        # comfortably; a phone redrawing 833 of them at 5 Hz does not.
+        step = max(1, -(-n // max(1, self.scan_max_points)))   # ceil-div
+        pts = []
+        for i in range(0, n, step):
+            r = rng[i]
+            pts.append(round(r, 3) if valid[i] else None)
+
+        self.latest_scan = {
+            'angle_min': round(msg.angle_min, 6),
+            'angle_inc': round(msg.angle_increment * step, 8),
+            'r':         pts,
+            # Everything past this is published by the driver but DISCARDED
+            # by slam_toolbox (max_laser_range). Drawn faint rather than
+            # hidden, so the operator can see what the precision cut costs
+            # instead of taking it on trust.
+            'trust':     self.scan_trust_range,
+            'valid':     n_valid,
+            'total':     n,
+            'live':      n_live,     # beams that are not structurally masked
+            'masked':    n_masked,
+            'churn':     None if churn is None else round(churn, 4),
+        }
 
     def _map_callback(self, msg: OccupancyGrid):
         """Cache /map as a base64 blob the browser can render directly.
@@ -2093,6 +2437,12 @@ class PhoneDashboard(Node):
             if corr is not None:
                 self.latest_pose['cx'] = corr[0]
                 self.latest_pose['cy'] = corr[1]
+                # The YAW of the correction too, because a rewrite that turns
+                # the frame without shifting it still teleports the drawn
+                # pose: on run_20260902_114339 corr_yaw swung to -26.28 deg,
+                # which about a half-metre lever arm is ~0.23 m of apparent
+                # motion on its own. The trail break needs all three.
+                self.latest_pose['cyaw'] = corr[2]
 
         if self._pose_csv_writer is None:
             return
@@ -2667,9 +3017,17 @@ async def _broadcast_loop():
         if _node.latest_pose:
             payloads.append({'type': 'pose', **_node.latest_pose})
 
+        # Scan at 5 Hz, every second tick. The LiDAR runs 6 Hz, so this is
+        # already near its native rate; sending faster would just resend
+        # the same sweep. ~240 nulls-or-floats is a couple of KB per frame,
+        # which is nothing next to the map, and it is dropped entirely when
+        # nobody is looking at the map view.
+        tick += 1
+        if tick % _node.scan_tick_divisor == 0 and _node.latest_scan:
+            payloads.append({'type': 'scan', **_node.latest_scan})
+
         # The map is large and changes slowly (map_update_interval: 1.0), so
         # it goes at 1 Hz AND only when it actually changed.
-        tick += 1
         if tick % 10 == 0 and _node.map_dirty and _node.latest_map:
             payloads.append({'type': 'map', **_node.latest_map})
             _node.map_dirty = False

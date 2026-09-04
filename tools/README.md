@@ -395,3 +395,59 @@ This is the standing workflow now: every CSV that comes off the Pi gets
 run through this and committed alongside its analysis, on
 `claude/nab-hardware-calibration`. See `data/bench_logs/README.md` for
 the index of everything analyzed so far.
+
+
+---
+
+## `verify_live_config.sh` — is the robot running what the repo says?
+
+```bash
+bash ~/tools/verify_live_config.sh
+```
+
+§17.32 is why this exists. `slam_nodom.yaml` was committed on 19 Aug and
+never reached the Pi; three days of drives, and every conclusion drawn from
+them, ran on slam_toolbox stock defaults while the journal described a
+tuned config. The reasoning was sound and it was applied to parameters that
+were never active.
+
+**A value in the repo is not a value on the robot.**
+
+Every check asks a live node, never a file. It also measures two things no
+file can answer:
+
+- **Whether the hardware honoured `frequency: 6.0`.** `support_motor_dtr`
+  is false, so the driver may not command the LiDAR's motor at all and the
+  request can be ignored in silence. If the scan reads ~10 Hz, the density
+  gain never happened and every prediction resting on 833 points is void.
+- **How many beams a scan actually carries.** `Stack_Assessment` §3A
+  computes 5000/f = 833; `README.md` says ~1258 at ~11.5 Hz, implying
+  ~14.5 kHz. Both cannot be right, and this settles it in ten seconds.
+
+Exits non-zero on any mismatch. Run it after every deploy, before the first
+metre of driving.
+
+## `tests/dashboard_scan_geometry.py` — do the LiDAR dots land where the laser points?
+
+```bash
+python3 tools/tests/dashboard_scan_geometry.py     # repo root, needs playwright
+```
+
+25 checks. §17.49 is the precedent: click-to-goal *position* was exact to
+1e-6 for weeks while every dragged *heading* went out 90° wrong, because
+two renderers on one canvas measured yaw from different axes and the
+picture agreed with the wrong one.
+
+A scan overlay is that hazard with more dots. `base_link` is not REP-103
+here (+X right, +Y nose), the corrected scan frame measures bearing 0 along
++X, and the laser sits 0.27 m forward of `base_link`. Get any one wrong and
+the dots still form a plausible room outline, just rotated or offset, and
+nobody can tell by eye.
+
+So it does not check that dots appear. It checks that `drawScan()` agrees
+with `yawToVec()`/`drawRobot()` — renderers already validated against
+hardware — for beams whose answer is known by construction, and that the
+dashboard's laser offset still matches `aislebot.urdf`'s `laser_joint`.
+
+Run after any change to `drawScan`, `LASER_BX/BY`, `yawToVec`/`vecToYaw`,
+`w2s`/`s2w`, `_scan_callback`, or the URDF's `laser_joint`.

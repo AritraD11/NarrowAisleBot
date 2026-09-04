@@ -1,3 +1,13 @@
+# ══════════════════════════════════════════════════════════════════════
+# YDLIDAR X4 Pro driver parameters — confirmed working, byte-verified
+# against the Pi's copy on 24 Aug 2026 (§17.33).
+#
+# ⚠ THE NESTING IS LOAD-BEARING. A previous revision of this file was
+# committed flat, with no `ros__parameters:` key. That binds NOTHING in
+# ROS 2 — the node silently falls back to its compiled defaults and the
+# scan quietly runs at the wrong rate. install.sh:220 would have
+# overwritten the working copy with it. Caught in §17.33 before it fired.
+# ══════════════════════════════════════════════════════════════════════
 ydlidar_ros2_driver_node:
   ros__parameters:
     port: /dev/ydlidar
@@ -18,8 +28,85 @@ ydlidar_ros2_driver_node:
     support_motor_dtr: false
     angle_max: 180.0
     angle_min: -180.0
-    range_max: 12.0
+
+    # ── RANGE ─────────────────────────────────────────────────────────
+    # 12.0 -> 10.0, 3 Sep 2026. A CORRECTNESS FIX, not a tuning choice,
+    # and an Appendix B item open since §17.6.
+    #
+    # 12.0 was inherited from the originally-planned RPLiDAR A1 and was
+    # never revised when the X4 Pro was fitted. The X4 Pro is rated
+    # 0.12–10 m. Everything the driver reported between 10 and 12 m was
+    # not a measurement; it was noise carrying a number, published into
+    # /scan_reliable, and therefore counted in scan_quality.py's
+    # valid/flicker statistics (§17.45's 47.4% valid, 74.8–78% flicker).
+    #
+    # ⚠ THIS IS DELIBERATELY *NOT* 5.0, even though slam_toolbox is now
+    # capped at 5.0 (system/slam_nodom_stageB.yaml). The two parameters
+    # answer different questions:
+    #
+    #     range_max        = what the SENSOR can do    -> hardware fact
+    #     max_laser_range  = what SLAM chooses to use  -> policy
+    #
+    # Capping here would push the 5 m decision onto every consumer at
+    # once — costmaps, collision_monitor, scan_quality.py — and would
+    # destroy the data before anything could measure what the cut cost.
+    # Keeping the driver honest at 10 m means the SLAM cap can be raised
+    # back to 10.0 in ONE line and the same drive re-run for a clean A/B.
+    # Cap policy at the consumer. Never edit the spec sheet to record a
+    # decision.
+    range_max: 10.0
     range_min: 0.1
-    frequency: 10.0
+
+    # ── SCAN RATE ─────────────────────────────────────────────────────
+    # 10.0 -> 6.0, 3 Sep 2026. Operator's call, taken against a
+    # recommendation of 7.0; the reasoning for both is recorded so the
+    # decision can be revisited on evidence rather than re-argued.
+    #
+    # Points per revolution = sample_rate / frequency = 5000 / f:
+    #
+    #     10.0 Hz (was)      500 pts    ~237 valid @ 47.4%   0.72 deg
+    #      7.0 Hz            714 pts    ~338 valid           0.50 deg
+    #      6.0 Hz (now)      833 pts    ~395 valid           0.43 deg
+    #
+    # +67% angular density for free. This is the single largest
+    # improvement available to the scan input and it costs nothing.
+    # The matcher's problem (§17.44: correction total invariant to 2%
+    # across three parameter sets) is that it is handed a different point
+    # cloud every scan. A denser cloud is a more stable cloud.
+    #
+    # COST 1, motion skew. One revolution takes 167 ms instead of 100 ms,
+    # so at 0.12 m/s the robot travels 20 mm mid-sweep instead of 12 mm.
+    # Against measured corrections of 150–370 mm this is not material.
+    #
+    # COST 2, safety latency. collision_monitor now gets a fresh scan
+    # every 167 ms. At the 0.08 m/s Nav2 cap that is 5 mm of extra travel
+    # before it can react. local_costmap runs update_frequency: 5.0, so
+    # 6 Hz still feeds it faster than it consumes. The obstacle layer has
+    # NO expected_update_rate set (checked, nav2_params.yaml), so the
+    # lower rate cannot trigger a stale-sensor stand-down.
+    #
+    # ⚠ MEASURED 3 Sep 2026, first deploy: THIS PARAMETER HAS NO EFFECT ON
+    # THIS UNIT. support_motor_dtr: false means the driver never commands
+    # the motor; the head free-runs at its own native speed regardless of
+    # what is written here. Measured: 11.35 Hz, deviation ~8 ms on an
+    # ~88 ms period (<10%) — STABLE, just not requested. Neither the
+    # operator's 6.0 nor the 7.0 recommended alongside it could ever have
+    # taken effect; the whole "reduce frequency for more points" lever
+    # does not exist on this hardware without motor control, which
+    # support_motor_dtr would need to be true to attempt — untried, and a
+    # separate, riskier change (motor start/stop behaviour on this exact
+    # unit is unknown), not folded into this session.
+    #
+    # LEFT AT 6.0 rather than reverted to 10.0: it is inert either way, and
+    # changing an inert value teaches nothing. tools/verify_live_config.sh
+    # reads /scan directly and reports the REAL rate every deploy, so this
+    # number is never mistaken for what is actually happening again.
+    #
+    # Actual beam count at the native rate: ~5000/11.35 ≈ 441/rev, measured
+    # 430 (2.5% error) — CONFIRMS the 5000/f model (Stack_Assessment §3A)
+    # at the rate that is really running, and settles the contradiction
+    # with README.md's stale ~1258 pts @ ~11.5 Hz figure in §3A's favour.
+    frequency: 6.0
+
     invalid_range_is_inf: false
     debug: false

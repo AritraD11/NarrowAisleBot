@@ -58,7 +58,15 @@ ODOM_SRC = os.path.join(REPO, 'src/mecanum_robot/mecanum_robot/odometry_publishe
 TELEOP_SRC = os.path.join(REPO, 'src/mecanum_robot/mecanum_robot/mecanum_teleop_asymmetric.py')
 DASH_SRC = os.path.join(REPO, 'src/mecanum_robot/mecanum_robot/phone_dashboard.py')
 GOAL_SRC = os.path.join(REPO, 'src/mecanum_navigation/mecanum_navigation/goal_pose_adapter.py')
-LAUNCH_SRC = os.path.join(REPO, 'src/mecanum_robot/launch/mapping_full.launch.py')
+# ZERO_POINT_YAW moved out of mapping_full.launch.py and into
+# sensors.launch.py on 1 Sep (§17.49, the LiDAR/SLAM launch split). This
+# guard caught the move on the first run after it, which is the point of
+# it -- but a constant that has relocated once can relocate again, so
+# search BOTH rather than pinning to whichever file holds it today.
+LAUNCH_SRCS = [
+    os.path.join(REPO, 'src/mecanum_robot/launch/sensors.launch.py'),
+    os.path.join(REPO, 'src/mecanum_robot/launch/mapping_full.launch.py'),
+]
 
 # ── Geometry ─────────────────────────────────────────────────────────────
 # These mirror the declare_parameter() defaults in the two nodes. They are
@@ -358,7 +366,9 @@ def check_source_guards():
           re.search(r"declare_parameter\('yaw_offset_deg',\s*0\.0\)", goal) is not None,
           'a goal-yaw correction would double-apply now')
 
-    launch = read(LAUNCH_SRC)
+    # Concatenated so the check passes wherever the constant lives, and
+    # still fails if it is deleted or edited back to -1.5708 anywhere.
+    launch = '\n'.join(read(f) for f in LAUNCH_SRCS if os.path.exists(f))
     check('ZERO_POINT_YAW is 0.0',
           re.search(r'ZERO_POINT_YAW\s*=\s*0\.0', launch) is not None,
           'the zero marker would sit 90 deg off base_link')

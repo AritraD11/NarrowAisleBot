@@ -3037,6 +3037,339 @@ Tuesday's session, short. One drive — §17.47's repeat test, front leg re-driv
 
 **The strategic decision, made explicitly rather than by default.** Rather than continuing to spend the remaining time-box exclusively chasing G4, the project now runs on **two branches in parallel**: this branch continues SLAM reliability work as issues surface, while a new branch and session begin building **autonomous drive-to-goal with real-time obstacle detection and avoidance** — MPPI + local costmap + `collision_monitor`, all of which `Where_We_Stand.md`'s fallback table (§8) already establishes work **without needing an accepted map**. The hard requirement carried into that branch: **a detected obstacle must stop the robot regardless of an active goal, using the already-configured cushioning/inflation value** — the safety chain takes priority over goal-seeking, not the reverse. This is not G4 declared solved or abandoned; it is Nav work no longer waiting on it, per the reasoning `Next_Session_Kickoff.md` §11 wrote down in advance for exactly this situation.
 
+## 17.49 1 Sep 2026 (evening): the tape measure closes the loop — the front end is a navigation problem, proved twice from opposite ends
+
+The first session on the autonomy branch. No commissioning drive, no G4 attempt, and by a distance the most conclusive day this project has had about what is actually wrong — because for the first time the evidence came from **outside the software**.
+
+**The headline, and it is not a hypothesis.** Two runs, two tape measurements, and a chain verified to four decimals in both:
+
+| | 18:48 — Nav2 drove | 19:38 — operator drove |
+|---|---|---|
+| odom path | 4.27 m | 4.58 m |
+| **odom closure** | 10.4 cm | **0.3 cm** |
+| **map closure** | ~0 cm | 6.0 cm |
+| **tape** | **9 cm right of the mark** | **on the mark** |
+| net `map→odom` | 0.114 m | 0.064 m |
+| peak `map→odom` | 13.0 cm | **20.3 cm** |
+
+**The two runs measure the same error from opposite ends, and that is what makes them decisive.** Nav2 closes its loop on the map pose, so it physically drives the robot until the corrupted estimate reads zero — the map closes and the error lands *on the floor*. Drive the same route by hand and the robot is physically correct, so odometry closes and the error stays *in the estimate*. Either way it is 6–20 cm and it is the front end's. ✅ **MEASURED**, and independent of every instrument in this repo.
+
+**Wheel odometry agreed with the tape to about a centimetre on both runs**, and on the hand-driven one closed **4.582 m to 3.1 mm — 0.07%**, the best closure recorded in this project. §17.44's W+E circle closed to 3.3 mm over ~3 m; this is consistent and better. Layer 5 of `Where_We_Stand.md` stands.
+
+**The arithmetic, on the 18:48 run.** `map = R(corr_yaw)·odom + corr_t`, with `corr = (−0.1142, +0.0011, −2.66°)` and `odom = (0.1041, 0.0161)`, gives `(−0.0095, +0.0124)`. The dashboard displayed **`−0.009, 0.012`**. Nothing on screen was wrong — the screen only ever held the estimate.
+
+**99% of the net correction was in a single axis** (dX −0.1142, dY +0.0011), with every one of the nine events showing 1.7–4.7 mm of odometry motion while the map moved 6–71 mm. The obvious explanation was tested and **rejected**: `corr_x` against `−odom_y·sin(corr_yaw)` correlates **−0.352** — wrong sign, an order of magnitude too small — so it is not a yaw error seen at a lever arm. But `corr_x` against `corr_yaw` correlates **+0.889**: position and heading walk off together at a fixed ratio, roughly 4.3 cm per degree.
+
+**A metric that should not have been trusted, and was.** The net correction is an accident of where a route happens to end. On the hand-driven run the net was 0.064 m while the **peak was 20.3 cm** and **57% of the run sat past 5 cm**. Reporting "net 0.064 vs baseline 0.114, better" was wrong and is corrected here: peak and time-over-threshold are the honest measures. Across all three runs of the day the over-5 cm fraction is **56% / 59% / 57%** — invariant across two controllers, three routes and both `use_scan_barycenter` settings.
+
+### The dashboard was lying in six places, two of them about safety
+
+An audit of `phone_dashboard.py`, not another drive, and it found more than the reported symptom.
+
+**Every dragged goal heading has been 90° wrong.** The drag handler wrote a bare `Math.atan2(dy, dx)` — an angle measured from **+X** — into `goalDrag.yaw`, the same field `pointerdown` initialises from `robotPose.yaw`, which is measured from **+Y**. Two conventions, one variable: tap without dragging and the heading was right; drag more than 5 cm and it went out orthogonal. And `drawGoalMarker` drew its arrow from +X while `drawRobot` drew the nose from +Y — same canvas, same frame, 90° apart — so **the picture agreed with the wrong number and it looked correct**. The comment on the send line still claimed `goal_pose_adapter` applied a compensating −90°, which stopped being true at §17.38 and is why nobody looked at that line. The whole awkward shape of `run_20260901_132022` — a lateral strafe followed by a de-rotating climb — traces to this one expression.
+
+Fixed structurally rather than numerically: `vecToYaw`/`yawToVec` are exact inverses, and the drag handler and *both* renderers now route through them, so they cannot drift apart again. `goal_pose_adapter` stays at `yaw_offset_deg: 0.0` — a display-side offset is what hid the last frame fault for two weeks.
+
+**The E-STOP did not survive a reconnect.** `ws.onopen` sent `arm/ENABLE` unconditionally, so a Wi-Fi blip re-armed an E-STOPped robot with nobody touching anything, while the button still read `CLEAR / TAP TO RESUME`. Now the latch re-asserts the stop instead, on the reasoning that a drive stack which restarted during the outage has lost its own latch.
+
+**`send()` failed silently.** `if (wsOk) ws.send(...)` with no return value: a GOAL or an E-STOP tapped with the socket down vanished and the UI reported success. It now reports delivery, checks `readyState`, and says `NOT CONNECTED`; the 20 Hz drive loop passes a quiet flag so a dead socket cannot spam the hint line.
+
+Also: click-to-goal landed right of the pointer whenever the cached `cssW` went stale (live `getBoundingClientRect()` on the pointer path, cached `cssW` in `s2w()`, marker landing at `sx·(r.width/cssW)`); the POSE pill stayed green on a dead socket; and `resource/dashboard.html`, a decoy the docs have called dead since §17.34, is deleted.
+
+**Why the existing test never caught any of it.** `dashboard_goal_roundtrip.py` has passed since 28 Aug — *"exact to 1e-6 at device pixel ratios 1, 2 and 3"*. It measured **position** and never touched **heading**. The test was right and its coverage was the bug. Extended to 19 checks across a second phase, and **every new guard was verified by reverting its fix and watching it fail** — with the old `send()` restored, the hint reads `GOAL SENT → 2.00, 0.00` while nothing reaches the wire.
+
+**The fix that actually mattered was not a bug fix.** The pose card now shows `ODOM` and a `DRIFT` figure, red past 5 cm, built from transforms the pose logger was already looking up on the same tick. On the 19:38 run it read **0.203 m in red, live, mid-drive**, where the old card would have shown a clean return to the mark. That is §17.38's lesson made structural: *the dashboard that showed the raw truth rather than a patched version is what found the bug.*
+
+### A frame-by-frame verification, because the screen was under suspicion
+
+The 18:48 recording was read against its own pose log. Seven pose-card samples matched the CSV to **under 0.5 mm**. Measured in pixels rather than by eye: gridlines at **76.00 px per 0.5 m over eleven consecutive intervals with zero variance**; the footprint drawn **1.125 m long against the URDF's 1.120**; the trail top at **2.023 m against the log's 2.016**. Every one inside the width of the stroke used to draw it. **The rendering is dimensionally exact, and the 9 cm is simply not in the recording** — it is the gap between the estimate and the room, and the screen contains only the estimate.
+
+### Two parameter changes, one of them confirmed on hardware the same evening
+
+`progress_checker.required_movement_radius` **0.30 → 0.10**. A 0.30 m bar over 10 s is a floor of **0.030 m/s**, against a measured autonomous cruise of **0.027–0.037 m/s** — the bar sat *inside* the speed distribution, so goals aborted while the robot was driving perfectly well. Audited both ways before changing it: the 31 Aug false positive had moved 0.288 m (short by 12 mm) and dies at 0.10; G3's three genuine stalls moved 0.075 / 0.053 / 0.048 m and all still fire. `movement_time_allowance` deliberately stays at 10 s — it is the timer that will detect a `collision_monitor` halt. **Result on hardware at 19:58: two goals, zero aborts**, where every prior Nav2 run aborted once per goal. ✅ **MEASURED.**
+
+`amcl initial_pose` yaw **−1.5708 → 0.0**. The −90° was reasoned in §17.18 as *"base_link +X is the robot's RIGHT, so a robot facing along map +X has yaw −90"* — correct while the map frame still used REP-103 axes. §17.38 rotated it; `Axis_Convention.md` now states a freshly-zeroed robot on the mark reads `[0,0,0] @ 0°`. Left as it was, AMCL would seed its particle filter 90° off the truth on the very first frame. **The fifth stale §17.38 compensation**, and it survived because AMCL has never once been run.
+
+### Stage F: registered, run wrong, and left open on purpose
+
+`use_scan_barycenter: true → false`, with `docs/StageF_Ablation.md` written **before** the drive. The reasoning: §17.44 found cumulative correction invariant to 2% across three parameter sets, and every one of those changes how the matcher **searches**; this changes **what it registers**, seeding from the centroid of a cloud §17.45 measured at 48.8% valid and 86% flickering while parked.
+
+It is **unscored**, and deliberately so. The one run on it was hand-driven rather than Nav2-driven, so the registered protocol was not followed; by the letter of the thresholds the net of 0.064 m falls in the gap between CONFIRMED (<0.06) and REFUTED (0.091–0.137) — **AMBIGUOUS**. The over-5 cm fraction and the peak both point at refutation, but both are metrics chosen *after* seeing the data, and scoring on a post-hoc metric is exactly what pre-registration exists to prevent. `ros2 param get /slam_toolbox use_scan_barycenter` returned **False** on the live node afterwards, and the file predates the run's MAP session, so Stage F **was** active — the run is valid, the protocol was not.
+
+⛔ **The took-effect check registered with it is RETRACTED.** It claimed baseline corrections arrive every **0.175 ± 0.006 m** and should widen toward 0.200 m. That 0.175 came from differencing `hypot(odom_x, odom_y)` — displacement *from the origin* — on an out-and-back route, where the quantity shrinks on the return leg. Measured along the path instead: baseline **0.441 m (sd 0.192)**, Stage F run **0.391 m (sd 0.147)**, indistinguishable at every threshold from 0.5 mm to 5 mm. Withdrawn rather than quietly restated. Caught before the ablation was scored, so nothing downstream rests on it.
+
+### Three self-inflicted failures, recorded because the process is the asset
+
+**A build that reported success destroyed two nodes.** The deploy step said `colcon build --packages-select mecanum_robot mecanum_navigation --symlink-install`. `mecanum_navigation` had only ever been built *without* symlink-install; colcon does not reconcile the two, so the switch left the package's installed dist metadata unusable — while the build printed `Summary: 2 packages finished`. Both its Python nodes then died at launch with `PackageNotFoundError`: `goal_pose_adapter`, so `/goal_pose_click` was never republished to `/goal_pose` and `bt_navigator` never saw a goal; and `cmd_vel_axis_adapter`, so `collision_monitor`'s `/cmd_vel_baselink` never became `/cmd_vel_nav_out`. **That is the whole of "goals weren't working even though Nav2 was active"**, and it is why the 19:38 run had to be hand-driven. Fixed by `rm -rf build/ install/` and a clean rebuild.
+
+The verification step that should have caught it checked the params file and the served dashboard — both correct — and **never launched Nav2**. `Important_Commands.md` §3.2 now requires a clean when switching build modes, and requires step 5 to *launch* what it deployed rather than inspect it.
+
+**A wrong expectation, stated confidently.** The operator was told the DRIFT card would read ≈0.000 m on a parked robot with no MAP session. With no `slam_toolbox` there is no `map` frame at all, so the card correctly reads `NO POSE`. Corrected in the moment, but it is the same class of error as the 0.175 m above: a claim asserted from reasoning without checking the one condition that made it false.
+
+**`main` was 27 commits stale, and it cost something real.** An external stack audit was written against `main` on 1 Sep and was four sessions out of date as a result — it never saw the invariance result, the scan-stability measurement, or the intermittency finding, and recommended as "the most important missing measurement" an experiment (parked LiDAR stability) that §17.45 had already run and which had already returned that document's own Case B. Merged via PR #9; `main` is current at `5cace67`.
+
+### The structural finding: AMCL could not have worked
+
+Found from a node list taken for an unrelated reason. `mapping_full.launch.py` bundled four things — the ydlidar driver, `scan_relay`, `zero_point_tf` and `slam_toolbox` — started and stopped as one unit by the dashboard's MAP button. And `navigation.launch.py`, the AMCL path, starts **no scan source at all** (`grep -c 'ydlidar|scan_relay'` → 0) while its own header forbids running alongside `mapping_full`.
+
+**So the only thing that could bring up the LiDAR was the one thing AMCL forbids.** AMCL would have launched, activated, and sat there with no `/scan` forever — reading as an AMCL fault when it was a launch-topology fault. This is precisely what `Where_We_Stand.md` §8 item 5 asked to be discovered *"on a Tuesday, not on demo day"*, and it was found with no drive, no map and no hardware.
+
+Split into `sensors.launch.py` (lidar + relay + zero_point), included by `mapping_full.launch.py` and by `navigation.launch.py` behind `with_sensors` (default true). MAP's behaviour is unchanged and checked rather than assumed: all three node declarations byte-identical modulo `zero_point`'s new condition, `ZERO_POINT_YAW` carried across, all three launch arguments still resolving. Second benefit: `scan_quality.py` can now characterise the LiDAR without starting a mapping session, which is how every scan capture to date has had to be taken.
+
+### Where this leaves the project
+
+`Where_We_Stand.md` gained a companion, `Stack_Assessment_2026-09-01.md`, rating every layer against measured numbers. The uncomfortable structure it names: **everything below the LiDAR rates 9–10, everything from the LiDAR up rates 1–3**, and the cliff is at one component. It also reads two existing findings against each other for the first time — §17.44's invariance (cumulative correction 2.80 / 2.85 / 2.86 m across three *search*-parameter sets) and §17.45's scan instability (86% of rays flickering while parked). Together they say the matcher is handed a **different point cloud every scan**, and no search parameter can fix a moving objective function. That is consistent with everything measured since, including today's 56/59/57%.
+
+The YDLIDAR X4 Pro is a **triangulation** scanner rated at **<2% of range**: 32 mm at the 1.6 m median, 200 mm at 10 m. §17.45's measured p90 of 22.8 mm is *within spec*. **The sensor is performing to specification and the specification is not good enough for what is being asked of it** — a conclusion that points at hardware, and the honest reason to close the remaining software levers is to justify that rather than guess at it.
+
+**Not attempted today:** G4, the obstacle-avoidance test that is this branch's actual purpose, and AMCL's first bringup. All three are now unblocked in a way they were not this morning.
+
+## 17.50 3 Sep 2026: the first input-side change in the project's history, and the scan made visible
+
+**Every SLAM change to date has been downstream of the scan.** Five sessions of search tuning, three parameter sets, and §17.44's verdict: cumulative `map→odom` correction of 2.80 / 2.85 / 2.86 m, invariant to within 2%. Then §17.45 measured the input for the first time and found 74.8–78% of rays flipping valid/invalid between consecutive scans **with the robot stationary**, 47.4% valid. Read together those two facts say the matcher is not searching badly; it is handed a different point cloud every sweep. This session is the first time anything upstream of the matcher has been touched.
+
+**Six values, and the reasoning for the two that matter.** `frequency` 10.0 → 6.0 buys **+67% angular density** (5000/f: 500 → 833 points per revolution) at the cost of 8 mm more motion skew per sweep, against corrections of 150–370 mm. `max_laser_range` 10.0 → 5.0 removes the rays whose individual error is the same order as the fault being chased: this is a **triangulation** scanner, so error grows with the square of range (~32 mm at 1.6 m, ~100 mm at 5 m, ~200 mm at 10 m), and the measured **median scan range in this lab is 1.6 m** — the cut discards a small tail here and would discard most of the cloud in an open aisle. `range_max` 12.0 → 10.0 closes an Appendix B item open since §17.6. Nav2 gets `xy_goal_tolerance` 0.02 → 0.05 and `batch_size` 500 → 300, the latter being the response `nav2_params.yaml`'s own comment named if the control loop missed its rate, which it has, at 7.5–13.7 Hz against 20.
+
+**The headline is `use_scan_matching: false`, and it is not a retreat.** Over the same 21.85 m drive, wheel odometry alone closed 0.229 m (1.27%, dead on its own spec) while odometry plus the SLAM front end closed 0.706 m. The expensive estimator is three times worse than the cheap one. Turning the sequential matcher off means the pose comes from the wheels and the scan is stamped down there — selecting the better of two measured estimators, not abandoning SLAM. Projected on a ~10 m perimeter, odometry alone gives ~0.13 m, **inside G4's 0.15 m return gate**, which five sessions of matcher tuning never reached. Loop closure runs on a separate matcher and should survive; that is filed as HYPOTHESIS, and `verify_live_config.sh` reads the installed source rather than recalling it.
+
+**Two parameters at once, against the one-at-a-time rule, with the argument written down.** With matching off, none of the matcher's search parameters are active, so there is no search for the range cut to confound. `max_laser_range` changes *what* is drawn into the grid; `use_scan_matching` changes *where*. Separable in analysis, so one drive yields two independent results. The penalties, the search windows, the loop-closure thresholds and the map resolution are all deliberately frozen, each with a stated reason — including `angle_variance_penalty`, which rests on a premise now known false but whose lever Stage E measured going the wrong way (1.2 → 0.6 took max correction 0.229 → 0.366 m). A lever measured as unreliable is not one to pull while other things move.
+
+**`range_max` and `max_laser_range` are deliberately NOT the same number, and the distinction is worth recording.** The first is what the sensor can do; the second is what one consumer chooses to trust. Capping the driver at 5 m would push that decision onto the costmaps, `collision_monitor` and `scan_quality.py` simultaneously, and would destroy the evidence needed to prove the cut helped. Keeping the driver honest at 10 m means the SLAM cap returns to 10.0 in one line for a clean A/B on the same route. Cap policy at the consumer; never edit the spec sheet to record a decision.
+
+**The scan is now visible while driving, with its own statistics.** The dashboard gained a live LiDAR layer: `/scan_reliable` decimated to ~240 beams, broadcast at 5 Hz over the WebSocket path that already carries pose and map, drawn as red dots welded to the live footprint rather than to a pose cached with the scan. Returns beyond `max_laser_range` draw faint grey instead of being hidden, so the cost of the 5 m cut is on screen rather than taken on trust. The masked rear wedge travels as JSON `null`, never 0.0 — a finite value there would paint a phantom obstacle ring at the robot's own origin. The HUD carries **VALID** and **CHURN**. ⚠ **Corrected same day, see §17.52:** this was first written as "the two numbers §17.45 could only recover offline", which is wrong. `scan_quality.py`'s `flicker_pct` is a *windowed cumulative* metric over rays-ever-valid; the HUD's churn is a *per-sweep* rate over live beams. Different denominators, different windows, not comparable. A stale scan stops drawing after 1.5 s, because §17.25 had `/scan` and `slam_toolbox` freeze together while Nav2 kept driving and the last good sweep sat on screen looking authoritative.
+
+**`tools/tests/dashboard_scan_geometry.py`, 25 checks, and it found a bug in itself on the first run.** The overlay is exactly the hazard §17.49 described: `base_link` is not REP-103 here (+X right, +Y nose), the corrected scan frame measures bearing 0 along +X, and the laser sits 0.27 m forward — get any one of those wrong and the dots still form a plausible room outline, just rotated, and nobody can tell by eye. So the test does not check that dots appear; it checks that `drawScan()` agrees with `yawToVec()`/`drawRobot()`, the renderers already validated against hardware, for beams whose answer is known by construction. It agreed to 2.2e-16 at five headings. The one failure on the first run was the test's own URDF regex latching onto a comment 260 lines above the actual `<joint>` element and reporting a convincing 0.27 m disagreement that did not exist — recorded because a test that fails loudly on its own bug is working correctly.
+
+**`tools/verify_live_config.sh`, which is §17.32 turned into a script.** It asks the live nodes for all six values, measures the actual scan rate and beam count, and exits non-zero rather than clearing a drive on a mismatch. Two things it settles that no file can: whether the hardware honoured `frequency: 6.0` at all (`support_motor_dtr` is false, so the driver may not command the motor and the request can be silently ignored — if it reports ~10 Hz, every prediction resting on 833 points is void); and which of this repo's two contradictory beam-count figures is right, since `Stack_Assessment` §3A computes 5000/f = 833 while `README.md` states ~1258 pts/scan at ~11.5 Hz, implying ~14.5 kHz rather than 5. Both cannot be true.
+
+**A recommendation overruled, recorded so it is settled by measurement rather than re-argued.** 7.0 Hz was recommended over 6.0: it is the X4 Pro's datasheet nominal, and 6 Hz sits nearer the bottom of the motor's range where speed ripple becomes angular error distributed differently every revolution — the same class of fault this change exists to reduce. That is reasoning, not a measurement on this unit, and the operator chose the extra 17% density. The deviation reading in `verify_live_config.sh` decides it, and the fallback to 7.0 is one line.
+
+**Predictions registered before the drive** in `docs/StageG_Deploy.md` §3, including the one expected to go the wrong way: unknown% should **rise** from 82.9% against a G4 gate of 50%, because a shorter ray paints less free space. Three G4 criteria should improve and one should degrade. And the falsifier is stated plainly: **if the map still folds with scan matching off, the front end was never the cause**, and five sessions of suspicion pointed the wrong way. That would be the largest finding this project has produced, and it is written down in advance so it cannot be quietly reinterpreted afterwards.
+
+
+## 17.51 3 Sep 2026 (afternoon): Stage G deployed, and the density half of it was dead on arrival
+
+**The deploy itself was clean.** All six files hashed correct on arrival, both `colcon` packages built in 4.5 s, and `verify_live_config.sh` ran for the first time ever. Then it failed five checks, and three of those failures were the script's own bug.
+
+**The script bug, first, because it is the more embarrassing one.** `ros2 param get` prints Python-style booleans — `True`, `False`, capitalised. The verifier compared them against lowercase literals (`"false"`, `"true"`) with a plain bash `=`, so `use_scan_matching`, `use_scan_barycenter` and `do_loop_closing` were all reported FAIL while being **correctly deployed**. A verification tool that fails correct configuration is worse than no tool, because the next instinct is to "fix" a config that was never broken. Fixed by lower-casing both sides before comparison, and the incident is recorded in the script's own comment so the fix is not silently re-applied by someone who does not know why it is there. The remaining lesson is the general one: **a tool written to check a claim needs its own claim checked**, and this one was written and shipped without ever being run against a live node.
+
+**The real finding, and it kills a third of this stage: `frequency:` does nothing on this unit.** Measured `/scan` rate **11.35 Hz against 6.0 requested**. `support_motor_dtr: false` means the driver never commands the LiDAR's motor at all, so the head free-runs at its own native speed and the parameter is not wired to anything. Deviation was **~8 ms on an ~88 ms period, under 10%** — so the rate is *stable*, just not *commanded*. Neither the operator's 6.0 nor the 7.0 recommended alongside it could ever have taken effect. **The +67% density gain was never available.** The `support_motor_dtr` risk was written down as a HYPOTHESIS in the config comment *before* the deploy, which is the right instinct applied at the wrong time: it should have been settled by a ten-second `ros2 topic hz /scan` **before** a specific rate was argued over at length, not registered as a caveat underneath the argument.
+
+**The same measurement settled a contradiction that had been sitting in the repo unresolved.** `Stack_Assessment` §3A computes points/rev as `5000/f`; `README.md` claimed ~1258 pts/scan at ~11.5 Hz, which implies a ~14.5 kHz sample rate against a configured 5 kHz. Both could not be true. Measured: **430 beams at 11.35 Hz**, against `5000/11.35 = 441` — **2.5% error**. The formula is confirmed at the rate that is really running; `sample_rate: 5` means 5 kHz and always did; the README figure was stale and is corrected. Worth noting the shape of this: the beam-count check was written expecting 833 and *failed* — and the failure is what produced the answer, because the number it measured fitted the model at the real rate rather than the requested one. The check has since been rewritten to compare against the **measured** rate rather than the requested one, so it tests the formula rather than the deployment.
+
+**The verifier now separates hardware ceilings from deployment errors.** A stable-but-uncommanded scan rate is not something a re-deploy can fix, so blocking the drive on it would be wrong; it is now a **WARN** that reports the real rate, names what it invalidates, and explicitly says not to re-deploy chasing it. Only genuine config mismatches still exit non-zero. `support_motor_dtr: true` is the one route to a commanded rate and is deliberately **not** taken here — this unit's motor start/stop behaviour is unknown and it belongs in its own single-variable test, not bolted onto a stage that is already changing two things.
+
+**What survives, and it is most of it.** The density lever is dead. The other four values are unaffected and all verified deployed on the live nodes: `max_laser_range: 5.0`, `use_scan_matching: false`, `xy_goal_tolerance: 0.05`, `batch_size: 300`. **None of them depend on beam density**, so the drive is worth doing exactly as planned and the headline test — whether the map stops folding once the sequential matcher is out of the loop — is untouched by any of this. `Mapper.h` was also read directly on the Pi and confirms `m_pLoopScanMatcher` and `m_pSequentialScanMatcher` are separate objects, which upgrades "loop closure should survive matching off" from HYPOTHESIS toward MEASURED, pending the drive actually showing a closure fire.
+
+
+## 17.52 3 Sep 2026: the live scan HUD shipped with the wrong name on it, and 76% vs 17% was never a comparison
+
+**Stage G verified clean on the second attempt: 15 passed, 0 failed, 1 warned.** Nav2 happened to be running this time, so `batch_size: 300` and both goal tolerances were confirmed against live nodes too. The one warning is the known scan-rate ceiling (measured 11.451 Hz across three runs now — 11.348, 11.419, 11.451, spread 0.9%, deviation *improving* each time). The verifier's boolean-case bug is fixed and the three correctly-deployed values it had been failing now read PASS.
+
+**Then the dashboard showed VALID 50% and FLICKER 17%, against §17.45's 74.8-78%, and the obvious reading was a 4.5x improvement. It is not, and the error was mine.** `tools/scan_quality.py` computes `flicker_pct = (ever_valid − always_valid) / ever_valid` over a **whole capture window**: of the rays that returned anything at all during the capture, what fraction were not *perfectly* consistent across every scan in it. A ray that drops out once in two hundred sweeps counts fully as flickering. The dashboard computed something entirely different — beams whose valid/invalid state changed since the **immediately previous sweep**, divided by **all** beams. A windowed cumulative metric is mechanically far larger than a per-pair instantaneous one, and the two share a denominator only by coincidence. **76% and 17% are not the same quantity, so the difference between them is not an improvement in anything.**
+
+**Two things were wrong at once, which is why it was convincing.** The metric definition was wrong, and the denominator included the ~107-beam rear wedge that `scan_relay.py` masks to NaN by design (§17.15) — beams that are structurally blind and can never be valid, so counting them deflates every percentage that includes them. `VALID 215 of 430 = 50%` is arithmetically true and operationally misleading; against the 323 beams that *could* return it is **66.6%**, which is a materially different picture of the same sensor.
+
+**Fixed by separating three states rather than two.** MASKED (NaN, structurally blind, `scan_relay`'s doing), NO-RETURN (a real beam that got nothing back — range, reflectivity, incidence angle; this is sensor performance) and VALID. Churn now counts only non-masked beams, VALID reports against live beams, and the masked count is displayed rather than silently folded into a denominator. Measured churn over live beams is **~23%/sweep**, not 17%.
+
+**Renamed FLICKER → CHURN on the HUD, deliberately and permanently.** Keeping the word would have guaranteed the same misreading by someone else later, including by this project's own author six weeks from now. `scan_quality.py` owns "flicker" and means a specific windowed thing by it; the live number is a per-sweep churn rate and now says so, with a HUD line stating outright that the two are different metrics. `dashboard_scan_geometry.py` gained assertions that the publisher emits no field named `flicker` and that churn excludes masked beams — so the conflation cannot silently return.
+
+**§17.50 is corrected in place and the Stage G prediction is withdrawn, not quietly adjusted.** That entry claimed the HUD showed "the two numbers §17.45 could only recover offline from a recording", which is false for flicker. `StageG_Deploy.md` §3.1 predicted "CHURN, parked: 60-80%" by quoting §17.45's windowed figure against a per-sweep metric — **the prediction was never testable as written**, so it is marked WITHDRAWN rather than scored. A prediction that cannot fail is worth nothing, and one that compares two different quantities is worse than none because it manufactures a result.
+
+**What is still genuinely unknown, and the cheap test that settles it.** Whether the scan input actually improved is *not answered by this session*. The honest way to find out costs sixty seconds: run `scan_quality.py` on the parked robot now and compare its `flicker_pct` against §17.45's 74.8-78% — same tool, same metric, same question, different day. Until that is run, **no claim about scan stability having improved is supported**, and the Stage G drive should be read as testing `use_scan_matching: false` and `max_laser_range: 5.0` only.
+
+**The pattern worth naming, because it is the third instance.** §17.38 was a wrong frame that survived two weeks because nobody wrote down which category a claim was in. §17.44 was three sessions spent tuning parameters that were never deployed. This is the same shape a third time: an instrument was built, its output was compared against a historical number, and nobody checked that the two numbers measured the same thing before drawing a conclusion from the difference. **The instrument was right; the comparison was invented.** The check that catches this class costs one grep of the tool being compared against, and it was not done until the result looked too good.
+
+
+## 17.53 3 Sep 2026: the first scan measurement since Stage G, and three of its four numbers are not comparable to anything
+
+**347 scans, 30 s, robot parked, `/scan_reliable`, saved to `data/scan_captures/stageG_20260903_154323.json`.** Verdict `UNSTABLE`. Four headline numbers came back and only one of them can be read against §17.45 without further work.
+
+**COMPARABLE, AND UNCHANGED: valid 47.0% against §17.45's 47.4%.** This is a per-scan median, not a windowed statistic, so the comparison is exact. **The fraction of usable rays did not move.** Whatever Stage G did, it did not change how much of each sweep returns.
+
+**NOT COMPARABLE: flicker 84.8% against §17.45's 74.8-78%.** This looks like a regression and is not evidence of one. `flicker_pct = (ever_valid − always_valid) / ever_valid`, and `always_valid` requires a ray to be valid in *every* scan of the window — a set that can only shrink as the window grows. The metric therefore rises monotonically with capture length, and §17.45 **does not record the length it used**. `tools/scan_window_sweep.py` was written to settle this class of question permanently: it replays a saved capture at every window length. Its selftest makes the point better than argument can — on one synthetic capture with a single ray dropping out once in a hundred scans, flicker reads **1.0% at a 2-scan window and 50.0% at 100**, from identical data. Two captures of different lengths are not comparable, full stop.
+
+**NOT COMPARABLE, AND CONFOUNDED IN A SECOND WAY: per-ray noise median 5.8 mm, p90 11.9 mm, max 32.6 mm, against §17.45's p90 22.8 mm and max 79.9 mm.** This looks like a halving and may well be one, but the statistic is computed only over rays valid in *every* scan — **42 of 277** here. A longer window selects a smaller, more stable subset, biasing the noise figure *down*. The apparent improvement and the window length are confounded and cannot be separated from this capture alone.
+
+**THE STAGE G DECISION THIS VALIDATES OUTRIGHT: 94.7% of returns fall within 5 m** (81.8% within 3 m, p50 1.6 m, p90 4.2 m). `max_laser_range: 10.0 → 5.0` therefore discards about **5% of returns** in this room. The prediction from the 1.6 m median was that the cut would be nearly free here and expensive in an open aisle; the first direct measurement puts a number on the first half of that.
+
+**AND THE ONE IT KILLS: `range_max: 12.0 → 10.0` removed nothing.** `discarded 0.0% beyond max_laser_range 10.0 m` — there is nothing out there to discard. That change was defended as a correctness fix rather than a tuning choice, which it is and remains, but it was also floated as the prime suspect for any flicker improvement. **It cannot have caused one.** Recorded because a hypothesis that had not yet been tested is easier to retract than one that has been repeated.
+
+**GENUINELY NEW, AND THE MOST USEFUL NUMBER OF THE DAY: geometric conditioning 0.659, weak axis ~95° in the sensor frame, range 0.469–0.879 across the run.** Conditioning is `λ_min / λ_max` of `Σ n·nᵀ` over surface normals: 1 means the scan pins the pose in both axes, 0 means it slides freely along one. Bearing 95° in this robot's sensor convention (0° = +X = right, +90° = +Y = nose) is **essentially the nose axis**, so at the zero mark the geometry constrains sideways motion well and **forward/backward poorly**. That is textbook corridor degeneracy, measured rather than inferred, on the exact spot every commissioning drive starts from. It is also a mechanism the scan-matching work has been circling since §17.13 without ever putting a number on it.
+
+**`largest gap 95.7°`** confirms the rear mast wedge is masked as designed (§17.15) and is slightly wider than the nominal 90°.
+
+**One instrument defect found and fixed conservatively.** `scan_quality.py` hardcoded `SLAM_MAX_RANGE = 10.0`, now stale against Stage G's deployed 5.0, so its "discarded" figure describes a configuration that is no longer running. Fixed by adding `--slam-max-range` rather than editing the constant: the **default output stays byte-comparable with §17.45 and every run before it**, per §17.46's rule that changing an instrument mid-campaign destroys the baseline it is measured against. The deployed reality is one flag away.
+
+**CLOSED, same session, by `scan_window_sweep.py`.** `scan_quality.py`'s default is `--seconds 10.0`, which at the measured 11.45 Hz is **114.5 scans**. The sweep gives 76.6% at 100 scans and 79.5% at 150, so the 10 s equivalent interpolates to **77.4%** — against §17.45's two captures at the same mark, **74.8% and 78.0%**. Today sits *inside* that spread, 0.6 pp from the upper one, while §17.45's own two captures differ by 3.2 pp. **The scan input is unchanged. Not better, not worse, identical within the instrument's demonstrated reproducibility.** Stage G's input-side levers did nothing to scan stability, which is unsurprising given the one that could have (`frequency`) turned out inert and the other (`range_max` 12→10) removed nothing. This is not a disappointment: it *strengthens* the case for the drive, because it confirms the matcher is still being handed the same moving target no search parameter has ever been able to compensate for.
+
+**The dashboard CHURN metric cross-validates against the offline tool.** Flicker at a 2-scan window is 22.3% mean (9.2–35.3% spread) over `ever`=277; converted to churn's `live`=323 denominator that is 19.1% mean, 7.9–30.3% spread. The HUD reads 17%/sweep. Two independently written instruments, different denominators, agreeing — which is the check that says the live number means what it claims.
+
+**Two numbers moved more than the instrument's own noise, and are recorded as open.** `conditioning` 0.659 against 0.739/0.721, and `weak axis` 95.0° against 99.8°/100.0°. §17.45 established the tool reproduces to 0.018 in conditioning and 0.2° in bearing on a genuinely unchanged position, so gaps of 0.062 and 4.8° are **3.4× and 24×** that. Something about the scene or the placement is different — furniture moved, a door open, or the robot not physically on the mark despite a zeroed odometry readout. **Not chased today, not ignored either.** It matters because conditioning is the number that says whether the geometry can pin a pose at all, and a drifting weak-axis bearing would change which leg of a drive is degenerate.
+
+**What this session still did not establish.** Whether per-ray noise improved. p90 11.9 mm against §17.45's 22.8–24.5 mm is computed over rays valid in *every* scan — 42 of 277 at 347 scans — and a longer window keeps only the most stable rays, biasing it down. `scan_window_sweep.py` now reports noise per window alongside flicker, so this closes from the capture already saved rather than needing another drive. From here on, record `--seconds` with every `scan_quality.py` figure and no future comparison has this problem at all. **Stage G's drive still tests exactly what it was built to test — `use_scan_matching: false` and `max_laser_range: 5.0` — and none of that rests on the scan having got better.**
+
+
+## 17.54 3 Sep 2026 (16:24): the corrections stopped, exactly and completely — `run_20260903_162401`
+
+**`map→odom` did not move once. Not by 1 mm, across 2225 pose samples and 222 seconds of driving.**
+
+```
+corr_x    min / max :  +0.000000 / +0.000000
+corr_y    min / max :  +0.000000 / +0.000000
+corr_yaw  min / max :  +0.0000   / +0.0000
+correction events   :  0
+```
+
+The registered prediction was "corrections ≈ 0, the 0.175 m metronome stops". The measured answer is zero to six decimal places. Against the baseline this replaces — §17.49's Nav2 run: **9 corrections at 0.175 m ± 6 mm spacing, magnitudes 26–163 mm**; §17.42's commissioning drive: **48 correction events**, cumulative 2.80–2.86 m invariant across three parameter sets — this is not an improvement in degree. `use_scan_matching: false` removes the mechanism, and the mechanism was the entire observed fault.
+
+**What was actually driven, reconstructed from the pose CSV rather than from the operator's description.** Total rotation **−723.8° = 2.01 full turns**. Fitted circle centre **(+0.496, −0.004)**, radius **0.502 m with a 6 mm standard deviation** across both laps. Path length 6.42 m against 6.28 m predicted for two circles of r = 0.5 m. The odometry traced two half-metre circles and held the radius to six millimetres — the estimator is not the weak link anywhere in this stack.
+
+**Heading closure −3.85° after 723.8° of rotation = 0.53%.** For context, §17.42 measured 10.53° of drift over 18 m of mixed driving. Rotation is tracked well.
+
+**The estimate is optimistic against the floor, and by exactly the amount encoders cannot see.** Estimate closure **1.84 cm**; the operator's tape measure read approximately **−4, −3 cm and nose −3°** (units to be confirmed). Heading agrees closely (−3.85° estimate against −3° measured). Position does not: ~5 cm on the floor against 1.84 cm believed, a **~3 cm gap over 6.42 m = 0.47%**. That is mecanum roller slip, structurally invisible to wheel encoders, and it is the specific error an optical-flow ground sensor would catch. Well inside the 1.27% odometry spec; recorded because the *direction* matters — the robot always believes it did better than it did.
+
+**What this run does NOT establish, stated plainly so the result is not over-read.** It was **two tight circles at the mark, not a perimeter drive**. G4 is untouched: the map grades 75.4% unknown over a 10.15 × 9.95 m extent observed from essentially one position, which is a coverage figure, not a quality one, and is not comparable to the 82.9% from a full drive. §17.44 also established the tight circle as a *degenerate* geometry for scan matching, so this is close to the easiest case for the front end to have been switched out of. **The decisive claim is narrow and safe: the correction mechanism is gone. Whether the resulting map is geometrically true over a real route is the next run's question.**
+
+**A useful incidental confirmation:** the map extent of 10.15 × 9.95 m is almost exactly 2 × the deployed `max_laser_range: 5.0`, seen from one spot. The range cut is live and behaving.
+
+**Loop closure remains untested, and the reason is procedural.** `graph_residuals.py --watch` reported no message on `/slam_toolbox/graph_visualization` in 15 s — because it was started while the robot was parked and before any pose-graph nodes existed. The topic publishes only once the graph has content. **Start it after pressing MAP, not before.** The "does closure survive `use_scan_matching: false`" question is still HYPOTHESIS, supported only by the source read confirming `m_pLoopScanMatcher` and `m_pSequentialScanMatcher` are separate objects.
+
+**Two instrument notes, neither a hardware fault.** `run_report.py` flagged *"Diagonal mismatch is visible"* (FR-RL 1.091 against FL-RR 0.956). It is the circle geometry: FL and RL carried the drive (|target| 0.730 and 0.781 rad/s) while FR and RR sat at the pivot (0.044 and 0.014), because the instantaneous centre of rotation landed on the right-side wheels at r = 0.502 m against `K_OUTER` = 0.5607 m. **This is precisely the false positive §17.46 built a turn-context guard for in `run_analyzer.py`, and `run_report.py` never received that guard.** Separately, the report's `RR actualRows 1244` is a count of *non-zero* samples, not missing telemetry — all four motors reported all 4534 rows, verified against the raw CSV. No encoder problem.
+
+**The video could not be analysed and was not guessed at.** The only ffmpeg available in the analysis environment is Playwright's encoder-only build with no MP4 demuxer and no H.264 decoder. The pose CSV answered every question the video would have, more precisely.
+
+
+## 17.55 3 Sep 2026: the video says the robot did not turn, and the odometry says it turned 3.85 degrees
+
+**Photogrammetry on the run video, against `run_20260903_162401`'s own endpoint.** The recording is the mastcam side-by-side (robot left, dashboard right). Sampled at the frame where the HUD reads `X −0.016 · Y 0.008 · NOSE −3.8° · DRIFT 0.000 · JUMPS 0`, and compared against the frame at `NOSE −0.3°` seconds after the run began.
+
+| measurement | rotation | translation |
+|---|---|---|
+| odometry (HUD, pose CSV) | **−3.85°** | 1.84 cm |
+| floor L-brackets (world-static) | **−0.03°** | ~0.3 cm |
+| floor grout orientation (world-static) | **+0.00°** | — |
+
+**The method was validated before its result was believed, and the first attempt failed, which is why it is trustworthy now.** The first pass measured the robot's own wheels against the frame and returned "no rotation" — then a validation frame where the HUD read −28.3° also returned ~0°, which is impossible. Looking at that frame explained it: **the camera is mounted on the robot's own mast.** The robot sits still in frame while the floor and the background chairs swing around it. Measuring the robot against a robot-mounted camera measures nothing. Redone with the floor as the reference, the same validation frame gives **grout −27.07° against the HUD's −28.0°, agreeing to within 1°.** The instrument detects real rotation; at the endpoint it detects none.
+
+**Noise floor and discrimination.** Centroid repeatability is ~1 px over a 325 px bracket baseline = **0.18°**. A genuine −3.5° would have swung the brackets roughly **13 px**; the measured motion was **2.4 px**. The result is not near the noise floor.
+
+**What this means, and it is not a small thing.** The −3.85° is **phantom yaw in the estimator, not physical rotation of the robot.** Over 723.8° of commanded rotation that is 0.48% — and it is the same 0.53% figure §17.54 computed from the CSV and attributed to physical drift. **The robot is mechanically more repeatable than its own estimate claims.**
+
+This bears directly on a load-bearing assumption. §17.42 measured 10.53° of heading drift over 18 m and this project has treated that as physical slip. **Physical slip cannot be fixed by better estimation; estimator drift can.** If some fraction of that 10.53° is also phantom, the wheel odometry is a better instrument than its numbers suggest, and a gyro recovers the difference directly rather than merely bounding it. That converts the BNO055 from a general recommendation into one with a measurement behind it.
+
+**Grade 🟡 SINGLE, deliberately.** One run, one endpoint pair, on a tight-circle drive. The rotation figure is the strong half (validated against a known 28°, confirmed by two independent world-static features). The translation figure is weaker: a mast camera at an oblique angle is sensitive to small pitch and roll of the mast, so ~0.3 cm is indicative rather than exact. **Needs replication on a route that is not two circles before anything is built on it.**
+
+**An unresolved discrepancy, recorded rather than smoothed over.** The operator reported roughly **−4, −3 cm and nose −3°** at the end of the run. The −3° matches the dashboard's NOSE reading exactly, which raises the possibility those numbers were read off the dashboard rather than measured against the brackets with a tape. If they were a genuine tape measurement, this section's analysis is wrong somewhere and that needs finding. **The tape-measured ground truth at the mark, which Appendix B.7 has wanted for a week, still has not been captured.**
+
+**Method note for reuse.** `ffmpeg` frame extraction plus a threshold centroid on the floor brackets, and a gradient-orientation histogram on the grout lines, is enough to measure return-to-mark to a few millimetres and a fraction of a degree from an ordinary phone video — no fiducials, no calibration. It is a cheaper and more precise ground truth than a tape measure for rotation, and it works retrospectively on footage already recorded. The one thing it requires is knowing where the camera is mounted.
+
+
+## 17.56 3 Sep 2026 (17:43): the perimeter drive — zero corrections again, and the phantom yaw replicates
+
+**`run_20260903_174352`. 482 s, 12.04 m, one full turn (−364.5°), out to 3.66 m from the mark and back.** A structurally different route from §17.54's two circles, on the same Stage G config, verified live before the drive (12 pass, 0 fail, 1 warn).
+
+**`map→odom` was zero again. Exactly.**
+
+```
+corr_x / corr_y / corr_yaw   min = max = 0.000000   over 4769 samples
+correction events            0
+```
+
+Two runs now, 698 s and 18.5 m of combined driving, on routes with completely different geometry: **not one correction.** §17.54's result was not an artefact of the tight-circle geometry §17.44 flagged as degenerate. `use_scan_matching: false` removes the mechanism, and the mechanism was the whole observed fault.
+
+**Odometry closure 9.9 cm over 12.04 m = 0.83% of path**, against the 1.27% spec. Heading closure −4.49°.
+
+### The phantom yaw replicates, and the method now has two validations
+
+Photogrammetry on the run video, using tile-grout orientation as a world-static reference (the operator's own zero criterion is *"chassis edge parallel to the tile line"*, so this measures exactly what they align by):
+
+| | odometry | physical | validation |
+|---|---|---|---|
+| §17.55, two circles, 723.8° rot | −3.85° | −0.03° / −0.01° | HUD −28.0° vs grout −27.07° |
+| **§17.56, 12 m out-and-back, 364.5° rot** | **−4.49°** | **+0.00°** | **HUD −19.4° vs grout −18.50°** |
+
+Both runs: the robot physically returned to its starting heading; the estimator did not. **Upgraded from 🟡 SINGLE to ✅ MEASURED** — reproduced on a different route, different rotation profile, different video, with the method independently validated in each.
+
+Phantom yaw rate: **0.60°/m** on run 1, **0.37°/m** on run 2. §17.42 measured 10.53° over 18 m = **0.58°/m** and attributed it to physical slip. Those are the same order. **A large fraction of this project's assumed heading drift may be estimator error rather than physical slip** — which matters because slip cannot be fixed by better estimation and estimator error can. This is now the strongest measured argument for the IMU on the hardware list.
+
+### Two instrument failures, both caught by validation, both recorded
+
+The method failed twice before it worked, and the failures are more instructive than the result.
+
+**First failure (§17.55):** measured the robot's own wheels against the video frame, got "no rotation", then a validation frame at a known −28.3° also returned ~0°. Cause: **the camera is on the robot's own mast.** The robot sits still in frame while the world moves around it. Measuring the robot against a robot-mounted camera measures nothing.
+
+**Second failure (this run):** the grout-orientation window returned 90.2° at start, middle *and* end — suspiciously identical. Cause: **this video has a different panel split from the previous one**, and the measurement window extended into the dashboard's own border, a fixed UI edge that never rotates. It was measuring the screenshot, not the floor. Re-run on a floor-only window (x 85–755, clear of both the cabinet at left and the panel edge at right), the validation passed at 0.90°.
+
+**Both were caught only because a validation frame with a known answer was checked before the result was believed.** Neither would have been visible in the output. A measurement that cannot fail its own check is not a measurement.
+
+### What is NOT established, stated plainly
+
+**Translation was not reliably measured and no number is claimed.** Phase correlation on the floor gave a weak peak (0.034) and the tile-pitch autocorrelation found no usable period, so there is no trustworthy scale. The brackets and wheels sit at different distances from an uncalibrated oblique camera, so their pixel scales differ and cannot be reconciled without calibration. **The video replaces the tape measure for heading and does not replace it for position.** The tape-measured ground truth Appendix B.7 has wanted for a week is still needed, and now specifically for position only.
+
+**G4 is still not scored.** `map_integrity.py` was not run and the `.pgm` was not transferred. From `run_report.py`: 76.7% unknown over a 9.65 × 11.7 m extent, 2.76% occupied. Unknown is *worse* than §17.54's 75.4% and far outside the <50% gate — consistent with the prediction that the 5 m cut would cost coverage, but neither figure is a controlled comparison.
+
+**And the route was not actually a perimeter.** The pose trace spans X −0.42…+0.51 m against Y −0.68…+3.64 m: an out-and-back along a single corridor arm, not a loop around the room. The map's cross shape is what the LiDAR *saw* from that corridor, not where the robot *drove*. A genuine perimeter, closing a loop, is still outstanding and is what G4 needs.
+
+### Loop closure: the graph never published, twice
+
+`graph_residuals.py --watch` reported no message on `/slam_toolbox/graph_visualization` in 15 s — the second time, and this time with mapping unambiguously running and 8 minutes of driving behind it. The earlier explanation (started while parked, before nodes existed) does not cover this run.
+
+`enable_interactive_mode: false` is the obvious suspect but is contradicted by §17.42, which ran `graph_residuals` successfully through 19 closures with that same setting. **The live hypothesis is therefore that `use_scan_matching: false` suppresses pose-graph construction entirely** — in which case slam_toolbox is operating as a pure scan-stamper, loop closure cannot fire because there is no graph, and the `do_loop_closing: true` in the config is inert. That would be a real and important limitation of the current configuration, not a tooling problem. **HYPOTHESIS, unverified.** Settled cheaply by `ros2 topic info /slam_toolbox/graph_visualization` during a live mapping session: a publisher count of zero, or a topic that does not exist, decides it.
+
+
+## 17.57 3 Sep 2026 (evening): Stage G closes, merged to main; hardware planning written down
+
+**Stage G's own question is answered.** `use_scan_matching: false` removes
+`map→odom` correction entirely — two independent drives, two different
+route geometries, zero events each. §17.55/§17.56 found and replicated a
+second result nobody was looking for: the odometry invents heading it did
+not physically accumulate, on the same order as the drift this project has
+spent months attributing to physical slip. Both results came from
+building and validating a new instrument mid-session (video photogrammetry
+against world-static references), and that instrument failed its own
+validation check twice before it passed — recorded in both entries because
+a measurement that cannot fail its own check is not a measurement.
+
+**What Stage G did not reach:** a scored G4. Neither drive closed a real
+loop around the room, `map_integrity.py` never ran on either `.pgm`, and
+`graph_residuals` never saw a published graph — leaving open the real
+possibility that `use_scan_matching: false` suppresses pose-graph
+construction outright, which would make `do_loop_closing: true` inert.
+That is next session's first question, and it is a ten-second check
+(`ros2 topic info /slam_toolbox/graph_visualization` during a live mapping
+run), not a re-drive.
+
+**PR #11 merged to `main`.** Everything from `claude/narrowaislebot-
+goal-obstacle-avoidance-f2t3aa` (PR #10, the launch split, §17.49) rode in
+with it, since this branch was built on top of that one — PR #10 closed as
+superseded rather than merged separately, since its diff is now fully
+contained in `main`. `main` was 27+ commits stale before this; it is
+current as of this merge.
+
+**Branch cleanup.** `claude/narrowaislebot-mapping-reliability-038ike` was
+already an ancestor of `main` (merged via PR #9, confirmed by
+`git merge-base --is-ancestor` before deleting, not assumed from memory).
+`claude/narrowaislebot-goal-obstacle-avoidance-f2t3aa` and
+`claude/autonomous-vehicle-hardware-btgtga` are now ancestors of `main` via
+this merge. All three deleted. `claude/aps-report-draft-2nywbq` (PR #12)
+is untouched — independent work, explicitly kept.
+
+**`docs/Hardware_Roadmap.md` added** — Appendix B.8. The IMU/optical-flow/
+E-stop/collision-ring list argued out over the course of this session's
+chat, written down before it could be lost, plus three subsystems
+researched from scratch at the operator's request: battery percentage,
+autonomous charging docks, and a full 360°/~1 m collision ring. Planning
+only; no code, no parts ordered. See the doc's own §0 for how to read its
+confidence grades — nothing in it is graded MEASURED, because nothing in
+it has been built.
+
+**Next branch, cut from the now-current `main`, for whenever the hardware
+in that roadmap starts arriving, or for closing the G4/loop-closure
+question first** — both are legitimate next sessions and neither blocks
+the other.
+
+
 Every supporting document, organised by category. Update this as new artefacts are produced.
 
 > *Repository note (v2.0): the project's own authored documents now live as Markdown under `docs/` in the `NarrowAisleBot` GitHub repo, with the original `.docx`/`.pdf` in `docs/originals/`. The catalogue below predates that consolidation and lists documents by their original working titles; several are now the `docs/*.md` files. The repo is the current home of record.*
@@ -3244,6 +3577,20 @@ Living bibliography backing SLAM/AMR decisions from Part XVII onward — full li
 - **`phone_dashboard.py`'s WebSocket has no server→client path** (§17.31) — `ws_clients` is tracked but never broadcast to, by an explicit past decision documented in the `/calib_status` handler. This is the single largest piece of missing plumbing between today's dashboard and the map-rendering product; design in `docs/Dashboard_Map_System.md` §E.1.
 - `phone_dashboard.py`'s `start_mapping()` launches `mapping_full.launch.py` with `stdout=DEVNULL`, discarding the SLAM console. Fine for casual driving, but it means a dashboard-launched mapping run cannot be diagnosed after the fact — launch mapping from a terminal (teed to a file) for any run that is being investigated.
 
+## B.8 Hardware roadmap — added 3 Sep 2026, closing Stage G
+
+- **`docs/Hardware_Roadmap.md`** — the IMU/optical-flow/collision-ring/E-stop
+  list from the Stage G chat session, written down before it was lost, plus
+  three researched-from-scratch subsystems: battery percentage (INA226,
+  reused from the brownout-diagnosis item, with the LiFePO4 flat-curve
+  caveat stated explicitly), autonomous charging docks (pogo-pin contacts +
+  IR beacon alignment + why the charger stays in the dock), and a full
+  360°/~1 m collision ring (ToF chosen over ultrasonic for reliability
+  against oblique/soft surfaces; slots into the existing
+  `RangeSensorLayer`/`collision_monitor` architecture, no new pipeline).
+  Planning only — nothing bought, nothing coded. Suggested procurement
+  order is in the doc's §5.
+
 ## B.7 Opened by the 28 Aug strategic audit (§17.43)
 
 - **There is still no accepted commissioning map.** Every downstream item — `map_server`, AMCL, named locations, stable coordinates, point-and-go — is blocked on one saved grid that does not exist. Acceptance criteria fixed at: `map_integrity.py` verdict not `FOLDED`, **D2 doubled walls < 1.0%**, unknown < 50%, physical return-to-mark < 0.15 m.
@@ -3307,5 +3654,7 @@ Living bibliography backing SLAM/AMR decisions from Part XVII onward — full li
 | 26 Aug 2026 | v2.29 | No-hardware session (§17.35); nothing driven, nothing yet run against the live node. **The map-acceptance gate turned from a judgement into two instruments.** `tools/map_integrity.py` measures the fold signature §17.32's gate describes in words: its headline detector flags two near-parallel walls with **free** space between them across a gap narrower than the robot's own 0.48 m — free cells mean the LiDAR returned through that space, so something saw both faces across a gap nothing could occupy, which is what a closure produces when it fuses two poses that are not the same pose. Flagged cells are clustered and reported in map coordinates because the known hole in that argument, a real gap between shelves seen end-on, is one place you can walk to while a fold is a whole wall duplicated. Four supporting measures (thickness, skeleton branch points, orientation histogram, free-space components), thresholds explicitly provisional, and `--corpus` prints the percentiles that should replace them — the first thing here designed to be *calibrated* by the 70-map archive §17.33 recorded as unanalysed. Self-tested on five synthetic rooms including three false positives, of which "two walls 0.30 m apart with UNKNOWN between" is the one that proves the free-space requirement is what discriminates. **`tools/graph_residuals.py` built, and the MATLAB item that specified it corrected.** Reading `publishGraph()` before writing showed `/slam_toolbox/graph_visualization` carries node positions and edge endpoint *coordinates* only — no orientation, no node ids, no edge measurement, no information matrix — so `edgeResidualErrors` as literally specified is **not implementable** against it. What replaced it is stronger: the graph is republished every second, a node that moves between two publications was moved by the optimiser, and differencing the edge sets over the same two messages names which closure caused the shift. **That is the per-closure signal §17.29 concluded did not exist** — not as an event, as a difference — and it yields a judgeable number, implied drift rate = shift / metres driven, against this project's own measured 1.5–3.3%. **`nav2_params.yaml:57` confirmed from upstream source and fixed**: `plugins.xml` exports only `nav2_amcl::OmniMotionModel`, `amcl_node.cpp` defaults to the fully-qualified name and passes the string straight to `createSharedInstance` with no shim and no try/catch on the `on_configure` path, so `"omnidirectional"` would have aborted the whole `lifecycle_manager` bringup, not just localisation. |
 
 | 29 Aug 2026 | v2.30 | First hands-on day of the endgame week (§17.44). **G1 passed** — all four pending files deployed, hashed per file on arrival, and the live node confirmed at `coarse_search_angle_offset 0.175` / `correlation_search_space_dimension 0.3`; before deployment it read stock `0.349`, confirming the debt by measurement rather than report. **G2 passed** on a 621 s commissioning drive: max correction **0.2018 m** (<0.30) and max heading step **4.57°** (<10°), against 0.696 m / −18.40° on 28 Aug, with cumulative correction per metre down 3.1×. The discriminator is that 4.57° is 46% of the new 10.03° window where 18.40° was 92% of the old 20° one — the corrections did not re-pin to the new boundary, so the gate is a real lever and not a clamp. **The day's finding: `slam_toolbox` adds no pose-graph node and no map cell while the robot rotates in place.** Three runs; a deliberate test produced **714° of rotation over 642 s for 43 occupied cells = 2.1 m of wall and zero corrections**. `/scan_reliable` was measured publishing at 11.4 Hz throughout, killing the stalled-scan hypothesis. `minimum_travel_heading` was falsified as the gate by direct test — set to 0.05 and verified live, a full 360° gave `n=1, e=0` for 166 s. **Every stop-and-spin corner driven since §17.39 contributed nothing**, which is a better explanation for maps returning 63–87% unknown than anything previously considered, and means G4 was never reachable by that procedure. Turning *while translating* works: a 111 s `W`+`E` arc produced **18 nodes and 1545 cells = 77.2 m of wall**, 88% of the perimeter drive's coverage in 18% of its time. **Sharpest result: 18 nodes, 17 corrections — one jump per node**, at a 3.65 s cadence confirmed independently in video, so the matcher disagrees with odometry by 0.15–0.37 m on every scan it accepts. **Three parameter sets left cumulative correction at 2.80 / 2.85 / 2.86 m** — invariant to within 2% — so the tuning moves the distribution of the error and never the amount; Stage E (`angle_variance_penalty` 1.2 → 0.6) is answered **no**. Proposed as hypothesis: the tight circle is a **degenerate geometry** — at 5 m range 1° of heading is indistinguishable from 8.7 cm of translation — which predicts the measured signature (heading right to ~4°, position 27.6 cm out, wheels closing to 0.008 m) and explains why no search parameter moved the total. **The perimeter drive was the good case all along and three diagnostics were spent on a bad proxy for it.** Two `run_analyzer.py` false positives identified and left unpatched deliberately (changing an instrument mid-campaign destroys its baseline): the wheel-spread alarm fires on arcs where the ICR sits on the inner wheels (radius 0.54 m vs `K_o` 0.56069 m), and the correction/doubled-wall co-location counted one wall seven times inside a coincidence radius larger than the whole trajectory. Evidence in `docs/evidence/rotation_deadzone/`. |
+
+| 1 Sep 2026 | v2.31 | First session on the autonomy branch (§17.49). **The tape measure closed the loop, twice, from opposite ends.** Nav2 drove 4.27 m and finished **9 cm right of the mark** with the map reading zero; the operator hand-drove 4.58 m, finished **on** the mark, and the map read 6.0 cm out. Nav2 closes its loop on the map pose, so a corrupted estimate becomes *physical* error; drive by hand and the error stays in the estimate. Wheel odometry agreed with the tape to ~1 cm both times and closed **4.582 m to 3.1 mm (0.07%)**, the best in this project's history. The displayed pose was reconstructed from `map = R(corr_yaw)·odom + corr_t` to **four decimals**, so nothing on screen was wrong — the screen only ever held the estimate. Peak `map→odom` **20.3 cm**, and **56/59/57%** of all three runs sat past 5 cm, invariant across two controllers, three routes and both `use_scan_barycenter` settings. **Six dashboard defects found by audit, two about safety.** Every dragged goal heading had been 90° wrong — a bare `atan2(dy,dx)` (from +X) written into the field `robotPose.yaw` initialises (from +Y), while `drawGoalMarker` drew from +X and `drawRobot` from +Y, so the picture agreed with the wrong number; fixed structurally via `vecToYaw`/`yawToVec` as exact inverses shared by both renderers and the command path, with `goal_pose_adapter` left at 0.0. **E-STOP did not survive a reconnect** (`ws.onopen` re-armed unconditionally while the button read TAP TO RESUME), and **`send()` failed silently**, reporting success for commands that never left. The existing headless test had passed since 28 Aug because it measured *position* and never *heading* — extended to 19 checks, each new guard verified by reverting its fix and watching it fail. **The fix that mattered was not a bug fix:** the pose card now shows `ODOM` and a `DRIFT` figure, red past 5 cm, and read **0.203 m live mid-drive** where the old card showed a clean return. `required_movement_radius` **0.30 → 0.10** — the 0.30 m/10 s bar was a 0.030 m/s floor against a measured 0.027–0.037 m/s cruise, so goals aborted while driving normally; audited both ways, and **two goals, zero aborts** on hardware the same evening where every prior run aborted once per goal. `amcl initial_pose` yaw **−1.5708 → 0.0**, the fifth stale §17.38 compensation, uncaught because AMCL has never run. **Stage F registered before the drive and left unscored** — the run was hand-driven so the protocol was not followed, and its took-effect check was **retracted** when the 0.175 m baseline behind it proved to be an artefact of measuring displacement-from-origin instead of path length. **Three self-inflicted failures recorded:** a `colcon build` that printed *2 packages finished* while destroying `mecanum_navigation`'s dist metadata, killing `goal_pose_adapter` and `cmd_vel_axis_adapter` — the whole of "goals weren't working" and why one run had to be hand-driven; a confidently-wrong expectation about the DRIFT card on a parked robot; and `main` 27 commits stale, which caused an external audit to be written four sessions out of date. **Structural finding: AMCL could not have worked** — `mapping_full.launch.py` was the only launcher of the LiDAR and `navigation.launch.py` forbids running alongside it, so AMCL would have activated with no `/scan` forever. Split into `sensors.launch.py`, MAP's behaviour verified unchanged node-by-node. `main` merged current at `5cace67` via PR #9. |
 
 Future revisions append rows here. When in doubt about whether something deserves an entry, err toward writing it — the value of this document is the path travelled.

@@ -148,7 +148,7 @@ And whenever you make a real design decision, fix a bug, or hit a milestone — 
 | Compute | Raspberry Pi 5, Ubuntu 24.04 LTS, ROS2 Jazzy |
 | Drive controller | ESP32-WROOM-32 → `/dev/esp32` @ 921600 baud |
 | Arm controller | Arduino Mega 2560 → `/dev/mega` @ 115200 baud |
-| LiDAR | YDLIDAR X4 Pro → `/dev/ydlidar` @ 128000 baud (single-channel, ~1258 pts/scan @ ~11.5 Hz) |
+| LiDAR | YDLIDAR X4 Pro → `/dev/ydlidar` @ 128000 baud single-channel. **~430 pts/scan @ ~11.35 Hz, measured 3 Sep 2026** — the `frequency:` parameter has no effect on this unit (`support_motor_dtr: false`, so the head free-runs at its native speed). The earlier ~1258 pts figure was wrong; 430 fits `5000/f` at the real rate. See `system/ydlidar_params.yaml` |
 | Motors | Rhino RMCS-2086 (24V, 60 RPM, 1:47, 93132 CPR) |
 | Drivers | 2× Cytron MDD20A |
 | Wheels | DekuPro 6-inch SR Mecanum (radius 0.0762 m) |

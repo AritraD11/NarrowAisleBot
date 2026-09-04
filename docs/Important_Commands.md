@@ -270,9 +270,14 @@ confirmed live (Kickoff §2's expected hashes). One file is pending again:
 
 | Repo file | Destination on the Pi | sha256 | takes effect on |
 |---|---|---|---|
-| `src/mecanum_robot/mecanum_robot/phone_dashboard.py` **(§17.49)** | `~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py` | `8c41c6fa7e7ec867c1c1e4e823f154f1db6a3e47b78f7bba232b9bbf52268f5a` | build `mecanum_robot` + `systemctl restart` |
+| `src/mecanum_robot/mecanum_robot/phone_dashboard.py` **(§17.49 + trail-break fix)** | `~/ros2_ws/src/mecanum_robot/mecanum_robot/phone_dashboard.py` | `5a3ce488d9e06be11d4656da28473e9786623e55e5cae8064d300b0081bc452a` | build `mecanum_robot` + `systemctl restart` |
 | `src/mecanum_navigation/config/nav2_params.yaml` **(§17.49)** | `~/ros2_ws/src/mecanum_navigation/config/nav2_params.yaml` | `40fdf96ea7906f20d726bdd440a94f3c38690842b3b442cdaadcadc5e4a4617f` | build `mecanum_navigation` + next `nav2_slam.launch.py` |
 | `system/slam_nodom_stageB.yaml` **(Stage F)** | `~/ros2_ws/slam_nodom.yaml` ⚠ **renamed in flight** | `e8825eda73e67526860fb5adfde3b7e2cb8dac270ba59818a1038c2a80882fe5` | no build — **STOP MAP → ZERO → MAP** |
+
+**The dashboard hash moved on 2 Sep.** The trail no longer draws a line
+across a `map->odom` rewrite, and PATH sums the odom step rather than the map
+step — it had been reading 5.92 m for 3.23 m driven. Deploy the new hash, not
+the §17.49 one.
 
 ⚠ **The raw URL for this one is the autonomy branch, not the mapping branch:**
 `.../NarrowAisleBot/claude/narrowaislebot-goal-obstacle-avoidance-f2t3aa/...`

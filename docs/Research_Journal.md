@@ -3318,6 +3318,58 @@ The method failed twice before it worked, and the failures are more instructive 
 `enable_interactive_mode: false` is the obvious suspect but is contradicted by §17.42, which ran `graph_residuals` successfully through 19 closures with that same setting. **The live hypothesis is therefore that `use_scan_matching: false` suppresses pose-graph construction entirely** — in which case slam_toolbox is operating as a pure scan-stamper, loop closure cannot fire because there is no graph, and the `do_loop_closing: true` in the config is inert. That would be a real and important limitation of the current configuration, not a tooling problem. **HYPOTHESIS, unverified.** Settled cheaply by `ros2 topic info /slam_toolbox/graph_visualization` during a live mapping session: a publisher count of zero, or a topic that does not exist, decides it.
 
 
+## 17.57 3 Sep 2026 (evening): Stage G closes, merged to main; hardware planning written down
+
+**Stage G's own question is answered.** `use_scan_matching: false` removes
+`map→odom` correction entirely — two independent drives, two different
+route geometries, zero events each. §17.55/§17.56 found and replicated a
+second result nobody was looking for: the odometry invents heading it did
+not physically accumulate, on the same order as the drift this project has
+spent months attributing to physical slip. Both results came from
+building and validating a new instrument mid-session (video photogrammetry
+against world-static references), and that instrument failed its own
+validation check twice before it passed — recorded in both entries because
+a measurement that cannot fail its own check is not a measurement.
+
+**What Stage G did not reach:** a scored G4. Neither drive closed a real
+loop around the room, `map_integrity.py` never ran on either `.pgm`, and
+`graph_residuals` never saw a published graph — leaving open the real
+possibility that `use_scan_matching: false` suppresses pose-graph
+construction outright, which would make `do_loop_closing: true` inert.
+That is next session's first question, and it is a ten-second check
+(`ros2 topic info /slam_toolbox/graph_visualization` during a live mapping
+run), not a re-drive.
+
+**PR #11 merged to `main`.** Everything from `claude/narrowaislebot-
+goal-obstacle-avoidance-f2t3aa` (PR #10, the launch split, §17.49) rode in
+with it, since this branch was built on top of that one — PR #10 closed as
+superseded rather than merged separately, since its diff is now fully
+contained in `main`. `main` was 27+ commits stale before this; it is
+current as of this merge.
+
+**Branch cleanup.** `claude/narrowaislebot-mapping-reliability-038ike` was
+already an ancestor of `main` (merged via PR #9, confirmed by
+`git merge-base --is-ancestor` before deleting, not assumed from memory).
+`claude/narrowaislebot-goal-obstacle-avoidance-f2t3aa` and
+`claude/autonomous-vehicle-hardware-btgtga` are now ancestors of `main` via
+this merge. All three deleted. `claude/aps-report-draft-2nywbq` (PR #12)
+is untouched — independent work, explicitly kept.
+
+**`docs/Hardware_Roadmap.md` added** — Appendix B.8. The IMU/optical-flow/
+E-stop/collision-ring list argued out over the course of this session's
+chat, written down before it could be lost, plus three subsystems
+researched from scratch at the operator's request: battery percentage,
+autonomous charging docks, and a full 360°/~1 m collision ring. Planning
+only; no code, no parts ordered. See the doc's own §0 for how to read its
+confidence grades — nothing in it is graded MEASURED, because nothing in
+it has been built.
+
+**Next branch, cut from the now-current `main`, for whenever the hardware
+in that roadmap starts arriving, or for closing the G4/loop-closure
+question first** — both are legitimate next sessions and neither blocks
+the other.
+
+
 Every supporting document, organised by category. Update this as new artefacts are produced.
 
 > *Repository note (v2.0): the project's own authored documents now live as Markdown under `docs/` in the `NarrowAisleBot` GitHub repo, with the original `.docx`/`.pdf` in `docs/originals/`. The catalogue below predates that consolidation and lists documents by their original working titles; several are now the `docs/*.md` files. The repo is the current home of record.*
@@ -3524,6 +3576,20 @@ Living bibliography backing SLAM/AMR decisions from Part XVII onward — full li
 - **`src/mecanum_robot/resource/dashboard.html` is dead code** (§17.31): installed by `setup.py` as a data file, read by nothing. The page actually served is the `DASHBOARD_HTML` string constant at `phone_dashboard.py:112`. Either delete the file or make `index()` read it — but not as a drive-by change during the dashboard map work, since silently swapping the served page mid-build would confuse every subsequent test.
 - **`phone_dashboard.py`'s WebSocket has no server→client path** (§17.31) — `ws_clients` is tracked but never broadcast to, by an explicit past decision documented in the `/calib_status` handler. This is the single largest piece of missing plumbing between today's dashboard and the map-rendering product; design in `docs/Dashboard_Map_System.md` §E.1.
 - `phone_dashboard.py`'s `start_mapping()` launches `mapping_full.launch.py` with `stdout=DEVNULL`, discarding the SLAM console. Fine for casual driving, but it means a dashboard-launched mapping run cannot be diagnosed after the fact — launch mapping from a terminal (teed to a file) for any run that is being investigated.
+
+## B.8 Hardware roadmap — added 3 Sep 2026, closing Stage G
+
+- **`docs/Hardware_Roadmap.md`** — the IMU/optical-flow/collision-ring/E-stop
+  list from the Stage G chat session, written down before it was lost, plus
+  three researched-from-scratch subsystems: battery percentage (INA226,
+  reused from the brownout-diagnosis item, with the LiFePO4 flat-curve
+  caveat stated explicitly), autonomous charging docks (pogo-pin contacts +
+  IR beacon alignment + why the charger stays in the dock), and a full
+  360°/~1 m collision ring (ToF chosen over ultrasonic for reliability
+  against oblique/soft surfaces; slots into the existing
+  `RangeSensorLayer`/`collision_monitor` architecture, no new pipeline).
+  Planning only — nothing bought, nothing coded. Suggested procurement
+  order is in the doc's §5.
 
 ## B.7 Opened by the 28 Aug strategic audit (§17.43)
 

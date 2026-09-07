@@ -1,8 +1,10 @@
 # AisleBot's Next Objective — Integrating the HeXBuddy Manipulator
 
 > **Filed into this repo 2026-09-07.** Copied verbatim from the bridge document
-> supplied for this repository, with one correction marked below where it cited
-> firmware this repo has since superseded. Everything else is as handed over —
+> supplied for this repository, with two corrections marked below against this
+> repo's own numbers: a stale firmware citation, and a chassis-mass input to the
+> tipping model that this repo's measured mass nearly doubles. Everything else is
+> as handed over —
 > unbuilt design work from a separate, private repository, not yet reflected in
 > `APS_Report_Draft.md` or the seminar deck. See `docs/Research_Journal.md` and
 > `docs/aps_report/APS_Report_Draft.md` §12 for this repo's own evidence-grading
@@ -173,6 +175,16 @@ actual limiting factor at any payload became **tipping**, not actuator torque:
 
 **Unanchored rated reach ≈ 75 cm @ 5 kg · 55 cm @ 10 kg · 41 cm @ 20 kg.** No actuator
 choice fixes this — it's a moment-arm problem. Three practical mitigations, ranked:
+
+> **Correction on import.** This table is anchored on a 25 kg chassis, called
+> "conservative" above. AisleBot's actual mass, measured and reported in
+> `APS_Report_Draft.md` §5.1, is **45.54 kg** — very close to double. A heavier
+> base has a larger restoring moment about the same tip line, so real margins are
+> almost certainly better than this table shows at every reach and payload; how
+> much better is unquantified until someone reruns the model with the real mass
+> (and the real CG height, which this document does not state). Treat every
+> number in this section as pessimistic until that rerun happens, and do that
+> rerun before it drives any purchase or build decision.
 
 1. **Load-moment envelope (software, zero hardware)** — like a crane or reach truck:
    derate payload with reach, enforced by the planner. Ship this day one.

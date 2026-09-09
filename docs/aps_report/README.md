@@ -86,7 +86,7 @@ into that template's body.
 - [ ] Read a recent accepted report from the department for format and length
 - [ ] Agree with the supervisor how much of §10 to include
 - [ ] Consult IRCC on disclosure if a patent filing is contemplated
-- [ ] Recover the full bibliographic details for references 1–4
+- [ ] Recover the full bibliographic details for references 1–2
 - [ ] Fill in the parallel project's dates and effort fraction (§9.3)
 - [ ] Resolve every `[CONFIRM]` marker
 - [ ] Have someone who is not the author read it

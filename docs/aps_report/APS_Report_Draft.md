@@ -1255,6 +1255,21 @@ mitigation, which is a starting point rather than a result.
 centre of mass. Fixed-gain control is not adaptive to this, and whether it needs
 to be is an empirical question a loaded trajectory-tracking experiment answers.
 
+**Gap 7: wheel-fault tolerance is unexamined for an asymmetric platform, and
+matters more in a narrow aisle than in the open.** Fault-tolerant schemes for
+four-mecanum-wheel platforms exist and are validated on real hardware,
+compensating for one or two disabled wheels with adaptive control and
+navigation functions [21]. Like the adaptive and fuzzy-tuning literature
+already read [3, 4], that result assumes a symmetric wheel layout; whether the
+same compensation holds when the two wheel pairs sit at different radii from
+the centre of mass is open, and this platform has no fault detection or
+degraded-mode capability at all today. The stakes differ from the open
+workspace the literature tests in: a four-wheeled platform stalled in a
+sub-1 m aisle cannot be walked around, and may need to finish its current
+manoeuvre or reach a clear egress point on three wheels rather than simply
+stop. Unlike Gaps 1–6, nothing about this has been measured on this platform;
+it is included as a literature-motivated candidate, not a result in progress.
+
 ### 12.2 Plan by year
 
 ![Roadmap](figures/fig28_roadmap.png)
@@ -1356,10 +1371,13 @@ the estimator rather than the geometry.
 2. Galati et al. *Adaptive heading correction for mecanum platforms.*
    **[CONFIRM]** — full citation required. Source of the 4.56°-over-10 m drift
    figure that motivates Phase 2.
-3. *Modeling and Adaptive Control of an Omnidirectional Mobile Robot.*
-   **[CONFIRM]** — full citation required.
-4. *Fuzzy Adaptive PID Control of a Mecanum-Wheeled Mobile Robot.*
-   **[CONFIRM]** — full citation required.
+3. Lin, L.-C., & Shih, H.-Y. (2013). Modeling and adaptive control of an
+   omni-Mecanum-wheeled robot. *Intelligent Control and Automation*, 4,
+   166–179. https://doi.org/10.4236/ica.2013.42021
+4. Cao, G., Zhao, X., Ye, C., Yu, S., Li, B., & Jiang, C. (2022). Fuzzy
+   adaptive PID control method for multi-mecanum-wheeled mobile robot.
+   *Journal of Mechanical Science and Technology*, 36(4), 2019–2029.
+   https://doi.org/10.1007/s12206-022-0337-x
 
 **SLAM.**
 
@@ -1416,8 +1434,15 @@ the estimator rather than the geometry.
     applications to autonomous driving. *IEEE Transactions on Robotics*, 34(6),
     1603–1622. https://doi.org/10.1109/tro.2018.2865891
 
-References 5–20 were retrieved from the publication record and checked for
-retractions. References 1–4 are held in the project's document archive and need
+**Fault tolerance.**
+
+21. Vlantis, P., Bechlioulis, C. P., Karras, G., Fourlas, G., & Kyriakopoulos,
+    K. J. (2016). Fault tolerant control for omni-directional mobile platforms
+    with 4 mecanum wheels. *2016 IEEE International Conference on Robotics and
+    Automation (ICRA)*, 2395–2400. https://doi.org/10.1109/icra.2016.7487389
+
+References 3–21 were retrieved from the publication record and checked for
+retractions. References 1–2 are held in the project's document archive and need
 their full bibliographic details recovered before submission.
 
 ---

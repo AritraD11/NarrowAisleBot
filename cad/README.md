@@ -46,6 +46,22 @@ I tried parsing the STEP files' raw geometry (vertex point cloud) directly to pu
 
 **One thing worth checking against the actual model before it goes in the report:** §2.2's ASCII top-view diagram labels the 250 mm figure as "track (2d)", but 2d from the table above is 2 × 157.69 = 315.38 mm, not 250. Those can legitimately be different things — chassis frame width vs. the wider wheel-to-wheel track if the wheels sit on arms that extend past the frame edge — but the doc currently uses "250 mm" for both, which reads as a mislabel rather than two intentionally different numbers. Worth a five-minute check against the SolidWorks model (or just confirming which one is which) before I draw the top-view diagram, since that's exactly the number a reviewer would double check.
 
+## `openscad/` — a dimensioned replica, built from the screenshots
+
+You posted top-view and bottom-view SolidWorks screenshots of the chassis and said to build the report diagram from *that* shape, not an abstract kinematics sketch — so `openscad/aislebot_chassis.scad` reproduces the real footprint: base plate, the centre reinforcement bracket visible in your bottom-view screenshot, and the four wheels at their real offsets, with dimension lines, a centre mark, and centrelines baked into the model itself. Renders: `openscad/renders/top_view.png`, `bottom_view.png`, `isometric_view.png`.
+
+This isn't extracted from the native `.SLDASM` (still can't open that here) — it's built from two sources, and the file's header comments tag every number with which one it came from:
+
+- **CONFIRMED** — already in `docs/Master_Reference.md` §2.1/2.4: overall 1000×250mm plate, wheel-centre offsets l₁=403mm / l₂=333mm / d=157.69mm, wheel OD 152.4mm.
+- **MEASURED** — pixel-measured off your screenshots, calibrated against the confirmed numbers above. Three measurements came back matching the confirmed table almost exactly (wheel centres and OD, all within ~2%), which is the cross-check that makes me trust the rest of this method: bracket span ≈300mm, bracket crossbar thickness ≈23mm, the two struts at x=±71mm, three bolt holes per crossbar at x = −106/0/+106mm, and wheel width ≈57mm (not in any doc I have, this is the only source for it).
+
+**Three things in the model are guesses, flagged in the file, that you should correct before this goes in the report:**
+1. **Plate thickness (3mm)** and **bracket standoff height (20mm)** — invisible in a top/bottom orthographic screenshot; I used a plausible laser-cut-steel default.
+2. **Bolt hole diameter (6mm)** on the bracket crossbars — the holes are visible as dots in your screenshot but too small to measure a diameter from.
+3. **The small square component** near one corner (visible in both your screenshots, same spot) — I placed it at its measured position but don't know what it is (E-stop? limit switch? sensor mount?). Tell me and I'll label it properly instead of leaving it an unlabeled yellow block.
+
+Everything else — plate footprint, wheel positions, wheel diameter, bracket layout and span — should be correct to within the ~2% the cross-check numbers landed at.
+
 ## What I still need from you for exact diagrams
 
 I can't open the native files in this environment, so for anything beyond the table above (steel gauge/plate thickness, hole/standoff spacing, motor mount plate dimensions, fastener pattern) I'd be guessing. Two ways to close that gap:

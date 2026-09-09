@@ -67,10 +67,16 @@ From `docs/Master_Reference.md` §2.1/2.4, sourced there from the SolidWorks mod
 | Asymmetry offset | l₁ − l₂ | 70 mm |
 | Wheel radius | a | 76.2 mm (152.4 mm OD, 6") |
 
-Two things still open, both answerable from the `.SLDDRW` sheets above:
+Item 1 below is now **settled from the CAD**, see `extracted_geometry.md`:
 
-1. §2.2's top-view sketch labels 250 mm as "track (2d)", but 2 × 157.69 = 315.38 mm. Those can legitimately be different quantities (frame width against wheel-to-wheel track, if the wheels sit proud of the frame edge), but the document currently uses one number for both, which reads as a mislabel.
-2. Plate thickness, steel gauge, bracket standoff height, and the bracket hole pattern are not recorded anywhere in the repo.
+1. §2.2's top-view sketch labels 250 mm as "track (2d)", but 2 × 157.69 = 315.38 mm. The base-platform DXF shows the plate is 250 mm wide and the wheels stand 32.69 mm proud of each edge, so both numbers are right and describe different things. The §2.2 caption is a mislabel and needs correcting.
+2. Still open: plate thickness, steel gauge, and bracket standoff height. A flat DXF outline carries no thickness, so these need the `.SLDDRW` sheets or a physical measurement.
+
+## `extracted_geometry.md`
+
+Exact coordinates read straight out of `AislebotChasisLowerPlate.DXF` and `AisleBotTopPlate.DXF`. DXF is plain text, so the Drive connector can hand the whole file over and it can be parsed here, unlike the proprietary formats. The base platform measures 1000 × 250 mm and its wheel-mount holes independently confirm l₁ = 403 mm and l₂ = 333 mm.
+
+Exporting the remaining parts from SolidWorks as DXF would extend this to the whole chassis.
 
 ## Note on the removed OpenSCAD model
 

@@ -1,8 +1,8 @@
 # CAD
 
-The actual SolidWorks design of the AisleBot chassis and drivetrain, uploaded 9 Sep 2026. This is the source of record for any dimensioned diagram in the report — not the URDF (which is a simplified box-and-cylinder approximation for simulation, not a dimensioning reference).
+Source of record for the chassis geometry, and a map of where the rest of it lives.
 
-## What's here
+## In this repo
 
 ```
 cad/
@@ -13,58 +13,65 @@ cad/
 │   ├── MecanumRightWithHub.SLDASM                ← right mecanum wheel + hub, native SW
 │   ├── am-3479La 6 SR Mecanum Left with Standoffs.STEP   ← left wheel, neutral format
 │   └── am-3479Ra 6 SR Mecanum Right with Standoffs.STEP  ← right wheel, neutral format
-└── motor/
-    └── geared_DC_motor.SLDPRT                    ← Rhino RMCS-2086 model
+├── motor/
+│   └── geared_DC_motor.SLDPRT                    ← Rhino RMCS-2086 model
+└── renders/                                      ← real CAD renders, for report figures
 ```
 
-The `am-3479L`/`am-3479Ra` naming matches the AndyMark am-3479 equivalent already noted in `docs/Master_Reference.md` §2.4 for the DekuPro 6" SR mecanum wheels.
+`.SLDASM` / `.SLDPRT` are native SolidWorks (2019+), a proprietary binary container, not the older OLE2 format. Nothing but SolidWorks or eDrawings opens them. The two `.STEP` files are AP214 text and open in free viewers (eDrawings Viewer, FreeCAD, Autodesk Viewer, OnShape).
 
-## Formats and what can open them
+## Everything else is in Google Drive
 
-- **`.SLDASM` / `.SLDPRT`** — native SolidWorks. These were saved in a recent SolidWorks version (2019+); they're a proprietary binary container, not the older OLE2 format, so nothing short of SolidWorks or eDrawings can open them. This sandbox has neither, so I organized the files but did not attempt to open them.
-- **`.STEP`** (AP214, exported from SolidWorks 2019) — a real, open, text-based exchange format. Free viewers/editors that read it: eDrawings Viewer (free), FreeCAD, Autodesk Viewer (web), OnShape (import). This means the two wheel STEP files are the most portable pieces here if you need to hand geometry to something other than SolidWorks.
+Three shared folders hold the complete design. The Drive connector can list and search them from a Claude session, but this environment's network policy blocks `drive.google.com`, so file *contents* cannot be pulled down directly. Anything needed for the report has to be committed to this repo.
 
-I tried parsing the STEP files' raw geometry (vertex point cloud) directly to pull exact wheel dimensions without a CAD kernel. The numbers came out physically implausible (multi-meter bounding boxes for a 6" wheel) — reading a B-rep correctly means resolving placement transforms, which needs an actual CAD kernel (no FreeCAD/pythonocc available here). I did not include those numbers anywhere; treat wheel dimensions as coming from the datasheet values below, not from my attempted extraction.
+The pieces that matter for report figures:
 
-## The chassis assembly likely has missing references
+**Real CAD renders** (folder `AislebotPatentObjects` / `Patent_4_Crazy_bot`)
 
-`AislebotBasePlatform_SteelChasis.SLDASM` is an assembly — it points to child part files (frame plates, standoffs, fasteners) by relative path. Only the two wheel assemblies and the motor were uploaded alongside it, so opening the chassis assembly on a machine other than the one it was authored on will probably show missing-reference errors for suppressed/unlisted children. That's expected and doesn't affect anything above — it's just a heads-up for whoever opens it next in SolidWorks.
+| File | What it shows |
+|---|---|
+| `AislebotBasePlatform_SteelChasis_Topview.JPG` | full platform, top |
+| `AislebotBasePlatform_SteelChasis_bottomview.JPG` | full platform, underside with the centre bracket |
+| `AislebotBasePlatform_SteelChasis_sideview.JPG` | full platform, side |
+| `SteelChasis_topview.JPG` / `_bottomview.JPG` / `_sideview.JPG` | bare steel frame, three views |
+| `Chassis.png` | chassis render |
 
-## Dimensions already confirmed (use these for diagrams)
+**SolidWorks drawings**, the dimensioned 2D sheets, in `Aislebot_Assembly`
 
-`docs/Master_Reference.md` §2.1 states these came from the SolidWorks model already, before this upload:
+| File | Part |
+|---|---|
+| `SteelChasisAssembly_drawing.SLDDRW` | the steel chassis assembly |
+| `AislebotChasisUpperPlate_New.SLDDRW` | upper plate |
+| `AislebotChasisLowerPlate.SLDDRW` | lower plate |
+| `SteelChasisLengthRod_drawing.SLDDRW` | length rod |
+| `SteelChasisBreadthPlate_drawing.SLDDRW` | breadth plate |
+| `SteelChasisBreadthRodMiddle_drawing.SLDDRW` | middle breadth rod |
+
+These are the real dimension source. Exported to PDF from SolidWorks they become usable directly as report figures, and they settle every dimension question below without anyone measuring pixels.
+
+**DWG exports** in `aislebot_assembly_backup_sw_urdf_both`, including `Flat pattern - SteelChasisLengthRodSheetMetal.DWG` and the matching breadth-plate and breadth-rod flat patterns. Flat patterns carry exact sheet metal dimensions and bend allowances.
+
+Checked and ruled out: `Monika_aislebot1.pdf`, `Monika_compiled_4.pdf`, `Monika_aislebot_chair_3.pdf`, `Monika_aislebot_trolley_2.pdf`. These are patent figure sheets (their only text is reference numerals like "FIG. 1f", "100", "200"), not dimensioned drawings.
+
+## Dimensions currently treated as ground truth
+
+From `docs/Master_Reference.md` §2.1/2.4, sourced there from the SolidWorks model:
 
 | Parameter | Symbol | Value |
 |---|---|---|
-| Chassis length | — | 1000 mm |
-| Chassis width | — | 250 mm |
+| Chassis length | | 1000 mm |
+| Chassis width | | 250 mm |
 | Outer wheel longitudinal distance (FR, RL) | l₁ | 403 mm |
 | Inner wheel longitudinal distance (FL, RR) | l₂ | 333 mm |
 | Half track width | d | 157.69 mm |
 | Asymmetry offset | l₁ − l₂ | 70 mm |
 | Wheel radius | a | 76.2 mm (152.4 mm OD, 6") |
 
-**One thing worth checking against the actual model before it goes in the report:** §2.2's ASCII top-view diagram labels the 250 mm figure as "track (2d)", but 2d from the table above is 2 × 157.69 = 315.38 mm, not 250. Those can legitimately be different things — chassis frame width vs. the wider wheel-to-wheel track if the wheels sit on arms that extend past the frame edge — but the doc currently uses "250 mm" for both, which reads as a mislabel rather than two intentionally different numbers. Worth a five-minute check against the SolidWorks model (or just confirming which one is which) before I draw the top-view diagram, since that's exactly the number a reviewer would double check.
+Two things still open, both answerable from the `.SLDDRW` sheets above:
 
-## `openscad/` — a dimensioned replica, built from the screenshots
+1. §2.2's top-view sketch labels 250 mm as "track (2d)", but 2 × 157.69 = 315.38 mm. Those can legitimately be different quantities (frame width against wheel-to-wheel track, if the wheels sit proud of the frame edge), but the document currently uses one number for both, which reads as a mislabel.
+2. Plate thickness, steel gauge, bracket standoff height, and the bracket hole pattern are not recorded anywhere in the repo.
 
-You posted top-view and bottom-view SolidWorks screenshots of the chassis and said to build the report diagram from *that* shape, not an abstract kinematics sketch — so `openscad/aislebot_chassis.scad` reproduces the real footprint: base plate, the centre reinforcement bracket visible in your bottom-view screenshot, and the four wheels at their real offsets, with dimension lines, a centre mark, and centrelines baked into the model itself. Renders: `openscad/renders/top_view.png`, `bottom_view.png`, `isometric_view.png`.
+## Note on the removed OpenSCAD model
 
-This isn't extracted from the native `.SLDASM` (still can't open that here) — it's built from two sources, and the file's header comments tag every number with which one it came from:
-
-- **CONFIRMED** — already in `docs/Master_Reference.md` §2.1/2.4: overall 1000×250mm plate, wheel-centre offsets l₁=403mm / l₂=333mm / d=157.69mm, wheel OD 152.4mm.
-- **MEASURED** — pixel-measured off your screenshots, calibrated against the confirmed numbers above. Three measurements came back matching the confirmed table almost exactly (wheel centres and OD, all within ~2%), which is the cross-check that makes me trust the rest of this method: bracket span ≈300mm, bracket crossbar thickness ≈23mm, the two struts at x=±71mm, three bolt holes per crossbar at x = −106/0/+106mm, and wheel width ≈57mm (not in any doc I have, this is the only source for it).
-
-**Three things in the model are guesses, flagged in the file, that you should correct before this goes in the report:**
-1. **Plate thickness (3mm)** and **bracket standoff height (20mm)** — invisible in a top/bottom orthographic screenshot; I used a plausible laser-cut-steel default.
-2. **Bolt hole diameter (6mm)** on the bracket crossbars — the holes are visible as dots in your screenshot but too small to measure a diameter from.
-3. **The small square component** near one corner (visible in both your screenshots, same spot) — I placed it at its measured position but don't know what it is (E-stop? limit switch? sensor mount?). Tell me and I'll label it properly instead of leaving it an unlabeled yellow block.
-
-Everything else — plate footprint, wheel positions, wheel diameter, bracket layout and span — should be correct to within the ~2% the cross-check numbers landed at.
-
-## What I still need from you for exact diagrams
-
-I can't open the native files in this environment, so for anything beyond the table above (steel gauge/plate thickness, hole/standoff spacing, motor mount plate dimensions, fastener pattern) I'd be guessing. Two ways to close that gap:
-
-1. Export dimensioned 2D drawings (SolidWorks `.SLDDRW` → PDF or DXF) for the chassis plate and the wheel hub, and drop them in `cad/` — I can trace exact diagrams straight from those.
-2. Or just tell me the specific numbers (plate thickness, hole pitch, standoff height, whatever the report needs) and I'll build the schematic to scale from that plus the table above.
+An earlier commit on this branch added a parametric OpenSCAD reconstruction of the chassis plus rendered views. It was removed on request: the report uses real CAD imagery, not generated geometry. It remains in git history if it is ever wanted for something else.

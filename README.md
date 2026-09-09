@@ -68,6 +68,7 @@ The full write-up lives in [`docs/`](docs/) — start at [`docs/README.md`](docs
 - [`docs/Hardware_Roadmap.md`](docs/Hardware_Roadmap.md) — **planning only, nothing installed yet.** The collision ring, battery-percentage sensing, and autonomous charging docks argued out and researched, with reasoning and a suggested procurement order.
 - [`docs/originals/`](docs/originals/) — the source-of-record `.docx`/`.pdf` files the Markdown above was converted from.
 - [`docs/tools/`](docs/tools/) — standalone interactive HTML tools (telemetry analyzer, mecanum physics guide) — download and double-click to open, no server needed.
+- [`cad/`](cad/) — the actual SolidWorks design: chassis assembly, wheel assemblies (native + STEP), motor model. See [`cad/README.md`](cad/README.md) for what's there and how it relates to the dimensions already documented in `docs/Master_Reference.md` §2.1.
 
 ---
 
@@ -89,6 +90,11 @@ aislebot/
 │   ├── Network_SelfHosted_AP.md
 │   ├── Setup_Manual.md
 │   └── originals/                      ← source .docx / .pdf files
+│
+├── cad/                                ← native SolidWorks design (chassis, wheels, motor)
+│   ├── chassis/                        ← base platform assembly (.SLDASM)
+│   ├── wheels/                         ← mecanum wheel assemblies (.SLDASM + .STEP)
+│   └── motor/                          ← geared DC motor part (.SLDPRT)
 │
 ├── system/                             ← system config, mirrors what's live on the Pi
 │   ├── 99-aislebot.rules               ← /etc/udev/rules.d/  — port-pinned esp32/ydlidar/mega

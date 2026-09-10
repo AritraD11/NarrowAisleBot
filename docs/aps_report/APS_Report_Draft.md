@@ -1618,7 +1618,7 @@ turning drives, and re-baseline the campaign afterwards.
 from which this report was assembled, and every figure in it is regenerable from
 the data in this repository.
 
-### Appendix G — The three commissioning maps
+### Appendix G — The three commissioning maps, reconstructed and as captured
 
 ![Field maps](figures/fig29_field_maps.png)
 
@@ -1639,6 +1639,23 @@ out-and-back leg whose observed fraction is the lowest of the three.
 These are the same runs whose correction traces appear in Figure 16, so the two
 figures can be read together: Figure 16 gives the magnitude of what the
 estimator was doing, and this one gives the geometry it was doing it in.
+
+![Dashboard screenshots](figures/fig30_dashboard_screenshots.png)
+
+**Figure 30.** The same three drives again, this time from the operator's own
+dashboard screenshots taken during the drives and hand-annotated at the time
+(`docs/evidence/monday_recon/`, `docs/evidence/tuesday_repeat/`), embedded as
+captured rather than reconstructed. Green is the SLAM-estimated path, blue is
+wheel odometry, yellow marks a correction event, red marks a doubled wall.
+
+Figure 29 is regenerated from the saved map on every run and will never disagree
+with the numbers in this report; Figure 30 is the primary record those numbers
+were read from, and the two are included together so a reader can check one
+against the other. The pattern is visible directly here: in (b), the run that
+returned to within 0.085 m, the green and blue traces run almost on top of each
+other for the whole leg. In (a) and (c), the two runs that returned worse, they
+separate into a visible loop. That separation between the wheel estimate and the
+SLAM estimate is the map→odom correction Figure 16 plots the magnitude of.
 
 ---
 

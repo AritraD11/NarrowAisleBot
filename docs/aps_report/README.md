@@ -8,8 +8,8 @@ the project record.
 | File | What it is |
 |---|---|
 | [`APS_Report_Draft.md`](APS_Report_Draft.md) | The report. **Edit this one.** |
-| [`APS_Report_Draft.docx`](APS_Report_Draft.docx) | Built from the Markdown, all 29 figures embedded, table of contents included. Download and open. Regenerate it after every edit with the command below rather than editing it directly, or the two will diverge. |
-| [`figures/`](figures/) | 29 figures, PNG at 300 dpi, numbered to match the in-text figure numbers |
+| [`APS_Report_Draft.docx`](APS_Report_Draft.docx) | Built from the Markdown, all 30 figures embedded, table of contents included. Download and open. Regenerate it after every edit with the command below rather than editing it directly, or the two will diverge. |
+| [`figures/`](figures/) | 30 figures, PNG at 300 dpi, numbered to match the in-text figure numbers |
 | [`figure_src/`](figure_src/) | The scripts that generate every figure |
 | [`NarrowAisleBot_APS_Seminar.pptx`](NarrowAisleBot_APS_Seminar.pptx) | The seminar deck. 16 slides, figures and platform photograph placed, speaker notes on every slide. Built by `deck_src/build_deck.js`. |
 | [`deck_src/`](deck_src/) | The deck generator and its layout-overflow check |
@@ -47,11 +47,17 @@ the plots are regenerated from source data rather than being static images that
 can silently go stale. Paths resolve relative to the script's own location, so
 they run from anywhere.
 
-Two figures are computed rather than transcribed, because they carry claims:
+Several figures are computed rather than transcribed, because they carry claims:
 **Figure 10** recomputes the ground-load feedforward increase from the 5 and
-6 August telemetry logs, and **Figure 16** replots the map-to-odom correction
-traces from the three field runs. Both agree with the journal to the digit,
-which is the point of regenerating them rather than screenshotting.
+6 August telemetry logs, **Figure 16** replots the map-to-odom correction traces
+from the three field runs, and **Figure 29** rebuilds the three commissioning
+maps from the saved PGM/YAML with the driven path overlaid. All of them agree
+with the journal to the digit, which is the point of regenerating them rather
+than screenshotting. **Figure 30** is the one deliberate exception: it embeds
+the operator's own annotated dashboard screenshots of those same three drives
+exactly as captured, because that annotation cannot be regenerated from source
+and is not meant to be — it is the primary record, kept alongside its
+regenerated counterpart rather than replaced by it.
 
 `style.py` holds the shared colour language, and it is worth keeping consistent:
 orange for the command path, blue for telemetry and perception, red for a defect
@@ -71,7 +77,7 @@ pandoc APS_Report_Draft.md -o APS_Report.pdf --resource-path=. \
 ```
 
 The Word conversion is verified: it produces a roughly 9 MB file with all
-29 figures embedded. The PDF route additionally needs a LaTeX engine
+30 figures embedded. The PDF route additionally needs a LaTeX engine
 (`texlive-latex-recommended` plus `texlive-fonts-recommended` is enough), or
 `--pdf-engine=weasyprint` to avoid LaTeX entirely.
 

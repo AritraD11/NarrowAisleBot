@@ -14,3 +14,10 @@
 
 # Hardware evidence recordings — binary, never line-normalized or diffed.
 *.mp4   binary
+
+# CAD source-of-record — binary containers (SLDASM/SLDPRT) or huge single-line
+# exchange text (STEP) that git shouldn't try to diff or line-normalize.
+*.SLDASM binary
+*.SLDPRT binary
+*.STEP   binary
+*.step   binary

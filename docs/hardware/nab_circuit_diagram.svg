@@ -1,0 +1,222 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1780" height="1310" viewBox="0 0 1780 1310" font-family="DejaVu Sans, Arial, sans-serif">
+<rect width="1780" height="1310" fill="#FFFFFF"/>
+<defs>
+<marker id="a_b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7B1E1E"/></marker>
+<marker id="a_v24" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#D32F2F"/></marker>
+<marker id="a_v5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#EF6C00"/></marker>
+<marker id="a_v33" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1565C0"/></marker>
+<marker id="a_sig" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#37474F"/></marker>
+<marker id="a_enc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6A1B9A"/></marker>
+</defs>
+<text x="40" y="46" font-size="27" font-weight="bold" fill="#17202A">NarrowAisleBot &#8212; deployed electronics</text>
+<text x="40" y="70" font-size="13.5" fill="#5D6D7E">Base chassis power distribution, drive control and odometry feedback. Pin assignments per Master_Reference.md &#167;4 and Bench_Test_Map.md.</text>
+<text x="1180" y="34" font-size="11.5" font-weight="bold" fill="#17202A">RAILS</text>
+<line x1="1180" y1="52" x2="1206" y2="52" stroke="#7B1E1E" stroke-width="3.4"/>
+<text x="1213" y="56" font-size="11.5" fill="#5D6D7E">12.8 V battery</text>
+<line x1="1380" y1="52" x2="1406" y2="52" stroke="#D32F2F" stroke-width="3.4"/>
+<text x="1413" y="56" font-size="11.5" fill="#5D6D7E">24 V motor</text>
+<line x1="1580" y1="52" x2="1606" y2="52" stroke="#EF6C00" stroke-width="3.4"/>
+<text x="1613" y="56" font-size="11.5" fill="#5D6D7E">5 V logic</text>
+<line x1="1180" y1="71" x2="1206" y2="71" stroke="#1565C0" stroke-width="3.4"/>
+<text x="1213" y="75" font-size="11.5" fill="#5D6D7E">3.3 V ESP32</text>
+<line x1="1380" y1="71" x2="1406" y2="71" stroke="#37474F" stroke-width="3.4"/>
+<text x="1413" y="75" font-size="11.5" fill="#5D6D7E">USB / serial</text>
+<line x1="1580" y1="71" x2="1606" y2="71" stroke="#6A1B9A" stroke-width="3.4"/>
+<text x="1613" y="75" font-size="11.5" fill="#5D6D7E">encoder A/B</text>
+<rect x="30" y="100" width="1720" height="300" rx="10" fill="none" stroke="#7B1E1E" stroke-width="1.4" stroke-dasharray="7 6" opacity="0.55"/>
+<text x="44" y="121" font-size="13" font-weight="bold" fill="#7B1E1E" opacity="0.85" letter-spacing="1.5">POWER DISTRIBUTION</text>
+<rect x="52" y="150" width="196" height="104" rx="7" fill="#FFFFFF" stroke="#7B1E1E" stroke-width="2"/>
+<rect x="52" y="150" width="196" height="5" rx="2.5" fill="#7B1E1E"/>
+<text x="150.0" y="174" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">LiFePO&#8324; battery</text>
+<text x="150.0" y="193" font-size="11.5" fill="#5D6D7E" text-anchor="middle">SM12830SL</text>
+<text x="150.0" y="208" font-size="11.5" fill="#5D6D7E" text-anchor="middle">12.8 V &#183; 30 Ah &#183; 384 Wh</text>
+<rect x="310" y="158" width="150" height="88" rx="7" fill="#FFFFFF" stroke="#7B1E1E" stroke-width="2"/>
+<rect x="310" y="158" width="150" height="5" rx="2.5" fill="#7B1E1E"/>
+<text x="385.0" y="182" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">SSR-50DD</text>
+<text x="385.0" y="201" font-size="11.5" fill="#5D6D7E" text-anchor="middle">solid state relay</text>
+<text x="385.0" y="216" font-size="11.5" fill="#5D6D7E" text-anchor="middle">50 A &#183; 3&#8211;32 V trig</text>
+<rect x="524" y="118" width="208" height="80" rx="7" fill="#FFFFFF" stroke="#D32F2F" stroke-width="2"/>
+<rect x="524" y="118" width="208" height="5" rx="2.5" fill="#D32F2F"/>
+<text x="628.0" y="142" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">Boost converter</text>
+<text x="628.0" y="161" font-size="11.5" fill="#5D6D7E" text-anchor="middle">1200 W DC-DC</text>
+<text x="628.0" y="176" font-size="11.5" fill="#5D6D7E" text-anchor="middle">12.8 V &#8594; 24 V</text>
+<rect x="524" y="218" width="208" height="80" rx="7" fill="#FFFFFF" stroke="#EF6C00" stroke-width="2"/>
+<rect x="524" y="218" width="208" height="5" rx="2.5" fill="#EF6C00"/>
+<text x="628.0" y="242" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">Buck converter</text>
+<text x="628.0" y="261" font-size="11.5" fill="#5D6D7E" text-anchor="middle">DFRobot 60 W</text>
+<text x="628.0" y="276" font-size="11.5" fill="#5D6D7E" text-anchor="middle">12.8 V &#8594; 5 V</text>
+<rect x="524" y="318" width="208" height="66" rx="7" fill="#FFFFFF" stroke="#EF6C00" stroke-width="2"/>
+<rect x="524" y="318" width="208" height="5" rx="2.5" fill="#EF6C00"/>
+<text x="628.0" y="342" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">Pi 5 PSU</text>
+<text x="628.0" y="361" font-size="11.5" fill="#5D6D7E" text-anchor="middle">5 V supply</text>
+<path d="M 248,202 L 306,202" fill="none" stroke="#7B1E1E" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_b)"/>
+<path d="M 460,202 L 492,202 L 492,158 L 520,158" fill="none" stroke="#7B1E1E" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_b)"/>
+<path d="M 460,202 L 492,202 L 492,258 L 520,258" fill="none" stroke="#7B1E1E" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_b)"/>
+<path d="M 492,258 L 492,351 L 520,351" fill="none" stroke="#7B1E1E" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_b)"/>
+<rect x="461.2" y="120" width="49.6" height="18" rx="3" fill="#FFFFFF" opacity="0.95"/>
+<text x="486" y="133" font-size="11" font-weight="bold" fill="#7B1E1E" text-anchor="middle">12.8 V</text>
+<path d="M 732,158 L 1150,158" fill="none" stroke="#D32F2F" stroke-width="3.2" stroke-linejoin="round"/>
+<rect x="905.3" y="138" width="69.4" height="18" rx="3" fill="#FFFFFF" opacity="0.95"/>
+<text x="940" y="151" font-size="11" font-weight="bold" fill="#D32F2F" text-anchor="middle">24 V rail</text>
+<path d="M 1150,158 L 1176,158" stroke="#D32F2F" stroke-width="3.2" fill="none" marker-end="url(#a_v24)"/>
+<circle cx="1189.0" cy="158" r="7" fill="#FFFFFF" stroke="#D32F2F" stroke-width="2.4"/>
+<text x="1207.2" y="162" font-size="11.5" font-weight="bold" fill="#D32F2F" text-anchor="start">A &#8594; both MDD20A VB+/VB&#8722;</text>
+<path d="M 732,258 L 1150,258" fill="none" stroke="#EF6C00" stroke-width="3.2" stroke-linejoin="round"/>
+<rect x="908.6" y="238" width="62.8" height="18" rx="3" fill="#FFFFFF" opacity="0.95"/>
+<text x="940" y="251" font-size="11" font-weight="bold" fill="#EF6C00" text-anchor="middle">5 V rail</text>
+<path d="M 1150,258 L 1176,258" stroke="#EF6C00" stroke-width="3.2" fill="none" marker-end="url(#a_v5)"/>
+<circle cx="1189.0" cy="258" r="7" fill="#FFFFFF" stroke="#EF6C00" stroke-width="2.4"/>
+<text x="1207.2" y="262" font-size="11.5" font-weight="bold" fill="#EF6C00" text-anchor="start">B &#8594; 4&#215; encoder V<tspan font-size='8'>CC</tspan> &#183; shifter HV+</text>
+<rect x="30" y="420" width="1720" height="250" rx="10" fill="none" stroke="#37474F" stroke-width="1.4" stroke-dasharray="7 6" opacity="0.55"/>
+<text x="44" y="441" font-size="13" font-weight="bold" fill="#37474F" opacity="0.85" letter-spacing="1.5">COMPUTE &amp; COMMAND</text>
+<rect x="120" y="452" width="250" height="152" rx="7" fill="#FFFFFF" stroke="#37474F" stroke-width="2"/>
+<rect x="120" y="452" width="250" height="5" rx="2.5" fill="#37474F"/>
+<text x="245.0" y="476" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">Raspberry Pi 5</text>
+<text x="245.0" y="495" font-size="11.5" fill="#5D6D7E" text-anchor="middle">Ubuntu 24.04 &#183; ROS 2 Jazzy</text>
+<text x="245.0" y="510" font-size="11.5" fill="#5D6D7E" text-anchor="middle">8 GB &#183; Nav2 / slam_toolbox</text>
+<text x="245.0" y="525" font-size="11.5" fill="#5D6D7E" text-anchor="middle">mecanum_teleop_asymmetric</text>
+<text x="245.0" y="540" font-size="11.5" fill="#5D6D7E" text-anchor="middle">esp32_bridge &#183; scan_relay</text>
+<rect x="520" y="452" width="236" height="96" rx="7" fill="#FFFFFF" stroke="#37474F" stroke-width="2"/>
+<rect x="520" y="452" width="236" height="5" rx="2.5" fill="#37474F"/>
+<text x="638.0" y="476" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">YDLIDAR X4 Pro</text>
+<text x="638.0" y="495" font-size="11.5" fill="#5D6D7E" text-anchor="middle">/dev/ydlidar &#183; 128000 bd</text>
+<text x="638.0" y="510" font-size="11.5" fill="#5D6D7E" text-anchor="middle">~430 pts @ ~11.35 Hz</text>
+<rect x="520" y="570" width="236" height="84" rx="7" fill="#FFFFFF" stroke="#37474F" stroke-width="2"/>
+<rect x="520" y="570" width="236" height="5" rx="2.5" fill="#37474F"/>
+<text x="638.0" y="594" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">Arduino Mega 2560</text>
+<text x="638.0" y="613" font-size="11.5" fill="#5D6D7E" text-anchor="middle">/dev/mega &#183; 115200 bd</text>
+<text x="638.0" y="628" font-size="11.5" fill="#5D6D7E" text-anchor="middle">arm + UV lighting (v8)</text>
+<rect x="880" y="452" width="250" height="152" rx="7" fill="#FFFFFF" stroke="#1565C0" stroke-width="2"/>
+<rect x="880" y="452" width="250" height="5" rx="2.5" fill="#1565C0"/>
+<text x="1005.0" y="476" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">ESP32-WROOM-32</text>
+<text x="1005.0" y="495" font-size="11.5" fill="#5D6D7E" text-anchor="middle">/dev/esp32 &#183; 921600 bd</text>
+<text x="1005.0" y="510" font-size="11.5" fill="#5D6D7E" text-anchor="middle">hardware PCNT quadrature</text>
+<text x="1005.0" y="525" font-size="11.5" fill="#5D6D7E" text-anchor="middle">PID @ 50 Hz &#183; Kp50 Ki30 Kd3</text>
+<text x="1005.0" y="540" font-size="11.5" fill="#5D6D7E" text-anchor="middle">AMS1117 &#8594; 3.3 V domain</text>
+<path d="M 370,500 L 520,500" fill="none" stroke="#37474F" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_sig)"/>
+<rect x="430.1" y="480" width="29.8" height="18" rx="3" fill="#FFFFFF" opacity="0.95"/>
+<text x="445" y="493" font-size="11" font-weight="bold" fill="#37474F" text-anchor="middle">USB</text>
+<path d="M 370,560 L 446,560 L 446,612 L 520,612" fill="none" stroke="#37474F" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_sig)"/>
+<rect x="431.1" y="630" width="29.8" height="18" rx="3" fill="#FFFFFF" opacity="0.95"/>
+<text x="446" y="643" font-size="11" font-weight="bold" fill="#37474F" text-anchor="middle">USB</text>
+<path d="M 370,528 L 760,528 L 760,528 L 880,528" fill="none" stroke="#37474F" stroke-width="2.6" stroke-linejoin="round"/>
+<path d="M 756,528 L 880,528" fill="none" stroke="#37474F" stroke-width="2.6" marker-end="url(#a_sig)" marker-start="url(#a_sig)"/>
+<rect x="756.9" y="508" width="122.2" height="18" rx="3" fill="#FFFFFF" opacity="0.95"/>
+<text x="818" y="521" font-size="11" font-weight="bold" fill="#37474F" text-anchor="middle">USB serial 921600</text>
+<rect x="720.0" y="537" width="196.0" height="17" rx="3" fill="#FFFFFF" opacity="0.95"/>
+<text x="818" y="549" font-size="10" font-weight="normal" fill="#5D6D7E" text-anchor="middle">&#60;V,fr,fl,rr,rl&#62; / CSV telemetry</text>
+<path d="M 628,384 L 628,416 L 245,416 L 245,448" fill="none" stroke="#EF6C00" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v5)"/>
+<rect x="415.1" y="396" width="29.8" height="18" rx="3" fill="#FFFFFF" opacity="0.95"/>
+<text x="430" y="409" font-size="11" font-weight="bold" fill="#EF6C00" text-anchor="middle">5 V</text>
+<path d="M 1005,604 L 1005,648" fill="none" stroke="#1565C0" stroke-width="2.6" stroke-linejoin="round"/>
+<rect x="982.3" y="620" width="135.39999999999998" height="18" rx="3" fill="#FFFFFF" opacity="0.95"/>
+<text x="1050" y="633" font-size="11" font-weight="bold" fill="#1565C0" text-anchor="middle">3.3 V &#8594; shifter LV+</text>
+<rect x="30" y="690" width="1720" height="470" rx="10" fill="none" stroke="#D32F2F" stroke-width="1.4" stroke-dasharray="7 6" opacity="0.55"/>
+<text x="44" y="711" font-size="13" font-weight="bold" fill="#D32F2F" opacity="0.85" letter-spacing="1.5">DRIVE &amp; ODOMETRY FEEDBACK</text>
+<rect x="300" y="726" width="216" height="96" rx="7" fill="#FFFFFF" stroke="#D32F2F" stroke-width="2"/>
+<rect x="300" y="726" width="216" height="5" rx="2.5" fill="#D32F2F"/>
+<text x="408.0" y="750" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">Cytron MDD20A #1</text>
+<text x="408.0" y="769" font-size="11.5" fill="#5D6D7E" text-anchor="middle">20 A cont. &#183; 6&#8211;30 V</text>
+<text x="408.0" y="784" font-size="11.5" fill="#5D6D7E" text-anchor="middle">FR + FL</text>
+<rect x="300" y="852" width="216" height="96" rx="7" fill="#FFFFFF" stroke="#D32F2F" stroke-width="2"/>
+<rect x="300" y="852" width="216" height="5" rx="2.5" fill="#D32F2F"/>
+<text x="408.0" y="876" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">Cytron MDD20A #2</text>
+<text x="408.0" y="895" font-size="11.5" fill="#5D6D7E" text-anchor="middle">20 A cont. &#183; 6&#8211;30 V</text>
+<text x="408.0" y="910" font-size="11.5" fill="#5D6D7E" text-anchor="middle">RR + RL</text>
+<rect x="64" y="726" width="190" height="62" rx="7" fill="#FFFFFF" stroke="#D32F2F" stroke-width="2"/>
+<rect x="64" y="726" width="190" height="5" rx="2.5" fill="#D32F2F"/>
+<text x="159.0" y="750" font-size="13.5" font-weight="bold" fill="#17202A" text-anchor="middle">Motor FR</text>
+<text x="159.0" y="769" font-size="10" fill="#5D6D7E" text-anchor="middle">Rhino RMCS-2086</text>
+<text x="159.0" y="784" font-size="10" fill="#5D6D7E" text-anchor="middle">24 V &#183; 60 RPM &#183; 1:47</text>
+<rect x="64" y="806" width="190" height="62" rx="7" fill="#FFFFFF" stroke="#D32F2F" stroke-width="2"/>
+<rect x="64" y="806" width="190" height="5" rx="2.5" fill="#D32F2F"/>
+<text x="159.0" y="830" font-size="13.5" font-weight="bold" fill="#17202A" text-anchor="middle">Motor FL</text>
+<text x="159.0" y="849" font-size="10" fill="#5D6D7E" text-anchor="middle">Rhino RMCS-2086</text>
+<text x="159.0" y="864" font-size="10" fill="#5D6D7E" text-anchor="middle">24 V &#183; 60 RPM &#183; 1:47</text>
+<rect x="64" y="886" width="190" height="62" rx="7" fill="#FFFFFF" stroke="#D32F2F" stroke-width="2"/>
+<rect x="64" y="886" width="190" height="5" rx="2.5" fill="#D32F2F"/>
+<text x="159.0" y="910" font-size="13.5" font-weight="bold" fill="#17202A" text-anchor="middle">Motor RR</text>
+<text x="159.0" y="929" font-size="10" fill="#5D6D7E" text-anchor="middle">Rhino RMCS-2086</text>
+<text x="159.0" y="944" font-size="10" fill="#5D6D7E" text-anchor="middle">24 V &#183; 60 RPM &#183; 1:47</text>
+<rect x="64" y="966" width="190" height="62" rx="7" fill="#FFFFFF" stroke="#D32F2F" stroke-width="2"/>
+<rect x="64" y="966" width="190" height="5" rx="2.5" fill="#D32F2F"/>
+<text x="159.0" y="990" font-size="13.5" font-weight="bold" fill="#17202A" text-anchor="middle">Motor RL</text>
+<text x="159.0" y="1009" font-size="10" fill="#5D6D7E" text-anchor="middle">Rhino RMCS-2086</text>
+<text x="159.0" y="1024" font-size="10" fill="#5D6D7E" text-anchor="middle">24 V &#183; 60 RPM &#183; 1:47</text>
+<circle cx="586" cy="742" r="9" fill="#FFFFFF" stroke="#D32F2F" stroke-width="2.4"/>
+<text x="586" y="746" font-size="11" font-weight="bold" fill="#D32F2F" text-anchor="middle">A</text>
+<path d="M 577,742 L 540,742 L 540,762 L 520,762" fill="none" stroke="#D32F2F" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v24)"/>
+<path d="M 540,742 L 540,888 L 520,888" fill="none" stroke="#D32F2F" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v24)"/>
+<rect x="595" y="712.5" width="98.2" height="17.5" rx="3" fill="#FFFFFF" opacity="0.95"/>
+<text x="600" y="725" font-size="10.5" font-weight="bold" fill="#D32F2F" text-anchor="start">24 V &#8594; VB+/VB&#8722;</text>
+<path d="M 300,762 L 276,762 L 276,757 L 258,757" fill="none" stroke="#D32F2F" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v24)"/>
+<path d="M 300,786 L 276,786 L 276,837 L 258,837" fill="none" stroke="#D32F2F" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v24)"/>
+<path d="M 300,888 L 276,888 L 276,917 L 258,917" fill="none" stroke="#D32F2F" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v24)"/>
+<path d="M 300,912 L 276,912 L 276,997 L 258,997" fill="none" stroke="#D32F2F" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v24)"/>
+<text x="330" y="1204" font-size="10.5" fill="#5D6D7E">Motor leads: Red &#8594; MxA, Black &#8594; MxB, identical on all four. Left/right direction handled in firmware via MOTOR_DIR_SIGN[].</text>
+<rect x="660" y="726" width="200" height="96" rx="7" fill="#FFFFFF" stroke="#1565C0" stroke-width="2"/>
+<rect x="660" y="726" width="200" height="5" rx="2.5" fill="#1565C0"/>
+<text x="760.0" y="750" font-size="13.5" font-weight="bold" fill="#17202A" text-anchor="middle">PWM + DIR</text>
+<text x="760.0" y="769" font-size="10" fill="#5D6D7E" text-anchor="middle">3.3 V direct &#8212; MDD20A</text>
+<text x="760.0" y="784" font-size="10" fill="#5D6D7E" text-anchor="middle">logic threshold 1.5 V</text>
+<text x="760.0" y="799" font-size="10" fill="#5D6D7E" text-anchor="middle">no shifting required</text>
+<path d="M 980,604 L 980,660 L 760,660 L 760,726" fill="none" stroke="#1565C0" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v33)"/>
+<path d="M 660,774 L 516,774" fill="none" stroke="#1565C0" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v33)"/>
+<path d="M 660,790 L 580,790 L 580,900 L 516,900" fill="none" stroke="#1565C0" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v33)"/>
+<text x="1160" y="745" font-size="11.5" fill="#17202A"><tspan font-weight="bold">FR</tspan>  PWM/DIR = G4 / G16</text>
+<text x="1160" y="762" font-size="11.5" fill="#17202A"><tspan font-weight="bold">FL</tspan>  PWM/DIR = G17 / G18</text>
+<text x="1160" y="779" font-size="11.5" fill="#17202A"><tspan font-weight="bold">RR</tspan>  PWM/DIR = G19 / G21</text>
+<text x="1160" y="796" font-size="11.5" fill="#17202A"><tspan font-weight="bold">RL</tspan>  PWM/DIR = G22 / G23</text>
+<text x="1160" y="726" font-size="12" font-weight="bold" fill="#1565C0">ESP32 &#8594; driver pins</text>
+<rect x="660" y="900" width="200" height="116" rx="7" fill="#FFFFFF" stroke="#6A1B9A" stroke-width="2"/>
+<rect x="660" y="900" width="200" height="5" rx="2.5" fill="#6A1B9A"/>
+<text x="760.0" y="924" font-size="13.5" font-weight="bold" fill="#17202A" text-anchor="middle">8-ch level shifter</text>
+<text x="760.0" y="943" font-size="10" fill="#5D6D7E" text-anchor="middle">discrete MOSFET</text>
+<text x="760.0" y="958" font-size="10" fill="#5D6D7E" text-anchor="middle">(BSS138-style, no OE)</text>
+<text x="760.0" y="973" font-size="10" fill="#5D6D7E" text-anchor="middle">LV+ 3.3 V &#183; HV+ 5 V</text>
+<text x="760.0" y="988" font-size="10" fill="#5D6D7E" text-anchor="middle">H0&#8211;H7 / L0&#8211;L7</text>
+<path d="M 1005,648 L 1005,880 L 860,880 L 860,900" fill="none" stroke="#1565C0" stroke-width="2.6" stroke-linejoin="round"/>
+<rect x="64" y="1046" width="190" height="84" rx="7" fill="#FFFFFF" stroke="#6A1B9A" stroke-width="2"/>
+<rect x="64" y="1046" width="190" height="5" rx="2.5" fill="#6A1B9A"/>
+<text x="159.0" y="1070" font-size="13.5" font-weight="bold" fill="#17202A" text-anchor="middle">Encoders &#215;4</text>
+<text x="159.0" y="1089" font-size="10" fill="#5D6D7E" text-anchor="middle">front FR/FL: GTK08</text>
+<text x="159.0" y="1104" font-size="10" fill="#5D6D7E" text-anchor="middle">rear RR/RL: RMCS-2086</text>
+<text x="159.0" y="1119" font-size="10" fill="#5D6D7E" text-anchor="middle">5 V quadrature</text>
+<circle cx="159" cy="1176" r="9" fill="#FFFFFF" stroke="#EF6C00" stroke-width="2.4"/>
+<text x="159" y="1180" font-size="11" font-weight="bold" fill="#EF6C00" text-anchor="middle">B</text>
+<path d="M 159,1185 L 159,1130" fill="none" stroke="#EF6C00" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v5)"/>
+<text x="174" y="1180" font-size="10.5" font-weight="bold" fill="#EF6C00">5 V &#8594; encoder V<tspan font-size='8'>CC</tspan></text>
+<circle cx="700" cy="862" r="9" fill="#FFFFFF" stroke="#EF6C00" stroke-width="2.4"/>
+<text x="700" y="866" font-size="11" font-weight="bold" fill="#EF6C00" text-anchor="middle">B</text>
+<path d="M 700,871 L 700,900" fill="none" stroke="#EF6C00" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v5)"/>
+<text x="715" y="866" font-size="10.5" font-weight="bold" fill="#EF6C00">5 V &#8594; HV+</text>
+<path d="M 254,1088 L 600,1088 L 600,990 L 660,990" fill="none" stroke="#6A1B9A" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_enc)"/>
+<rect x="382.1" y="1068" width="95.8" height="18" rx="3" fill="#FFFFFF" opacity="0.95"/>
+<text x="430" y="1081" font-size="11" font-weight="bold" fill="#6A1B9A" text-anchor="middle">8 &#215; A/B @ 5 V</text>
+<path d="M 860,958 L 940,958 L 940,604" fill="none" stroke="#6A1B9A" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_enc)"/>
+<rect x="940" y="690" width="109.0" height="18" rx="3" fill="#FFFFFF" opacity="0.95"/>
+<text x="945" y="703" font-size="11" font-weight="bold" fill="#6A1B9A" text-anchor="start">8 &#215; A/B @ 3.3 V</text>
+<text x="1160" y="830" font-size="12" font-weight="bold" fill="#6A1B9A">Encoder channel map</text>
+<text x="1160" y="850" font-size="10.5" fill="#5D6D7E"><tspan x="1160"></tspan><tspan x="1194">A / B wire</tspan><tspan x="1290">5 V</tspan><tspan x="1338">3.3 V</tspan><tspan x="1388">GPIO</tspan><tspan x="1452">unit</tspan><tspan x="1512">dir</tspan></text>
+<text y="868" font-size="11" fill="#17202A"><tspan x="1160" font-weight="bold">FR</tspan><tspan x="1194">Green/White</tspan><tspan x="1290">H0/H1</tspan><tspan x="1338">L0/L1</tspan><tspan x="1388">36 / 39</tspan><tspan x="1452">PCNT_0</tspan><tspan x="1512">&#8722;1</tspan></text>
+<text y="885" font-size="11" fill="#17202A"><tspan x="1160" font-weight="bold">FL</tspan><tspan x="1194">Green/White</tspan><tspan x="1290">H2/H3</tspan><tspan x="1338">L2/L3</tspan><tspan x="1388">34 / 35</tspan><tspan x="1452">PCNT_1</tspan><tspan x="1512">+1</tspan></text>
+<text y="902" font-size="11" fill="#17202A"><tspan x="1160" font-weight="bold">RR</tspan><tspan x="1194">Yellow/Green</tspan><tspan x="1290">H4/H5</tspan><tspan x="1338">L4/L5</tspan><tspan x="1388">32 / 33</tspan><tspan x="1452">PCNT_2</tspan><tspan x="1512">&#8722;1</tspan></text>
+<text y="919" font-size="11" fill="#17202A"><tspan x="1160" font-weight="bold">RL</tspan><tspan x="1194">Yellow/Green</tspan><tspan x="1290">H6/H7</tspan><tspan x="1338">L6/L7</tspan><tspan x="1388">25 / 26</tspan><tspan x="1452">PCNT_3</tspan><tspan x="1512">+1</tspan></text>
+<text x="1160" y="952" font-size="10.5" fill="#B71C1C">Front and rear encoders use different A/B wire colours.</text>
+<text x="1160" y="967" font-size="10.5" fill="#B71C1C">Verify against the physical wire, not memory.</text>
+<path d="M 60,1258 L 1720,1258" fill="none" stroke="#212121" stroke-width="4.2" stroke-linejoin="round"/>
+<text x="60" y="1244" font-size="13" font-weight="bold" fill="#212121">COMMON GROUND BUS</text>
+<text x="300" y="1244" font-size="11.5" fill="#B71C1C">ESP32 GND &#183; boost GND &#183; buck GND &#183; both MDD20A logic GND &#183; shifter LV&#8722;/HV&#8722; &#183; all 4 encoder Black &#8212; every one of these on a single rail.</text>
+<text x="60" y="1284" font-size="11" fill="#5D6D7E">Missing any one of these connections produces phantom motor behaviour (Master_Reference.md &#167;3.2). Pi GND reaches ESP32 GND through the USB cable.</text>
+<line x1="150" y1="1249" x2="150" y2="1258" stroke="#212121" stroke-width="2.2"/>
+<line x1="430" y1="1249" x2="430" y2="1258" stroke="#212121" stroke-width="2.2"/>
+<line x1="700" y1="1249" x2="700" y2="1258" stroke="#212121" stroke-width="2.2"/>
+<line x1="990" y1="1249" x2="990" y2="1258" stroke="#212121" stroke-width="2.2"/>
+<line x1="1270" y1="1249" x2="1270" y2="1258" stroke="#212121" stroke-width="2.2"/>
+<line x1="1560" y1="1249" x2="1560" y2="1258" stroke="#212121" stroke-width="2.2"/>
+<rect x="1160" y="452" width="560" height="96" rx="7" fill="#FFF8E1" stroke="#B71C1C" stroke-width="1.6"/>
+<text x="1178" y="475" font-size="12.5" font-weight="bold" fill="#B71C1C">Deployment note &#8212; ESP32 supply</text>
+<text x="1178" y="494" font-size="11" fill="#5D6D7E">Powering the ESP32 from Pi USB couples SMPS switching noise and</text>
+<text x="1178" y="510" font-size="11" fill="#5D6D7E">PWM ground transients into the encoder counts. For deployment, cut</text>
+<text x="1178" y="526" font-size="11" fill="#5D6D7E">VBUS in the Pi&#8594;ESP32 cable and feed VIN from the 5 V buck instead.</text>
+</svg>

@@ -37,14 +37,16 @@ ax2.plot(xx, summ, 's-', color=C['fixed'], lw=2.0, ms=8,
          label='reported $+$ true')
 for i in range(3):
     ax2.text(i, summ[i]+16, f'{summ[i]:.0f}°', ha='center', fontsize=8.2,
-             color=C['fixed'], fontweight='bold')
-    ax2.text(i, diff[i]-32, f'{diff[i]:.0f}°', ha='center', fontsize=8.2, color=C['defect'])
+             color=C['fixed'], fontweight='bold', bbox=MASK)
+    ax2.text(i, diff[i]-32, f'{diff[i]:.0f}°', ha='center', fontsize=8.2,
+             color=C['defect'], bbox=MASK)
 ax2.set_xticks(xx); ax2.set_xticklabels(['right', 'front', 'left'])
 ax2.set_xlim(-0.4, 2.4); ax2.set_ylim(0, 380); ax2.set_yticks([0, 90, 180, 270, 360])
 ax2.set_ylabel('angle (deg, mod 360)')
 ax2.legend(loc='lower left', fontsize=7.4)
 ax2.text(0.50, 0.36, 'a rotation would leave the red\nline flat. It does not.',
-         transform=ax2.transAxes, ha='center', fontsize=7.4, color=C['neutral'])
+         transform=ax2.transAxes, ha='center', fontsize=7.4, color=C['neutral'],
+         bbox=MASK)
 ax2.set_title('(b) Reflection, not rotation', loc='left', fontsize=9.3, pad=10)
 
 # ---- (c) why it mattered ------------------------------------------------

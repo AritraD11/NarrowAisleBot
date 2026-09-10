@@ -58,7 +58,7 @@ for i, (d, txt) in enumerate(miles):
     ax.plot(dn, 16.85, marker='D', ms=5, color=MILE, zorder=6, clip_on=False)
     ax.annotate(txt, xy=(dn, 16.85), xytext=(dn, 18.05 + LEVEL[i]*1.42),
                 ha='center', va='top', fontsize=6.6, color=MILE, clip_on=False,
-                arrowprops=dict(arrowstyle='-', color=MILE, lw=0.6))
+                bbox=MASK, arrowprops=dict(arrowstyle='-', color=MILE, lw=0.6))
 
 ax.axvline(mdates.date2num(date(2026,9,3)), color=C['defect'], lw=1.4)
 ax.text(mdates.date2num(date(2026,9,4)), -0.7, 'this report', rotation=90,
@@ -68,7 +68,7 @@ ax.text(mdates.date2num(date(2026,9,4)), -0.7, 'this report', rotation=90,
 ax.axhline(15.55, color=C['neutral'], lw=0.9)
 ax.text(mdates.date2num(date(2026,2,20)), 14.85,
         'Second project, run in parallel', fontsize=7.4, color=IOT,
-        fontweight='bold', va='center')
+        fontweight='bold', va='center', bbox=MASK)
 
 ax.set_ylim(24.4, -1.2)
 h = [mp.Patch(fc=NAB, ec='k', lw=0.5, label='NarrowAisleBot (primary)'),

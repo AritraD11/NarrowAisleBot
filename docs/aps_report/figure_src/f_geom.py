@@ -23,18 +23,20 @@ for x, y, lab, kind in wheels:
         ax.plot([x+k-0.014*sgn, x+k+0.014*sgn], [y-wt/2+0.006, y+wt/2-0.006],
                 color='w', lw=0.9, zorder=4)
     ax.text(x, y + (0.055 if y > 0 else -0.055), lab, ha='center',
-            va='bottom' if y > 0 else 'top', fontsize=9.5, fontweight='bold', color=col)
+            va='bottom' if y > 0 else 'top', fontsize=9.5, fontweight='bold',
+            color=col, bbox=MASK)
 
 ax.plot(0, 0, marker='+', ms=11, mew=1.6, color='k', zorder=5)
 ax.text(0.015, 0.015, 'body centre', fontsize=7.5)
 ax.annotate('', xy=(0.16, 0), xytext=(0, 0),
             arrowprops=dict(arrowstyle='->', color='k', lw=1.0))
-ax.text(0.17, 0.002, '+X  (drive fwd)', fontsize=7, va='center')
+ax.text(0.17, 0.002, '+X  (drive fwd)', fontsize=7, va='center', bbox=MASK)
 
 def dim(x0, x1, y, txt, col):
     ax.annotate('', xy=(x1, y), xytext=(x0, y),
                 arrowprops=dict(arrowstyle='<->', color=col, lw=1.1))
-    ax.text((x0+x1)/2, y+0.014, txt, ha='center', va='bottom', fontsize=8.2, color=col)
+    ax.text((x0+x1)/2, y+0.014, txt, ha='center', va='bottom', fontsize=8.2,
+            color=col, bbox=MASK)
 
 dim(0, l1, 0.315, r'$l_1 = 403$ mm   FR, RL  (outer)', C['telemetry'])
 dim(0, l2, 0.245, r'$l_2 = 333$ mm   FL, RR  (inner)', C['command'])

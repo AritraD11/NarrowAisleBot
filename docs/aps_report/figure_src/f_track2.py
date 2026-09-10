@@ -32,7 +32,7 @@ axi = inset_axes(ax, width='23%', height='34%', loc='lower left',
 axi.plot(t[lo:hi], tg[lo:hi], color=C['command'], lw=2.2, alpha=0.55)
 axi.plot(t[lo:hi], ac[lo:hi], color=C['telemetry'], lw=1.1, marker='o', ms=2.2)
 axi.set_xticks([]); axi.tick_params(labelsize=6.5); axi.grid(alpha=0.2)
-axi.set_title('step transient, 20 Hz log', fontsize=6.8, pad=2)
+axi.set_title('step transient, 20 Hz log', fontsize=6.8, pad=2, bbox=MASK)
 for s in axi.spines.values(): s.set_edgecolor(C['neutral'])
 mark_inset(ax, axi, loc1=2, loc2=4, fc='none', ec=C['grey'], lw=0.7, ls=':')
 
@@ -44,7 +44,8 @@ for i in range(4):
 ax2.axhline(0, color='k', lw=0.7)
 for lv in (0.15, -0.15):
     ax2.axhline(lv, color=C['neutral'], lw=0.8, ls=':')
-ax2.text(1.0, 0.175, r'$\pm$0.15 rad/s', ha='left', fontsize=7.2, color=C['neutral'])
+ax2.text(1.0, 0.175, r'$\pm$0.15 rad/s', ha='left', fontsize=7.2,
+         color=C['neutral'], bbox=MASK)
 ax2.set_ylim(-0.75, 0.62); ax2.set_xlim(0, t[-1])
 ax2.set_xlabel('time (s)'); ax2.set_ylabel('tracking error (rad/s)')
 ax2.legend(ncol=4, fontsize=8, loc='lower center', bbox_to_anchor=(0.5, -0.02))

@@ -1,10 +1,10 @@
 import sys, os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from dg import *
 
-fig, ax = canvas(11.4, 7.8, 100, 77)
+fig, ax = canvas(11.4, 8.1, 100, 81)
 cmd, tel = C['command'], C['telemetry']
 
-band(ax, 1, 42.0, 98, 33.0,
+band(ax, 1, 42.0, 98, 37.0,
      'PLANNING & PERCEPTION    Raspberry Pi 5 · Ubuntu 24.04 · ROS 2 Jazzy    soft real time, 10–20 Hz')
 band(ax, 1, 22.0, 98, 17.5,
      'REAL-TIME CONTROL    ESP32-WROOM-32 · FreeRTOS dual core    hard real time, 100 Hz',
@@ -74,18 +74,18 @@ b_mux  = box(ax, 23, 43.0, 15, 6.4, 'twist_mux\nmanual priority 100\nnav priorit
              fs=6.5, fc='#fdf1e3', ec=cmd)
 arr(ax, T(b_mux), B(b_ik), cmd, txt='/cmd_vel', tdy=0, tdx=-4.5)
 arr(ax, B(b_br), (49, 35.5), cmd, txt='USB serial\n921600', tdy=3.0, tdx=-5.0)
-arr(ax, B(b_pid), T(b_mdd), cmd, txt='signed PWM + DIR', tdy=0, tdx=13.0)
+arr(ax, B(b_pid), T(b_mdd), cmd, txt='signed PWM + DIR', tdy=0, tdx=8.0)
 arr(ax, B(b_mdd), T(b_mot), cmd, txt='24 V', tdy=0, tdx=3.0)
 arr(ax, B(b_arm), (11.5, 16.9), cmd, txt='/dev/mega\n115200', tdy=0, tdx=-6.5, rad=-0.10)
 
 # ---- telemetry path ------------------------------------------------------
 arr(ax, R(b_mot), L(b_lvl), tel, rad=-0.15)
 arr(ax, T(b_lvl), B(b_enc), tel, txt='A/B 5 V', tdy=0, tdx=3.4)
-arr(ax, T(b_enc), B(b_pcnt), tel, txt='3.3 V quadrature', tdy=-2.0, tdx=-8.5)
+arr(ax, T(b_enc), B(b_pcnt), tel, txt='3.3 V quadrature', tdy=-1.0, tdx=-5.0)
 arr(ax, L(b_pcnt), R(b_pid), tel, txt='rad/s', tdy=1.2)
 arr(ax, (52.5, 35.5), (52.5, 52.0), tel, txt='13-column CSV, 20 Hz', tdy=-4.5, tdx=-1.0)
 arr(ax, T(b_br), B(b_odo), tel)
-arr(ax, T(b_lid), (91.0, 40.0), tel, txt='/scan\nbest-effort', tdy=0, tdx=7.0)
+arr(ax, T(b_lid), (91.0, 40.0), tel, txt='/scan\nbest-effort', tdy=0, tdx=3.0)
 arr(ax, (91.0, 40.0), (78.5, 40.0), tel, style='-')
 arr(ax, (78.5, 40.0), (78.5, 47.7), tel, style='-')
 arr(ax, (78.5, 47.7), R(b_rel), tel)
@@ -96,13 +96,15 @@ arr(ax, T(b_slam), B(b_fox), tel)
 arr(ax, (60.5, 66.5), (56.0, 66.5), tel, rad=0.0)
 
 # ---- future closure ------------------------------------------------------
-arr(ax, T(b_nav), (88.75, 70.5), cmd, style='-')
-arr(ax, (88.75, 70.5), (40.2, 70.5), cmd, style='-',
-    txt='closed 14 Aug: the planner\'s velocity, through the axis adapter and twist_mux,\ninto the same asymmetric IK the operator drives through',
-    tdy=2.6, fs=7.2)
-ax.plot([40.2, 40.2], [46.2, 70.5], color=cmd, lw=1.2, zorder=5)
+arr(ax, T(b_nav), (88.75, 74.5), cmd, style='-')
+arr(ax, (88.75, 74.5), (40.2, 74.5), cmd, style='-',
+    txt='closed 14 Aug: the planner\'s velocity, through\n'
+        'the axis adapter and twist_mux, into the same\n'
+        'asymmetric IK the operator drives through',
+    tdy=-3.0, tdx=-4.5, fs=7.2)
+ax.plot([40.2, 40.2], [46.2, 74.5], color=cmd, lw=1.2, zorder=5)
 arr(ax, (40.2, 46.2), (38.0, 46.2), cmd)
-ax.text(40.9, 52.0, '/cmd_vel_nav_out', fontsize=6.8, color=cmd, rotation=90,
+ax.text(40.9, 61.8, '/cmd_vel_nav_out', fontsize=6.8, color=cmd, rotation=90,
         va='center', ha='left')
 
 ax.plot([], [], color=cmd, lw=1.6, label='command path')

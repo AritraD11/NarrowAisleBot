@@ -53,7 +53,7 @@ ax.plot([31.2, 31.2], [21.0, 39.6], color=tel, lw=1.2, zorder=4)
 arr(ax, R(c1), (66.5, 40.2), tel)
 arr(ax, R(c2), (66.5, 33.2), tel)
 arr(ax, R(c3), (61.5, 22.6), tel)
-ax.text(59.8, 21.2, 'to operator handset', ha='right', fontsize=6.8, color=tel)
+ax.text(61.8, 20.9, 'to operator handset', ha='left', fontsize=6.8, color=tel)
 arr(ax, (73.6, 38.0), (73.6, 36.5), tel)
 arr(ax, B(v2), (73.6, 27.4), tel)
 arr(ax, B(v3), (89.4, 27.4), tel)
@@ -83,7 +83,8 @@ fan = np.clip(128 + (255-128)*(idx-200)/300, 0, 255)
 fan[idx < 200] = 0
 a1x.plot(idx, fan, color=C['telemetry'], lw=2.0, label='fan PWM command')
 a1x.axvspan(150, 200, color=C['command'], alpha=0.18)
-a1x.text(175, 232, 'hysteresis\ndead band', ha='center', fontsize=7.2, color='#7a3e00')
+a1x.text(175, 232, 'hysteresis\ndead band', ha='center', fontsize=7.2,
+         color='#7a3e00', bbox=MASK)
 a1x.axvline(150, color=C['fixed'], ls='--', lw=1.0)
 a1x.axvline(200, color=C['defect'], ls='--', lw=1.0)
 a1x.text(148, 40, 'lamp OFF below 150', rotation=90, ha='right', fontsize=7.0,

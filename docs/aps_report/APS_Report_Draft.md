@@ -375,6 +375,24 @@ controlled comparison against a symmetric baseline of matched capability.
 Deliverable: measured germicidal irradiance driving exposure time or traverse
 speed, so a stated log-reduction is delivered rather than assumed.
 
+**Objective 6: Carry a cargo-handling manipulator on this chassis, and
+establish what the chassis has to supply for it to work.** This is the next
+goal, and it is stated here as design work rather than as a result, because no
+hardware for it exists. A companion study (HeXBuddy, documented in
+`docs/HeXBuddy_Arm_Integration.md`) has produced a fully specified arm sized to
+this chassis and this aisle geometry — a self-locking lift, a turntable, a
+telescopic boom, a wrist and a gripper, holding position against gravity at
+approximately zero motor power. Nothing has been built, bench-tested or
+simulated on this platform; the design rests on a first-order model that its own
+documentation flags as needing re-validation before any part is bought.
+Deliverable, in order: re-run the design optimisation against this platform's
+*measured* 45.54 kg mass rather than the 25 kg the model assumed, since a
+heavier base changes the tipping margin that the design found binding; validate
+the result in simulation with mass properties taken from CAD; and only then
+bench a single joint. The reach-and-payload envelope, and how much of it the
+base's own travel is expected to supply, are open design questions rather than
+settled ones, and §12.1 states them as such.
+
 ### 4.2 Objectives set for year 1, and their outcome
 
 | # | Objective | Outcome |
@@ -751,7 +769,8 @@ operator, same week, replotted for this report from the raw pose logs in
 `data/field_runs/`. (a) The 6.8× spread in return-to-mark across drives that
 should have been equivalent. (b) Two of the three are worse than the pre-fix
 baseline the tuning was built to cure. (c) The wheel odometry, on the same three
-drives, closes under 3 cm every time.
+drives, closes under 3 cm every time. The maps these three drives produced, with
+the ground each one actually covered marked on them, are in Appendix G.
 
 Three candidate explanations were live and the data separated them. A repeat
 test on the identical route was registered in advance with two possible
@@ -1270,6 +1289,25 @@ manoeuvre or reach a clear egress point on three wheels rather than simply
 stop. Unlike Gaps 1–6, nothing about this has been measured on this platform;
 it is included as a literature-motivated candidate, not a result in progress.
 
+**Gap 8: nobody couples a packing decision to the reach and tipping envelope of
+the machine that has to execute it.** This is the gap Objective 6 opens, and it
+is the most defensible of the manipulator-side questions because it does not
+depend on the arm being built. Three-dimensional bin packing is a mature field,
+lately dominated by learned policies for the online case, and robotic execution
+of those decisions is demonstrated — but every such demonstration places items
+onto an open pallet, into an open box, or onto an open shelf face, where the arm
+can reach anywhere the packing algorithm might choose. Where stability is
+considered at all it enters afterwards, as a constraint on a trajectory that has
+already been planned to a slot that was already chosen. On a narrow-footprint
+vehicle the constraint binds the other way round: reach and tipping margin
+decide which slots are executable at all, and a slot the planner likes may be
+one this chassis cannot serve without leaving its stable envelope. The open
+question is what a packing algorithm should be told about the executing machine,
+and how a placement should be re-planned when the machine cannot deliver it.
+Note that this couples straight back to Gap 2: aiming an arm at a shelf cell
+presumes the base knows where it is, and the localisation this platform does not
+yet have is what would supply that.
+
 ### 12.2 Plan by year
 
 ![Roadmap](figures/fig28_roadmap.png)
@@ -1300,6 +1338,16 @@ tools all already exist.
 Publish the platform, its calibration methodology and the instrumentation-fault
 taxonomy of §10.2 as a systems paper. The cross-checking methodology is a
 contribution independent of the geometry, and the material for it exists now.
+
+The manipulator of Objective 6 runs alongside this as design work only, and
+deliberately does not compete with it for bench time. Two things are worth doing
+in year 2 and neither needs hardware: re-run the design optimisation against
+this platform's measured mass, which is nearly double what that model assumed
+and therefore moves the tipping margin it found binding; and put the resulting
+geometry into simulation with CAD-derived inertias. A single-joint bench test is
+the earliest point at which money is spent, and it should wait behind the
+localisation sequence above, because an arm that cannot be aimed is not worth
+actuating.
 
 **Year 3 — the geometry question, and control under load.**
 
@@ -1569,6 +1617,28 @@ turning drives, and re-baseline the campaign afterwards.
 **Documentation.** Keep the research journal current. It is the primary record
 from which this report was assembled, and every figure in it is regenerable from
 the data in this repository.
+
+### Appendix G — The three commissioning maps
+
+![Field maps](figures/fig29_field_maps.png)
+
+**Figure 29.** The saved occupancy grids from the three drives of §8.3, each
+placed in world coordinates from its own YAML origin and resolution, sharing one
+window so the three are directly comparable. The believed pose during each drive
+is drawn over the map and the red dots mark where the robot actually stood.
+Grey is cell never observed.
+
+The figure is included because the sparsity argued in §7.4 is easier to see than
+to describe. Between 21 % and 30 % of the cells in these maps were ever
+observed, and the ground the robot physically covered is a narrow ribbon through
+a much larger mapped extent: the LiDAR reaches far further than the chassis
+travels, so a long drive can produce a wide, thin map that still fails the
+commissioning criteria. The second panel is the clearest case, a single
+out-and-back leg whose observed fraction is the lowest of the three.
+
+These are the same runs whose correction traces appear in Figure 16, so the two
+figures can be read together: Figure 16 gives the magnitude of what the
+estimator was doing, and this one gives the geometry it was doing it in.
 
 ---
 

@@ -21,7 +21,7 @@ ax.axvline(1.5, color=C['neutral'], lw=1.0, ls='--')
 ax.text(1.58, 52, 'use_scan_matching\nset to false', fontsize=7.8, color=C['fixed'],
         fontweight='bold', va='top')
 ax.text(0.02, 0.985, 'sequential scan matcher ON', transform=ax.transAxes,
-        fontsize=7.6, color=C['defect'], va='top')
+        fontsize=7.6, color=C['defect'], va='top', bbox=MASK)
 ax.set_title('(a) The mechanism, removed', loc='left')
 
 # ---- (b) what replaced it --------------------------------------------------

@@ -138,11 +138,22 @@ foundational paper on asymmetric narrow-aisle platforms [1].
 
 ![Asymmetric wheelbase geometry](figures/fig01_asymmetric_geometry.png)
 
-**Figure 1.** (a) Plan view to scale. The footprint was tape-measured at
-1.00 × 0.36 m, wheel outer to wheel outer. (b) The consequence for control: each
-wheel carries its own yaw coefficient. Substituting a single symmetric value for
-*K* anywhere in the software converts the machine, in that code path only, into
-an ordinary mecanum platform. This happened once; see Appendix D.
+**Figure 1.** Dimensioned plan view, a real render from the SolidWorks assembly
+(`cad/renders/chassis_top_dimensioned.png`), not a reconstruction. $l_1 = 403$ mm
+and $l_2 = 333$ mm are the same values used throughout this report, and are now
+independently confirmed twice over: once from the foundational geometry [1], and
+again directly from the base-plate DXF, whose wheel-mount hole pattern places the
+two pair-midpoints at exactly 403 mm and 333 mm
+(`cad/extracted_geometry.md`). The 1000 mm length matches the DXF outline
+exactly. The render's own over-wheels dimension, 375.4 mm, differs slightly from
+the 360 mm tape measurement used elsewhere in this report (§5.1); the CAD figure
+is nominal design geometry, the tape measurement is the built machine, and the
+report treats the latter as authoritative where they disagree, consistent with
+how §2.2 in `cad/README.md` already resolved a similar plate-versus-track
+question. Each wheel carries its own yaw coefficient in the kinematics that
+follow; substituting a single symmetric value for *K* anywhere in the software
+converts the machine, in that code path only, into an ordinary mecanum platform.
+This happened once; see Appendix D.
 
 The inverse kinematics that follow are
 
@@ -417,22 +428,39 @@ sensing question of 1.6 resolved.
 
 ## 5. The platform as built
 
-![System architecture](figures/fig02_system_architecture.png)
+![Deployed electronics](figures/fig02_system_architecture.png)
 
-**Figure 2.** The three-layer architecture, each link annotated with its rate and
-payload. Orange is the command path, blue is telemetry and perception. The
-command loop was closed on 14 August: the planner's velocity now runs through an
-axis adapter and a priority multiplexer into the same asymmetric inverse
-kinematics the operator drives through, so manual override outranks the planner
-at the one point they meet.
+**Figure 2.** The real deployed-electronics diagram
+(`docs/hardware/nab_circuit_diagram.png`), generated from the repository's own
+hardware documentation rather than drawn from memory, so every pin, rail and
+baud rate on it is checked against `Master_Reference.md`, `Bench_Test_Map.md`
+and `RMCS-2086_Encoder_Replacement.md` rather than assumed from a generic
+mecanum reference. Three layers: power distribution, compute and command, drive
+and odometry feedback, each on its own rail colour. It shows two facts a generic
+diagram would get wrong: the front two motors run GTK08 encoders rather than the
+rear pair's integrated RMCS-2086 units, with different A/B wire colours between
+them — `Bench_Test_Map.md` records this exact mix-up already corrupting a
+channel once — and the level-shifter board actually deployed is an 8-channel
+discrete-MOSFET design, not the TXS0108E `Master_Reference.md` §4.4 describes.
+The diagram's own deployment note, that powering the ESP32 from Pi USB couples
+switching noise into the encoder counts and VIN should instead come from the 5 V
+buck rail, is not yet applied on the robot; it is carried into Appendix F as an
+open item.
 
-The responsibility split follows from a hardware constraint rather than a
-software preference. With the encoders originally fitted, each motor at rated
-speed produces about 93,000 counts per second, and the two replacement units
-fitted since produce twice that. Interrupt-driven quadrature counting at those
-rates consumes the entire instruction budget of an ATmega2560. The ESP32's
-pulse-counter peripheral decodes quadrature in silicon at no processor cost,
-which is why motor control moved onto it.
+At the software layer, which this diagram does not show, the command loop was
+closed on 14 August: the planner's velocity now runs through an axis adapter and
+a priority multiplexer into the same asymmetric inverse kinematics the operator
+drives through, so manual override outranks the planner at the one point they
+meet.
+
+The Mega/ESP32 responsibility split visible in the diagram follows from a
+hardware constraint rather than a software preference. With the encoders
+originally fitted, each motor at rated speed produces about 93,000 counts per
+second, and the two replacement units fitted since produce twice that.
+Interrupt-driven quadrature counting at those rates consumes the entire
+instruction budget of an ATmega2560. The ESP32's pulse-counter peripheral
+decodes quadrature in silicon at no processor cost, which is why motor control
+moved onto it.
 
 ### 5.1 Principal specifications
 
@@ -1613,6 +1641,12 @@ specifies at 15 Hz and which measures 7.5–13.7 Hz.
 
 **Instruments.** Repair the three analysis tools raising false positives on
 turning drives, and re-baseline the campaign afterwards.
+
+**Wiring.** The ESP32 currently draws VIN from the Pi's USB port, which couples
+SMPS switching noise and PWM ground transients into the encoder counts
+(`docs/hardware/nab_circuit_diagram.png`, deployment note). Cut VBUS in the
+Pi→ESP32 cable and feed VIN from the 5 V buck rail instead. Not yet applied on
+the robot.
 
 **Documentation.** Keep the research journal current. It is the primary record
 from which this report was assembled, and every figure in it is regenerable from

@@ -47,12 +47,17 @@ gates = [
   'documentation attributes to a cable fault.'),
 ]
 boxx = [1.0, 34.0, 67.0]
-for (px, head, body), gx in zip(gates, boxx):
+# Gate 2 is the odometry_publisher's missing TF, so its leader hangs off that
+# box rather than dropping from the chain above and straight through it.
+tops   = [35.0, 24.5, 35.0]
+elbows = [26.0, 22.0, 26.0]
+for i, ((px, head, body), gx) in enumerate(zip(gates, boxx)):
     p = px + 8.5
     cx = gx + 16.0
-    ax.plot([p, p], [35.0, 26.0], color=red, lw=1.0, ls=':', zorder=2)
-    ax.plot([p, cx], [26.0, 26.0], color=red, lw=1.0, ls=':', zorder=2)
-    ax.plot([cx, cx], [26.0, 21.4], color=red, lw=1.0, ls=':', zorder=2)
+    top, elbow = tops[i], elbows[i]
+    ax.plot([p, p], [top, elbow], color=red, lw=1.0, ls=':', zorder=2)
+    ax.plot([p, cx], [elbow, elbow], color=red, lw=1.0, ls=':', zorder=2)
+    ax.plot([cx, cx], [elbow, 21.4], color=red, lw=1.0, ls=':', zorder=2)
     ax.plot(cx, 21.0, marker='v', ms=7, color=red, zorder=5)
     box(ax, gx, 2.0, 32.0, 18.0, '', fc='#fdecea', ec=red, lw=1.0)
     ax.text(cx, 18.4, head, ha='center', va='top', fontsize=7.8,

@@ -21,11 +21,11 @@ a1.bar(x, mean, yerr=sd, capsize=4, color=MOTC, edgecolor='k', linewidth=0.5)
 a1.axhline(max(mean), ls='--', lw=0.9, color=C['neutral'])
 a1.text(3.42, max(mean)+0.03, 'fastest (FL)', fontsize=7.3, ha='right', color=C['neutral'])
 for i, v in enumerate(mean):
-    a1.text(i, v+0.10, f'{v:.3f}', ha='center', fontsize=8)
+    a1.text(i, v+0.10, f'{v:.3f}', ha='center', fontsize=8, bbox=MASK)
 a1.annotate('', xy=(3, mean[3]), xytext=(3, mean[1]),
             arrowprops=dict(arrowstyle='<->', color=C['defect'], lw=1.3))
 a1.text(2.86, (mean[3]+mean[1])/2, '16 %\ndeficit', ha='right', va='center',
-        fontsize=8, color=C['defect'], fontweight='bold')
+        fontsize=8, color=C['defect'], fontweight='bold', bbox=MASK)
 a1.set_xticks(x); a1.set_xticklabels(MOT); a1.set_ylim(0, 3.5)
 a1.set_ylabel('shaft speed (rad/s)')
 a1.set_title('(a) Open loop at fixed PWM = 120', loc='left')
@@ -64,7 +64,7 @@ a1.plot([], [], 'o', ms=6, mfc='white', mec=C['telemetry'], mew=1.4,
 a1.axvspan(3.0, 3.4, color=C['grey'], alpha=0.16)
 a1.text(3.2, 22, 'extrapolated\n(no data)', ha='center', fontsize=7.2, color=C['neutral'])
 a1.annotate(r'$K_{stat} = 8$ PWM' + '\nbreakaway offset',
-            xy=(0.03, 9), xytext=(0.75, 30), fontsize=7.6, color=C['fixed'], ha='center',
+            xy=(0.03, 9), xytext=(0.98, 16), fontsize=7.6, color=C['fixed'], ha='center',
             arrowprops=dict(arrowstyle='->', color=C['fixed'], lw=0.9,
                             connectionstyle='arc3,rad=0.2'))
 a1.set_xlabel(r'commanded wheel speed  $\omega$  (rad/s)')
@@ -102,8 +102,8 @@ ax.bar(xx-wdt/2, old, wdt, color=C['defect'], alpha=0.85, edgecolor='k', lw=0.5,
 ax.bar(xx+wdt/2, new, wdt, color=C['fixed'], alpha=0.9, edgecolor='k', lw=0.5,
        label='v3.0 — confirmed-good path (2.9 % spread)')
 for i, (o, n) in enumerate(zip(old, new)):
-    ax.text(i-wdt/2, o+0.5, f'{o:.1f}', ha='center', fontsize=7.6)
-    ax.text(i+wdt/2, n+0.5, f'{n:.1f}', ha='center', fontsize=7.6)
+    ax.text(i-wdt/2, o+0.5, f'{o:.1f}', ha='center', fontsize=7.6, bbox=MASK)
+    ax.text(i+wdt/2, n+0.5, f'{n:.1f}', ha='center', fontsize=7.6, bbox=MASK)
 ax.plot([-0.5, 3.5], [min(old)]*2, ls=':', lw=0.9, color=C['defect'])
 ax.plot([-0.5, 3.5], [max(old)]*2, ls=':', lw=0.9, color=C['defect'])
 ax.set_xticks(xx); ax.set_xticklabels(MOT); ax.set_ylim(0, 56)

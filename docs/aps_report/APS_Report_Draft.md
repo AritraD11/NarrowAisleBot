@@ -138,11 +138,22 @@ foundational paper on asymmetric narrow-aisle platforms [1].
 
 ![Asymmetric wheelbase geometry](figures/fig01_asymmetric_geometry.png)
 
-**Figure 1.** (a) Plan view to scale. The footprint was tape-measured at
-1.00 × 0.36 m, wheel outer to wheel outer. (b) The consequence for control: each
-wheel carries its own yaw coefficient. Substituting a single symmetric value for
-*K* anywhere in the software converts the machine, in that code path only, into
-an ordinary mecanum platform. This happened once; see Appendix D.
+**Figure 1.** Dimensioned plan view, a real render from the SolidWorks assembly
+(`cad/renders/chassis_top_dimensioned.png`), not a reconstruction. $l_1 = 403$ mm
+and $l_2 = 333$ mm are the same values used throughout this report, and are now
+independently confirmed twice over: once from the foundational geometry [1], and
+again directly from the base-plate DXF, whose wheel-mount hole pattern places the
+two pair-midpoints at exactly 403 mm and 333 mm
+(`cad/extracted_geometry.md`). The 1000 mm length matches the DXF outline
+exactly. The render's own over-wheels dimension, 375.4 mm, differs slightly from
+the 360 mm tape measurement used elsewhere in this report (§5.1); the CAD figure
+is nominal design geometry, the tape measurement is the built machine, and the
+report treats the latter as authoritative where they disagree, consistent with
+how §2.2 in `cad/README.md` already resolved a similar plate-versus-track
+question. Each wheel carries its own yaw coefficient in the kinematics that
+follow; substituting a single symmetric value for *K* anywhere in the software
+converts the machine, in that code path only, into an ordinary mecanum platform.
+This happened once; see Appendix D.
 
 The inverse kinematics that follow are
 
@@ -375,6 +386,24 @@ controlled comparison against a symmetric baseline of matched capability.
 Deliverable: measured germicidal irradiance driving exposure time or traverse
 speed, so a stated log-reduction is delivered rather than assumed.
 
+**Objective 6: Carry a cargo-handling manipulator on this chassis, and
+establish what the chassis has to supply for it to work.** This is the next
+goal, and it is stated here as design work rather than as a result, because no
+hardware for it exists. A companion study (HeXBuddy, documented in
+`docs/HeXBuddy_Arm_Integration.md`) has produced a fully specified arm sized to
+this chassis and this aisle geometry — a self-locking lift, a turntable, a
+telescopic boom, a wrist and a gripper, holding position against gravity at
+approximately zero motor power. Nothing has been built, bench-tested or
+simulated on this platform; the design rests on a first-order model that its own
+documentation flags as needing re-validation before any part is bought.
+Deliverable, in order: re-run the design optimisation against this platform's
+*measured* 45.54 kg mass rather than the 25 kg the model assumed, since a
+heavier base changes the tipping margin that the design found binding; validate
+the result in simulation with mass properties taken from CAD; and only then
+bench a single joint. The reach-and-payload envelope, and how much of it the
+base's own travel is expected to supply, are open design questions rather than
+settled ones, and §12.1 states them as such.
+
 ### 4.2 Objectives set for year 1, and their outcome
 
 | # | Objective | Outcome |
@@ -399,22 +428,39 @@ sensing question of 1.6 resolved.
 
 ## 5. The platform as built
 
-![System architecture](figures/fig02_system_architecture.png)
+![Deployed electronics](figures/fig02_system_architecture.png)
 
-**Figure 2.** The three-layer architecture, each link annotated with its rate and
-payload. Orange is the command path, blue is telemetry and perception. The
-command loop was closed on 14 August: the planner's velocity now runs through an
-axis adapter and a priority multiplexer into the same asymmetric inverse
-kinematics the operator drives through, so manual override outranks the planner
-at the one point they meet.
+**Figure 2.** The real deployed-electronics diagram
+(`docs/hardware/nab_circuit_diagram.png`), generated from the repository's own
+hardware documentation rather than drawn from memory, so every pin, rail and
+baud rate on it is checked against `Master_Reference.md`, `Bench_Test_Map.md`
+and `RMCS-2086_Encoder_Replacement.md` rather than assumed from a generic
+mecanum reference. Three layers: power distribution, compute and command, drive
+and odometry feedback, each on its own rail colour. It shows two facts a generic
+diagram would get wrong: the front two motors run GTK08 encoders rather than the
+rear pair's integrated RMCS-2086 units, with different A/B wire colours between
+them — `Bench_Test_Map.md` records this exact mix-up already corrupting a
+channel once — and the level-shifter board actually deployed is an 8-channel
+discrete-MOSFET design, not the TXS0108E `Master_Reference.md` §4.4 describes.
+The diagram's own deployment note, that powering the ESP32 from Pi USB couples
+switching noise into the encoder counts and VIN should instead come from the 5 V
+buck rail, is not yet applied on the robot; it is carried into Appendix F as an
+open item.
 
-The responsibility split follows from a hardware constraint rather than a
-software preference. With the encoders originally fitted, each motor at rated
-speed produces about 93,000 counts per second, and the two replacement units
-fitted since produce twice that. Interrupt-driven quadrature counting at those
-rates consumes the entire instruction budget of an ATmega2560. The ESP32's
-pulse-counter peripheral decodes quadrature in silicon at no processor cost,
-which is why motor control moved onto it.
+At the software layer, which this diagram does not show, the command loop was
+closed on 14 August: the planner's velocity now runs through an axis adapter and
+a priority multiplexer into the same asymmetric inverse kinematics the operator
+drives through, so manual override outranks the planner at the one point they
+meet.
+
+The Mega/ESP32 responsibility split visible in the diagram follows from a
+hardware constraint rather than a software preference. With the encoders
+originally fitted, each motor at rated speed produces about 93,000 counts per
+second, and the two replacement units fitted since produce twice that.
+Interrupt-driven quadrature counting at those rates consumes the entire
+instruction budget of an ATmega2560. The ESP32's pulse-counter peripheral
+decodes quadrature in silicon at no processor cost, which is why motor control
+moved onto it.
 
 ### 5.1 Principal specifications
 
@@ -751,7 +797,8 @@ operator, same week, replotted for this report from the raw pose logs in
 `data/field_runs/`. (a) The 6.8× spread in return-to-mark across drives that
 should have been equivalent. (b) Two of the three are worse than the pre-fix
 baseline the tuning was built to cure. (c) The wheel odometry, on the same three
-drives, closes under 3 cm every time.
+drives, closes under 3 cm every time. The maps these three drives produced, with
+the ground each one actually covered marked on them, are in Appendix G.
 
 Three candidate explanations were live and the data separated them. A repeat
 test on the identical route was registered in advance with two possible
@@ -1255,6 +1302,40 @@ mitigation, which is a starting point rather than a result.
 centre of mass. Fixed-gain control is not adaptive to this, and whether it needs
 to be is an empirical question a loaded trajectory-tracking experiment answers.
 
+**Gap 7: wheel-fault tolerance is unexamined for an asymmetric platform, and
+matters more in a narrow aisle than in the open.** Fault-tolerant schemes for
+four-mecanum-wheel platforms exist and are validated on real hardware,
+compensating for one or two disabled wheels with adaptive control and
+navigation functions [21]. Like the adaptive and fuzzy-tuning literature
+already read [3, 4], that result assumes a symmetric wheel layout; whether the
+same compensation holds when the two wheel pairs sit at different radii from
+the centre of mass is open, and this platform has no fault detection or
+degraded-mode capability at all today. The stakes differ from the open
+workspace the literature tests in: a four-wheeled platform stalled in a
+sub-1 m aisle cannot be walked around, and may need to finish its current
+manoeuvre or reach a clear egress point on three wheels rather than simply
+stop. Unlike Gaps 1–6, nothing about this has been measured on this platform;
+it is included as a literature-motivated candidate, not a result in progress.
+
+**Gap 8: nobody couples a packing decision to the reach and tipping envelope of
+the machine that has to execute it.** This is the gap Objective 6 opens, and it
+is the most defensible of the manipulator-side questions because it does not
+depend on the arm being built. Three-dimensional bin packing is a mature field,
+lately dominated by learned policies for the online case, and robotic execution
+of those decisions is demonstrated — but every such demonstration places items
+onto an open pallet, into an open box, or onto an open shelf face, where the arm
+can reach anywhere the packing algorithm might choose. Where stability is
+considered at all it enters afterwards, as a constraint on a trajectory that has
+already been planned to a slot that was already chosen. On a narrow-footprint
+vehicle the constraint binds the other way round: reach and tipping margin
+decide which slots are executable at all, and a slot the planner likes may be
+one this chassis cannot serve without leaving its stable envelope. The open
+question is what a packing algorithm should be told about the executing machine,
+and how a placement should be re-planned when the machine cannot deliver it.
+Note that this couples straight back to Gap 2: aiming an arm at a shelf cell
+presumes the base knows where it is, and the localisation this platform does not
+yet have is what would supply that.
+
 ### 12.2 Plan by year
 
 ![Roadmap](figures/fig28_roadmap.png)
@@ -1285,6 +1366,16 @@ tools all already exist.
 Publish the platform, its calibration methodology and the instrumentation-fault
 taxonomy of §10.2 as a systems paper. The cross-checking methodology is a
 contribution independent of the geometry, and the material for it exists now.
+
+The manipulator of Objective 6 runs alongside this as design work only, and
+deliberately does not compete with it for bench time. Two things are worth doing
+in year 2 and neither needs hardware: re-run the design optimisation against
+this platform's measured mass, which is nearly double what that model assumed
+and therefore moves the tipping margin it found binding; and put the resulting
+geometry into simulation with CAD-derived inertias. A single-joint bench test is
+the earliest point at which money is spent, and it should wait behind the
+localisation sequence above, because an arm that cannot be aimed is not worth
+actuating.
 
 **Year 3 — the geometry question, and control under load.**
 
@@ -1356,10 +1447,13 @@ the estimator rather than the geometry.
 2. Galati et al. *Adaptive heading correction for mecanum platforms.*
    **[CONFIRM]** — full citation required. Source of the 4.56°-over-10 m drift
    figure that motivates Phase 2.
-3. *Modeling and Adaptive Control of an Omnidirectional Mobile Robot.*
-   **[CONFIRM]** — full citation required.
-4. *Fuzzy Adaptive PID Control of a Mecanum-Wheeled Mobile Robot.*
-   **[CONFIRM]** — full citation required.
+3. Lin, L.-C., & Shih, H.-Y. (2013). Modeling and adaptive control of an
+   omni-Mecanum-wheeled robot. *Intelligent Control and Automation*, 4,
+   166–179. https://doi.org/10.4236/ica.2013.42021
+4. Cao, G., Zhao, X., Ye, C., Yu, S., Li, B., & Jiang, C. (2022). Fuzzy
+   adaptive PID control method for multi-mecanum-wheeled mobile robot.
+   *Journal of Mechanical Science and Technology*, 36(4), 2019–2029.
+   https://doi.org/10.1007/s12206-022-0337-x
 
 **SLAM.**
 
@@ -1416,8 +1510,15 @@ the estimator rather than the geometry.
     applications to autonomous driving. *IEEE Transactions on Robotics*, 34(6),
     1603–1622. https://doi.org/10.1109/tro.2018.2865891
 
-References 5–20 were retrieved from the publication record and checked for
-retractions. References 1–4 are held in the project's document archive and need
+**Fault tolerance.**
+
+21. Vlantis, P., Bechlioulis, C. P., Karras, G., Fourlas, G., & Kyriakopoulos,
+    K. J. (2016). Fault tolerant control for omni-directional mobile platforms
+    with 4 mecanum wheels. *2016 IEEE International Conference on Robotics and
+    Automation (ICRA)*, 2395–2400. https://doi.org/10.1109/icra.2016.7487389
+
+References 3–21 were retrieved from the publication record and checked for
+retractions. References 1–2 are held in the project's document archive and need
 their full bibliographic details recovered before submission.
 
 ---
@@ -1541,9 +1642,54 @@ specifies at 15 Hz and which measures 7.5–13.7 Hz.
 **Instruments.** Repair the three analysis tools raising false positives on
 turning drives, and re-baseline the campaign afterwards.
 
+**Wiring.** The ESP32 currently draws VIN from the Pi's USB port, which couples
+SMPS switching noise and PWM ground transients into the encoder counts
+(`docs/hardware/nab_circuit_diagram.png`, deployment note). Cut VBUS in the
+Pi→ESP32 cable and feed VIN from the 5 V buck rail instead. Not yet applied on
+the robot.
+
 **Documentation.** Keep the research journal current. It is the primary record
 from which this report was assembled, and every figure in it is regenerable from
 the data in this repository.
+
+### Appendix G — The three commissioning maps, reconstructed and as captured
+
+![Field maps](figures/fig29_field_maps.png)
+
+**Figure 29.** The saved occupancy grids from the three drives of §8.3, each
+placed in world coordinates from its own YAML origin and resolution, sharing one
+window so the three are directly comparable. The believed pose during each drive
+is drawn over the map and the red dots mark where the robot actually stood.
+Grey is cell never observed.
+
+The figure is included because the sparsity argued in §7.4 is easier to see than
+to describe. Between 21 % and 30 % of the cells in these maps were ever
+observed, and the ground the robot physically covered is a narrow ribbon through
+a much larger mapped extent: the LiDAR reaches far further than the chassis
+travels, so a long drive can produce a wide, thin map that still fails the
+commissioning criteria. The second panel is the clearest case, a single
+out-and-back leg whose observed fraction is the lowest of the three.
+
+These are the same runs whose correction traces appear in Figure 16, so the two
+figures can be read together: Figure 16 gives the magnitude of what the
+estimator was doing, and this one gives the geometry it was doing it in.
+
+![Dashboard screenshots](figures/fig30_dashboard_screenshots.png)
+
+**Figure 30.** The same three drives again, this time from the operator's own
+dashboard screenshots taken during the drives and hand-annotated at the time
+(`docs/evidence/monday_recon/`, `docs/evidence/tuesday_repeat/`), embedded as
+captured rather than reconstructed. Green is the SLAM-estimated path, blue is
+wheel odometry, yellow marks a correction event, red marks a doubled wall.
+
+Figure 29 is regenerated from the saved map on every run and will never disagree
+with the numbers in this report; Figure 30 is the primary record those numbers
+were read from, and the two are included together so a reader can check one
+against the other. The pattern is visible directly here: in (b), the run that
+returned to within 0.085 m, the green and blue traces run almost on top of each
+other for the whole leg. In (a) and (c), the two runs that returned worse, they
+separate into a visible loop. That separation between the wheel estimate and the
+SLAM estimate is the map→odom correction Figure 16 plots the magnitude of.
 
 ---
 

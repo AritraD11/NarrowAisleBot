@@ -42,7 +42,8 @@ ax.annotate('0.857 m, the largest correction on record,\non the route that gave 
             ha='right', va='top',
             arrowprops=dict(arrowstyle='->', color=C['accent'], lw=1.0,
                             connectionstyle='arc3,rad=0.22'))
-ax.set_title('Three drives. Same robot, same configuration, same operator, same week.', loc='left')
+ax.set_title('Three drives. Same robot, same configuration, same operator, same week.',
+             loc='left', pad=12)
 
 # --- bottom left: the three summary numbers --------------------------------
 a1 = fig.add_subplot(gs[1, 0])
@@ -63,9 +64,10 @@ a2 = fig.add_subplot(gs[1, 1])
 cum = [0.562, 0.305, 0.484]
 a2.bar(range(3), cum, 0.6, color=cols, edgecolor='k', lw=0.5)
 a2.axhline(0.507, color=C['neutral'], lw=1.1, ls=':')
-a2.text(2.42, 0.525, 'pre-fix baseline', ha='right', fontsize=7.0, color=C['neutral'])
+a2.text(2.42, 0.548, 'pre-fix baseline', ha='right', fontsize=7.0, color=C['neutral'],
+        bbox=MASK)
 for i, v in enumerate(cum):
-    a2.text(i, v+0.014, f'{v:.3f}', ha='center', fontsize=8)
+    a2.text(i, v+0.014, f'{v:.3f}', ha='center', fontsize=8, bbox=MASK)
 a2.set_xticks(range(3)); a2.set_xticklabels(labels, fontsize=7.6)
 a2.set_ylim(0, 0.68); a2.set_ylabel('cumulative correction ÷ path (m/m)')
 a2.set_title('(b) two of three worse than baseline', loc='left', fontsize=9)

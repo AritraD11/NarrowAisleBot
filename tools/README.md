@@ -368,7 +368,7 @@ tools\sync_bench_logs.ps1
 
 Defaults to `aritra@10.42.0.1` (the fixed AisleBot-Pi AP address),
 `~/aislebot_logs` on the Pi, and
-`C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading`
+`C:\Users\aritradas\Documents\NAB\Encoder readings\Reading`
 locally. Override any of the three:
 
 ```powershell

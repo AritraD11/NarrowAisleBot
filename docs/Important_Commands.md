@@ -124,21 +124,21 @@ SSH session. Confirmed working, downloads straight into the ground-test
 folder:
 
 ```powershell
-scp aritra@10.42.0.1:~/aislebot_logs/*.csv "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
-scp aritra@10.42.0.1:~/aislebot_logs/*.pgm "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
-scp aritra@10.42.0.1:~/aislebot_logs/*.yaml "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
-scp aritra@10.42.0.1:~/aislebot_logs/*_report.json "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/*.csv "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/*.pgm "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/*.yaml "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/*_report.json "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
 ```
 
 **Just one run's full set** — map, metadata, and the auto-generated report —
 swap the glob for that run's timestamp:
 ```powershell
-scp aritra@10.42.0.1:~/aislebot_logs/run_<timestamp>.* "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/run_<timestamp>.* "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
 ```
 
 **Everything, or just what's new since last time:**
 ```powershell
-rsync -avz aritra@10.42.0.1:~/aislebot_logs/ "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
+rsync -avz aritra@10.42.0.1:~/aislebot_logs/ "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
 ```
 
 If you're not on the AisleBot-Pi AP (e.g. pulling from off-site over
@@ -164,8 +164,8 @@ just send" and "what did I just pull" separately:
 
 | Direction | Folder |
 |---|---|
-| **To the Pi** — anything downloaded on Windows on its way to the robot | `C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download` |
-| **From the Pi** — logs, bundles, maps, CSVs pulled back for analysis | `C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Analysis` |
+| **To the Pi** — anything downloaded on Windows on its way to the robot | `C:\Users\aritradas\Documents\NAB\for scp download` |
+| **From the Pi** — logs, bundles, maps, CSVs pulled back for analysis | `C:\Users\aritradas\Documents\NAB\Encoder readings\Analysis` |
 
 Why staging folders at all: the alternative is what already happened once.
 Files got downloaded to `$HOME\Documents`, and a batch of three `scp`s went
@@ -206,7 +206,7 @@ arrived somewhere, not that it arrived where you meant* (§17.39).
 # 1. WINDOWS downloads.  Always Windows -- the Pi hosts its own AP with no
 #    uplink and cannot reach GitHub.  A curl.exe line in these docs is never
 #    a Pi command.
-cd "C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download"
+cd "C:\Users\aritradas\Documents\NAB\for scp download"
 curl.exe -sSL --retry 3 --retry-all-errors -o <FILE> ^
   "https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/narrowaislebot-mapping-reliability-038ike/<REPO PATH>"
 
@@ -364,7 +364,7 @@ Run on the **PC**, in a new PowerShell — not inside the SSH session.
 Substitute the run's timestamp:
 
 ```powershell
-scp aritra@10.42.0.1:~/aislebot_logs/run_<stamp>.* "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/run_<stamp>.* "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
 ```
 
 On eduroam, swap `10.42.0.1` for the Pi's DHCP address. `aritra-desktop.local`

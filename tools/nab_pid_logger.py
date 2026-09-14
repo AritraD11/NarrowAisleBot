@@ -609,7 +609,16 @@ def test_steps(link, args, gains=None, tag="steps"):
             pwm = col(rows, i, 2, True)
             ss = steady_state(act, t_end - 0.5, t_end)
             pk = peak(act, t_step, t_end)
-            st = settling_time(act, t_step, sp)
+            # settling_time()'s "never leaves the band again" check is only
+            # meaningful within THIS step's own window. act is the whole
+            # multi-setpoint run, so left unwindowed it always sees the next
+            # step (or the final return to zero) pull the signal back out of
+            # band later, and returns None regardless of how good the gains
+            # are. Every row in a --test sweep printed "settle: none" for
+            # this reason on 14 Sep 2026, across three gain sets, before this
+            # fix -- not because nothing ever settled.
+            act_window = [(t, v) for t, v in act if t <= t_end]
+            st = settling_time(act_window, t_step, sp)
             win = [p for t, p in pwm if t_step <= t <= t_end]
             sat = 100.0 * sum(1 for p in win if abs(p) >= 250) / len(win) if win else 0.0
             err = ss - sp

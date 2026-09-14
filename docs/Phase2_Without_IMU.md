@@ -114,7 +114,7 @@ self-diagnosing", and it is the one the mathematics actually supports.
 
 Four runs. None needs a part that is not already on the robot.
 
-### 5.1 Phase 1: done
+### 5.1 Phase 1: done and verified
 
 ```bash
 ./tools/nab_pid_logger.py --test plant --port /dev/esp32   # WHEELS IN THE AIR
@@ -122,14 +122,20 @@ Four runs. None needs a part that is not already on the robot.
 
 Run 14 Sep 2026. τ measured at ≈0.09 s per motor, against the 0.18 s this
 project had assumed, which recomputes `Kp` from 45 to a bracket of 22 to 26
-holding `Ki = 250`. Objective 1.3 closes; Phase 1 is 100 %. Full derivation,
-the one excluded outlier and why, and the closed-loop sweep that decides
-between 22 and 26 before either gets flashed: `PID_Calibration.md` §5.
+holding `Ki = 250`. Both candidates were then swept closed-loop against the
+shipped 45 (`--test sweep --gains "45,250,0.5 22,250,0.5 26,250,0.5"`) and
+both lost on overshoot in all 16 setpoint-motor combinations, 43 to 54 %
+worse on average. `Kp` stays at 45. Objective 1.3 closes as **confirmed**,
+not changed; Phase 1 is 100 %. Full derivation, why the open-loop
+prediction did not survive closed loop, and a settle-time tool bug found
+and fixed the same session: `PID_Calibration.md` §5.
 
-Repeat the same run on the floor when there is time. $K$ drops under load, so
-$K_i = 1/(K\lambda)$ rises, and the difference between the two numbers is the
-ground-load correction measured directly rather than inferred from the 24 %
-feedforward figure. Not urgent: `Kp`, not `Ki`, was this project's open item.
+Ground-side plant ID (repeat the same run on the floor) is not needed to
+close Phase 1 and is not today's priority. $K$ drops under load, so
+$K_i = 1/(K\lambda)$ would rise, and the difference is the ground-load
+correction measured directly rather than inferred from the 24 % feedforward
+figure, but `Kp` was the open item, `Ki` was not, and `Kp` is now settled.
+Worth doing if there is slack later in the week; do not let it delay G4.
 
 ### 5.2 The range envelope, which is the Phase 2 headline
 

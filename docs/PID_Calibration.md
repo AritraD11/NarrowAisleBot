@@ -5,8 +5,9 @@ measured, which one is still an estimate, and the exact bench run that
 would settle it.
 
 **Status: air-calibrated on confirmed-good encoder hardware. Not yet
-ground-calibrated. Plant time constant measured 14 Sep 2026 (§5); the
-recomputed `Kp` is pending closed-loop verification before it is flashed.**
+ground-calibrated. Plant time constant measured and `Kp` verified
+closed-loop, 14 Sep 2026 (§5): the shipped value of 45 is confirmed, not
+changed.**
 
 ---
 
@@ -234,7 +235,7 @@ conservative, 15 control periods at 100 Hz:
 
 | Gain | v2.0 | v3.0 | Basis |
 |---|---|---|---|
-| `Kp` | 50 | 45 shipped → **22–26 pending §5's sweep** | τ · Ki, τ **measured** 14 Sep 2026 at ≈0.09 s — see §5 |
+| `Kp` | 50 | **45 — confirmed by closed-loop sweep, 14 Sep 2026** | τ measured at ≈0.09 s; τ·Ki candidates (22, 26) both lost on overshoot — see §5 |
 | `Ki` | 30 | **250** | 1/(K·λ), λ = 0.15 s — fitted |
 | `Kd` | 3.0 | **0.5** | small by design, see below |
 
@@ -333,8 +334,68 @@ saturation, since a `Kp` moved toward the true τ is supposed to help, not
 trade against it. If either candidate instead shows overshoot or
 oscillation the open-loop (unloaded, wheels-in-air) τ does not hold
 closed-loop, and the safer of the two candidates should be kept.
-Whichever wins, write it into `aislebot_esp32.ino` and reflash, since the
-live `<G,...>` set is lost on reset.
+
+**The prediction was wrong, and the data says so cleanly.** Sweep run,
+14 Sep 2026, same session, wheels in the air:
+`sweep_kp{45,22,26}_ki250_kd0.5_20260914_16{4953,5007,5022}.csv`, four
+setpoints (1.00, 2.00, 3.00, 4.50 rad/s) × four motors × three gain sets,
+48 rows.
+
+| Gain set | mean overshoot (rad/s) | vs. 45 |
+|---|---|---|
+| `Kp = 45` (shipped) | **0.107** | baseline |
+| `Kp = 22` | 0.164 | +54 % |
+| `Kp = 26` | 0.153 | +43 % |
+
+`Kp = 45` posted the lowest overshoot in **16 of 16 rows**, not a
+majority, all of them. Steady-state error moved the other way (45: 0.009,
+22: 0.005, 26: 0.006 rad/s mean) but every one of those numbers sits below
+the ~0.003–0.007 rad/s encoder velocity quantum from §1, so that
+difference is noise floor, not signal. Settling time is not usable from
+this run (see the note below); overshoot is the discriminator, and it is
+not close.
+
+**Why the direct-synthesis prediction failed here, reasoned rather than
+measured.** The formula `Kp = τ · Ki` comes from pole-zero cancellation on
+the *bare plant*: the PI zero at `−Ki/Kp` is placed on top of the plant
+pole at `−1/τ`. This controller does not command a bare plant. The
+two-term feedforward (§3) supplies most of the PWM the instant a setpoint
+changes, so the closed-loop `Kp` term's real job is damping the transient
+around that feedforward jump, not cancelling a pole the feedforward has
+already mostly pre-compensated. Lowering `Kp` weakens exactly that
+damping, and the sweep shows the result directly: more overshoot, not
+less. This explanation has not been tested against a `Kp` sweep with
+feedforward disabled, so it is reasoned from the data in front of it,
+not itself a measured result.
+
+**Decision: `Kp` stays at 45. Nothing gets flashed.** The measurement this
+section exists for is complete, and the honest reading of it is that the
+number already in the firmware survives closed-loop verification and the
+two candidates built to replace it do not. Objective 1.3 is closed as
+*confirmed*, not *changed*: both are legitimate outcomes of the same
+measurement, and this project's own standing rule is to report whichever
+one the data actually gives.
+
+**A tool bug found and fixed in the same session.** Every row in the
+sweep printed `settle(s): none`, for all three gain sets, at every
+setpoint. Root cause: `settling_time()`'s pass condition is "never leaves
+the band again," checked against the *entire remaining run*, not the
+window belonging to that step, so a later setpoint (or the run's own
+final return to zero) always eventually pulls the signal back out of
+band, and the check was structurally guaranteed to fail regardless of the
+gains. Fixed in `nab_pid_logger.py`'s `test_steps()` by windowing the
+series to each step's own `t_end` before it reaches `settling_time()`.
+Verified against the shipped source in
+`tools/tests/nab_pid_logger_settling.py`. Overshoot and steady-state
+error were computed correctly throughout and are unaffected; only the
+settle-time column was silent. Re-running the sweep is optional: the
+overshoot result above is already unambiguous on its own, but it would add
+settle-time as a second, independent line of evidence if there is time
+for it.
+
+Whichever gain set a future measurement does justify, write it into
+`aislebot_esp32.ino` and reflash: the live `<G,...>` set used for this
+comparison is lost on reset and was never intended to persist.
 
 **Secondary finding, not acted on here.** The same run's static gain
 implies `Kff` of 40.9/43.4/41.2/41.9 (FR/FL/RR/RL), 7–10 % above the

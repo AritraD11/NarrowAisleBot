@@ -297,13 +297,14 @@ notice line rather than failing quietly.
 
 None of this needs a dedicated block. Run it while the stack is already up.
 
-**Plant identification: done, 14 Sep 2026.** τ ≈ 0.09 s across all four
-motors, against the 0.18 s this project had assumed. `Kp` recomputes to
-22 to 26. Objective 1.3 closes. What is still open is the flash: verify
-closed loop first (`--test sweep --gains "45,250,0.5 22,250,0.5
-26,250,0.5"`), predictions and full derivation in `PID_Calibration.md` §5,
-then write the winner into `aislebot_esp32.ino` and reflash before it is
-lost on the next reset.
+**Plant identification: done and verified, 14 Sep 2026.** τ ≈ 0.09 s
+against the assumed 0.18 s. The two `Kp` candidates it implies (22, 26)
+were swept closed-loop against the shipped 45 and both lost on overshoot,
+16 of 16 setpoint-motor rows. `Kp` stays at 45; nothing gets flashed.
+Objective 1.3 closes as *confirmed*. Full derivation, the reasoning for
+why the open-loop prediction failed, and a tool bug found and fixed in
+the same session (`settle(s)` printed `none` for every row of the sweep,
+unrelated to the gains): `PID_Calibration.md` §5.
 
 **The slip residual, free from drives already happening.** The residual
 derived from the asymmetric geometry is an instrument nobody has pointed at

@@ -7,13 +7,16 @@
 #
 # Usage (on the Pi):
 #   curl -sSL -o /tmp/pi_audit.sh \
-#     https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/mapping-autonomous-nav-695glw/tools/pi_audit.sh
+#     https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/aps-report-draft-2nywbq/tools/pi_audit.sh
 #   bash /tmp/pi_audit.sh                 # local inventory only
 #   bash /tmp/pi_audit.sh --online        # also diff deployed code against GitHub
 #
 # --online needs the Pi on a network with internet (eduroam, not aislebot-ap).
+# The default branch below is whatever branch is currently under active
+# development -- override per-run with AISLEBOT_BRANCH if you need a
+# specific one, rather than trusting this comment to still be current.
 
-BRANCH="${AISLEBOT_BRANCH:-claude/mapping-autonomous-nav-695glw}"
+BRANCH="${AISLEBOT_BRANCH:-claude/aps-report-draft-2nywbq}"
 RAW="https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/${BRANCH}"
 ONLINE=0
 [ "${1:-}" = "--online" ] && ONLINE=1
@@ -195,12 +198,15 @@ sec "16 DEPLOYED CODE vs GITHUB (branch $BRANCH)"
     "$WS/src/mecanum_robot/mecanum_robot/keyboard_teleop.py:src/mecanum_robot/mecanum_robot/keyboard_teleop.py" \
     "$WS/src/mecanum_robot/launch/mapping_full.launch.py:src/mecanum_robot/launch/mapping_full.launch.py" \
     "$WS/src/mecanum_robot/launch/aislebot_full.launch.py:src/mecanum_robot/launch/aislebot_full.launch.py" \
+    "$WS/src/mecanum_robot/launch/sensors.launch.py:src/mecanum_robot/launch/sensors.launch.py" \
     "$WS/src/mecanum_robot/config/twist_mux.yaml:src/mecanum_robot/config/twist_mux.yaml" \
     "$WS/src/mecanum_robot/setup.py:src/mecanum_robot/setup.py" \
     "$WS/src/mecanum_robot/urdf/aislebot.urdf:src/mecanum_robot/urdf/aislebot.urdf" \
     "$WS/src/mecanum_navigation/mecanum_navigation/goal_pose_adapter.py:src/mecanum_navigation/mecanum_navigation/goal_pose_adapter.py" \
     "$WS/src/mecanum_navigation/mecanum_navigation/cmd_vel_axis_adapter.py:src/mecanum_navigation/mecanum_navigation/cmd_vel_axis_adapter.py" \
     "$WS/src/mecanum_navigation/launch/navigation.launch.py:src/mecanum_navigation/launch/navigation.launch.py" \
+    "$WS/src/mecanum_navigation/launch/nav2_slam.launch.py:src/mecanum_navigation/launch/nav2_slam.launch.py" \
+    "$WS/src/mecanum_navigation/launch/slam.launch.py:src/mecanum_navigation/launch/slam.launch.py" \
     "$WS/src/mecanum_navigation/config/nav2_params.yaml:src/mecanum_navigation/config/nav2_params.yaml" \
     "$WS/src/mecanum_navigation/config/ekf_params.yaml:src/mecanum_navigation/config/ekf_params.yaml" \
     "$WS/src/scan_relay/scan_relay.py:src/scan_relay/scan_relay.py" \

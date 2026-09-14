@@ -296,9 +296,15 @@ paste. It **only reads** — nothing is deleted, moved, or restarted.
 
 ```bash
 curl -sSL -o /tmp/pi_audit.sh \
-  https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/mapping-autonomous-nav-695glw/tools/pi_audit.sh
+  https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/aps-report-draft-2nywbq/tools/pi_audit.sh
 bash /tmp/pi_audit.sh --online
 ```
+
+On `aislebot-ap` (no uplink), `curl` on the Pi itself can't reach GitHub —
+fetch the script on Windows and `scp` it over instead, same as any other
+tool deployment, then run it locally on the Pi. `--online`'s own internal
+fetches face the same constraint: they only succeed if the Pi itself is on
+a network with a real route out (eduroam), not just the Pi's own AP.
 
 `--online` adds section 16, which fetches each deployed source file from
 GitHub and reports `match` / `DIFFERS` / `MISSING-ON-PI` / `EXTRA`. That is

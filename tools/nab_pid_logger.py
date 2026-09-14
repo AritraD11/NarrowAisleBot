@@ -156,11 +156,40 @@ class ESP32Link:
 
     @staticmethod
     def _autodetect():
-        for p in serial.tools.list_ports.comports():
+        """`/dev/esp32` first, always. system/99-aislebot.rules pins it by
+        physical USB port precisely because the ESP32 and the YDLIDAR X4
+        Pro share the same CP2102 chip AND the same factory serial (0001)
+        -- see docs/Research_Journal.md Part V and LiDAR_SLAM_Bringup.md.
+        A description/manufacturer string cannot tell them apart, and
+        list_ports.comports() has no guaranteed order, so scanning by
+        chip identity is exactly the bug the udev rule exists to prevent:
+        this used to return /dev/ttyUSB2 (the LiDAR) as often as
+        /dev/ttyUSB1 (the ESP32), and the LiDAR does not speak this
+        protocol -- every open succeeds, nothing ever answers.
+
+        Falls back to a chip-identity guess only if the symlink is
+        missing (a fresh Pi before the udev rule is installed), and
+        explicitly excludes anything already claimed by /dev/ydlidar so
+        the fallback cannot make the same mistake it exists to avoid.
+        """
+        if os.path.exists("/dev/esp32"):
+            return "/dev/esp32"
+
+        ydlidar_real = os.path.realpath("/dev/ydlidar") if os.path.exists("/dev/ydlidar") else None
+        candidates = [p for p in serial.tools.list_ports.comports()
+                      if os.path.realpath(p.device) != ydlidar_real]
+
+        for p in candidates:
             blob = f"{p.description or ''} {p.manufacturer or ''}"
             if any(k in blob for k in ("CP210", "CH340", "Silicon Labs", "FTDI")):
+                print(f"!! /dev/esp32 not found -- guessed {p.device} by chip "
+                      f"identity. The ESP32 and the YDLIDAR use the same "
+                      f"chip; if this is wrong, pass --port explicitly. "
+                      f"Run 'sudo udevadm control --reload' if "
+                      f"system/99-aislebot.rules is installed but not "
+                      f"applied.", file=sys.stderr)
                 return p.device
-        for p in serial.tools.list_ports.comports():
+        for p in candidates:
             if "USB" in (p.device or ""):
                 return p.device
         return None

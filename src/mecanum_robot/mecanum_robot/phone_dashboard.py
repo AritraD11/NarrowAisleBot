@@ -2105,11 +2105,26 @@ class PhoneDashboard(Node):
         self.declare_parameter('zero_point_scan_path',
                                '~/ros2_ws/tools/zero_point_scan.py')
 
+        # ── Named locations (G7) ──────────────────────────────────
+        # `map_name` is the guard, not decoration. A taught location is a
+        # coordinate in one specific saved map; load a different map and
+        # the same numbers point at a different floor tile. Re-mapping the
+        # site invalidates every taught location, and that has to be
+        # surfaced rather than silently obeyed. Pass it at launch:
+        #   --ros-args -p map_name:=lab_commission_v1
+        self.declare_parameter('locations_path', '~/locations.json')
+        self.declare_parameter('map_name', '')
+
         self.port    = self.get_parameter('port').value
         self.log_dir = os.path.expanduser(
             self.get_parameter('log_dir').get_parameter_value().string_value
         )
         os.makedirs(self.log_dir, exist_ok=True)
+
+        self.locations_path = os.path.expanduser(
+            self.get_parameter('locations_path').get_parameter_value().string_value
+        )
+        self.map_name = self.get_parameter('map_name').get_parameter_value().string_value
 
         # ── Publishers ────────────────────────────────────────────
         self.cmd_vel_pub   = self.create_publisher(Twist,             '/cmd_vel_manual', 10)
@@ -2515,6 +2530,117 @@ class PhoneDashboard(Node):
         self.goal_pub.publish(msg)
         self.get_logger().info(
             f'Goal sent (map frame): x={x:.3f} y={y:.3f} nose={math.degrees(yaw):.1f} deg')
+
+    # ── Named locations (G7) ──────────────────────────────────────
+    #
+    # Teaching is by driving, never by typing coordinates: the robot is
+    # driven to the spot and the spot is named, so the number stored is
+    # the one the localiser actually produces there. That also means a
+    # taught location is only as good as the pose estimate at teach time,
+    # which is why this refuses to store anything when map->base_link is
+    # absent rather than falling back to odom and looking like it worked.
+
+    def _locations_load(self) -> dict:
+        """The library as it is on disk. A missing or corrupt file reads as
+        empty rather than raising, because the recall path must degrade to
+        'no locations' instead of taking the dashboard down with it."""
+        try:
+            with open(self.locations_path, 'r', encoding='utf-8') as fh:
+                data = json.load(fh)
+        except FileNotFoundError:
+            return {'map': self.map_name, 'locations': []}
+        except (json.JSONDecodeError, OSError) as exc:
+            self.get_logger().warn(f'locations file unreadable ({exc}); treating as empty')
+            return {'map': self.map_name, 'locations': []}
+        if not isinstance(data, dict) or not isinstance(data.get('locations'), list):
+            self.get_logger().warn('locations file has an unexpected shape; treating as empty')
+            return {'map': self.map_name, 'locations': []}
+        return data
+
+    def _locations_write(self, data: dict) -> str:
+        """Write via a temporary file and rename, so a power cut during the
+        write cannot leave a half-written library. G7's whole test is a
+        power cycle, so this file has to survive one being pulled at any
+        instant."""
+        tmp = self.locations_path + '.tmp'
+        try:
+            with open(tmp, 'w', encoding='utf-8') as fh:
+                json.dump(data, fh, indent=2)
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp, self.locations_path)
+        except OSError as exc:
+            with contextlib.suppress(OSError):
+                os.remove(tmp)
+            return f'could not write {self.locations_path}: {exc}'
+        return ''
+
+    def save_location(self, name: str) -> str:
+        """Name wherever the robot is standing. Returns '' on success, or a
+        reason. Re-using a name overwrites that row, which is the behaviour
+        an operator expects when they re-teach a spot that has moved."""
+        name = (name or '').strip()
+        if not name:
+            return 'no name given'
+
+        pose = self._lookup('map', 'base_link')
+        if pose is None:
+            return ('map->base_link is not being published — nothing is '
+                    'localising the robot, so there is no coordinate to store')
+        x, y, yaw = pose
+
+        data = self._locations_load()
+        data['map'] = self.map_name or data.get('map', '')
+        rows = [r for r in data['locations']
+                if isinstance(r, dict) and r.get('name') != name]
+        rows.append({'name': name,
+                     'x': round(float(x), 4),
+                     'y': round(float(y), 4),
+                     'yaw': round(float(yaw), 4)})
+        data['locations'] = rows
+
+        err = self._locations_write(data)
+        if err:
+            return err
+        self.get_logger().info(
+            f'Taught "{name}" at x={x:.3f} y={y:.3f} '
+            f'nose={math.degrees(yaw):.1f} deg on map "{data["map"] or "unnamed"}"')
+        return ''
+
+    def goto_location(self, name: str) -> str:
+        """Send a taught location as a goal. Returns '' on success, or a
+        reason. Reuses the entire existing goal path, so anything true of a
+        tapped goal is true of this one."""
+        name = (name or '').strip()
+        data = self._locations_load()
+        row  = next((r for r in data['locations']
+                     if isinstance(r, dict) and r.get('name') == name), None)
+        if row is None:
+            return f'no location named "{name}"'
+
+        saved_map = data.get('map', '')
+        if self.map_name and saved_map and saved_map != self.map_name:
+            return (f'"{name}" was taught on map "{saved_map}" but "{self.map_name}" '
+                    f'is loaded — re-teach it before driving to it')
+
+        try:
+            self.publish_goal(float(row['x']), float(row['y']), float(row['yaw']))
+        except (KeyError, TypeError, ValueError):
+            return f'"{name}" is stored malformed; re-teach it'
+        self.get_logger().info(f'Recalling "{name}"')
+        return ''
+
+    def list_locations(self) -> dict:
+        """What the dashboard shows: the rows, plus whether they belong to
+        the map that is currently loaded."""
+        data = self._locations_load()
+        saved_map = data.get('map', '')
+        return {
+            'map': saved_map,
+            'current_map': self.map_name,
+            'stale': bool(self.map_name and saved_map and saved_map != self.map_name),
+            'locations': [r for r in data['locations'] if isinstance(r, dict)],
+        }
 
     # ── Arm ───────────────────────────────────────────────────────
 
@@ -3123,6 +3249,20 @@ def _dispatch(msg: dict):
     elif t == 'goal':
         # Client already applied the two-tap arm; this is a committed goal.
         _node.publish_goal(msg.get('x', 0.0), msg.get('y', 0.0), msg.get('yaw', 0.0))
+
+    elif t == 'save_location':
+        reason = _node.save_location(msg.get('name', ''))
+        if reason:
+            _node.notice = f'Teach failed: {reason}'
+            _node.notice_seq += 1
+            _node.get_logger().warn(f'Dashboard: teach refused — {reason}')
+
+    elif t == 'goto_location':
+        reason = _node.goto_location(msg.get('name', ''))
+        if reason:
+            _node.notice = f'Recall failed: {reason}'
+            _node.notice_seq += 1
+            _node.get_logger().warn(f'Dashboard: recall refused — {reason}')
 
     elif t == 'calib_start':
         reason = _node.start_calibration()

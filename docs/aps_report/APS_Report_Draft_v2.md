@@ -67,8 +67,9 @@ wheel speeds to 1.2 to 1.4 % of peak with the wheels free and 3.4 to 4.0 %
 under real chassis weight, with zero saturation samples in either case and
 roughly half the actuator range unused. All four motors hold 0.043 to
 0.046 rad/s RMS tracking error over 20,940 samples. Wheel odometry closed a
-4.582 m route to 3.1 mm, which is 0.07 %, and a 21.85 m route to 0.229 m,
-which is 1.27 % and exactly the specification the platform claims for itself.
+4.582 m route to 3.1 mm, which is 0.07 %, and returned to the mark 0.229 m out
+after roughly 18 m of the longest drive in the project's history, which is
+1.27 % and exactly the specification the platform claims for itself.
 The forward kinematic model reproduces ground-truth twist to 1.7 × 10⁻¹⁶ over
 20,000 random twists. The robot completed its first autonomous
 forward-and-return round trip on 14 August and by late August was reaching
@@ -247,7 +248,7 @@ says so.
 | 1 | Closed-loop velocity control tracks to 1.2 to 1.4 % of peak in air, 3.4 to 4.0 % on the floor, with zero saturation | Measured | Four logged runs, 20,940 samples on the longest |
 | 2 | The asymmetric forward kinematic model is exact | Measured | Reproduces ground-truth twist to 1.7 × 10⁻¹⁶ over 20,000 random twists |
 | 3 | Odometry integration is exact | Measured | Offline re-integration from raw encoders diverges 0.0054 m peak, 0.0000 m final |
-| 4 | Wheel odometry closes to 1.1 to 1.5 % of path | Measured | 3.1 mm over 4.582 m; 2.58 cm on a 38 s square; 0.229 m over 21.85 m |
+| 4 | Wheel odometry closes to 1.1 to 1.5 % of path | Measured | 3.1 mm over 4.582 m; 2.58 cm on a 38 s square; 0.229 m over ~18 m (1.27 %) and 0.257 m over 18.14 m (1.42 %) |
 | 5 | Ground load raises feedforward demand by a mean of 24 % | Measured | Predicted at 10 to 30 % in writing before the run; all four motors inside the band |
 | 6 | The self-occlusion blind sector is a 90° wedge, 107 of 430 beams | Measured | Consistent across five independent headings |
 | 7 | Rotation in place adds no pose-graph node and no map cell | Measured | Three runs; 714° over 642 s produced 43 occupied cells, 2.1 m of wall |
@@ -530,8 +531,11 @@ end.
 
 The physical accuracy is at specification, and it is the ceiling. Wheel
 odometry closed 2.58 cm on a 38 s square, 4.3 cm over a 4 m out-and-back, and
-0.229 m with 10.53° of heading error over 21.85 m. That last figure is 1.27 %
-of path. Section 4.6.4 shows that a substantial part of the heading component
+0.229 m with 10.53° of heading error over roughly 18 m. That last figure is
+1.27 % of path, and the 621 s drive's 0.257 m over 18.14 m is 1.42 %, so the
+measured closure band is 1.1 to 1.5 %. (The 21.85 m quoted elsewhere for that
+session is the total wheel path of the whole 1047 s drive, not the leg the
+closure was measured over. The two must not be divided into one another.) Section 4.6.4 shows that a substantial part of the heading component
 is not physical.
 
 ### 4.5 Perception: three faults that produced no error message

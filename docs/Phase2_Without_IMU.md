@@ -114,22 +114,22 @@ self-diagnosing", and it is the one the mathematics actually supports.
 
 Four runs. None needs a part that is not already on the robot.
 
-### 5.1 Close Phase 1 first, because it is 40 seconds
+### 5.1 Phase 1: done
 
 ```bash
-./tools/nab_pid_logger.py --test plant          # WHEELS IN THE AIR
+./tools/nab_pid_logger.py --test plant --port /dev/esp32   # WHEELS IN THE AIR
 ```
 
-Open-loop PWM steps with the PID bypassed, logged at 50 Hz. It measures the
-plant time constant $\tau$ and DC gain $K$ per motor and prints the resulting
-$K_p$ and $K_i$ directly. `Kp = 45` currently assumes $\tau \approx 0.18$ s
-and is the last estimated number anywhere in the control stack; every other
-gain is derived from measured data. This run removes it and closes year-one
-objective 1.3, which takes Phase 1 from 90 % to 100 %.
+Run 14 Sep 2026. τ measured at ≈0.09 s per motor, against the 0.18 s this
+project had assumed, which recomputes `Kp` from 45 to a bracket of 22 to 26
+holding `Ki = 250`. Objective 1.3 closes; Phase 1 is 100 %. Full derivation,
+the one excluded outlier and why, and the closed-loop sweep that decides
+between 22 and 26 before either gets flashed: `PID_Calibration.md` §5.
 
-Then repeat on the floor. $K$ drops under load, so $K_i = 1/(K\lambda)$ rises,
-and the difference between the two numbers is the ground-load correction
-measured directly rather than inferred from the 24 % feedforward figure.
+Repeat the same run on the floor when there is time. $K$ drops under load, so
+$K_i = 1/(K\lambda)$ rises, and the difference between the two numbers is the
+ground-load correction measured directly rather than inferred from the 24 %
+feedforward figure. Not urgent: `Kp`, not `Ki`, was this project's open item.
 
 ### 5.2 The range envelope, which is the Phase 2 headline
 

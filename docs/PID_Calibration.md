@@ -5,7 +5,8 @@ measured, which one is still an estimate, and the exact bench run that
 would settle it.
 
 **Status: air-calibrated on confirmed-good encoder hardware. Not yet
-ground-calibrated.**
+ground-calibrated. Plant time constant measured 14 Sep 2026 (§5); the
+recomputed `Kp` is pending closed-loop verification before it is flashed.**
 
 ---
 
@@ -233,7 +234,7 @@ conservative, 15 control periods at 100 Hz:
 
 | Gain | v2.0 | v3.0 | Basis |
 |---|---|---|---|
-| `Kp` | 50 | **45** | τ · Ki, assuming τ ≈ 0.18 s — **estimated, see §5** |
+| `Kp` | 50 | 45 shipped → **22–26 pending §5's sweep** | τ · Ki, τ **measured** 14 Sep 2026 at ≈0.09 s — see §5 |
 | `Ki` | 30 | **250** | 1/(K·λ), λ = 0.15 s — fitted |
 | `Kd` | 3.0 | **0.5** | small by design, see below |
 
@@ -273,27 +274,75 @@ Differentiating the measurement gives identical damping with no kick.
 
 ---
 
-## 5. The one number that is still a guess
+## 5. `Kp`, measured, 14 Sep 2026
 
-**`Kp` — because the plant time constant τ has never been measured on
-this robot.**
+**Resolved.** `tools/nab_pid_logger.py --test plant`, wheels in the air,
+six open-loop PWM steps per motor (±70, ±110, ±160), 1251 samples,
+`plant_20260914_164105.csv` on the Pi.
 
-Every bench run so far has logged steady-state points only. τ lives in
-the *transient*, and no campaign has captured one. `Kp = 45` assumes
-τ ≈ 0.18 s, which is plausible for a 100 W motor behind a 47:1 planetary
-but is an assumption, not a measurement.
+| Motor | K (rad/s per PWM) | τ, all 6 steps | τ, excluding the +70 step |
+|---|---|---|---|
+| FR | 0.02442 | 0.089 s | 0.089 s |
+| FL | 0.02306 | 0.089 s | 0.089 s |
+| RR | 0.02428 | 0.103 s | 0.092 s |
+| RL | 0.02386 | 0.103 s | 0.092 s |
 
-What that uncertainty actually costs:
+τ ≈ **0.09 s**, against the 0.18 s this project had assumed. That lands
+almost exactly on the 0.08 s row this document registered in advance,
+which already predicted the consequence: shipped `Kp = 45` has been
+**over-damped, sluggish, safe.** Nothing here says the robot has been
+misbehaving. It says the loop has had more margin than it needed and has
+been responding slower than it could.
 
-| If τ is… | correct Kp | shipped Kp = 45 behaves as |
-|---|---|---|
-| 0.08 s | 20 | over-damped — sluggish, safe |
-| 0.18 s | 45 | matched |
-| 0.30 s | 75 | under-damped — slower than it could be, still stable |
+**One measurement excluded, and why.** RR and RL both show τ = 0.154 s
+at their smallest step (PWM ±70), an outlier neither FR nor FL
+reproduces at the same step. RR/RL run the coarser RMCS-2086 optical
+encoder (93 132 CPR against FR/FL's 186 264), and PWM 70 sits closer to
+`Kstat` breakaway than the two larger steps, where a first-order-lag fit
+is least trustworthy on either encoder tier. Dropping that one step per
+motor collapses the front/rear split (0.103 s → 0.092 s) and leaves all
+four motors at 0.089–0.092 s, which is the physically simpler result: one
+drivetrain, one τ, not a real front/rear mechanical difference. Keeping
+the excluded point in the CSV rather than discarding it, since the next
+person to run this test should decide for themselves whether they agree.
 
-`Kp` being wrong within this range costs response speed, not stability —
-`Ki`, which is the gain that was genuinely broken, is right regardless.
-So this is safe to fly with, and worth 40 seconds on the bench to fix.
+**Recompute `Kp`, holding `Ki = 250`.** `Ki` is not touched here: it came
+from a three-campaign feedforward fit (§4, Figure 5 in the APS report),
+which is better-conditioned than six steps from one run, and the four
+per-motor `Ki` this run implies (273–289) sit within that fit's own ~8 %
+band anyway. Only τ was missing, so only `Kp` moves:
+
+```
+    Kp = τ · Ki
+```
+
+**Bracket, not a single point, until it is verified closed loop.** Both ends
+of the bracket hold `Ki = 250` fixed and vary only τ. The robust estimate
+(0.0905 s, the two front motors plus the two rear motors with the low-PWM
+outlier excluded) gives `Kp = 22.6`; the raw rear-wheel figure alone
+(0.103 s, outlier included) gives `Kp = 25.75`. Round to **22 and 26**.
+Sweep both against the shipped baseline before flashing either:
+
+```bash
+./tools/nab_pid_logger.py --test sweep --gains "45,250,0.5  22,250,0.5  26,250,0.5"
+```
+
+**Predictions, registered before that run.** Both 22 and 26 should settle
+faster than the 45 baseline, with overshoot flat or reduced and no new
+saturation, since a `Kp` moved toward the true τ is supposed to help, not
+trade against it. If either candidate instead shows overshoot or
+oscillation the open-loop (unloaded, wheels-in-air) τ does not hold
+closed-loop, and the safer of the two candidates should be kept.
+Whichever wins, write it into `aislebot_esp32.ino` and reflash, since the
+live `<G,...>` set is lost on reset.
+
+**Secondary finding, not acted on here.** The same run's static gain
+implies `Kff` of 40.9/43.4/41.2/41.9 (FR/FL/RR/RL), 7–10 % above the
+shipped 37.3/38.4/38.3/38.0. That is inside the ±8 % scatter the existing
+three-campaign fit (§3) already reports for itself, so it is not treated
+as a contradiction: six points from one run do not outweigh a fit built
+for exactly this number. Worth folding in if `Kff` is ever re-fit
+properly; not a reason to touch it today.
 
 ---
 

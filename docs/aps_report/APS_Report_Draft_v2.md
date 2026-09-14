@@ -213,7 +213,7 @@ any hardware is bought.
 |---|---|---|---|
 | 1.1 | Closed-loop velocity control on real-time hardware | 1 | **Achieved**, validated in air and on the floor |
 | 1.2 | Per-motor feedforward calibration from measured data | 1 | **Achieved**; ground-load increase predicted at 10 to 30 %, measured at 24 % |
-| 1.3 | Plant identification for the velocity loop | 1 | **Not achieved.** The bench run is implemented and takes about 40 s; the proportional gain remains an estimate |
+| 1.3 | Plant identification for the velocity loop | 1 | **Achieved**, 14 Sep 2026. τ ≈ 0.09 s across all four motors, roughly half the assumed 0.18 s. Recomputed `Kp` (22–26, holding `Ki = 250`) awaits a closed-loop sweep before it is flashed |
 | 1.4 | Live LiDAR perception and a savable occupancy map | 1 | **Achieved** and repeatable |
 | 1.5 | Automated post-run analysis of every recorded run | 1 | **Achieved**; grew into twelve analysis tools |
 | 1.6 | Inertial measurement and fused state estimation | 1 | **Not started.** Sensor not procured. §4.6.4 now gives a measured case for it |
@@ -509,8 +509,20 @@ These numbers establish a loop that is healthy, consistent across all four
 wheels, free of saturation and of direction-sign faults, and exercised under
 real chassis weight. They do not establish a step response, because these are
 live driving logs rather than isolated-step tests, so rise time and settling
-time cannot be fitted from them. The plant time constant remains unmeasured and
-the proportional gain remains an estimate.
+time cannot be fitted from them.
+
+The plant time constant no longer needs to be assumed. A dedicated open-loop
+bench run, wheels in the air, six PWM steps per motor, measured τ ≈ 0.09 s
+against the 0.18 s this project had assumed, with all four motors agreeing to
+within a few milliseconds once one low-confidence step near the static-friction
+breakaway threshold is set aside. That value had already been registered in
+advance, in `docs/PID_Calibration.md` §5, as the row predicting the shipped
+gain would prove over-damped rather than unstable, and the prediction held: the
+controller has been running with more margin than it needed rather than less.
+`Kp` recomputes to 22 to 26 depending on which measurement of τ is used, and
+the choice between them, along with the flash itself, waits on a closed-loop
+verification sweep so a number derived open loop is not trusted onto the robot
+unchecked.
 
 ### 4.4 Odometry, and the accuracy ceiling it sets
 
@@ -1345,8 +1357,7 @@ chain.** The sequence is short and each step unblocks the next. Procure and
 mount an inertial sensor close to the geometric centre, so that tangential
 acceleration mixes minimally into the yaw channel, and quantify how much of the
 measured phantom yaw it recovers; §4.6.4 gives a specific number to test
-against rather than a general expectation. Run plant identification on the
-bench, which removes the last estimated gain in about 40 seconds. Complete a
+against rather than a general expectation. Complete a
 commissioning drive under the corrected procedure of §4.6.2 and grade it
 against the four existing criteria. Save that map, bring up localisation
 against it, and run the point-and-go sequence that currently works only inside
@@ -1571,9 +1582,16 @@ max_wheel_accel = 12.0 rad/s²
 velocity filter alpha = 0.4    minimum output = 5
 ```
 
-Every gain except `Kp` is derived from measured data; `Kp` assumes an unmeasured
-plant time constant. Measured ground-load feedforward is 24 % above these air
-values, which is the correction to apply when the gains are refitted.
+`Kp = 45` above is what is still compiled on the robot at the time of writing.
+Every other gain was already derived from measured data; `Kp` was the one
+exception, assuming an unmeasured plant time constant of 0.18 s. That constant
+is now measured at ≈0.09 s (`PID_Calibration.md` §5), which recomputes `Kp` to
+22 to 26. The recomputed value is not yet flashed: it is pending a closed-loop
+sweep (`--test sweep --gains "45,250,0.5 22,250,0.5 26,250,0.5"`) to confirm
+the open-loop measurement holds once the loop is closed, per this project's own
+standing rule against trusting an unverified number onto the robot. Measured
+ground-load feedforward is 24 % above these air values, which is the correction
+to apply when the gains are refitted.
 
 ### Appendix D: open items carried into year 2
 

@@ -297,11 +297,13 @@ notice line rather than failing quietly.
 
 None of this needs a dedicated block. Run it while the stack is already up.
 
-**Plant identification, about 40 seconds of driving.** This removes the last
-estimated gain in the whole control stack. `Kp = 45` currently assumes a plant
-time constant that has never been measured; every other gain is derived from
-data. Run it early, while the stack is fresh, and it closes year-one objective
-1.3 outright.
+**Plant identification: done, 14 Sep 2026.** τ ≈ 0.09 s across all four
+motors, against the 0.18 s this project had assumed. `Kp` recomputes to
+22 to 26. Objective 1.3 closes. What is still open is the flash: verify
+closed loop first (`--test sweep --gains "45,250,0.5 22,250,0.5
+26,250,0.5"`), predictions and full derivation in `PID_Calibration.md` §5,
+then write the winner into `aislebot_esp32.ino` and reflash before it is
+lost on the next reset.
 
 **The slip residual, free from drives already happening.** The residual
 derived from the asymmetric geometry is an instrument nobody has pointed at

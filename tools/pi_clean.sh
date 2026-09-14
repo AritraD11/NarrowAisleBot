@@ -77,9 +77,28 @@ would "${k:-0}" "delete ~/YDLidar-SDK/build"
 run "rm -rf \"$HOME/YDLidar-SDK/build\""
 
 sec "5 VS CODE SERVER  (regenerates automatically on next connect)"
-k=$(kb "$HOME/.vscode")
-would "${k:-0}" "delete ~/.vscode"
-run "rm -rf \"$HOME/.vscode\""
+# ⚠ ~/.vscode IS THE WRONG PATH and was the only one here until 14 Sep 2026.
+# The Remote-SSH server unpacks itself into ~/.vscode-server, and that is
+# where the weight is: pi_audit.sh measured 1.4 GB there against a ~/.vscode
+# that does not exist on this Pi at all. So this section reported "0B" and
+# removed nothing, for weeks, while sitting directly on top of the single
+# largest reclaimable item on the disk. Both paths are handled now; a
+# missing one is a no-op, not a failure.
+for d in "$HOME/.vscode-server" "$HOME/.vscode"; do
+  [ -e "$d" ] || continue
+  k=$(kb "$d")
+  would "${k:-0}" "delete ${d/#$HOME/\~}  (VS Code re-downloads it on next connect)"
+  run "rm -rf \"$d\""
+done
+
+sec "5b ROTATED SYSTEM LOGS  (outside journald: 119 MB measured)"
+# journalctl --vacuum-size in section 1 only touches the binary journal.
+# rsyslog's own text logs and their .gz rotations are a separate pile and
+# were never being cleaned.
+k=$(find /var/log -type f \( -name '*.gz' -o -name '*.[0-9]' -o -name '*.old' \) \
+      -printf '%k\n' 2>/dev/null | awk '{s+=$1} END {print s+0}')
+would "${k:-0}" "delete rotated (.gz / .N / .old) files under /var/log"
+run "sudo find /var/log -type f \\( -name '*.gz' -o -name '*.[0-9]' -o -name '*.old' \\) -delete"
 
 sec "6 OLD KERNEL"
 RUNNING=$(uname -r)
@@ -117,6 +136,18 @@ for s in gnome-42-2204 gnome-46-2404 gtk-common-themes mesa-2404; do
 done
 echo "  -- stop snapd hoarding old revisions --"
 run "sudo snap set system refresh.retain=2"
+# Disabled revisions are the previous version of a snap, kept for rollback.
+# They are pure disk cost on a robot that will never roll one back, and
+# refresh.retain only stops NEW ones accumulating - it does not remove the
+# ones already sitting there. pi_audit.sh found one on 14 Sep 2026.
+echo "  -- disabled revisions already on disk --"
+snap list --all 2>/dev/null | awk '/disabled/{print "  disabled: "$1" rev "$3}'
+if [ "$APPLY" = "1" ]; then
+  snap list --all 2>/dev/null | awk '/disabled/{print $1, $3}' | \
+    while read -r name rev; do sudo snap remove --purge "$name" --revision="$rev"; done
+else
+  echo "    would run: snap remove --purge <name> --revision=<rev> for each"
+fi
 
 sec "8 DESKTOP AUTOSTART"
 echo "  current default target: $(systemctl get-default 2>/dev/null)"
@@ -139,6 +170,7 @@ echo "  there is no git clone on this Pi, so deleted means gone."
 DEAD=""
 for f in "$WS/src/mecanum_robot/mecanum_robot/phone_dashboard.bak.py" \
          "$WS/src/mecanum_robot/mecanum_robot/arm_bridge.bak.py" \
+         "$WS/src/mecanum_robot/mecanum_robot/phone_dashboard.pre_light_theme.py" \
          "$WS/src/mecanum_robot/launch/hardware.launch.py"; do
   [ -e "$f" ] && { echo "  dead: ${f#"$WS/"}"; DEAD="$DEAD $f"; }
 done

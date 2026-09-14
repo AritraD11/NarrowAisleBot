@@ -20,7 +20,9 @@ analysis tools.)
 | `tests/dashboard_goal_roundtrip.py` | PC (needs playwright) | Drives the real dashboard page in headless Chromium. Proves a tap becomes the goal you meant — **position AND heading** — that the goal-marker and robot-nose renderers agree, that a stale canvas cache self-repairs, and that a command which cannot be delivered is never reported as sent. Guards the §17.49 fixes. |
 | `verify_axis_chain.py` | anywhere (stdlib only) | Proves `W→+Y, S→−Y, D→+X, A→−X` by running the real drive arithmetic end to end, and **fails if the §17.38 frame fix is edited back out**. Run it before and after touching anything axis-related. |
 | `pi_audit.sh` | Pi | Read-only inventory — disk, network, services, deployed code, run data, cleanup candidates. Deletes nothing. With `--online`, diffs every deployed source file against GitHub. |
-| `pi_clean.sh` | Pi | Removes accumulated waste (journald, `~/.ros/log`, stale snaps, old kernels, dead workspace code). **Dry run by default**; `--apply` to execute. |
+| `pi_clean.sh` | Pi | Removes accumulated waste (journald, rotated `/var/log`, `~/.vscode-server`, `~/.ros/log`, stale snaps, old kernels, dead workspace code). **Dry run by default**; `--apply` to execute. |
+| `tests/scan_relay_gate.py` | anywhere (stdlib only) | Drives `scan_relay.py`'s LiDAR quality gate — range floor/cap, the K-of-N persistence gate, live parameter validation. 47 checks against the real methods, `ast`-extracted from the shipped source. Proves the gate is off by default, never alters a range value, and refuses a configuration that could never pass a beam. |
+| `tests/dashboard_lidar.py` | anywhere (stdlib only) | **Cross-file.** The LIDAR panel lives in `phone_dashboard.py` and its knobs live in `scan_relay.py`, and those two deploy separately — every way they can disagree is silent. 60 checks that the parameter names, ROS types and defaults match on both sides, that every preset validates, that every button maps to a real preset, that every element the JS reaches for exists, and that every message it sends has a dispatch case. |
 
 ---
 

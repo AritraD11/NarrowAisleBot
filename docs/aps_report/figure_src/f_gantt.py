@@ -7,7 +7,7 @@ from datetime import date
 
 fig, ax = plt.subplots(figsize=(10.8, 5.9))
 
-NAB, IOT, MILE = C['telemetry'], C['accent'], C['command']
+NAB, IOT, HRTI, MILE = C['telemetry'], C['accent'], C['fixed'], C['command']
 tasks = [
   ('Literature, coursework, problem formulation', '2025-08-01', '2026-01-15', C['grey'], ''),
   ('Open-loop platform on Arduino Mega',          '2026-01-05', '2026-03-20', NAB, ''),
@@ -25,7 +25,8 @@ tasks = [
   ('SLAM front-end investigation (Stages A–G)',   '2026-08-19', '2026-09-03', C['accent'], ''),
   ('Instrument build: 12 analysis tools',         '2026-08-20', '2026-09-03', NAB, ''),
   ('Obstacle-avoidance branch opened',            '2026-09-01', '2026-09-03', NAB, ''),
-  ('UVGI instrumentation and control (TIH-IoT)',  '2026-02-01', '2026-07-31', IOT, 'xxx'),
+  ('Obj. 2 — UVGI instrumentation and control (TIH-IoT)',  '2026-02-01', '2026-07-31', IOT, 'xxx'),
+  ('Obj. 3 — contactless fatigue: literature and proposal', '2026-07-01', '2026-08-05', HRTI, '..'),
 ]
 
 y = 0
@@ -55,8 +56,8 @@ LEVEL = [0, 1, 0, 2, 3, 1]
 for i, (d, txt) in enumerate(miles):
     dn = mdates.date2num(date.fromisoformat(d))
     ax.axvline(dn, color=MILE, lw=1.0, ls='--', alpha=0.8, zorder=2)
-    ax.plot(dn, 16.85, marker='D', ms=5, color=MILE, zorder=6, clip_on=False)
-    ax.annotate(txt, xy=(dn, 16.85), xytext=(dn, 18.05 + LEVEL[i]*1.42),
+    ax.plot(dn, 17.85, marker='D', ms=5, color=MILE, zorder=6, clip_on=False)
+    ax.annotate(txt, xy=(dn, 17.85), xytext=(dn, 19.05 + LEVEL[i]*1.42),
                 ha='center', va='top', fontsize=6.6, color=MILE, clip_on=False,
                 bbox=MASK, arrowprops=dict(arrowstyle='-', color=MILE, lw=0.6))
 
@@ -67,20 +68,21 @@ ax.text(mdates.date2num(date(2026,9,4)), -0.7, 'this report', rotation=90,
 # track separators
 ax.axhline(15.55, color=C['neutral'], lw=0.9)
 ax.text(mdates.date2num(date(2026,2,20)), 14.85,
-        'Second project, run in parallel', fontsize=7.4, color=IOT,
+        'Objectives 2 and 3, run in parallel', fontsize=7.4, color=C['neutral'],
         fontweight='bold', va='center', bbox=MASK)
 
-ax.set_ylim(24.4, -1.2)
+ax.set_ylim(25.4, -1.2)
 h = [mp.Patch(fc=NAB, ec='k', lw=0.5, label='NarrowAisleBot (primary)'),
      mp.Patch(fc=C['accent'], ec='k', lw=0.5, label='SLAM front-end investigation'),
      mp.Patch(fc=C['defect'], ec='k', lw=0.5, hatch='///', label='fault campaigns'),
-     mp.Patch(fc=IOT, ec='k', lw=0.5, hatch='xxx', label='UVGI instrumentation (parallel)'),
+     mp.Patch(fc=IOT, ec='k', lw=0.5, hatch='xxx', label='Objective 2 — UVGI instrumentation'),
+     mp.Patch(fc=HRTI, ec='k', lw=0.5, hatch='..', label='Objective 3 — fatigue proposal'),
      mp.Patch(fc=C['grey'], ec='k', lw=0.5, label='coursework and reading')]
-ax.legend(handles=h, loc='upper left', bbox_to_anchor=(0.012, 0.66), ncol=1, fontsize=7.4,
+ax.legend(handles=h, loc='upper left', bbox_to_anchor=(0.012, 0.62), ncol=1, fontsize=7.4,
           framealpha=0.95, frameon=True, edgecolor=C['grey'])
-ax.set_title('Year-one activity, both projects on one timeline. Primary-project spans are reconstructed '
-             'from the version-control\nrecord across 146 commits; the parallel-project span is '
-             'approximate and to be confirmed against the author\'s own log.',
+ax.set_title('Year-one activity, all three objectives on one timeline. Objective 1 spans are reconstructed '
+             'from the\nversion-control record across 146 commits; the Objective 2 and 3 spans are dated from '
+             'their own\nrepositories and are approximate at the ends.',
              loc='left', fontsize=9.3, pad=10)
 plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig25_gantt.png')
 print('ok')

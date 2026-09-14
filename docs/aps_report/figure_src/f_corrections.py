@@ -36,7 +36,7 @@ ax.set_xlabel('time into drive (s)'); ax.set_ylabel(r'$|$map$\rightarrow$odom co
 ax.set_ylim(0, 1.02); ax.set_xlim(0, 245)
 ax.axhline(0.30, color=C['neutral'], lw=1.0, ls='--')
 ax.text(3, 0.325, 'G2 gate, 0.30 m', ha='left', fontsize=7.4, color=C['neutral'])
-ax.legend(loc='lower left', fontsize=8, bbox_to_anchor=(0.005, 0.02))
+ax.legend(loc='upper left', fontsize=8, framealpha=0.95)
 ax.annotate('0.857 m, the largest correction on record,\non the route that gave 0.678 m nine days before',
             xy=(139, 0.90), xytext=(243, 0.95), fontsize=7.6, color=C['accent'],
             ha='right', va='top',

@@ -112,7 +112,7 @@ fig.legend([h1, h2, h3],
            loc='lower center', ncol=3, fontsize=7.6, bbox_to_anchor=(0.5, -0.10))
 fig.suptitle('The three commissioning maps, with the ground actually covered marked in red. '
              'Grey is never observed.\nThe driven area is a small fraction of the mapped '
-             'extent, which is the sparsity of §7.4 seen directly.',
+             'extent: the map sparsity seen directly.',
              fontsize=9.5, y=1.04, x=0.02, ha='left')
 plt.tight_layout()
 plt.savefig(f'{FIGDIR}/fig29_field_maps.png', bbox_inches='tight')

@@ -105,6 +105,8 @@ from rclpy.qos import (QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile,
                        QoSReliabilityPolicy)
 from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import OccupancyGrid
+from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
+from rcl_interfaces.srv import SetParameters
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Empty, String, Float64MultiArray
 import tf2_ros
@@ -190,7 +192,16 @@ body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-directi
 .layer-panel{position:absolute;top:50px;right:58px;width:204px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px;display:none;z-index:12}.layer-panel.show{display:block}.layer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.layer-title{font-size:10px;font-weight:900}.layer-close{border:0;background:none;color:#667085;font-size:14px}.layer-row{display:flex;align-items:center;justify-content:space-between;padding:7px 2px;border-top:1px solid #eef2f6;font-size:9px;color:#475467}.layer-row input{accent-color:#1677ff}.layer-note{margin-top:8px;font-size:8px;line-height:1.35;color:#98a2b3}.layer-clear{width:100%;margin-top:9px;padding:7px 6px;border:1px solid var(--line);border-radius:7px;background:#fff;color:#475467;font-size:8px;font-weight:900;letter-spacing:.4px;cursor:pointer}.layer-clear:active{background:#f2f4f7}.research-chip{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:10;background:#17202a;color:#fff;border-radius:999px;padding:5px 10px;font-size:8px;font-weight:900;letter-spacing:.5px;display:none;pointer-events:none}.research-chip.show{display:block}
 .cal-status{position:absolute;top:0;left:0;right:0;z-index:20;display:none;background:rgba(255,255,255,.97);border-bottom:1px solid #f2c27a;padding:7px 9px;font-size:8px;line-height:1.35;color:#9a6700;box-shadow:0 3px 12px rgba(16,24,40,.06);font-family:inherit;max-height:82px;overflow:hidden}.cal-status.show{display:block}.cal-status .cal-hd{font-weight:900;letter-spacing:.7px;color:#a15c00}
 .flash{position:fixed;inset:0;background:rgba(217,45,32,.12);pointer-events:none;opacity:0;transition:opacity .25s;z-index:999}.flash.show{opacity:1}
-@media (max-width:560px){.hdr-sub{display:none}.status-pills{max-width:150px}.speed-label{display:none}.spd-btn{min-width:48px;padding:6px 5px}.hdr{padding:0 9px}.drive-info{left:7px;top:7px;gap:5px}.motion-card{right:7px;top:7px;min-width:116px}.info-card{min-width:78px;padding:6px 7px}.info-card .v{font-size:12px}.motion-card{padding:7px 8px}.layer-panel{right:55px;width:190px}}
+.lidar-panel{position:absolute;top:50px;right:58px;width:236px;max-height:calc(100% - 70px);overflow-y:auto;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px;display:none;z-index:13}.lidar-panel.show{display:block}
+.ld-relay{font-size:8px;font-weight:800;letter-spacing:.3px;padding:5px 7px;border-radius:6px;background:#f2f4f7;color:#667085;margin-bottom:8px}.ld-relay.up{background:#e7f5ec;color:#12794a}.ld-relay.down{background:#fdecec;color:#b42318}
+.ld-presets{display:flex;gap:5px;margin-bottom:9px}.ld-preset{flex:1;padding:6px 2px;border:1px solid var(--line);border-radius:6px;background:#fff;color:#475467;font-size:8px;font-weight:900;letter-spacing:.3px;cursor:pointer}.ld-preset:active{background:#eef2f6}
+.ld-row{display:flex;align-items:center;gap:6px;margin-top:7px}.ld-row label{flex:1;font-size:9px;color:#475467;font-weight:700}.ld-row input[type=number]{width:52px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-size:10px;font-weight:800;color:#17202a;text-align:right;background:#fff;-moz-appearance:textfield}.ld-row input[type=number]::-webkit-outer-spin-button,.ld-row input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}.ld-unit{font-size:8px;color:#98a2b3;font-weight:800;width:14px}
+.ld-hint{font-size:7.5px;line-height:1.35;color:#98a2b3;margin:3px 0 0 1px}
+.ld-actions{display:flex;gap:5px;margin-top:10px}.ld-btn{flex:1;padding:7px 3px;border:1px solid var(--line);border-radius:7px;background:#fff;color:#475467;font-size:8px;font-weight:900;letter-spacing:.4px;cursor:pointer}.ld-btn.primary{background:#1677ff;border-color:#1677ff;color:#fff}.ld-btn:active{opacity:.75}.ld-btn:disabled{opacity:.4;cursor:default}
+.ld-divider{height:1px;background:#eef2f6;margin:11px 0 8px}
+.ld-stat{display:flex;align-items:baseline;justify-content:space-between;padding:3px 1px;font-size:8.5px;color:#667085}.ld-stat strong{font-size:10px;font-weight:900;color:#17202a;font-variant-numeric:tabular-nums}.ld-stat.good strong{color:#12794a}.ld-stat.cut strong{color:#b54708}
+.ld-note{margin-top:8px;font-size:7.5px;line-height:1.4;color:#98a2b3}.ld-note.warn{color:#b54708;font-weight:700}
+@media (max-width:560px){.hdr-sub{display:none}.status-pills{max-width:150px}.speed-label{display:none}.spd-btn{min-width:48px;padding:6px 5px}.hdr{padding:0 9px}.drive-info{left:7px;top:7px;gap:5px}.motion-card{right:7px;top:7px;min-width:116px}.info-card{min-width:78px;padding:6px 7px}.info-card .v{font-size:12px}.motion-card{padding:7px 8px}.layer-panel{right:55px;width:190px}.lidar-panel{right:55px;width:212px}}
 </style>
 
 </head>
@@ -238,6 +249,7 @@ body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-directi
         <button class="mt-btn" id="btnGoal">GOAL</button>
         <button class="mt-btn" id="btnZero">ZERO</button>
         <button class="mt-btn" id="btnLayers">LAYERS</button>
+        <button class="mt-btn" id="btnLidar">LIDAR</button>
         <button class="mt-btn" id="btnResearch">RESEARCH</button>
       </div>
       <div class="layer-panel" id="layerPanel">
@@ -254,6 +266,70 @@ body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-directi
         <label class="layer-row">Research mode <input id="researchToggle" type="checkbox"></label>
         <button class="layer-clear" id="btnClearTrails">CLEAR TRAILS &amp; GOALS</button>
         <div class="layer-note">A new run starts at MAP or re-ZERO; the previous trail moves to &ldquo;past runs&rdquo;. Clearing is display-only &mdash; it discards nothing ROS has recorded, and no option here changes ROS behavior.</div>
+      </div>
+
+      <!-- LIDAR TUNER (§17.51).
+           Everything above the divider is a live control on scan_relay.
+           Everything below it is measurement, and the measurement is what
+           makes the controls worth having: LIVE is the sensor's own
+           return rate before any policy, PUBLISHED is what SLAM and the
+           costmaps actually receive, and the two CUT rows attribute the
+           difference to the specific knob that caused it. Tuning without
+           that attribution is guessing which of three things helped. -->
+      <div class="lidar-panel" id="lidarPanel">
+        <div class="layer-head">
+          <div class="layer-title">LIDAR TUNER</div>
+          <button class="layer-close" id="btnLidarClose">×</button>
+        </div>
+
+        <div class="ld-relay" id="ldRelay">scan_relay: waiting…</div>
+
+        <div class="ld-presets">
+          <button class="ld-preset" data-preset="raw">RAW</button>
+          <button class="ld-preset" data-preset="aisle">AISLE</button>
+          <button class="ld-preset" data-preset="strict">STRICT</button>
+        </div>
+
+        <div class="ld-row">
+          <label for="ldCap">Range cap</label>
+          <input id="ldCap" type="number" step="0.5" min="0" max="10">
+          <span class="ld-unit">m</span>
+        </div>
+        <div class="ld-hint">0 = off. 5.0 matches slam_toolbox's max_laser_range.</div>
+
+        <div class="ld-row">
+          <label for="ldFloor">Range floor</label>
+          <input id="ldFloor" type="number" step="0.05" min="0" max="2">
+          <span class="ld-unit">m</span>
+        </div>
+        <div class="ld-hint">0 = off. The driver already refuses below 0.10 m.</div>
+
+        <div class="ld-row">
+          <label for="ldK">Persistence</label>
+          <input id="ldK" type="number" step="1" min="1" max="6">
+          <span class="ld-unit">of</span>
+          <input id="ldN" type="number" step="1" min="1" max="6">
+        </div>
+        <div class="ld-hint" id="ldPersistHint">1 of 1 = gate off.</div>
+
+        <label class="layer-row">Rear-mast mask (&sect;17.15)
+          <input id="ldMask" type="checkbox" checked></label>
+
+        <div class="ld-actions">
+          <button class="ld-btn primary" id="ldApply">APPLY</button>
+          <button class="ld-btn" id="ldReset">RESET</button>
+          <button class="ld-btn" id="ldSave">SAVE</button>
+        </div>
+
+        <div class="ld-divider"></div>
+
+        <div class="ld-stat"><span>Beams / sweep</span><strong id="ldBeams">—</strong></div>
+        <div class="ld-stat"><span>Live (sensor)</span><strong id="ldLive">—</strong></div>
+        <div class="ld-stat good"><span>Published to SLAM</span><strong id="ldPub">—</strong></div>
+        <div class="ld-stat cut"><span>Cut by range</span><strong id="ldCutR">—</strong></div>
+        <div class="ld-stat cut"><span>Cut by persistence</span><strong id="ldCutP">—</strong></div>
+        <div class="ld-stat"><span>Churn since last sweep</span><strong id="ldChurn">—</strong></div>
+        <div class="ld-note" id="ldNote"></div>
       </div>
       <div class="map-hint" id="mapHint">DRAG TO PAN · PINCH TO ZOOM</div>
     </div>
@@ -518,6 +594,137 @@ function syncLayerPanel() {
 function openLayers() {
   const p = document.getElementById('layerPanel');
   if (p) p.classList.toggle('show');
+  // Two 200px panels overlapping on a phone is unreadable, and the one
+  // underneath still takes taps.
+  const l = document.getElementById('lidarPanel');
+  if (l && p && p.classList.contains('show')) l.classList.remove('show');
+}
+
+// ── LIDAR TUNER ───────────────────────────────────────────────────
+// The panel owns NO state. Every number it shows comes from the last
+// 'lidar' payload, which is the relay's own report of what it is running.
+// The input boxes are the one exception, and only while the operator is
+// typing in them -- see ldEditing below. Without that exception the 2 Hz
+// refresh overwrites a half-typed "5." with "5" and the field fights back.
+let ldLast    = null;    // last {requested, live, presets, path}
+let ldEditing = null;    // id of the field being typed into, or null
+
+function openLidar() {
+  const p = document.getElementById('lidarPanel');
+  if (!p) return;
+  p.classList.toggle('show');
+  const l = document.getElementById('layerPanel');
+  if (l && p.classList.contains('show')) l.classList.remove('show');
+  if (p.classList.contains('show')) ldSyncInputs(true);
+}
+
+function ldNum(id)  { const e = document.getElementById(id); return e ? parseFloat(e.value) : 0; }
+function ldInt(id)  { const e = document.getElementById(id); return e ? parseInt(e.value, 10) : 1; }
+
+function ldSyncInputs(force) {
+  // Only ever write a field the operator is not currently in.
+  if (!ldLast) return;
+  const src = ldLast.live || ldLast.requested;
+  if (!src) return;
+  const set = (id, v) => {
+    if (!force && ldEditing === id) return;
+    const e = document.getElementById(id);
+    if (e && document.activeElement !== e) e.value = v;
+  };
+  set('ldCap',   Number(src.range_cap_m   ?? 0));
+  set('ldFloor', Number(src.range_floor_m ?? 0));
+  set('ldK',     Number(src.persist_k     ?? 1));
+  set('ldN',     Number(src.persist_n     ?? 1));
+  const m = document.getElementById('ldMask');
+  if (m && document.activeElement !== m) m.checked = !!(src.mask_enabled ?? true);
+  // The latency line has to follow the boxes, or tapping AISLE leaves a
+  // cost estimate on screen for the setting that used to be there.
+  ldPersistHint();
+}
+
+function ldRenderStats(m) {
+  ldLast = m;
+  const relay = document.getElementById('ldRelay');
+  const live  = m.live;
+
+  if (relay) {
+    relay.textContent = live
+      ? 'scan_relay: live — ' + ldGateText(live)
+      : 'scan_relay: no stats (is the sensor chain running?)';
+    relay.className = 'ld-relay ' + (live ? 'up' : 'down');
+  }
+
+  const txt = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  if (!live) {
+    ['ldBeams','ldLive','ldPub','ldCutR','ldCutP'].forEach(id => txt(id, '—'));
+  } else {
+    const pct = (a, b) => b > 0 ? ' (' + Math.round(100 * a / b) + '%)' : '';
+    txt('ldBeams', live.beams);
+    txt('ldLive',  live.live + pct(live.live, live.beams));
+    txt('ldPub',   live.published + pct(live.published, live.live));
+    txt('ldCutR',  live.cut_range);
+    txt('ldCutP',  live.cut_persist);
+  }
+
+  // Churn comes from the scan payload, not the stats topic: it is measured
+  // on what was PUBLISHED, which is exactly the question the gate is meant
+  // to move. Watching it fall as persistence tightens is the whole point.
+  const ch = (liveScan && liveScan.churn !== null && liveScan.churn !== undefined)
+    ? (100 * liveScan.churn).toFixed(1) + '%' : '—';
+  txt('ldChurn', ch);
+
+  ldNote(live);
+  ldSyncInputs(false);
+}
+
+function ldGateText(s) {
+  const bits = [];
+  if (s.range_floor_m > 0) bits.push('floor ' + s.range_floor_m.toFixed(2) + ' m');
+  if (s.range_cap_m   > 0) bits.push('cap ' + s.range_cap_m.toFixed(2) + ' m');
+  if (s.persist_n > 1 && s.persist_k > 1) bits.push(s.persist_k + '/' + s.persist_n);
+  if (!s.mask_enabled) bits.push('MASK OFF');
+  return bits.length ? bits.join(', ') : 'no filtering';
+}
+
+function ldNote(live) {
+  const e = document.getElementById('ldNote');
+  if (!e) return;
+  // Three states worth warning about, in descending order of how badly
+  // they would mislead someone reading a map built under them.
+  if (live && !live.mask_enabled) {
+    e.className = 'ld-note warn';
+    e.textContent = 'Mask OFF — the rear mast reads as a phantom obstacle '
+      + '0.13 m behind the robot. Diagnostic only; never map like this.';
+    return;
+  }
+  if (live && live.live > 0 && live.published / live.live < 0.5) {
+    e.className = 'ld-note warn';
+    e.textContent = 'Over half of the sensor\'s returns are being dropped. '
+      + 'Beams that are cut do not CLEAR cells either, so stale obstacles '
+      + 'will stand in the costmap. Loosen the gate.';
+    return;
+  }
+  e.className = 'ld-note';
+  e.textContent = 'LIVE is the sensor before any policy. PUBLISHED is what '
+    + 'SLAM and the costmaps receive. SAVE writes the configuration the '
+    + 'relay confirms it is running, never the one typed above.';
+}
+
+function ldApply() {
+  const cfg = {
+    range_cap_m:   ldNum('ldCap'),
+    range_floor_m: ldNum('ldFloor'),
+    persist_n:     ldInt('ldN'),
+    persist_k:     ldInt('ldK'),
+    mask_enabled:  !!document.getElementById('ldMask').checked,
+  };
+  for (const [k, v] of Object.entries(cfg)) {
+    if (typeof v === 'number' && !isFinite(v)) {
+      goalHint('LiDAR: ' + k + ' is not a number', true);
+      return;
+    }
+  }
+  send({ type: 'lidar_set', cfg: cfg });
 }
 
 // ── MAP STATE ─────────────────────────────────────────────────────
@@ -579,6 +786,8 @@ function connect() {
       ingestMap(m);
       if (mapView) drawMap();
       updateConnectionUI();
+    } else if (m.type === 'lidar') {
+      ldRenderStats(m);
     }
   };
   ws.onclose = () => {
@@ -1891,6 +2100,58 @@ document.getElementById('btnLayersClose').addEventListener('click', () => {
 });
 
 
+// ── LiDAR tuner bindings ──────────────────────────────────────────
+document.getElementById('btnLidar').addEventListener('click', openLidar);
+document.getElementById('btnLidarClose').addEventListener('click', () => {
+  document.getElementById('lidarPanel').classList.remove('show');
+});
+document.getElementById('ldApply').addEventListener('click', ldApply);
+document.getElementById('ldReset').addEventListener('click', () => {
+  send({ type: 'lidar_reset' });
+});
+document.getElementById('ldSave').addEventListener('click', () => {
+  send({ type: 'lidar_save' });
+});
+document.querySelectorAll('.ld-preset').forEach(b => {
+  b.addEventListener('click', () => {
+    send({ type: 'lidar_preset', name: b.dataset.preset });
+  });
+});
+
+// Track which field has focus so the 2 Hz refresh does not overwrite it
+// mid-keystroke. Without this the box is unusable: type "5", the refresh
+// lands, the cursor jumps, and the "." never gets in.
+['ldCap', 'ldFloor', 'ldK', 'ldN'].forEach(id => {
+  const e = document.getElementById(id);
+  if (!e) return;
+  e.addEventListener('focus', () => { ldEditing = id; });
+  e.addEventListener('blur',  () => { ldEditing = null; });
+  e.addEventListener('input', ldPersistHint);
+  // Enter applies, so a phone keyboard's "go" key does the obvious thing
+  // instead of dismissing itself and leaving the value unsent.
+  e.addEventListener('keydown', ev => { if (ev.key === 'Enter') ldApply(); });
+});
+
+function ldPersistHint() {
+  const e = document.getElementById('ldPersistHint');
+  if (!e) return;
+  const k = ldInt('ldK'), n = ldInt('ldN');
+  if (!(k >= 1) || !(n >= 1)) { e.textContent = 'both must be at least 1.'; return; }
+  if (k > n) {
+    e.textContent = k + ' of ' + n + ' can never pass a beam — the relay will refuse this.';
+    return;
+  }
+  if (k === 1 || n === 1) { e.textContent = '1 of 1 = gate off.'; return; }
+  // 11.35 Hz is the MEASURED head rate on this unit (ydlidar_params.yaml),
+  // not the 6.0 Hz the driver is asked for and cannot deliver. Quoting the
+  // requested rate here would understate the latency by nearly half.
+  const ms = Math.round(1000 * (k - 1) / 11.35);
+  const mm = Math.round(0.08 * (k - 1) / 11.35 * 1000);
+  e.textContent = k + ' of ' + n + ': ~' + ms + ' ms admission latency, '
+    + mm + ' mm of travel at the 0.08 m/s Nav2 cap.';
+}
+
+
 // ── Zoom / centre ──────────────────────────────────────────────────
 function zoom(f) {
   camScale = Math.max(6, Math.min(400, camScale * f));
@@ -2082,6 +2343,67 @@ updateLivePoseCard();
 </html>
 """
 # ═══════════════════════════════════════════════════════════════════
+#  LIDAR TUNER CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════
+#
+# These five names, these types, these defaults. The relay declares the
+# same five with the same defaults, and both sets are the OFF position:
+# tapping RESET in the panel has to put the sensor back exactly where a
+# freshly-launched relay would have it, or the reset button is a trap.
+#
+# ⚠ The types are load-bearing. rcl_interfaces requires the ParameterValue
+# to carry the right type field, and a double sent where the relay declared
+# an integer is rejected by rclpy with a message about type mismatch that
+# says nothing about which parameter. persist_n and persist_k are INTEGERS;
+# everything else here is a DOUBLE, including range caps that happen to be
+# typed as whole numbers in the browser. tools/tests/dashboard_lidar.py
+# fails if this table and the relay's declares drift apart.
+LIDAR_PARAM_TYPES = {
+    'range_cap_m':   'double',
+    'range_floor_m': 'double',
+    'persist_n':     'integer',
+    'persist_k':     'integer',
+    'mask_enabled':  'bool',
+}
+
+DEFAULT_LIDAR_CFG = {
+    'range_cap_m':   0.0,     # 0 = no cap; the driver's own 10 m stands
+    'range_floor_m': 0.0,     # 0 = no floor; the driver's own 0.1 m stands
+    'persist_n':     1,       # 1 = gate off
+    'persist_k':     1,       # 1 = gate off
+    'mask_enabled':  True,    # the rear-mast wedge, §17.15 — ON by default
+}
+
+# Named starting points, so tuning begins from an argued position rather
+# than from whatever was left in the boxes last session. Each one is a
+# claim about this robot that can be checked against a map, and each is
+# written next to the number it costs.
+LIDAR_PRESETS = {
+    # Everything the sensor says, unfiltered. The A-side of every A/B.
+    'raw': {'range_cap_m': 0.0, 'range_floor_m': 0.0,
+            'persist_n': 1, 'persist_k': 1, 'mask_enabled': True},
+
+    # The APS configuration. 5 m matches slam_toolbox's max_laser_range, so
+    # nothing is published that SLAM would only throw away; 2-of-3 costs
+    # ~88 ms of admission latency, 7 mm of travel at the 0.08 m/s Nav2 cap.
+    'aisle': {'range_cap_m': 5.0, 'range_floor_m': 0.0,
+              'persist_n': 3, 'persist_k': 2, 'mask_enabled': True},
+
+    # For a commissioning drive where a clean map matters more than
+    # reaction time. 3-of-3 admits only beams the sensor agrees with
+    # itself about; ~176 ms latency, 14 mm at the cap. Drive it slowly.
+    'strict': {'range_cap_m': 4.0, 'range_floor_m': 0.25,
+               'persist_n': 3, 'persist_k': 3, 'mask_enabled': True},
+
+    # Diagnostic ONLY — unmasks the rear wedge so the mast's own return is
+    # visible and §17.15's arc can be re-measured. NEVER map with this: the
+    # mast reads as a phantom obstacle 0.13 m behind the robot.
+    'unmasked': {'range_cap_m': 0.0, 'range_floor_m': 0.0,
+                 'persist_n': 1, 'persist_k': 1, 'mask_enabled': False},
+}
+
+
+# ═══════════════════════════════════════════════════════════════════
 #  ROS2 NODE
 # ═══════════════════════════════════════════════════════════════════
 
@@ -2218,6 +2540,31 @@ class PhoneDashboard(Node):
         self.latest_scan: Optional[dict] = None
         # Previous scan's validity mask, for the live flicker metric below.
         self._prev_valid: Optional[list] = None
+
+        # ── LiDAR tuner (§17.51) ──────────────────────────────────────
+        # The knobs live on scan_relay, not here. This node is the remote
+        # control: it sets that node's parameters over the standard
+        # parameter service and mirrors back what the relay says it is
+        # actually running.
+        #
+        # ⚠ THE RELAY IS THE SOURCE OF TRUTH, NEVER THIS DICT. The panel
+        # displays `lidar_live`, which is parsed from /scan_relay_stats —
+        # the relay's own account of the configuration it is running this
+        # sweep. `lidar_cfg` below is only what was last REQUESTED. They
+        # diverge whenever a set is refused (persist_k > persist_n, say),
+        # and showing the request as though it were the state is precisely
+        # the "knob that is not a knob" failure §17.32 cost a day to.
+        self.declare_parameter('lidar_preset_path', '~/lidar_tune.json')
+        self.lidar_preset_path = os.path.expanduser(
+            self.get_parameter('lidar_preset_path').value)
+        self.lidar_cfg = dict(DEFAULT_LIDAR_CFG)
+        self.lidar_live: Optional[dict] = None
+        self._lidar_cli = self.create_client(
+            SetParameters, '/scan_relay/set_parameters')
+        self._lidar_pending = []      # futures, reaped by _lidar_reap
+        self.create_subscription(Float64MultiArray, '/scan_relay_stats',
+                                 self._lidar_stats_callback, 10)
+        self.create_timer(0.5, self._lidar_reap)
 
         # Written by ROS callbacks, read by the FastAPI broadcast task. Whole
         # objects are replaced rather than mutated, so a reader either sees the
@@ -2640,6 +2987,219 @@ class PhoneDashboard(Node):
             'current_map': self.map_name,
             'stale': bool(self.map_name and saved_map and saved_map != self.map_name),
             'locations': [r for r in data['locations'] if isinstance(r, dict)],
+        }
+
+    # ── LiDAR tuner ───────────────────────────────────────────────
+
+    def _lidar_stats_callback(self, msg: Float64MultiArray):
+        """Parse /scan_relay_stats into what the panel displays.
+
+        Twelve floats, positional, defined in scan_relay.py's
+        _publish_stats. Positional rather than a custom .msg on purpose:
+        adding a message type to this project means a colcon build on the
+        Pi, and scan_relay.py is deliberately a plain script that needs no
+        build (see its header). A custom type would have made the relay
+        un-editable on the robot, which is the opposite of the point.
+
+        Short arrays are dropped rather than padded. A relay running an
+        older build publishes fewer fields, and quietly filling the missing
+        ones with zeros would paint 'cap 0.00 m' on the panel — which reads
+        as 'no cap is set' and is indistinguishable from the truth.
+        """
+        d = list(msg.data)
+        if len(d) < 12:
+            return
+        n, live, published, cut_range, cut_persist = d[0:5]
+        self.lidar_live = {
+            'beams':       int(n),
+            'live':        int(live),
+            'published':   int(published),
+            'cut_range':   int(cut_range),
+            'cut_persist': int(cut_persist),
+            # The relay's OWN account of what it is running, which is the
+            # only honest thing to show next to a set of input boxes.
+            'range_floor_m': round(d[5], 3),
+            'range_cap_m':   round(d[6], 3),
+            'persist_k':     int(d[7]),
+            'persist_n':     int(d[8]),
+            'mask_enabled':  bool(d[9]),
+            'mask_min_deg':  round(d[10], 1),
+            'mask_max_deg':  round(d[11], 1),
+            'stamp':         time.time(),
+        }
+
+    def _lidar_reap(self):
+        """Collect finished SetParameters calls and report the outcome.
+
+        Every refusal the relay can issue is a sentence about what is wrong
+        (persist_k above persist_n, floor above cap). Swallowing it would
+        leave the operator staring at a panel showing values the robot is
+        not running, with no reason given — so the reason is pushed to the
+        notice line verbatim, relay's words not mine.
+        """
+        if not self._lidar_pending:
+            return
+        still = []
+        for fut in self._lidar_pending:
+            if not fut.done():
+                still.append(fut)
+                continue
+            try:
+                res = fut.result()
+            except Exception as exc:
+                self.notice = f'LiDAR set failed: {exc}'
+                self.notice_seq += 1
+                continue
+            bad = [r for r in getattr(res, 'results', []) if not r.successful]
+            if bad:
+                why = bad[0].reason or 'refused with no reason given'
+                self.notice = f'LiDAR: {why}'
+                self.notice_seq += 1
+                self.get_logger().warn(f'scan_relay refused a parameter: {why}')
+        self._lidar_pending = still
+
+    def _lidar_param_msg(self, name: str, value):
+        """One rcl_interfaces Parameter, typed from LIDAR_PARAM_TYPES."""
+        kind = LIDAR_PARAM_TYPES[name]
+        p = Parameter()
+        p.name = name
+        v = ParameterValue()
+        if kind == 'double':
+            v.type = ParameterType.PARAMETER_DOUBLE
+            v.double_value = float(value)
+        elif kind == 'integer':
+            v.type = ParameterType.PARAMETER_INTEGER
+            v.integer_value = int(value)
+        else:
+            v.type = ParameterType.PARAMETER_BOOL
+            v.bool_value = bool(value)
+        p.value = v
+        return p
+
+    def lidar_validate(self, cfg: dict) -> str:
+        """Check a requested configuration BEFORE sending it. '' if fine.
+
+        The relay validates too, and its answer is the one that counts.
+        This exists so an obvious mistake gets an instant, local 'no'
+        instead of a round trip — and so a relay that is not running yet
+        still refuses nonsense rather than accepting it into the panel and
+        appearing to have applied it.
+        """
+        try:
+            cap = float(cfg.get('range_cap_m', 0.0))
+            floor = float(cfg.get('range_floor_m', 0.0))
+            n = int(cfg.get('persist_n', 1))
+            k = int(cfg.get('persist_k', 1))
+        except (TypeError, ValueError):
+            return 'values must be numbers'
+        if cap < 0.0 or floor < 0.0:
+            return 'range cap and floor cannot be negative (0 turns one off)'
+        if n < 1 or k < 1:
+            return 'persistence window and threshold must be at least 1'
+        if k > n:
+            return f'persistence {k}/{n} can never pass a beam'
+        if cap > 0.0 and floor > 0.0 and floor >= cap:
+            return f'floor {floor} m is not below cap {cap} m — empty window'
+        if cap > 0.0 and cap < 0.25:
+            # Smaller than the robot's own half-width. Nothing outside the
+            # chassis would ever be mapped, and the robot would drive into
+            # a wall it is structurally unable to see.
+            return f'a {cap} m cap is inside the robot\'s own footprint'
+        return ''
+
+    def lidar_set(self, cfg: dict) -> str:
+        """Push a configuration to scan_relay. Returns '' or a reason."""
+        reason = self.lidar_validate(cfg)
+        if reason:
+            return reason
+        if not self._lidar_cli.service_is_ready():
+            # Deliberately NOT a wait. This runs on the ROS executor thread
+            # that also feeds the WebSocket broadcast; blocking here freezes
+            # the drive joystick, and a frozen joystick on a driving robot
+            # is a safety problem, not a UX one.
+            return 'scan_relay is not running — start the sensor chain first'
+
+        req = SetParameters.Request()
+        req.parameters = [self._lidar_param_msg(k, v)
+                          for k, v in cfg.items() if k in LIDAR_PARAM_TYPES]
+        if not req.parameters:
+            return 'nothing recognised in that request'
+        self._lidar_pending.append(self._lidar_cli.call_async(req))
+        self.lidar_cfg.update({k: v for k, v in cfg.items()
+                               if k in LIDAR_PARAM_TYPES})
+        self.get_logger().info(
+            'LiDAR tune -> '
+            + ', '.join(f'{k}={v}' for k, v in sorted(cfg.items())
+                        if k in LIDAR_PARAM_TYPES))
+        return ''
+
+    def lidar_preset(self, name: str) -> str:
+        """Apply a named preset."""
+        cfg = LIDAR_PRESETS.get((name or '').strip())
+        if cfg is None:
+            return f'no preset named "{name}"'
+        return self.lidar_set(dict(cfg))
+
+    def lidar_save(self) -> str:
+        """Write the CURRENT LIVE configuration to disk, not the requested
+        one. Returns '' or a reason.
+
+        The distinction is the entire value of this button. Saving what was
+        typed would happily persist a configuration the relay refused, and
+        the next boot would apply it from the file with nobody watching.
+        Only a setting the relay confirms it is running gets written.
+
+        tmp + rename + fsync, same as the location library: the test for
+        this file is a power cycle, and a half-written JSON that parses as
+        nothing is worse than no file at all.
+        """
+        if self.lidar_live is None:
+            return 'no stats from scan_relay yet — nothing confirmed to save'
+        cfg = {k: self.lidar_live[k] for k in LIDAR_PARAM_TYPES
+               if k in self.lidar_live}
+        payload = {
+            'saved':   datetime.now().isoformat(timespec='seconds'),
+            'config':  cfg,
+            # Kept alongside so a file can be read back as evidence and not
+            # just as settings: these are the numbers that configuration
+            # was producing at the moment it was saved.
+            'measured': {
+                'beams':       self.lidar_live.get('beams'),
+                'live':        self.lidar_live.get('live'),
+                'published':   self.lidar_live.get('published'),
+                'cut_range':   self.lidar_live.get('cut_range'),
+                'cut_persist': self.lidar_live.get('cut_persist'),
+            },
+        }
+        path = self.lidar_preset_path
+        tmp = path + '.tmp'
+        try:
+            os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+            with open(tmp, 'w') as f:
+                json.dump(payload, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)
+        except OSError as exc:
+            with contextlib.suppress(OSError):
+                os.remove(tmp)
+            return f'could not write {path}: {exc}'
+        self.get_logger().info(f'LiDAR tune saved to {path}')
+        return ''
+
+    def lidar_status(self) -> dict:
+        """What the panel renders."""
+        live = self.lidar_live
+        # Stale stats are worse than none: a relay that died leaves its last
+        # good numbers on screen looking authoritative, which is §17.25's
+        # frozen-scan failure in a different widget.
+        if live is not None and time.time() - live.get('stamp', 0) > 3.0:
+            live = None
+        return {
+            'requested': dict(self.lidar_cfg),
+            'live':      live,
+            'presets':   sorted(LIDAR_PRESETS.keys()),
+            'path':      self.lidar_preset_path,
         }
 
     # ── Arm ───────────────────────────────────────────────────────
@@ -3158,6 +3718,13 @@ async def _broadcast_loop():
             payloads.append({'type': 'map', **_node.latest_map})
             _node.map_dirty = False
 
+        # LiDAR tuner state at 2 Hz. Slower than the scan on purpose: the
+        # numbers on that panel are being read and compared by a human
+        # turning a knob, and a readout that updates faster than it can be
+        # read is a readout nobody can tune against.
+        if tick % 5 == 0:
+            payloads.append({'type': 'lidar', **_node.lidar_status()})
+
         for p in payloads:
             dead = []
             for client in list(_node.ws_clients):
@@ -3263,6 +3830,34 @@ def _dispatch(msg: dict):
             _node.notice = f'Recall failed: {reason}'
             _node.notice_seq += 1
             _node.get_logger().warn(f'Dashboard: recall refused — {reason}')
+
+    elif t == 'lidar_set':
+        reason = _node.lidar_set(msg.get('cfg', {}))
+        if reason:
+            _node.notice = f'LiDAR: {reason}'
+            _node.notice_seq += 1
+            _node.get_logger().warn(f'Dashboard: LiDAR tune refused — {reason}')
+
+    elif t == 'lidar_preset':
+        reason = _node.lidar_preset(msg.get('name', ''))
+        if reason:
+            _node.notice = f'LiDAR: {reason}'
+            _node.notice_seq += 1
+
+    elif t == 'lidar_reset':
+        # RESET means the relay's own defaults, not this session's starting
+        # point and not the saved file. One meaning, and it is the one that
+        # matches what a freshly-launched sensor chain does.
+        reason = _node.lidar_set(dict(DEFAULT_LIDAR_CFG))
+        if reason:
+            _node.notice = f'LiDAR: {reason}'
+            _node.notice_seq += 1
+
+    elif t == 'lidar_save':
+        reason = _node.lidar_save()
+        _node.notice = (f'LiDAR: {reason}' if reason
+                        else f'LiDAR tune saved to {_node.lidar_preset_path}')
+        _node.notice_seq += 1
 
     elif t == 'calib_start':
         reason = _node.start_calibration()

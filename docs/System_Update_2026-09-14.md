@@ -284,6 +284,7 @@ Expected SHA-256 prefixes, so a truncated download cannot pass as a good one:
 | `phone_dashboard.py` | 3998 | `c9e387b5126a7197` |
 | `sensors.launch.py` | 174 | `aa4e771c8e8e3c67` |
 | `mapping_full.launch.py` | 107 | `d0fe5f6b33c559dc` |
+| `navigation.launch.py` | 285 | `94694c402e12749e` |
 | `pi_clean.sh` | 205 | `adb7dd45186d8d4e` |
 | `scan_relay_gate.py` | 300 | `d2cf815cd64093b1` |
 | `dashboard_lidar.py` | 324 | `89900bcfe0db35c9` |

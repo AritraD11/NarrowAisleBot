@@ -253,3 +253,58 @@ than the quality of the drive. If multi-lap running cannot close it, the
 systems-engineering answer from the MathWorks §7 V-model discussion is to
 restate the requirement against the physically achievable envelope and say
 so explicitly in the report, not to quietly relax the threshold.
+
+---
+
+# Run 3: `run_20260915_140253`, deliberately wobbled, wider yaw excursions
+
+Operator held the yaw slider at mid-deflection instead of driving a fixed
+radius, intentionally not a clean circle, to see whether varying the
+radius covers more of the room than a fixed one. 146.2 s.
+
+## What the numbers actually show
+
+| Quantity | Run 2 (clean 1 m circle) | Run 3 (wobbled) |
+|---|---|---|
+| Path length | 3.16 m | 4.03 m |
+| Trajectory extent | 1.0 x 1.0 m | **1.20 x 1.32 m** |
+| Radius | fixed 0.50 m | mean 0.50 m, sd 0.22, range 0.28 to 0.89 m |
+| Closure error | 6.4 mm (0.20%) | 80.6 mm (2.00%) |
+| Yaw closure | -0.27 deg | -2.01 deg |
+| `map->odom` correction | 0 of 885 samples | 0 of 1430 samples |
+| Unknown cells | 84.6% | 78.3% |
+| Doubled walls | 0.8% | 0.7% |
+| Fork density | 1.92 / 10 m | **7.31 / 10 m** |
+
+**The honest read: the trajectory extent barely grew** (1.2 x 1.3 m against
+1.0 x 1.0 m), despite the radius transiently reaching 0.89 m. Wobbling the
+radius did not translate into meaningfully more floor covered, and unknown
+% (78.3%) landed close to run 1's 77.6%, not meaningfully better than
+either circle run. Closure got worse, as expected: a path with varying
+curvature and uneven speed does not get the same clean-circle
+benefit run 2 had, though 2.00% is still comfortably inside the 0.15 m gate
+in absolute terms (80.6 mm). Fork density nearly quadrupled, which reads as
+more fragmented wall detections from constantly-changing vantage angles,
+not a G4 gate but a real cost.
+
+## Why "bigger circle" is not actually the lever here
+
+The map's outer boundary sits at essentially the same ~9.9 x 10 m across
+all three runs, run 1's tiny circle included. That is because
+`max_laser_range: 5.0` means the sensor already sees walls up to 5 m away
+from very near the zero mark, in every direction, without the robot needing
+to travel there. **The room's far walls are already inside sensor range
+before the robot moves at all.** What differs run to run is not how much of
+the room the sensor could reach, it is how many of those far, weak returns
+actually survive to paint a cell, which needs a valid beam AND enough
+repeated looks for a flickering beam to eventually register. The §5.3
+ray-cast finding from run 2 (58.8% of the grid has line of sight but is
+still unpainted) already pointed at this. Circle size is a minor lever.
+Repetition is the main one.
+
+## Revised recommendation
+
+Drop the push toward a bigger circle. **Drive the same manageable loop
+several times in a row instead**, with a loose LiDAR gate (RAW or AISLE,
+not STRICT), and check unknown % after each pass rather than after one.
+That is the lever the data actually supports.

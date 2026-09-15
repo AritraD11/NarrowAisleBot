@@ -469,3 +469,58 @@ doubling, softer verdict) is preferable to AISLE's (a torn map, harder
 verdict), and the coverage gain from AISLE was not real. Consistent with
 `Phase2_Without_IMU.md`'s existing decision not to trade coverage for
 cleanliness while unknown cells remains the larger gap to its gate.
+
+---
+
+# Run 6: `run_20260915_172133`, STRICT preset, completing the 3-way gate A/B/C
+
+Same setup as runs 4 and 5 (fresh ZERO x2, fresh MAP, same circle, 3 laps
+no break), gate set to STRICT. 362.4 s. Odom extent matches runs 4 and 5
+(X -0.00..1.01, Y -0.51..0.50), so all three are a clean controlled
+comparison with one variable changed.
+
+## `map_integrity.py` on `run_20260915_172133`
+
+```
+run_20260915_172133   ->   FOLDED
+grid          173x185 @ 0.05 m = 8.7x9.2 m
+wall          55.2 m of occupied cells
+
+D2 doubled    10 cells (0.9% of wall)
+D3 forks      46 junctions (8.33/10 m), 78 endpoints (14.12/10 m)
+D4 alignment  dominant axis -1.5 deg, manhattan 0.37
+D5 free space 2 regions, largest holds 99.6%
+
+flags:
+  - 2 disconnected regions of free space
+```
+
+## The complete 3-way comparison
+
+| | RAW (run 4) | AISLE (run 5) | STRICT (run 6) |
+|---|---|---|---|
+| Verdict | SUSPECT | FOLDED | FOLDED |
+| Doubled walls | 2.9% (fail) | 1.1% (near-pass) | 0.9% (passes) |
+| Free space | 1 region | 2 disconnected | 2 disconnected |
+| Unknown cells | 73.0% | 74.6% | 75.9% |
+| Closure | 1.9 mm | 2.5 mm | 2.7 mm |
+| Fork density | 5.21/10m | 7.31/10m | 8.33/10m |
+| Axis alignment | (not run) | 41% | 37% |
+
+**This settles the gate question decisively: RAW wins outright, not as a
+lesser evil.** Doubled walls does improve monotonically as the gate
+tightens (2.9 -> 1.1 -> 0.9%), confirming the persistence-filter
+hypothesis fully. But both AISLE and STRICT produce a map torn into two
+disconnected free-space regions, a defect RAW does not have at all, and
+`map_integrity.py` treats it as serious enough to call the map "unusable
+for AMCL" outright. Meanwhile unknown cells barely differs across all
+three settings (73.0/74.6/75.9%), a smaller spread than the run-to-run
+variance already seen across single-lap runs earlier today
+(77.6-84.6%). Tightening the gate buys negligible coverage benefit and
+actively risks tearing the map. No further gate comparison needed.
+
+**Decision: RAW is the standing choice for further G4 attempts.** The
+open question going forward is lap count, not gate setting: does unknown
+% keep falling with more laps (5-6+) under RAW, or does it plateau. A
+repeat of the 3-lap RAW condition would not add information; more laps
+under RAW would.

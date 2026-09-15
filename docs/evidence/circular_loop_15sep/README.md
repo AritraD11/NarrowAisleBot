@@ -361,3 +361,47 @@ false positive, not a new issue).
 More laps of the same circle (5-6), same RAW gate, watch whether unknown %
 keeps falling or starts to plateau. `map_integrity.py`'s full verdict
 (doubled walls, FOLDED/SUSPECT) on this run's `.pgm` still outstanding.
+
+## `map_integrity.py` full result on `run_20260915_154615`
+
+```
+run_20260915_154615   ->   SUSPECT
+grid          197x204 @ 0.05 m = 9.9x10.2 m
+cells         1419 occupied / 9434 free / 29335 unknown
+wall          71.0 m of occupied cells
+
+D2 doubled    41 cells (2.9% of wall)
+     cluster      5 cells ~0.25 m of wall, gap 0.45 m, at map (3.42, 1.27)
+     cluster      4 cells ~0.2 m of wall, gap 0.46 m, at map (3.0, 0.98)
+     cluster      4 cells ~0.2 m of wall, gap 0.3 m, at map (5.55, -0.35)
+D3 forks      37 junctions (5.21/10 m), 137 endpoints (19.31/10 m)
+D4 alignment  dominant axis -1.5 deg, manhattan 0.41
+```
+
+**Doubled walls regressed:** 2.9% against run 1-3's 0.7-1.03%, now a clear
+fail rather than borderline. All three flagged clusters sit 3-5.5 m from
+the zero mark, squarely in the range band `Phase2_Without_IMU.md` §5.2.1
+already measured as unreliable (scatter 55-200 mm beyond ~2.5 m). Three
+laps means that same distant wall got hit three times, and RAW admits
+every one of those noisy far returns, including the ones that land a
+little differently each pass. Coverage and cleanliness are now visibly in
+tension, both driven by the same far-range noise: RAW helps the former,
+hurts the latter.
+
+Updated G4 status after this run:
+
+| Gate | Threshold | Measured | Result |
+|---|---|---|---|
+| Verdict | not FOLDED | SUSPECT | unchanged |
+| Doubled walls | < 1.0% | **2.9%** | fails, worse than runs 1-3 |
+| Unknown cells | < 50% | **73.0%** | fails, best of 4 runs |
+| Return to mark | < 0.15 m | 1.9 mm | passes, best of 4 runs |
+
+**Next test, one variable changed:** AISLE preset (2-of-3 persistence)
+instead of RAW, same 3 laps, same circle. AISLE is built to drop exactly
+the single-sweep flicker that plausibly caused this doubling, without
+STRICT's much heavier cost to coverage. Direct comparison against this
+run: if unknown % holds near 73% and doubled walls drops, AISLE is the
+better setting for this drive. If unknown % jumps back toward 80%, the
+coverage cost is too high and RAW stands, accepting the doubling as a
+cost worth paying while unknown % is still the far larger gap to the gate.

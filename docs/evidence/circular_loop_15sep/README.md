@@ -308,3 +308,56 @@ Drop the push toward a bigger circle. **Drive the same manageable loop
 several times in a row instead**, with a loose LiDAR gate (RAW or AISLE,
 not STRICT), and check unknown % after each pass rather than after one.
 That is the lever the data actually supports.
+
+---
+
+# Run 4: `run_20260915_154615`, first run under the revised plan (RAW gate, 3 laps)
+
+First drive following the reversed advice from run 2/3's analysis: LiDAR
+panel set to RAW before driving (not STRICT, not left unconfigured), same
+manageable circle, driven 3 times in a row rather than once. 228.7 s.
+
+## Pose: the best closure of the day
+
+Computed from `run_20260915_154615_pose.csv` (2288 rows):
+
+| Quantity | Measured |
+|---|---|
+| Path length (odom) | 9.526 m (3 laps, matches 3 x ~3.14 m) |
+| Closure error | 1.9 mm, 0.020% of path |
+| Yaw closure | -0.03 deg (internal); operator's tape/protractor read ~-3 deg |
+| `map->odom` correction | 0 of 2255 samples nonzero |
+
+Better than run 2's single-circle 0.20%, over three times the distance.
+Consistent with the emerging pattern that a smooth, continuously-turning,
+no-stop trajectory is unusually kind to this platform's odometry.
+
+## Coverage: moving in the right direction
+
+From the bundled `_report.json` map stats (full `map_integrity.py` D2-D5
+verdict not yet run, `.pgm` not supplied this round):
+
+| Run | Path shape | Gate state | Unknown % |
+|---|---|---|---|
+| 1 (`_121818`) | 1 m circle, x1 | unconfigured | 77.6% |
+| 2 (`_131800`) | 1 m circle, x1, clean | unconfigured | 84.6% |
+| 3 (`_140253`) | wobbled, x1 | unconfigured | 78.3% |
+| **4 (`_154615`)** | **1 m circle, x3 laps** | **RAW** | **73.0%, lowest yet** |
+
+First run under the corrected plan, and the best coverage result so far.
+Worth restating the run 2 ray-cast finding that makes this genuinely
+encouraging rather than just marginally better: the theoretical floor from
+this exact circle, with unlimited repetition, was calculated at ~26.5%
+unknown. At 73.0% after 3 laps, there is real headroom left from more laps
+of the *same* circle before that floor is anywhere close to binding.
+
+The `"Diagonal mismatch is visible"` finding recurs (FR-RL RMS 1.323,
+FL-RR RMS 1.158 rad/s), larger than on any previous run, consistent with
+this being the longest, most-turning drive of the day (same documented
+false positive, not a new issue).
+
+## Next
+
+More laps of the same circle (5-6), same RAW gate, watch whether unknown %
+keeps falling or starts to plateau. `map_integrity.py`'s full verdict
+(doubled walls, FOLDED/SUSPECT) on this run's `.pgm` still outstanding.

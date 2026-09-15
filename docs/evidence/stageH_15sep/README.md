@@ -227,6 +227,54 @@ carry a screen recording so it can be measured the same way.
 
 ---
 
+## 6a. The A/B was already in hand, and it is cleaner than the planned one
+
+The handoff wanted the perimeter because it had a matching-off baseline.
+The circle has one too, from the same day, and it turns out to be a better
+control than the perimeter would have been: `run_20260915_131800` is a
+**single 3.163 m circle** against tonight's **3.193 m circle**, a 1% path
+difference, same 1 m geometry, same RAW gate, same config era, with
+`use_scan_matching` the only value changed.
+
+| | OFF, `_131800` | ON, `_202258` | |
+|---|---|---|---|
+| Path length (odom) | 3.163 m | 3.193 m | matched to 1% |
+| Closure at mark | **6.4 mm** (0.20%) | **206.7 mm** (6.47%) | **32× worse** |
+| Yaw closure | −0.27° | −4.82° | 18× worse |
+| `map→odom` corrections | **0 of 885 samples** | 17, smallest 107 mm | |
+| `map_integrity` verdict | SUSPECT | **FOLDED** | |
+| D2 doubled walls | 0.8%, 4 cells | **6.6%, 95 cells** | **8× worse** |
+| D3 junctions per 10 m | 1.92 | 9.93 | **5× worse** |
+| Occupied wall length | 26.1 m | 72.5 m | 2.8× more |
+| Unknown | 84.6% | 72.6% | better, see below |
+
+The wall-length row is the one to read twice. Same room, same 1 m circle,
+essentially the same path, and the matched map contains **2.8× more
+occupied cells**. Matching is not finding more wall. It is smearing the same
+wall across more cells, which is also what the doubled-wall and junction
+rows are measuring from two other directions.
+
+That also disposes of the one number that looks like an improvement.
+Unknown dropped from 84.6% to 72.6%, but a smeared wall paints cells that
+were previously unknown, so some of that gain is the defect rather than
+coverage. Unknown was the gate this project most wants to move, and this is
+not a way to move it.
+
+**A within-run control rules out the obvious objection**, which is that
+tonight's drive simply had worse odometry. It did not. Tonight's odometry
+closed at 16.2 mm over 3.193 m, 0.51% of path, comfortably inside this
+project's measured 1.1 to 1.5% band and the same order as the morning run's
+6.4 mm. The odometry was fine. The matcher took a good 16 mm estimate and
+returned a 207 mm one.
+
+So the circle question is closed with one variable, two runs, and a control.
+What is still open is only whether non-degenerate geometry behaves
+differently, and §4's metronome is a reason to doubt it: corrections that
+fire on a fixed odometry cadence rather than on scan disagreement should not
+care what shape the robot is driving.
+
+---
+
 ## 7. What this does and does not settle
 
 **Settles:** the 5 m cap does not rescue the matcher. That was Stage H's

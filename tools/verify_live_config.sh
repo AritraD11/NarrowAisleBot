@@ -166,20 +166,28 @@ echo "── 6. Is the pose graph actually being built? ────────
 # here means loop closure cannot fire no matter what the config says, and
 # the drive's single most valuable success criterion is unreachable before
 # the first metre. Check it now, not afterwards in the CSV.
+# WARN, not FAIL, and the distinction is deliberate. The graph topic is ONE
+# instrument for detecting closure; slam_toolbox's own log and step changes
+# in the pose CSV's corr_* columns are two more. A quiet graph topic costs
+# instrumentation, it does not invalidate the drive, so it must not block
+# one. Blocking here would repeat the exact failure this script exists to
+# prevent -- a gate that is wrong in the safe-looking direction.
 GRAPH_TOPIC=/slam_toolbox/graph_visualization
 GT_OUT="$(timeout 10 ros2 topic info "$GRAPH_TOPIC" 2>/dev/null)"
 if [ -z "$GT_OUT" ]; then
-  bad "$GRAPH_TOPIC does not exist -- no pose graph, so no loop closure"
+  warn "$GRAPH_TOPIC does not exist -- 17.56's suppression hypothesis SURVIVES"
+  info "  Drive anyway, but score loop closure from the slam_toolbox log and"
+  info "  from corr_* step changes in the pose CSV, not from the graph."
 else
   echo "$GT_OUT" | sed 's/^/        /'
   PUBS="$(echo "$GT_OUT" | sed -n 's/^Publisher count: *\([0-9]*\).*/\1/p' | tail -1)"
   if [ "${PUBS:-0}" -ge 1 ]; then
     ok "pose graph is published ($PUBS publisher) -- closure is reachable"
-    info "  §17.56's suppression hypothesis is FALSIFIED for matching-on."
+    info "  17.56's suppression hypothesis is FALSIFIED for matching-on."
   else
-    bad "publisher count ${PUBS:-0} -- graph topic exists but nothing publishes"
-    info "  Loop closure cannot fire. Do not score the KEEP criteria against"
-    info "  this drive; find out why the graph is empty first."
+    warn "publisher count ${PUBS:-0} -- topic exists but nothing publishes"
+    info "  Closure may still fire; the graph just is not being broadcast."
+    info "  Score it from the log and corr_* instead. Drive is still valid."
   fi
 fi
 

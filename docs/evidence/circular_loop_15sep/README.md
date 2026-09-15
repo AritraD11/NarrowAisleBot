@@ -106,8 +106,12 @@ D5 free space 1 regions, largest holds 100.0%
 
 A 3.14 m loop was never going to see enough of a 9.8×9.9 m cross-shaped
 room. Switching the LiDAR gate to STRICT for the next attempt won't move
-this number, since STRICT makes a map cleaner, not bigger; only driving
-further will.
+this number, since STRICT makes a map cleaner, not bigger.
+
+⚠ **Superseded by run 2's analysis below:** STRICT does not merely fail to
+help here, it actively makes unknown % worse, because a beam the gate drops
+is a beam that no longer clears a cell. The correct setting for the failing
+gate is a loose one.
 
 The two `SUSPECT` flags (fork density, poor alignment to a single dominant
 axis) haven't been visually checked against `docs/tools/map_viewer.html`
@@ -128,3 +132,124 @@ same file. That's an already-documented false positive for any drive that
 turns continuously (same class as the one flagged in
 `docs/evidence/monday_recon/README.md`), not a new finding, and not
 patched by standing rule 9 (don't change an instrument mid-campaign).
+
+---
+
+# Run 2: `run_20260915_131800`, same circle, full telemetry
+
+Second fresh-map circular run, 91.7 s, with pose CSV and map files supplied.
+Archived here: `02_second_circular_loop.mp4`, `run_20260915_131800_pose.csv`,
+`run_20260915_131800.pgm`, `run_20260915_131800.yaml`.
+
+## The pose side is excellent
+
+Computed directly from `run_20260915_131800_pose.csv` (918 rows):
+
+| Quantity | Measured |
+|---|---|
+| Path length (odom) | **3.163 m** |
+| Trajectory extent | X 0.00 to 1.00 m, Y -0.50 to +0.50 m (the same 1 m circle) |
+| Closure error | **6.4 mm, 0.20 % of path** |
+| Yaw closure | **-0.27 deg** |
+| `map->odom` correction, max | **0.0000 m** |
+| Samples with any nonzero correction | **0 of 885** |
+
+Two things worth stating plainly. First, zero corrections across the entire
+run is Stage G's registered prediction landing exactly: with
+`use_scan_matching: false` the front end contributes nothing, and the pose
+is pure wheel odometry.
+
+Second, **0.20 % closure is far better than this project's own measured
+1.1 to 1.5 % band.** A smooth continuous circle with no stops, no rotations
+in place and no strafe reversals appears to be much kinder to mecanum
+odometry than the out-and-back routes that produced the historical band.
+That is a new observation, n=1, and it is what makes multi-lap driving
+viable below.
+
+## The map side, `map_integrity.py`
+
+```
+run_20260915_131800   ->   SUSPECT
+grid          178x184 @ 0.05 m = 8.9x9.2 m
+cells         521 occupied / 4511 free / 27720 unknown
+wall          26.1 m of occupied cells
+D2 doubled    4 cells (0.8% of wall)
+D3 forks      5 junctions (1.92/10 m), 61 endpoints (23.42/10 m)
+D4 alignment  dominant axis -1.5 deg, manhattan 0.46
+flags: only 46% of wall within 10 deg of the dominant axis
+```
+
+Against G4, run 2 versus run 1:
+
+| Gate | Threshold | Run 1 | Run 2 | Status |
+|---|---|---|---|---|
+| Verdict | not FOLDED | SUSPECT (2 flags) | SUSPECT (1 flag) | not folded, improved |
+| Doubled walls | < 1.0 % | 1.03 % | **0.8 %** | **now passes** |
+| Unknown cells | < 50 % | 77.6 % | **84.6 %** | fails, worse |
+| Return to mark | < 0.15 m | ~0.03 m tape | **0.0064 m** | passes comfortably |
+
+Three of four gates are effectively met. Only coverage fails.
+
+## Is the coverage gate even reachable from a 1 m circle?
+
+The operator has confirmed there is no room for a longer loop, so this had
+to be measured rather than assumed. Ray-casting from the 75 distinct path
+pixels, 720 rays each, 5 m range, stopping at known occupied cells:
+
+| | cells | % of grid |
+|---|---|---|
+| Line of sight from the driven path | 24078 | 73.5 % |
+| Unknown **with** line of sight (recoverable) | 19244 | 58.8 % |
+| Unknown **without** line of sight (occluded) | 8476 | 25.9 % |
+
+**Caveat, stated because it matters:** the ray-cast treats unknown cells as
+transparent, so rays travel until they hit a *known* wall. Real unmapped
+walls would stop them sooner. So 73.5 % is an optimistic ceiling, not a
+forecast. What it does establish is that a large block of currently-unknown
+grid is not occluded by anything the robot has actually mapped, which means
+coverage is not obviously capped by geometry alone at this trajectory.
+
+## Why so little free space is being painted
+
+Free area observed is only **11.3 m²** out of an 8.9 x 9.2 m grid. The
+mechanism is in this repo already, and the MathWorks material restates it:
+an occupancy grid gets occupied evidence at a return **and free-space
+evidence along the beam path**, accumulated over repeated observations. A
+beam that returns nothing paints nothing, because
+`invalid_range_is_inf: false` means no-return beams clear no free space.
+At a measured 47 to 65 % valid-beam rate, most rays contribute nothing on
+any given sweep.
+
+**This inverts the earlier advice to use STRICT for the next run.**
+`scan_relay.py`'s own documentation says it directly: every beam the gate
+drops is a beam that no longer clears a cell. STRICT at 3-of-3 persistence
+is the *worst* available setting for coverage. It buys map cleanliness,
+which run 2 already passes on (0.8 % doubled), at the cost of the one gate
+that is failing.
+
+## The plan this produces
+
+1. **Loose gate, not STRICT.** RAW, or AISLE at most. Cleanliness is not
+   the failing gate; coverage is.
+2. **Multiple laps of the same circle.** Repeated observation is how free
+   space accumulates, and it needs no extra floor space. Enabled by the
+   0.20 % closure measured above: at that rate 5 laps is 15.8 m and about
+   3 cm of drift. **Escalate carefully**, because the historical 1.1 to
+   1.5 % band applied to 15.8 m would give 17 to 24 cm and fail the return
+   gate. Drive 3 laps first, measure closure, and only extend if it holds.
+3. **Widen the circle if even 1.5 m diameter fits.** Area scales with the
+   square of radius; path with the radius. Not assumed available.
+4. Leave `invalid_range_is_inf` alone. It is the largest single lever on
+   unknown %, and it is documented here as dangerous to flip without a
+   per-consumer split, because inf clears through obstacles the sensor
+   merely failed to see.
+
+## A note on the gate itself
+
+Unknown % is computed over the bounding box of everything observed, so
+cells behind walls count against it permanently. In a small room entered
+from one small circle, part of that number measures the room's shape rather
+than the quality of the drive. If multi-lap running cannot close it, the
+systems-engineering answer from the MathWorks §7 V-model discussion is to
+restate the requirement against the physically achievable envelope and say
+so explicitly in the report, not to quietly relax the threshold.

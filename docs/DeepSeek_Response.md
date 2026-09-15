@@ -77,6 +77,19 @@ accrues a bounded number of times per run rather than continuously.
 
 Which kills DeepSeek's own candidate (a) and promotes its candidate (b).
 
+> **Superseded the same evening.** The Stage H drive produced a third data
+> point and the ranking above does not survive it. Distance becomes the
+> tightest model (1.60× spread) and constant-per-run goes from best to
+> worst (2.58×). The paragraph above over-read two points and the
+> promotion of candidate (b) with it. See
+> `docs/evidence/stageH_15sep/README.md` §6 for the three-run table.
+>
+> What survives, and is now much stronger: §17.56 and the Stage H run
+> turned through near-identical angles, 364.5° and 361.7°, and produced
+> phantom yaw differing by 2.6×. DeepSeek's actual claim, that this is not
+> a multiplicative bias on yaw rate, holds better than when it was made.
+> The extension was mine and it was wrong.
+
 **The Stage H drive tests this for free.** §17.56's perimeter route is the
 route Stage H drives. A third run on identical geometry, and if the phantom
 yaw comes back near −4.5° again, per-run constancy goes from hint to

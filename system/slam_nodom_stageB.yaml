@@ -192,7 +192,35 @@ slam_toolbox:
     # 0.83%, heading -4.49 deg, zero corrections), it is structurally
     # different from a circle, and at 3.66 m from the mark it travels far
     # enough to reach loop_match_minimum_chain_size 8 (~1.6 m).
-    use_scan_matching: true
+    #
+    # == STAGE H RESULT, 15 Sep 2026 20:22. REVERTED TO false. ==
+    # run_20260915_202258, docs/evidence/stageH_15sep/README.md.
+    #
+    # Three of the four pre-committed revert triggers fired. 14 of 17
+    # corrections were >= 0.15 m (max 309 mm, against a 0.15 m window
+    # half-width); map_integrity returned FOLDED on 6.6% doubled walls;
+    # return to mark was 206.7 mm. On the SAME drive wheel odometry alone
+    # closed to 16.2 mm over 3.193 m. Matching made pose 12.8x worse.
+    #
+    # The 5 m cap was Stage H's whole question -- every previous measurement
+    # of this matcher was taken at 10 or 12 m -- and the answer is that it
+    # does not rescue it.
+    #
+    # The finding underneath: all 17 corrections fired at a fixed odometry
+    # cadence of 0.183 m, mean, with a 1 cm spread across the whole run.
+    # They track pose-graph node creation, not scan disagreement. That is
+    # 17.40's metronome again, and it is why zero loop closures fired: a
+    # closure arrives OFF-cadence and not one of these did. The graph itself
+    # was confirmed alive before the drive (publisher count 1 on
+    # /slam_toolbox/graph_visualization), so a missing graph is no longer
+    # the explanation.
+    #
+    # Caveat recorded rather than buried: the route driven was the ~0.5 m
+    # circle, not the 12.04 m perimeter specified above. 17.44 already
+    # called tight circles degenerate for matching, so this run cannot
+    # condemn matching on good geometry. The revert triggers were written
+    # unconditionally and fired anyway. The perimeter A/B is still owed.
+    use_scan_matching: false
     # STAGE F, one value, §17.49. true -> false.
     # With barycenter ON, karto measures node-to-node travel and seeds the
     # match from the CENTROID OF THE RETURNED POINTS rather than the sensor

@@ -134,7 +134,7 @@ const SLIDES = [
     n: 3,
     title: 'What was built',
     figure: 'fig02_system_architecture.png',
-    caption: 'Three layers, each link annotated with its rate and transport.',
+    caption: 'The real deployed-electronics diagram: power distribution, compute and command, drive and odometry feedback.',
     cards: [
       { head: 'Three processors, one rule',
         body: 'The split is by real-time capability, not by software preference. A Raspberry Pi 5 runs ROS 2 for planning and perception. An ESP32 runs the 100 Hz velocity loop with hardware quadrature decoding. An Arduino Mega drives the cargo arm and the staged UV-C tubes.' },

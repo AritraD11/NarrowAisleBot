@@ -124,21 +124,21 @@ SSH session. Confirmed working, downloads straight into the ground-test
 folder:
 
 ```powershell
-scp aritra@10.42.0.1:~/aislebot_logs/*.csv "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
-scp aritra@10.42.0.1:~/aislebot_logs/*.pgm "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
-scp aritra@10.42.0.1:~/aislebot_logs/*.yaml "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
-scp aritra@10.42.0.1:~/aislebot_logs/*_report.json "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/*.csv "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/*.pgm "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/*.yaml "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/*_report.json "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
 ```
 
 **Just one run's full set** — map, metadata, and the auto-generated report —
 swap the glob for that run's timestamp:
 ```powershell
-scp aritra@10.42.0.1:~/aislebot_logs/run_<timestamp>.* "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/run_<timestamp>.* "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
 ```
 
 **Everything, or just what's new since last time:**
 ```powershell
-rsync -avz aritra@10.42.0.1:~/aislebot_logs/ "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
+rsync -avz aritra@10.42.0.1:~/aislebot_logs/ "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
 ```
 
 If you're not on the AisleBot-Pi AP (e.g. pulling from off-site over
@@ -164,8 +164,8 @@ just send" and "what did I just pull" separately:
 
 | Direction | Folder |
 |---|---|
-| **To the Pi** — anything downloaded on Windows on its way to the robot | `C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download` |
-| **From the Pi** — logs, bundles, maps, CSVs pulled back for analysis | `C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Analysis` |
+| **To the Pi** — anything downloaded on Windows on its way to the robot | `C:\Users\aritradas\Documents\NAB\for scp download` |
+| **From the Pi** — logs, bundles, maps, CSVs pulled back for analysis | `C:\Users\aritradas\Documents\NAB\Encoder readings\Analysis` |
 
 Why staging folders at all: the alternative is what already happened once.
 Files got downloaded to `$HOME\Documents`, and a batch of three `scp`s went
@@ -206,7 +206,7 @@ arrived somewhere, not that it arrived where you meant* (§17.39).
 # 1. WINDOWS downloads.  Always Windows -- the Pi hosts its own AP with no
 #    uplink and cannot reach GitHub.  A curl.exe line in these docs is never
 #    a Pi command.
-cd "C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download"
+cd "C:\Users\aritradas\Documents\NAB\for scp download"
 curl.exe -sSL --retry 3 --retry-all-errors -o <FILE> ^
   "https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/narrowaislebot-mapping-reliability-038ike/<REPO PATH>"
 
@@ -364,7 +364,7 @@ Run on the **PC**, in a new PowerShell — not inside the SSH session.
 Substitute the run's timestamp:
 
 ```powershell
-scp aritra@10.42.0.1:~/aislebot_logs/run_<stamp>.* "C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading\Ground Test"
+scp aritra@10.42.0.1:~/aislebot_logs/run_<stamp>.* "C:\Users\aritradas\Documents\NAB\Encoder readings\Reading\Ground Test"
 ```
 
 On eduroam, swap `10.42.0.1` for the Pi's DHCP address. `aritra-desktop.local`
@@ -403,7 +403,7 @@ these three instead:
 |---|---|
 | **Walls present** | the grid contains real occupied cells, not just free space and unknown. An open-floor drive produces a map with no wall geometry and is useless to AMCL. |
 | **Map integrity** | no folds, tears, doubled walls, or forked corridors in `map_viewer.html`. This is the criterion that actually catches a bad closure. |
-| **Return-to-mark** | drive back to the physical zero mark; the dashboard HUD should read ≈ `(0, 0)` and nose ≈ `-90°` |
+| **Return-to-mark** | drive back to the physical zero mark; the dashboard HUD should read ≈ `(0, 0)`. The nose figure here is **unverified** since the 27 Aug frame fix (§8) and has not been re-checked against the HUD's own display convention, which is a separate path from the TF above. Trust the `(0,0)` and the `tf2_echo`, not this angle, until someone reads it off a zeroed robot |
 
 A doubled wall or a corridor that forks into two parallel copies of itself
 means a false loop closure fused two places that are not the same place.
@@ -489,17 +489,30 @@ stack started at 10:42 and you press Map at 10:56, map `(0,0)` is the
 # 3. Re-zero odometry at the mark:
 sudo systemctl restart aislebot.service
 
-# 4. Wait ~10 s, then verify. MUST read [0,0,0] and -90.000 degrees:
+# 4. Wait ~10 s, then verify. MUST read [0,0,0] and 0.000 degrees:
 ros2 run tf2_ros tf2_echo odom base_link
 
 # 5. Press Map to start a fresh mapping session.
-# 6. Verify the map inherited it — also [0,0,0] @ -90 deg:
+# 6. Verify the map inherited it — also [0,0,0] @ 0 deg:
 ros2 run tf2_ros tf2_echo map base_link
 ```
 
-The `-90.000` is **correct, not an error**. `base_link` on this robot has
-`+X` = right and `+Y` = nose (§17.10), so a perfectly-placed robot reads
-−90° against the map grid. It will never read 0.
+**This said `-90.000` until 15 Sep 2026 and that was stale.** The reading
+is `0.000`, and a `-90.000` here now means something is wrong.
+
+`base_link` on this robot really does carry `+X` = right and `+Y` = nose
+(§17.10), and until 27 Aug 2026 that produced a constant −90° seam between
+`odom` and `base_link`, which `map` then inherited. That seam was a bug, not
+a convention: `odometry_publisher` published the yaw rotated while leaving
+translation in the internal REP-103 frame, so odom's own axes were defined
+inconsistently with the transform it advertised. The fix rotates position as
+well (`odometry_publisher.py:257`, `pub_x = -self.y`, `pub_y = self.x`),
+which makes odom, map and base_link agree, and `pub_theta` became plain
+`self.theta` with no constant. `self.theta` is `0.0` at init and at every
+`/odom/reset`, so a correctly zeroed robot reads identity.
+
+The check itself is unchanged and still worth running. Only the expected
+number moved, and it moved three weeks before anyone re-read this page.
 
 ### Checking whether you are back home
 
@@ -507,7 +520,7 @@ The floor mark is underneath the chassis, so you cannot see it while
 standing on it. Two ways that don't need eyes on the floor:
 
 ```bash
-# Numeric: home is [0,0,0] @ -90 deg, same as step 6 above.
+# Numeric: home is [0,0,0] @ 0 deg, same as step 6 above.
 ros2 run tf2_ros tf2_echo map base_link
 ```
 

@@ -30,6 +30,11 @@ C = dict(
     accent    = '#7030a0',
     grey      = '#9e9e9e',
 )
+# Opaque backing for a label that has to sit on top of the line it names, so the
+# stroke does not run through the words. Use it deliberately: repositioning the
+# label is better wherever there is room for it.
+MASK = dict(facecolor='white', edgecolor='none', pad=0.15)
+
 MOT = ['FR','FL','RR','RL']
 MOTC = ['#1f4e79','#2e75b6','#c55a11','#e8a33d']
 import os as _os

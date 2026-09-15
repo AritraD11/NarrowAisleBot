@@ -25,6 +25,11 @@ def band(ax, x, y, w, h, title, fc='#f7f9fb', ec=None, fs=8.2, tc=None):
     ax.text(x+1.6, y+h-1.6, title, ha='left', va='top', fontsize=fs,
             color=tc, fontweight='bold', zorder=2)
 
+def mask(pad=0.16):
+    """Opaque backing so a label reads over whatever it is drawn across."""
+    return dict(facecolor='white', edgecolor='none', pad=pad, alpha=1.0)
+
+
 def arr(ax, p0, p1, col=None, lw=1.2, ls='-', txt='', fs=6.8, tdy=1.4, tdx=0,
         rad=0.0, style='->', tc=None, zorder=5, ha='center'):
     col = col or C['neutral']; tc = tc or col
@@ -33,8 +38,11 @@ def arr(ax, p0, p1, col=None, lw=1.2, ls='-', txt='', fs=6.8, tdy=1.4, tdx=0,
                                 connectionstyle=f'arc3,rad={rad}',
                                 shrinkA=1.5, shrinkB=1.5))
     if txt:
+        # The label is masked because an arrow label sits on the arrow it names
+        # far more often than not, and unmasked text over a stroke is unreadable.
         ax.text((p0[0]+p1[0])/2+tdx, (p0[1]+p1[1])/2+tdy, txt, ha=ha, va='center',
-                fontsize=fs, color=tc, zorder=zorder+1, linespacing=1.3)
+                fontsize=fs, color=tc, zorder=zorder+1, linespacing=1.3,
+                bbox=mask())
 
 def R(b):   return (b[0]+b[2], b[1]+b[3]/2)
 def L(b):   return (b[0], b[1]+b[3]/2)

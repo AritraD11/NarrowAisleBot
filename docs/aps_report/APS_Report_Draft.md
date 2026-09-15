@@ -85,8 +85,29 @@ set by those levers. Measuring the sensor input instead, for the first time in
 the project, found 74.8–78 % of LiDAR rays flipping between valid and invalid
 between consecutive scans with the robot stationary. The scan matcher is handed
 a different point cloud every sweep. The YDLIDAR X4 Pro is a triangulation
-scanner rated at under 2 % of range and it is performing to that specification;
-the specification is not sufficient for the task.
+scanner and it is performing to its published specification; the specification
+is not sufficient for the task. That specification is worth quoting exactly,
+because this report previously paraphrased it as "under 2 % of range" and the
+vendor datasheet says no such thing: the figure is 2 cm absolute below 1 m,
+3.5 % of range from 1 to 6 m, and **no accuracy specification whatsoever above
+6 m**, despite the sensor being rated to range to 10 m. At the 1.6 m median
+scan range measured in this laboratory that is 56 mm of expected error per ray,
+not the 32 mm the earlier paraphrase implied.
+
+**The front end was then put back and measured, which is the year's cleanest
+result.** Restoring scan matching over the reduced 5 m range, with nothing else
+changed and against a matching-off run of the same trajectory on the same day,
+degraded closure at the start mark from 6.4 mm to 206.7 mm: a factor of 32,
+with the map verdict falling from suspect to folded and the occupied wall
+length inflating 2.8-fold as the same wall was drawn in more places. The
+drive's own wheel odometry closed at 16.2 mm, so the estimator was handed a
+healthy prior and returned a worse answer. Underneath the verdict sits the
+mechanism: all seventeen corrections fired at a mean interval of 0.183 m of
+travelled distance, spread one centimetre across the whole run. They track
+pose-graph node creation rather than any disagreement between scan and prior,
+which is why no loop closure has ever been observed to fire on this robot, and
+why five sessions of parameter search could not have succeeded. §8.5 reports
+this in full.
 
 The response was to select the better of two measured estimators rather than
 keep tuning the worse one. Disabling the sequential scan matcher, so the pose
@@ -138,11 +159,22 @@ foundational paper on asymmetric narrow-aisle platforms [1].
 
 ![Asymmetric wheelbase geometry](figures/fig01_asymmetric_geometry.png)
 
-**Figure 1.** (a) Plan view to scale. The footprint was tape-measured at
-1.00 × 0.36 m, wheel outer to wheel outer. (b) The consequence for control: each
-wheel carries its own yaw coefficient. Substituting a single symmetric value for
-*K* anywhere in the software converts the machine, in that code path only, into
-an ordinary mecanum platform. This happened once; see Appendix D.
+**Figure 1.** Dimensioned plan view, a real render from the SolidWorks assembly
+(`cad/renders/chassis_top_dimensioned.png`), not a reconstruction. $l_1 = 403$ mm
+and $l_2 = 333$ mm are the same values used throughout this report, and are now
+independently confirmed twice over: once from the foundational geometry [1], and
+again directly from the base-plate DXF, whose wheel-mount hole pattern places the
+two pair-midpoints at exactly 403 mm and 333 mm
+(`cad/extracted_geometry.md`). The 1000 mm length matches the DXF outline
+exactly. The render's own over-wheels dimension, 375.4 mm, differs slightly from
+the 360 mm tape measurement used elsewhere in this report (§5.1); the CAD figure
+is nominal design geometry, the tape measurement is the built machine, and the
+report treats the latter as authoritative where they disagree, consistent with
+how §2.2 in `cad/README.md` already resolved a similar plate-versus-track
+question. Each wheel carries its own yaw coefficient in the kinematics that
+follow; substituting a single symmetric value for *K* anywhere in the software
+converts the machine, in that code path only, into an ordinary mecanum platform.
+This happened once; see Appendix D.
 
 The inverse kinematics that follow are
 
@@ -375,6 +407,24 @@ controlled comparison against a symmetric baseline of matched capability.
 Deliverable: measured germicidal irradiance driving exposure time or traverse
 speed, so a stated log-reduction is delivered rather than assumed.
 
+**Objective 6: Carry a cargo-handling manipulator on this chassis, and
+establish what the chassis has to supply for it to work.** This is the next
+goal, and it is stated here as design work rather than as a result, because no
+hardware for it exists. A companion study (HeXBuddy, documented in
+`docs/HeXBuddy_Arm_Integration.md`) has produced a fully specified arm sized to
+this chassis and this aisle geometry — a self-locking lift, a turntable, a
+telescopic boom, a wrist and a gripper, holding position against gravity at
+approximately zero motor power. Nothing has been built, bench-tested or
+simulated on this platform; the design rests on a first-order model that its own
+documentation flags as needing re-validation before any part is bought.
+Deliverable, in order: re-run the design optimisation against this platform's
+*measured* 45.54 kg mass rather than the 25 kg the model assumed, since a
+heavier base changes the tipping margin that the design found binding; validate
+the result in simulation with mass properties taken from CAD; and only then
+bench a single joint. The reach-and-payload envelope, and how much of it the
+base's own travel is expected to supply, are open design questions rather than
+settled ones, and §12.1 states them as such.
+
 ### 4.2 Objectives set for year 1, and their outcome
 
 | # | Objective | Outcome |
@@ -399,22 +449,39 @@ sensing question of 1.6 resolved.
 
 ## 5. The platform as built
 
-![System architecture](figures/fig02_system_architecture.png)
+![Deployed electronics](figures/fig02_system_architecture.png)
 
-**Figure 2.** The three-layer architecture, each link annotated with its rate and
-payload. Orange is the command path, blue is telemetry and perception. The
-command loop was closed on 14 August: the planner's velocity now runs through an
-axis adapter and a priority multiplexer into the same asymmetric inverse
-kinematics the operator drives through, so manual override outranks the planner
-at the one point they meet.
+**Figure 2.** The real deployed-electronics diagram
+(`docs/hardware/nab_circuit_diagram.png`), generated from the repository's own
+hardware documentation rather than drawn from memory, so every pin, rail and
+baud rate on it is checked against `Master_Reference.md`, `Bench_Test_Map.md`
+and `RMCS-2086_Encoder_Replacement.md` rather than assumed from a generic
+mecanum reference. Three layers: power distribution, compute and command, drive
+and odometry feedback, each on its own rail colour. It shows two facts a generic
+diagram would get wrong: the front two motors run GTK08 encoders rather than the
+rear pair's integrated RMCS-2086 units, with different A/B wire colours between
+them — `Bench_Test_Map.md` records this exact mix-up already corrupting a
+channel once — and the level-shifter board actually deployed is an 8-channel
+discrete-MOSFET design, not the TXS0108E `Master_Reference.md` §4.4 describes.
+The diagram's own deployment note, that powering the ESP32 from Pi USB couples
+switching noise into the encoder counts and VIN should instead come from the 5 V
+buck rail, is not yet applied on the robot; it is carried into Appendix F as an
+open item.
 
-The responsibility split follows from a hardware constraint rather than a
-software preference. With the encoders originally fitted, each motor at rated
-speed produces about 93,000 counts per second, and the two replacement units
-fitted since produce twice that. Interrupt-driven quadrature counting at those
-rates consumes the entire instruction budget of an ATmega2560. The ESP32's
-pulse-counter peripheral decodes quadrature in silicon at no processor cost,
-which is why motor control moved onto it.
+At the software layer, which this diagram does not show, the command loop was
+closed on 14 August: the planner's velocity now runs through an axis adapter and
+a priority multiplexer into the same asymmetric inverse kinematics the operator
+drives through, so manual override outranks the planner at the one point they
+meet.
+
+The Mega/ESP32 responsibility split visible in the diagram follows from a
+hardware constraint rather than a software preference. With the encoders
+originally fitted, each motor at rated speed produces about 93,000 counts per
+second, and the two replacement units fitted since produce twice that.
+Interrupt-driven quadrature counting at those rates consumes the entire
+instruction budget of an ATmega2560. The ESP32's pulse-counter peripheral
+decodes quadrature in silicon at no processor cost, which is why motor control
+moved onto it.
 
 ### 5.1 Principal specifications
 
@@ -429,7 +496,7 @@ which is why motor control moved onto it.
 | Encoders | FR/FL GTK08 at 186 264 CPR; RR/RL optical at 93 132 CPR |
 | Real-time controller | ESP32-WROOM-32, FreeRTOS, 100 Hz loop |
 | Host | Raspberry Pi 5, Ubuntu 24.04, ROS 2 Jazzy |
-| LiDAR | YDLIDAR X4 Pro, triangulation, rated under 2 % of range |
+| LiDAR | YDLIDAR X4 Pro, triangulation; 2 cm absolute below 1 m, 3.5 % of range 1 to 6 m, unspecified above 6 m |
 | Local controller | MPPI, omnidirectional motion model |
 | Power | LiFePO₄ 12.8 V / 30 Ah; boost 24 V drive, buck 5 V logic |
 | Cargo arm | 2 × NEMA 23 lateral, 1 × NEMA 34 vertical, 3-tube staged UV-C |
@@ -751,7 +818,8 @@ operator, same week, replotted for this report from the raw pose logs in
 `data/field_runs/`. (a) The 6.8× spread in return-to-mark across drives that
 should have been equivalent. (b) Two of the three are worse than the pre-fix
 baseline the tuning was built to cure. (c) The wheel odometry, on the same three
-drives, closes under 3 cm every time.
+drives, closes under 3 cm every time. The maps these three drives produced, with
+the ground each one actually covered marked on them, are in Appendix G.
 
 Three candidate explanations were live and the data separated them. A repeat
 test on the identical route was registered in advance with two possible
@@ -822,9 +890,20 @@ handed a different point cloud every sweep, and no search parameter can fix a
 moving objective function.
 
 The sensor is behaving correctly. The YDLIDAR X4 Pro is a triangulation scanner
-rated at under 2 % of range, which is 32 mm at the 1.6 m median range measured
-in this lab and 200 mm at 10 m. The measured 90th-percentile scatter of 22.8 mm
-is inside specification. **The sensor is performing to specification and the
+whose datasheet specifies 2 cm of absolute error below 1 m and 3.5 % of range
+between 1 and 6 m, with no accuracy figure given at all beyond 6 m even though
+the sensor is rated to range to 10 m. At the 1.6 m median range measured in this
+lab that is 56 mm. The measured 90th-percentile scatter of 22.8 mm is inside
+specification, comfortably.
+
+This paragraph previously quoted "under 2 % of range", giving 32 mm at 1.6 m
+and 200 mm at 10 m. That figure appears nowhere in the vendor document and was
+propagated through this project for months; it is corrected here and the
+correction makes the argument stronger rather than weaker, because the real
+specification is looser than the one the argument was built on. The absence of
+any specification beyond 6 m is also the cleanest justification available for
+the 5 m range cap adopted in Stage G: past that distance the vendor declines to
+say what the sensor does. **The sensor is performing to specification and the
 specification is not adequate for what is being asked of it.** That is a
 conclusion pointing at hardware, and the reason to exhaust the software levers
 first was to justify it rather than guess at it.
@@ -849,6 +928,9 @@ gone. Whether the resulting map is geometrically true over a real route is the
 next run's question, and loop closure running on a separate matcher is expected
 to survive but is recorded as a hypothesis, not a result.
 
+That hypothesis was tested on 15 September and it does not survive in the form
+it was written. §8.5 reports the test.
+
 ### 8.4 Phantom yaw
 
 Photogrammetry on the run video, using the floor tile grout as a world-static
@@ -859,10 +941,42 @@ repository. Two runs, on different routes:
 |---|---|---|---|---|
 | Two circles | 723.8° | −3.85° | −0.03° | −28.0° read as −27.07° |
 | 12 m out-and-back | 364.5° | −4.49° | +0.00° | −19.4° read as −18.50° |
+| Single circle, 15 Sep | 361.7° | −1.74° | operator's eye only | none |
 
-The robot physically returned to its starting heading both times. The estimator
-did not. Phantom yaw rates of 0.60°/m and 0.37°/m bracket the 0.58°/m this
+The robot physically returned to its starting heading every time. The estimator
+did not. Phantom yaw rates of 0.60, 0.37 and 0.55 °/m bracket the 0.58°/m this
 project measured over 18 m in August and attributed to physical slip.
+
+The third row is weaker evidence than the first two and is marked as such: it
+was recorded during the Stage H drive of §8.5, which carried no video, so the
+physical return heading is the operator's judgement rather than a validated
+measurement. It is reported because of what it does to the analysis, not
+because of its own quality.
+
+**What the error is proportional to, which is the useful question and was not
+asked until an outside review asked it.** Four candidate models, scored across
+the three runs by the ratio of their worst to their best fit:
+
+| Model | Spread, worst over best |
+|---|---|
+| ∝ distance travelled | **1.60×** |
+| ∝ elapsed time | 2.27× |
+| ∝ rotation commanded | 2.56× |
+| constant per run | 2.58× |
+
+Distance is the tightest and rotation is close to the worst, which matters
+because rotation is the intuitive candidate and the one a yaw-rate scale error
+would produce. The sharpest single comparison is the second and third rows:
+**near-identical commanded rotation, 364.5° against 361.7°, and heading error
+differing by a factor of 2.6 while distance differs by a factor of 3.8.** Two
+drives that turn through the same angle and accumulate very different heading
+error is close to a direct refutation of any multiplicative bias on yaw rate.
+
+A distance-proportional heading error points instead at wheel-radius or
+encoder-scale error, which is precisely the class the slip-residual instrument
+of §10 names as invisible to itself. Three points is not enough to settle a
+mechanism and this is reported as a direction for year two rather than a
+finding.
 
 The consequence is not small. Physical slip cannot be fixed by better
 estimation; estimator error can. A substantial fraction of what has been treated
@@ -879,6 +993,112 @@ it. The second attempt measured a window that extended into the dashboard's own
 border, a fixed screen edge that never rotates. Both were caught only because a
 frame with a known answer was checked before the result was believed. **A
 measurement that cannot fail its own check is not a measurement.**
+
+### 8.5 Putting the front end back, and measuring what it does
+
+Disabling the scan matcher on 3 September left an obvious objection open. Every
+measurement of the matcher's behaviour in this project had been taken with the
+LiDAR admitting returns out to 10 or 12 m, and the same change that disabled the
+matcher also cut `max_laser_range` to 5 m. On a triangulation scanner whose
+vendor specification gives no accuracy figure at all beyond 6 m, that cut
+removes exactly the long, weak returns most likely to have been poisoning the
+match. The matcher had never been scored on the input it would now receive.
+
+On 15 September it was turned back on and nothing else was changed. Predictions
+and revert criteria were registered before the drive and are reproduced from the
+pre-drive document unedited:
+
+> REVERT on any single-step correction ≥ 0.15 m, a FOLDED map verdict, return to
+> mark > 0.15 m, or visible tearing. KEEP only if corrections stay small and
+> frequent, at least one loop closure fires, closure at the mark is ≤ 9.9 cm,
+> doubled walls are < 1.0%, and unknown percentage is roughly unchanged.
+
+Three of the four revert triggers fired. One keep criterion was met, and it was
+the one predicted to be neutral.
+
+The comparison is unusually clean, because a matching-off run of the same
+trajectory existed from the same day, on the same quality gate and the same
+configuration, with only `use_scan_matching` differing:
+
+| | Matching off | Matching on | |
+|---|---|---|---|
+| Path length | 3.163 m | 3.193 m | matched to 1% |
+| Closure at the mark | **6.4 mm** | **206.7 mm** | 32× worse |
+| Heading closure | −0.27° | −4.82° | 18× worse |
+| `map→odom` corrections | 0 of 885 samples | 17, smallest 107 mm | |
+| Map verdict | SUSPECT | **FOLDED** | |
+| Doubled walls | 0.8% | 6.6% | 8× worse |
+| Skeleton junctions per 10 m | 1.92 | 9.93 | 5× worse |
+| Occupied wall length | 26.1 m | 72.5 m | 2.8× more |
+
+The wall-length row is the one that explains the others. Same room, same circle,
+essentially the same path, and the matched map contains 2.8 times as many
+occupied cells. The matcher is not finding more wall; it is drawing the same
+wall in more places, which is what the doubled-wall and junction counts measure
+from two other directions. It also disposes of the single figure that looks like
+an improvement: unknown cells fell from 84.6% to 72.6%, but a smeared wall
+paints cells that were previously unknown, so part of that apparent coverage
+gain is the defect itself.
+
+A within-run control rules out the obvious alternative explanation, that the
+matching-on drive simply had worse odometry. It did not. That drive's own wheel
+odometry closed at 16.2 mm over 3.193 m, 0.51% of path, inside this platform's
+measured 1.1 to 1.5% band and the same order as the 6.4 mm of the matching-off
+run. The odometry was healthy. The matcher took a 16 mm estimate and returned a
+207 mm one.
+
+**The mechanism, which is worth more than the verdict.** Every one of the
+seventeen corrections fired at a fixed cadence in odometry distance:
+
+| Statistic | Value |
+|---|---|
+| Mean gap between corrections | 0.183 m |
+| Minimum gap | 0.176 m |
+| Maximum gap | 0.186 m |
+| `minimum_travel_distance` in configuration | 0.200 m |
+
+A one-centimetre spread across seventeen events. The corrections are not
+responses to the scan disagreeing with the odometric prior. They fire once per
+pose-graph node, on a distance schedule, whether or not there is anything to
+correct. An earlier session had noticed this pattern and named it a metronome;
+it has now survived three distinct search-parameter sets and a halving of the
+admitted laser range, which is the strongest available evidence that this was
+never a tuning problem and that five sessions of parameter search were
+searching the wrong space.
+
+It also answers a question this report could not previously answer. **No loop
+closure has ever been observed to fire on this robot.** A closure is a step
+correction arriving off-cadence, when the graph recognises a place it has seen
+before. Not one of these seventeen was off-cadence. The pose graph itself was
+confirmed present before the drive, so the earlier suspicion recorded in §8.3,
+that disabling the matcher suppressed graph construction and left
+`do_loop_closing` inert, is no longer needed to explain the absence. Under
+matching-on the graph is built, the matcher runs, and closure still does not
+fire on a circle that returns to its own start. What remains are the loop-match
+response thresholds and a minimum chain length of eight nodes, which a 3.2 m
+circle at 0.18 m per node can only just reach.
+
+**What this does not establish, stated because it bears on how much weight the
+result can carry.** The trajectory driven was a tight circle, which an earlier
+session had already flagged as degenerate for scan matching because it presents
+the same walls from continuously rotating vantage points. The planned test was a
+12 m out-and-back route with an existing matching-off baseline, and that test
+remains unrun. This result therefore establishes that the 5 m cap does not
+rescue the matcher, and that the corrections are schedule-driven rather than
+evidence-driven, but it does not establish how the matcher behaves on
+non-degenerate geometry. The revert criteria were written unconditionally and
+fired regardless.
+
+**How the system should therefore be described.** With the front end disabled,
+the `map→odom` transform is constant, no loop closure has been observed, and the
+pose underlying the map is pure wheel odometry. Describing that as SLAM without
+qualification would not survive an examiner asking to see a loop close. The
+accurate description is that the system runs a pose-graph SLAM back end with the
+front-end scan matcher deliberately disabled, on the evidence above; that the
+map is built from LiDAR returns under wheel-odometry pose; and that loop closure
+is configured and reachable but has never been observed to fire, for the reason
+the cadence measurement gives. That is a narrower claim than a working SLAM
+stack and a considerably better supported one.
 
 ---
 
@@ -1224,10 +1444,21 @@ the gap the year's work opened, and it is the most defensible thing in this
 section because it rests on measurement rather than on a literature shortage.
 The low-cost 2D SLAM literature is built on a sensor tier whose specified
 accuracy, quantified against a corridor-width error budget, does not close: a
-triangulation scanner at 2 % of range gives 32 mm at 1.6 m, against a lateral
-budget of a few centimetres over 10 m. Separately, a substantial fraction of the
-heading drift this project attributed to physical slip is estimator error
-recoverable with a gyroscope. The open question is the minimum sensor
+triangulation scanner specified at 3.5 % of range gives 56 mm at 1.6 m, against
+a lateral budget of a few centimetres over 10 m, and its vendor specifies no
+accuracy at all beyond 6 m. Separately, a substantial fraction of the heading
+drift this project attributed to physical slip is estimator error recoverable
+with a gyroscope.
+
+The measurement in §8.5 sharpens this gap rather than settling it. Scan
+matching, the mechanism by which LiDAR precision is supposed to reach pose at
+all, was measured on this platform to degrade pose by a factor of 32 against
+odometry alone. An error budget that compares LiDAR ray scatter against
+odometric drift therefore compares the wrong two quantities, because the ray
+scatter only reaches the pose estimate through a front end that does not work
+here. The honest form of the gap is that with the front end disabled there is
+no closed-loop correction of heading at any range, so the binding constraint is
+not sensor precision but the absence of an independent heading reference. The open question is the minimum sensor
 complement, and its cost, that closes a stated error budget on a platform of
 this class. That is a question the field answers by convention rather than by
 measurement.
@@ -1254,6 +1485,40 @@ mitigation, which is a starting point rather than a result.
 **Gap 6: load-dependent dynamics.** Cargo changes mass and the position of the
 centre of mass. Fixed-gain control is not adaptive to this, and whether it needs
 to be is an empirical question a loaded trajectory-tracking experiment answers.
+
+**Gap 7: wheel-fault tolerance is unexamined for an asymmetric platform, and
+matters more in a narrow aisle than in the open.** Fault-tolerant schemes for
+four-mecanum-wheel platforms exist and are validated on real hardware,
+compensating for one or two disabled wheels with adaptive control and
+navigation functions [21]. Like the adaptive and fuzzy-tuning literature
+already read [3, 4], that result assumes a symmetric wheel layout; whether the
+same compensation holds when the two wheel pairs sit at different radii from
+the centre of mass is open, and this platform has no fault detection or
+degraded-mode capability at all today. The stakes differ from the open
+workspace the literature tests in: a four-wheeled platform stalled in a
+sub-1 m aisle cannot be walked around, and may need to finish its current
+manoeuvre or reach a clear egress point on three wheels rather than simply
+stop. Unlike Gaps 1–6, nothing about this has been measured on this platform;
+it is included as a literature-motivated candidate, not a result in progress.
+
+**Gap 8: nobody couples a packing decision to the reach and tipping envelope of
+the machine that has to execute it.** This is the gap Objective 6 opens, and it
+is the most defensible of the manipulator-side questions because it does not
+depend on the arm being built. Three-dimensional bin packing is a mature field,
+lately dominated by learned policies for the online case, and robotic execution
+of those decisions is demonstrated — but every such demonstration places items
+onto an open pallet, into an open box, or onto an open shelf face, where the arm
+can reach anywhere the packing algorithm might choose. Where stability is
+considered at all it enters afterwards, as a constraint on a trajectory that has
+already been planned to a slot that was already chosen. On a narrow-footprint
+vehicle the constraint binds the other way round: reach and tipping margin
+decide which slots are executable at all, and a slot the planner likes may be
+one this chassis cannot serve without leaving its stable envelope. The open
+question is what a packing algorithm should be told about the executing machine,
+and how a placement should be re-planned when the machine cannot deliver it.
+Note that this couples straight back to Gap 2: aiming an arm at a shelf cell
+presumes the base knows where it is, and the localisation this platform does not
+yet have is what would supply that.
 
 ### 12.2 Plan by year
 
@@ -1285,6 +1550,16 @@ tools all already exist.
 Publish the platform, its calibration methodology and the instrumentation-fault
 taxonomy of §10.2 as a systems paper. The cross-checking methodology is a
 contribution independent of the geometry, and the material for it exists now.
+
+The manipulator of Objective 6 runs alongside this as design work only, and
+deliberately does not compete with it for bench time. Two things are worth doing
+in year 2 and neither needs hardware: re-run the design optimisation against
+this platform's measured mass, which is nearly double what that model assumed
+and therefore moves the tipping margin it found binding; and put the resulting
+geometry into simulation with CAD-derived inertias. A single-joint bench test is
+the earliest point at which money is spent, and it should wait behind the
+localisation sequence above, because an arm that cannot be aimed is not worth
+actuating.
 
 **Year 3 — the geometry question, and control under load.**
 
@@ -1356,10 +1631,13 @@ the estimator rather than the geometry.
 2. Galati et al. *Adaptive heading correction for mecanum platforms.*
    **[CONFIRM]** — full citation required. Source of the 4.56°-over-10 m drift
    figure that motivates Phase 2.
-3. *Modeling and Adaptive Control of an Omnidirectional Mobile Robot.*
-   **[CONFIRM]** — full citation required.
-4. *Fuzzy Adaptive PID Control of a Mecanum-Wheeled Mobile Robot.*
-   **[CONFIRM]** — full citation required.
+3. Lin, L.-C., & Shih, H.-Y. (2013). Modeling and adaptive control of an
+   omni-Mecanum-wheeled robot. *Intelligent Control and Automation*, 4,
+   166–179. https://doi.org/10.4236/ica.2013.42021
+4. Cao, G., Zhao, X., Ye, C., Yu, S., Li, B., & Jiang, C. (2022). Fuzzy
+   adaptive PID control method for multi-mecanum-wheeled mobile robot.
+   *Journal of Mechanical Science and Technology*, 36(4), 2019–2029.
+   https://doi.org/10.1007/s12206-022-0337-x
 
 **SLAM.**
 
@@ -1416,8 +1694,15 @@ the estimator rather than the geometry.
     applications to autonomous driving. *IEEE Transactions on Robotics*, 34(6),
     1603–1622. https://doi.org/10.1109/tro.2018.2865891
 
-References 5–20 were retrieved from the publication record and checked for
-retractions. References 1–4 are held in the project's document archive and need
+**Fault tolerance.**
+
+21. Vlantis, P., Bechlioulis, C. P., Karras, G., Fourlas, G., & Kyriakopoulos,
+    K. J. (2016). Fault tolerant control for omni-directional mobile platforms
+    with 4 mecanum wheels. *2016 IEEE International Conference on Robotics and
+    Automation (ICRA)*, 2395–2400. https://doi.org/10.1109/icra.2016.7487389
+
+References 3–21 were retrieved from the publication record and checked for
+retractions. References 1–2 are held in the project's document archive and need
 their full bibliographic details recovered before submission.
 
 ---
@@ -1461,9 +1746,9 @@ values (§6.4), which is the correction to apply when the gains are refitted.
 | Gate | Criterion | State |
 |---|---|---|
 | G1 | Every pending file hashed on arrival; every changed parameter confirmed on the live node | **Passed** |
-| G2 | No correction > 0.30 m; largest heading step < 10° | **Passed** at 0.202 m and 4.57°, on a shorter test than the gate specifies |
+| G2 | No correction > 0.30 m; largest heading step < 10° | **Passed** at 0.202 m and 4.57° with the front end disabled, on a shorter test than the gate specifies. With the front end enabled (§8.5) the same gate **fails**: 0.309 m and 6.22° |
 | G3 | Control loop ≥ 15 Hz sustained; no transform-extrapolation errors in five minutes | **Open**, measured at 7.5–13.7 Hz |
-| G4 | Map not folded; doubled walls < 1.0 %; unknown < 50 %; return to mark < 0.15 m | **One of four met, once** (0.085 m return) |
+| G4 | Map not folded; doubled walls < 1.0 %; unknown < 50 %; return to mark < 0.15 m | **One of four met, once** (0.085 m return). Unknown % is the gate that fails hardest and it did not move across seven drives on 15 Sep, three LiDAR quality gates or the front-end A/B (72.6 to 84.6 %) |
 | G5 | Localisation reaches active on a saved map; pose covariance converges | **Never executed** |
 | G6 | Five consecutive tapped goals, each within 0.15 m / 10° measured on the floor | **Partially met** on a live map |
 | G7 | Three taught locations recalled after a full power cycle | **Never executed** |
@@ -1541,9 +1826,54 @@ specifies at 15 Hz and which measures 7.5–13.7 Hz.
 **Instruments.** Repair the three analysis tools raising false positives on
 turning drives, and re-baseline the campaign afterwards.
 
+**Wiring.** The ESP32 currently draws VIN from the Pi's USB port, which couples
+SMPS switching noise and PWM ground transients into the encoder counts
+(`docs/hardware/nab_circuit_diagram.png`, deployment note). Cut VBUS in the
+Pi→ESP32 cable and feed VIN from the 5 V buck rail instead. Not yet applied on
+the robot.
+
 **Documentation.** Keep the research journal current. It is the primary record
 from which this report was assembled, and every figure in it is regenerable from
 the data in this repository.
+
+### Appendix G — The three commissioning maps, reconstructed and as captured
+
+![Field maps](figures/fig29_field_maps.png)
+
+**Figure 29.** The saved occupancy grids from the three drives of §8.3, each
+placed in world coordinates from its own YAML origin and resolution, sharing one
+window so the three are directly comparable. The believed pose during each drive
+is drawn over the map and the red dots mark where the robot actually stood.
+Grey is cell never observed.
+
+The figure is included because the sparsity argued in §7.4 is easier to see than
+to describe. Between 21 % and 30 % of the cells in these maps were ever
+observed, and the ground the robot physically covered is a narrow ribbon through
+a much larger mapped extent: the LiDAR reaches far further than the chassis
+travels, so a long drive can produce a wide, thin map that still fails the
+commissioning criteria. The second panel is the clearest case, a single
+out-and-back leg whose observed fraction is the lowest of the three.
+
+These are the same runs whose correction traces appear in Figure 16, so the two
+figures can be read together: Figure 16 gives the magnitude of what the
+estimator was doing, and this one gives the geometry it was doing it in.
+
+![Dashboard screenshots](figures/fig30_dashboard_screenshots.png)
+
+**Figure 30.** The same three drives again, this time from the operator's own
+dashboard screenshots taken during the drives and hand-annotated at the time
+(`docs/evidence/monday_recon/`, `docs/evidence/tuesday_repeat/`), embedded as
+captured rather than reconstructed. Green is the SLAM-estimated path, blue is
+wheel odometry, yellow marks a correction event, red marks a doubled wall.
+
+Figure 29 is regenerated from the saved map on every run and will never disagree
+with the numbers in this report; Figure 30 is the primary record those numbers
+were read from, and the two are included together so a reader can check one
+against the other. The pattern is visible directly here: in (b), the run that
+returned to within 0.085 m, the green and blue traces run almost on top of each
+other for the whole leg. In (a) and (c), the two runs that returned worse, they
+separate into a visible loop. That separation between the wheel estimate and the
+SLAM estimate is the map→odom correction Figure 16 plots the magnitude of.
 
 ---
 

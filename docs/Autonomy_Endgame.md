@@ -172,7 +172,7 @@ Reading only. `Where_We_Stand.md`, this document, and `APS_Study_Guide.md`
 On **Windows** (the Pi has no uplink — it hosts its own AP):
 
 ```powershell
-cd "C:\Users\aritradas\Documents\mecanum robot ROS2\for scp download"
+cd "C:\Users\aritradas\Documents\NAB\for scp download"
 $B = "https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/narrowaislebot-mapping-reliability-038ike"
 
 curl.exe -sSL --retry 3 --retry-all-errors -o phone_dashboard.py  "$B/src/mecanum_robot/mecanum_robot/phone_dashboard.py"

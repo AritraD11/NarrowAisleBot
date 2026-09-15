@@ -14,7 +14,7 @@ L = [
  ('Odometry integration',                                           'good',
   'offline re-integration from raw encoders diverges 0.0054 m peak, 0.0000 m final'),
  ('Wheel-odometry physical accuracy',                               'good',
-  '4.582 m closed to 3.1 mm (0.07 %); 0.229 m over 21.85 m (1.27 %), on spec'),
+  '4.582 m closed to 3.1 mm (0.07 %); 0.229 m over ~18 m (1.27 %), on spec'),
  ('map→odom — the SLAM front end',                                  'break',
   'one correction per pose-graph node, every node; 6.8× spread across identical drives'),
  ('An accepted commissioning map',                                  'break',

@@ -108,6 +108,10 @@ Same information as a chart, generated from the table below by
   but not yet run on hardware
 - `tools/pi_audit.sh`: existing read-only Pi inventory, not yet run this
   session
+- `docs/DeepSeek_Brief.md`: self-contained outside-opinion brief, written to
+  be handed to a model with no repo access. Carries the open self-criticism
+  that does not belong in a status doc: where the evidence may not support
+  the conclusion drawn from it, and which assumptions nobody has challenged
 
 ## What's still open, unweighted by urgency
 

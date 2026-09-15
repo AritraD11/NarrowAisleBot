@@ -699,7 +699,7 @@ function ldNote(live) {
   }
   if (live && live.live > 0 && live.published / live.live < 0.5) {
     e.className = 'ld-note warn';
-    e.textContent = 'Over half of the sensor\'s returns are being dropped. '
+    e.textContent = "Over half of the sensor's returns are being dropped. "
       + 'Beams that are cut do not CLEAR cells either, so stale obstacles '
       + 'will stand in the costmap. Loosen the gate.';
     return;

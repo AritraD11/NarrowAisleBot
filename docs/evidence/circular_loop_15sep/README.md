@@ -405,3 +405,67 @@ run: if unknown % holds near 73% and doubled walls drops, AISLE is the
 better setting for this drive. If unknown % jumps back toward 80%, the
 coverage cost is too high and RAW stands, accepting the doubling as a
 cost worth paying while unknown % is still the far larger gap to the gate.
+
+---
+
+# Run 5: `run_20260915_164745`, AISLE preset, same trajectory as run 4
+
+Controlled A/B against run 4: identical setup (fresh ZERO x2, fresh MAP,
+same circle, 3 laps no break), one variable changed, LiDAR panel set to
+AISLE instead of RAW. 312.4 s. Odom extent matches run 4 to the centimeter
+(X -0.00..1.01, Y -0.51..0.51 vs run 4's -0.00..1.01, -0.50..0.51), so this
+is a clean isolate-one-variable comparison, not a different drive.
+
+## Pose: best closure yet, confirms pose is gate-independent
+
+| Quantity | Run 4 (RAW) | Run 5 (AISLE) |
+|---|---|---|
+| Path length | 9.526 m | 9.530 m |
+| Closure error | 1.9 mm (0.020%) | **2.5 mm (0.026%)** |
+| `map->odom` correction | 0 of 2255 | 0 of 3092 |
+
+Both essentially perfect. With `use_scan_matching: false`, pose comes
+purely from wheel odometry, so the LiDAR gate has no path to affect it.
+Confirms that directly with two independent runs.
+
+## Map: `map_integrity.py` on `run_20260915_164745`
+
+```
+run_20260915_164745   ->   FOLDED
+grid          196x199 @ 0.05 m = 9.8x10.0 m
+wall          67.0 m of occupied cells
+
+D2 doubled    15 cells (1.1% of wall)
+D3 forks      49 junctions (7.31/10 m), 115 endpoints (17.16/10 m)
+D4 alignment  dominant axis -1.5 deg, manhattan 0.41
+D5 free space 2 regions, largest holds 99.8%
+
+flags:
+  - 2 disconnected regions of free space
+```
+
+| Gate | RAW (run 4) | AISLE (run 5) |
+|---|---|---|
+| Verdict | SUSPECT | **FOLDED, worse** |
+| Doubled walls | 2.9% (fail) | **1.1%, big improvement** |
+| Unknown cells | 73.0% | 74.6%, statistically flat |
+| Return to mark | 1.9 mm | 2.5 mm, both pass comfortably |
+
+**AISLE fixed the doubled-walls regression from run 4 by more than half,
+confirming the persistence-filter hypothesis.** But it introduced a new
+defect not seen in any run today: two disconnected free-space regions,
+serious enough that `map_integrity.py` escalates the whole verdict to
+FOLDED rather than SUSPECT. Working hypothesis, not confirmed: AISLE's
+persistence gate likely rejected enough beams crossing a narrow connecting
+area that a strip stayed "unknown" instead of "free," splitting one
+physically-open room into two map-disconnected islands.
+
+Unknown cells did not meaningfully improve (74.6% vs 73.0%), within the
+noise already seen across single-lap runs (77.6-84.6%). So the gate choice
+is not the lever that closes the dominant gap; more repetition still is.
+
+**Verdict: revert to RAW for further laps.** RAW's failure mode (some
+doubling, softer verdict) is preferable to AISLE's (a torn map, harder
+verdict), and the coverage gain from AISLE was not real. Consistent with
+`Phase2_Without_IMU.md`'s existing decision not to trade coverage for
+cleanliness while unknown cells remains the larger gap to its gate.

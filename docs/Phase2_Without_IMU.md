@@ -171,6 +171,56 @@ rather than from this unit. The quadratic model and the linear model disagree
 by more than a factor of two at 5 m. One run settles it, and the answer
 changes where the cap goes.
 
+### 5.2.1 Result, 15 Sep 2026, two captures
+
+Run 1, open room, 689 scans, 60 s parked. Run 2, same method, deliberately
+parked with solid objects on three sides, 691 scans, per §5.2's own
+instruction to repeat from a different spot before trusting a number.
+
+| | Run 1 (open) | Run 2 (objects on 3 sides) |
+|---|---|---|
+| Median range | 1.6 m | 1.3 m |
+| Stationary noise, p90 | 16.8 mm | 11.3 mm |
+| Flicker | 79.6 % | 83.1 % |
+| 1.0-1.5 m bin | 89.3 % valid, 14.3 mm | 97.7 % valid, 12.4 mm (passes) |
+| 1.5-2.0 m bin | 96.0 % valid, 22.3 mm (passes) | 93.3 % valid, **31.9 mm (fails)** |
+| Beyond 2.5 m | 70-200 mm, inconsistent | 55-124 mm, inconsistent |
+
+**Reading the two together, not separately:** solid out to about 1.0-1.5 m in
+both runs. The 1.5-2.0 m bin flips from pass to fail between the two, which
+means the crossover is not a fixed distance, it depends on which surface
+happens to sit in that band, consistent with everything else this project
+has found about this unit being geometry-dependent rather than a clean
+function of range alone. Beyond 2.5 m both runs agree it is unreliable.
+
+**Neither run settles linear versus quadratic, and that is a finding, not a
+gap.** Both models predict a single smooth curve. What was measured is a
+region that behaves consistently (under 1.5 m) followed by a region that
+does not reproduce between two otherwise-identical captures (1.5-2.5 m).
+That is not the signature either model predicts. `scan_range_envelope.py`
+computed a recommended cap of 1.5 m from run 2 alone; it is a real number
+for what it measured, and it is not being applied to the deployed
+config, for a reason worth stating precisely:
+
+**`use_scan_matching` has been `false` since Stage G (3 Sep).** The reason a
+tight cap normally matters, protecting the scan matcher from corrupting the
+pose estimate with a bad long-range match, does not apply while nothing is
+using long rays to correct pose. The measured cost of the current 5 m cap is
+therefore not pose corruption, it is a marginal doubled-walls contribution,
+and doubled walls has been passing (0.7-0.8 %, gate < 1.0 %) at 5 m through
+every run so far. Meanwhile the gate that is actually failing, unknown cells
+at 77-85 %, would fail far worse at a 1.5 m cap, which would stop the sensor
+from contributing to the map at all past arm's reach. Tightening the cap now
+would trade a passing gate's small margin for a much larger hit to the one
+gate that is failing.
+
+**Disposition: characterise now, revisit the number later.** This closes
+Phase 2's headline measurement. The 1.5 m figure is filed as a candidate for
+Phase 4 (AMCL, collision_monitor), where obstacle-range accuracy carries
+real safety weight and scan matching is not in the loop the same way. It is
+not applied to G4's configuration, which needs coverage, not precision,
+right now.
+
 ### 5.3 Make every consumer agree on the cap
 
 This is the finding that the range audit turned up, and it matters more than

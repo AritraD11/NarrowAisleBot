@@ -40,7 +40,7 @@ flowchart TD
     P4["Phase 4<br/>Autonomous navigation<br/>partial, rung C banked"]:::partial
 
     P2 --> P2a["range envelope §5.2<br/>closed 15 Sep"]:::done
-    P2 --> P2b["slip residual, Gap 3<br/>not yet run"]:::todo
+    P2 --> P2b["slip residual, Gap 3<br/>measured 15 Sep<br/>slip is small, integration faithful"]:::done
 
     P3 --> G4a["G4: return to mark<br/>&lt; 0.15 m, passing<br/>(~6-30 mm measured)"]:::done
     P3 --> G4b["G4: doubled walls<br/>&lt; 1.0%, borderline<br/>(0.7-1.03% across 3 runs)"]:::partial
@@ -77,7 +77,7 @@ Same information as a chart, generated from the table below by
 | Phase 1: motor control (PID) | ✅ done, 100% | `PID_Calibration.md` §5 |
 | Phase 2: odometry & state estimation | ✅ at ceiling, ~75% (no IMU) | `Phase2_Without_IMU.md` |
 | ↳ range envelope (§5.2, the headline) | ✅ done | `Phase2_Without_IMU.md` §5.2.1, 2 captures 15 Sep |
-| ↳ slip residual (Gap 3) | ⬜ not started | free data from drives already happening |
+| ↳ slip residual (Gap 3) | ✅ measured 15 Sep | `docs/evidence/gap3_slip_residual/`, 4 runs, median 0.035 rad/s moving, 0 episodes |
 | Phase 3: perception & mapping | 🔴 blocked on G4 | `Phase_234_Push.md` §4 |
 | ↳ G4 return to mark < 0.15 m | ✅ passing | `docs/evidence/circular_loop_15sep/`, 6.4 to 80.6 mm across 3 runs |
 | ↳ G4 doubled walls < 1.0% | 🟡 borderline | same folder, 0.7-1.03% across 3 runs |
@@ -115,8 +115,16 @@ Same information as a chart, generated from the table below by
 
 ## What's still open, unweighted by urgency
 
-1. G4 coverage: the active blocker, plan is loose gate + repeated laps
-2. The Nav2 "not replanning when blocked" report: no live diagnostic data
+1. **Stage H, not yet deployed.** `system/slam_nodom_stageB.yaml` now carries
+   `use_scan_matching: true`. The robot is still running Stage G until it
+   lands. Deploy, verify live, drive the §17.56 perimeter route, score against
+   the pre-committed criteria. See
+   `docs/Session_Handoff_2026-09-15_evening.md` §0 and §2.
+2. Phase 2's last step: pull the two 3 Sep telemetry CSVs off the Pi and run
+   `wheel_forensics.py` on them, to test the phantom-yaw elimination on the
+   runs that produced the anomaly rather than inferring it from today's
+3. G4 coverage: superseded by Stage H rather than closed. A map built with
+   loop closure is not the same map, so re-derive after matching is scored
+4. The Nav2 "not replanning when blocked" report: no live diagnostic data
    yet, three candidate causes listed in chat, none confirmed
-3. `pi_audit.sh` full run, requested, not yet returned
-4. Slip residual measurement (Gap 3): free, whenever a drive happens anyway
+5. `pi_audit.sh` full run, requested, not yet returned

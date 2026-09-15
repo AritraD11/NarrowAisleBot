@@ -244,14 +244,74 @@ have marked. Whatever §5.2 returns, all seven settings take the same number.
 
 ### 5.4 The slip residual, free from drives already happening
 
+**⚠ The command originally written here was wrong.** It read
+`./tools/wheel_forensics.py --csv ~/aislebot_logs/<run>_wheels.csv`. `--csv` is
+an *output* flag, the run is a *positional* argument, and no `_wheels.csv` file
+exists in this project's naming. Corrected:
+
 ```bash
-./tools/wheel_forensics.py --csv ~/aislebot_logs/<run>_wheels.csv
+python3 tools/wheel_forensics.py <run>.csv              # the motor telemetry CSV
+python3 tools/wheel_forensics.py <run>.csv --json out.json
+python3 tools/wheel_forensics.py --selftest             # validate before trusting
 ```
 
-Run it over every drive of the day. Per-wheel slip on a non-collinear layout
-is Gap 3 in the report and nothing has been measured on it. The data is the
-same encoder stream the drives produce anyway, so this costs nothing but the
-command.
+Per-wheel slip on a non-collinear layout is Gap 3 in the report. The data is
+the same encoder stream the drives produce anyway, so this costs nothing but
+the command.
+
+### 5.4.1 Result, 15 Sep 2026: Gap 3 closes, and a second finding arrives with it
+
+Run over four drives from the same day, no new driving.
+Full write-up and raw output: `docs/evidence/gap3_slip_residual/`.
+
+| Run | Trajectory | Median (moving) | p95 | Max | Episodes > 0.5 rad/s |
+|---|---|---|---|---|---|
+| `_140253` | wobbled, 1 lap | 0.0392 | 0.1244 | 0.3541 | **0** |
+| `_154615` | 1 m circle, 3 laps, RAW | 0.0356 | 0.1123 | 0.2885 | **0** |
+| `_164745` | same, AISLE | 0.0353 | 0.1140 | 0.2544 | **0** |
+| `_172133` | same, STRICT | 0.0352 | 0.1113 | 0.2722 | **0** |
+
+**Physical wheel slip is small and bounded.** The median while moving is
+0.035 rad/s, about 0.0027 m/s of rim speed against a 0.10 m/s drive, so
+roughly 2.7% of drive speed. Worst instantaneous across all four drives is
+0.019 to 0.027 m/s. The deliberately irregular wobbled run sits within a few
+percent of the three clean circles, so this is not a property of one
+trajectory. Not one sample in four drives crossed the episode threshold. The
+tool passed `--selftest` first: residual zero to 7.18e-15 over 20000 random
+rigid twists.
+
+**The second finding, which was not what the run was for.** The same tool
+re-integrates the recorded wheel velocities offline and compares against what
+`odometry_publisher` published. Final divergence is **0.0000 to 0.0001 m on
+all four runs**, max 0.0077 to 0.0156 m. The integration is faithful. Nothing
+in this repo had ever checked that, and it removes a whole class of suspicion
+from the node.
+
+**What the two findings do together.** On `_154615`, wheels, odom and SLAM all
+report the robot finishing at (-0.002, -0.001) with yaw -0.02 to -0.03 deg.
+The operator's protractor on that same run read about -3 deg. Three estimates
+agree with each other because they consume the same wheel data, and all three
+disagree with the floor. The residual eliminates significant physical slip.
+The offline reconstruction eliminates an integration bug. What survives is the
+error class the tool's own docstring names as invisible to it: **encoder or
+wheel-radius scale error, or a rigid-consistent slip mode where all four wheels
+slip together.** Both are structurally undetectable by every instrument
+currently fitted.
+
+**This upgrades §6's IMU position, and it is a different argument from §3.**
+§3 reasons from an error budget that an inertial sensor addresses a
+non-binding term at 5 m. This reasons from elimination: the wheel-only
+instrument set has a blind spot, its extent is now bounded by measurement
+rather than assumed, and closing it needs external ground truth or an
+independent heading source. That is the direct answer to this phase's
+deliverable clause, *"an explicit account of which sensors are required,"* and
+it is measured rather than argued.
+
+**Still owed.** These four runs are from 15 Sep. The phantom-yaw observation is
+from 3 Sep (§17.55, §17.56) and those telemetry CSVs live on the Pi, not in the
+repo. Pull `run_20260903_162401.csv` and `run_20260903_174352.csv` and run the
+same tool against them to test the elimination on the runs that actually
+produced the anomaly, rather than inferring it from different drives.
 
 ### 5.5 A third phantom-yaw replication
 

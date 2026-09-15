@@ -16,7 +16,7 @@ rows = [
     ('Phase 1: motor control (PID)',            'P1', 'done',    '100% -- PID_Calibration.md'),
     ('Phase 2: odometry & state estimation',    'P2', 'ceiling', 'characterised @ ~75% ceiling (no IMU) -- Phase2_Without_IMU.md'),
     ('  → range envelope (§5.2)',      'P2', 'done',    'closed 15 Sep, 2 captures'),
-    ('  → slip residual (Gap 3)',           'P2', 'todo',    'free from drives already happening, not yet run'),
+    ('  → slip residual (Gap 3)',           'P2', 'done',    'measured 15 Sep, 4 runs: slip small, integration faithful'),
     ('Phase 3: perception & mapping',           'P3', 'blocked', 'G4 not yet passed'),
     ('  → G4: return to mark < 0.15 m',     'P3', 'done',    '~6-30 mm measured, 3 runs -- circular_loop_15sep/'),
     ('  → G4: doubled walls < 1.0%',        'P3', 'partial', '0.7-0.8% recent runs, 1.03% on one -- borderline'),

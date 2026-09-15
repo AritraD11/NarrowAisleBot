@@ -119,7 +119,80 @@ slam_toolbox:
     # the sequential one this parameter gates, so do_loop_closing below
     # should still fire. Confirm against the INSTALLED source before
     # citing it — tools/verify_live_config.sh runs this check for you.
-    use_scan_matching: false
+    #
+    # ══ STAGE H, 15 Sep 2026: false -> true. MATCHING GOES BACK ON. ══
+    #
+    # THE PREDICTION FROM STAGE G ABOVE WAS TESTED AND IT LANDED. Two runs
+    # on 3 Sep (698 s, 18.5 m, different route geometries) and six more on
+    # 15 Sep returned map->odom corrections of EXACTLY zero, every sample.
+    # The front end was the whole observed fault. That question is closed
+    # and this change does not reopen it.
+    #
+    # WHAT IS BEING TESTED NOW IS A DIFFERENT QUESTION: the matcher has
+    # NEVER RUN WITH THE 5 m CAP. Stage G changed both values in one
+    # drive, deliberately and with reasons, but the consequence is that
+    # every measurement of the matcher's behaviour was taken at 10 m or
+    # 12 m. max_laser_range below is the single largest change to what the
+    # matcher is fed that this project has ever made, and its effect on
+    # matching is completely unmeasured. The note under
+    # loop_match_minimum_response_* already says this in as many words:
+    # "a denser scan and a 5 m cap will change how a genuine revisit
+    # scores, in a direction not yet known."
+    #
+    # THREE THINGS CHANGED SINCE THE MATCHER WAS LAST SCORED:
+    #   1. max_laser_range 10.0 -> 5.0. The long, weak, flickering returns
+    #      that carried error of the same order as the fault being chased
+    #      are no longer admitted at all.
+    #   2. The LiDAR quality gate settled on RAW, measured three ways on
+    #      15 Sep (docs/evidence/circular_loop_15sep/). AISLE and STRICT
+    #      both tear the map into disconnected free-space regions; RAW does
+    #      not. The input is now a known quantity rather than whatever the
+    #      panel happened to be set to.
+    #   3. The odometry prior is measured far better than when the search
+    #      windows were widened. 9.526 m over three laps closed to 1.9 mm,
+    #      and the offline reconstruction confirms odometry_publisher
+    #      integrates faithfully (docs/evidence/gap3_slip_residual/). A
+    #      TIGHT window over a GOOD prior is the regime where matching is
+    #      supposed to help. That regime has never been tested here.
+    #
+    # AND THE REASON IT CANNOT WAIT: with matching off there is no loop
+    # closure, so the map cannot correct itself and Phase 4's AMCL would
+    # localise against a dead-reckoned map that inherits every accumulated
+    # error with no mechanism to remove it. G5 needs this.
+    #
+    # ⚠ THE RISK, STATED PLAINLY. This map folded roughly 70 times under
+    # matching. That failure mode is being deliberately re-admitted. The
+    # revert is ONE LINE back to false.
+    #
+    # PRE-COMMITTED, WRITTEN BEFORE THE DRIVE (standing rule #2).
+    # REVERT on ANY ONE of these:
+    #   - any single-step correction >= 0.15 m. That is the search
+    #     window's half-width saturating, the exact §17.40 signature, and
+    #     it would mean the tight window is still the wrong lever.
+    #   - map_integrity.py returns FOLDED.
+    #   - return to mark > 0.15 m (the G4 gate itself).
+    #   - visible map tearing during the drive.
+    # KEEP, and Stage H succeeds, if ALL of these hold:
+    #   - corrections appear but stay SMALL and frequent, tens of mm, well
+    #     inside the 0.15 m half-width.
+    #   - at least one loop closure actually fires. THIS HAS NEVER BEEN
+    #     OBSERVED ON THIS ROBOT and is the single most valuable thing the
+    #     drive can produce.
+    #   - closure at the mark <= 9.9 cm, the matching-off baseline from
+    #     §17.56 on the same route.
+    #   - doubled walls < 1.0%, verdict not FOLDED.
+    #   - unknown % roughly unchanged. Matching changes WHERE scans are
+    #     drawn, not how many cells they paint.
+    #
+    # ⚠ DO NOT TEST THIS ON THE 1 m CIRCLE. §17.44 flagged tight-circle
+    # geometry as degenerate for scan matching, and a circle shows the
+    # same walls from continuously rotating vantage points. Drive §17.56's
+    # 12.04 m out-and-back perimeter instead: it has a matching-OFF
+    # baseline already measured on the same config era (9.9 cm closure,
+    # 0.83%, heading -4.49 deg, zero corrections), it is structurally
+    # different from a circle, and at 3.66 m from the mark it travels far
+    # enough to reach loop_match_minimum_chain_size 8 (~1.6 m).
+    use_scan_matching: true
     # STAGE F, one value, §17.49. true -> false.
     # With barycenter ON, karto measures node-to-node travel and seeds the
     # match from the CENTROID OF THE RETURNED POINTS rather than the sensor

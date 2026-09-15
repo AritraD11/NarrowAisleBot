@@ -315,12 +315,26 @@ that `use_scan_matching: false` suppresses pose-graph construction
 entirely, making `do_loop_closing: true` inert and slam_toolbox a pure
 scan-stamper. That was logged as unverified.
 
-Stage H settles it, and the check is now wired into the deploy. Section 6 of
+The check is now wired into the deploy. Section 6 of
 `tools/verify_live_config.sh` reads `ros2 topic info
-/slam_toolbox/graph_visualization` before the first metre. A publisher count
-of zero means loop closure is unreachable and the drive's most valuable
-success criterion cannot be scored, which is something to learn while parked
-rather than afterwards from a CSV.
+/slam_toolbox/graph_visualization` before the first metre, so a graph that is
+never built is something to learn while parked rather than afterwards from a
+CSV.
+
+**Run on the Stage H deploy, 15 Sep 20:14, it returned publisher count 1.**
+Read that carefully, because the obvious reading is wrong and the script said
+so at first. A publisher with matching ON does not falsify §17.56, whose
+hypothesis is about matching OFF. It is precisely what that hypothesis
+predicts. What it does kill is the rival explanation, that the topic never
+publishes for a tooling reason such as `enable_interactive_mode`. Silent
+across two runs with matching off, publishing immediately with it on, leaves
+§17.56 standing and stronger than when it was written.
+
+Which means the Stage G configuration probably was a pure scan-stamper with
+no pose graph at all, and `do_loop_closing: true` in that config was inert.
+That is worth saying plainly in the report, because it is the sharpest
+possible version of DeepSeek's "is it SLAM" objection, arrived at from the
+inside and now supported by a measurement rather than a suspicion.
 
 **The coverage gate.** DeepSeek argues the bounding-box unknown-cell
 fraction measures the room's shape rather than the drive's quality, and

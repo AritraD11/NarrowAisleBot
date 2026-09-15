@@ -183,7 +183,12 @@ else
   PUBS="$(echo "$GT_OUT" | sed -n 's/^Publisher count: *\([0-9]*\).*/\1/p' | tail -1)"
   if [ "${PUBS:-0}" -ge 1 ]; then
     ok "pose graph is published ($PUBS publisher) -- closure is reachable"
-    info "  17.56's suppression hypothesis is FALSIFIED for matching-on."
+    info "  NOT a falsification of 17.56. That hypothesis says matching-OFF"
+    info "  suppresses graph construction; a publisher with matching ON is"
+    info "  exactly what it predicts. What this DOES kill is the rival"
+    info "  explanation -- that the topic never publishes for tooling reasons"
+    info "  (enable_interactive_mode). Silent with matching off, publishing"
+    info "  with it on, leaves 17.56 standing as the best explanation."
   else
     warn "publisher count ${PUBS:-0} -- topic exists but nothing publishes"
     info "  Closure may still fire; the graph just is not being broadcast."

@@ -403,7 +403,7 @@ these three instead:
 |---|---|
 | **Walls present** | the grid contains real occupied cells, not just free space and unknown. An open-floor drive produces a map with no wall geometry and is useless to AMCL. |
 | **Map integrity** | no folds, tears, doubled walls, or forked corridors in `map_viewer.html`. This is the criterion that actually catches a bad closure. |
-| **Return-to-mark** | drive back to the physical zero mark; the dashboard HUD should read ≈ `(0, 0)` and nose ≈ `-90°` |
+| **Return-to-mark** | drive back to the physical zero mark; the dashboard HUD should read ≈ `(0, 0)`. The nose figure here is **unverified** since the 27 Aug frame fix (§8) and has not been re-checked against the HUD's own display convention, which is a separate path from the TF above. Trust the `(0,0)` and the `tf2_echo`, not this angle, until someone reads it off a zeroed robot |
 
 A doubled wall or a corridor that forks into two parallel copies of itself
 means a false loop closure fused two places that are not the same place.
@@ -489,17 +489,30 @@ stack started at 10:42 and you press Map at 10:56, map `(0,0)` is the
 # 3. Re-zero odometry at the mark:
 sudo systemctl restart aislebot.service
 
-# 4. Wait ~10 s, then verify. MUST read [0,0,0] and -90.000 degrees:
+# 4. Wait ~10 s, then verify. MUST read [0,0,0] and 0.000 degrees:
 ros2 run tf2_ros tf2_echo odom base_link
 
 # 5. Press Map to start a fresh mapping session.
-# 6. Verify the map inherited it — also [0,0,0] @ -90 deg:
+# 6. Verify the map inherited it — also [0,0,0] @ 0 deg:
 ros2 run tf2_ros tf2_echo map base_link
 ```
 
-The `-90.000` is **correct, not an error**. `base_link` on this robot has
-`+X` = right and `+Y` = nose (§17.10), so a perfectly-placed robot reads
-−90° against the map grid. It will never read 0.
+**This said `-90.000` until 15 Sep 2026 and that was stale.** The reading
+is `0.000`, and a `-90.000` here now means something is wrong.
+
+`base_link` on this robot really does carry `+X` = right and `+Y` = nose
+(§17.10), and until 27 Aug 2026 that produced a constant −90° seam between
+`odom` and `base_link`, which `map` then inherited. That seam was a bug, not
+a convention: `odometry_publisher` published the yaw rotated while leaving
+translation in the internal REP-103 frame, so odom's own axes were defined
+inconsistently with the transform it advertised. The fix rotates position as
+well (`odometry_publisher.py:257`, `pub_x = -self.y`, `pub_y = self.x`),
+which makes odom, map and base_link agree, and `pub_theta` became plain
+`self.theta` with no constant. `self.theta` is `0.0` at init and at every
+`/odom/reset`, so a correctly zeroed robot reads identity.
+
+The check itself is unchanged and still worth running. Only the expected
+number moved, and it moved three weeks before anyone re-read this page.
 
 ### Checking whether you are back home
 
@@ -507,7 +520,7 @@ The floor mark is underneath the chassis, so you cannot see it while
 standing on it. Two ways that don't need eyes on the floor:
 
 ```bash
-# Numeric: home is [0,0,0] @ -90 deg, same as step 6 above.
+# Numeric: home is [0,0,0] @ 0 deg, same as step 6 above.
 ros2 run tf2_ros tf2_echo map base_link
 ```
 

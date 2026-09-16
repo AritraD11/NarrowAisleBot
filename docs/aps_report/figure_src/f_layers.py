@@ -56,7 +56,7 @@ COL  = {'measured': C['fixed'], 'rate': C['command'], 'open': C['neutral']}
 MARK = {'measured': '●', 'rate': '◐', 'open': '○'}
 FILL = {'measured': 0.92, 'rate': 0.92, 'open': 0.0}
 
-fig, ax = plt.subplots(figsize=(11.4, 9.2))
+fig, ax = plt.subplots(figsize=(13.7, 11.0))
 GAP = 1.85          # extra space where measured evidence ends
 first_open = min(i for i, r in enumerate(L) if r[1] == 'open')
 
@@ -80,8 +80,8 @@ def mark(x, y, band):
 for i, (name, band, ev) in enumerate(L):
     y = ys[i]
     mark(2.6, y, band)
-    ax.text(5.6, y, name, ha='left', va='center', fontsize=8.5, color='k')
-    ax.text(46, y, ev, ha='left', va='center', fontsize=7.0,
+    ax.text(5.6, y, name, ha='left', va='center', fontsize=9.6, color='k')
+    ax.text(46, y, ev, ha='left', va='center', fontsize=8.1,
             color=C['neutral'], linespacing=1.35)
 
 CLIFF = (ys[first_open-1] - heights[first_open-1]/2 + ys[first_open] + heights[first_open]/2) / 2.0

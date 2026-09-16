@@ -1108,14 +1108,14 @@ Every one of those appears in §4 applied to the robot.
 **Figure 16.** Edge node, transport and server. Four sensor packages returning
 seven measured channels, two actuators, three concurrent wireless channels, two
 independent control paths, and four monitored zones across two radio-isolated
-deployments sharing one database, with no cloud dependency.
-Resolved 15 Sep 2026: the generator `figure_src/f_iot.py` draws exactly four
-sensor boxes (SCD40, MPM10-AS, MQ-135, GUVA-S12SD) and then labelled itself
-"five sensors" in two places. Its own drawing settles it, and the seven measured
+deployments sharing one database, with no cloud dependency. The seven measured
 channels are three from the SCD40, two from the MPM10-AS and one each from the
-MQ-135 and GUVA-S12SD. The generator is corrected. **The committed PNG still
-reads "five" and must be regenerated** (`python3 figure_src/f_iot.py`) on a
-machine with matplotlib, which the environment this was fixed in did not have.
+MQ-135 and GUVA-S12SD.
+Resolved 16 Sep 2026: the generator `figure_src/f_iot.py` draws exactly four
+sensor boxes and its caption said "five sensors" in two places. The generator
+was corrected on 15 Sep but the committed PNG predated that fix and still read
+"five". The figure has now been regenerated from the unmodified generator and
+reads "four" throughout.
 
 ![The unit as built](figures/fig31_uvgi_assembly.png)
 

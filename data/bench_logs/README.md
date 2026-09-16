@@ -49,6 +49,38 @@ git commit -m "..."
 
 Trend: worst-motor tracking error has gone 4.5% → 2.4% → 1.4% across the three runs, tracking each firmware/hardware fix in order (encoder/CPR fix, then the v3.0 gain recalibration). None of the three is a step-response or PWM-staircase test, so none of them can be used to *fit* `Kff`/`Ki`/τ — that's what `tools/nab_pid_logger.py`'s `plant`/`staircase`/`steps` tests are for. These three are the "is the loop healthy" checkpoints along the way.
 
+### Plant ID and `Kp` verification, 14 Sep 2026
+
+The run that finally *is* a step-response test, plus the closed-loop sweep
+that checked what it implied before anything got flashed. Full derivation
+and the reasoning: `docs/PID_Calibration.md` §5.
+
+| File | What it is | Result |
+|---|---|---|
+| [`plant_20260914_164105.csv`](bench/plant_20260914_164105.csv) | Open-loop, PID bypassed, 6 PWM steps per motor | `K` measured to within 0.5% of the existing feedforward fit; τ ≈ 0.09 s by the tool's pre-send timing, ≈ 0.04 s by an independent timestamp-relative refit, see the caveat below |
+| [`sweep_kp45_ki250_kd0.5_20260914_164953.csv`](bench/sweep_kp45_ki250_kd0.5_20260914_164953.csv) | Closed-loop steps, shipped gains (baseline) | Mean overshoot **0.107 rad/s** |
+| [`sweep_kp22_ki250_kd0.5_20260914_165007.csv`](bench/sweep_kp22_ki250_kd0.5_20260914_165007.csv) | Closed-loop steps, `Kp` recomputed from the robust τ | Mean overshoot **0.164 rad/s**, +54% |
+| [`sweep_kp26_ki250_kd0.5_20260914_165022.csv`](bench/sweep_kp26_ki250_kd0.5_20260914_165022.csv) | Closed-loop steps, `Kp` recomputed from the raw τ | Mean overshoot **0.153 rad/s**, +43% |
+
+All four overshoot and steady-state-error figures were independently
+re-derived from the raw CSVs (plateau-windowed on the true setpoint sequence
+rather than trusting the console printout) and matched the tool's own
+output exactly. `Kp = 45` wins on overshoot in 16 of 16 setpoint-motor rows
+against both candidates. **Verdict: `Kp` stays at 45.** Nothing was flashed.
+
+**The τ discrepancy, and why it doesn't matter here.** The plant CSV's own
+timestamps are heavily batched: about 69% of consecutive samples share a
+near-identical arrival time, with the gap concentrated into roughly every
+third sample (~60 ms), rather than the nominal 20 ms telemetry period
+being evenly spaced. Refitting τ relative to when the PWM column itself
+changes (immune to the Pi-side pre-send latency the tool's own timing
+includes) gives τ ≈ 0.04 s, about half the tool's ≈ 0.09 s. Neither number
+is resolvable to better than roughly one telemetry burst period given this
+batching, and it does not change the outcome: both readings imply a `Kp`
+below the shipped 45, and both implied candidates already lost the
+closed-loop sweep. The open-loop number was never what closed this
+objective: the sweep was.
+
 ## Ground runs (on the floor)
 
 | Run | Date | Firmware | Type | Worst RMS error | PWM sat | Sign faults | Diagonal dev. |

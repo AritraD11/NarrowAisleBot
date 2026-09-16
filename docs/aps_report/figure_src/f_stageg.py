@@ -21,7 +21,7 @@ ax.axvline(1.5, color=C['neutral'], lw=1.0, ls='--')
 ax.text(1.58, 52, 'use_scan_matching\nset to false', fontsize=7.8, color=C['fixed'],
         fontweight='bold', va='top')
 ax.text(0.02, 0.985, 'sequential scan matcher ON', transform=ax.transAxes,
-        fontsize=7.6, color=C['defect'], va='top')
+        fontsize=7.6, color=C['defect'], va='top', bbox=MASK)
 ax.set_title('(a) The mechanism, removed', loc='left')
 
 # ---- (b) what replaced it --------------------------------------------------
@@ -63,9 +63,9 @@ for i, (o, p) in enumerate(zip(odo, phys)):
     a3.text(i-w/2, o+0.13, f'{o:.2f}°', ha='center', fontsize=8.4, fontweight='bold')
     a3.text(i+w/2, p+0.13, f'{p:.2f}°', ha='center', fontsize=8.4)
 a3.set_xticks(x); a3.set_xticklabels(runs, fontsize=7.6)
-a3.set_ylim(0, 6.9); a3.set_ylabel('heading error at the mark (°)')
-a3.legend(fontsize=7.6, loc='upper right', ncol=1)
-a3.text(0.5, 0.30, 'Measured off the floor tile grout in\n'
+a3.set_ylim(0, 9.4); a3.set_ylabel('heading error at the mark (°)')
+a3.legend(fontsize=7.6, loc='upper left', ncol=1)
+a3.text(0.52, 0.78, 'Measured off the floor tile grout in\n'
         'the run video, the method validated\n'
         'each time against a frame of known\n'
         'rotation: −28.0° read as −27.07°.',

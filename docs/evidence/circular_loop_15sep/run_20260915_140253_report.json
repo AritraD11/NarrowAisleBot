@@ -1,0 +1,127 @@
+{
+  "generatedAt": "2026-09-15T08:35:23.113819+00:00",
+  "thresholds": {
+    "pwmSat": 230,
+    "settleBand": 0.05
+  },
+  "name": "run_20260915_140253.csv",
+  "invalidCells": 0,
+  "duration": 148.91389989852905,
+  "samples": 2979,
+  "sampleRate": 20.004848452897352,
+  "commandRows": 1630,
+  "feedbackRows": 1633,
+  "health": "ok",
+  "frRlRms": 0.9055217380011453,
+  "flRrRms": 0.7937725907424819,
+  "byMotor": {
+    "FR": {
+      "rmsError": 0.02724562845465717,
+      "maeError": 0.014555219872440416,
+      "maxAbsError": 0.324,
+      "meanTarget": 0.04197851628063109,
+      "meanActual": 0.04287747566297415,
+      "maxAbsTarget": 0.995,
+      "maxAbsActual": 1.069,
+      "maxAbsPwm": 55.0,
+      "targetRows": 1574,
+      "pwmRows": 1563,
+      "actualRows": 1451,
+      "satRows": 0,
+      "satPct": 0.0,
+      "settleCount": 11,
+      "settledCount": 1,
+      "meanSettleTime": 0.34999990463256836,
+      "deadFeedback": false
+    },
+    "FL": {
+      "rmsError": 0.026788455525582715,
+      "maeError": 0.013998657267539447,
+      "maxAbsError": 0.322,
+      "meanTarget": 0.6272698892245719,
+      "meanActual": 0.6274585431352803,
+      "maxAbsTarget": 1.294,
+      "maxAbsActual": 1.403,
+      "maxAbsPwm": 70.0,
+      "targetRows": 1630,
+      "pwmRows": 1630,
+      "actualRows": 1631,
+      "satRows": 0,
+      "satPct": 0.0,
+      "settleCount": 12,
+      "settledCount": 4,
+      "meanSettleTime": 0.07539999485015869,
+      "deadFeedback": false
+    },
+    "RR": {
+      "rmsError": 0.024637751485361802,
+      "maeError": 0.012602551191675058,
+      "maxAbsError": 0.32699999999999996,
+      "meanTarget": 0.08086606243705942,
+      "meanActual": 0.0809274924471299,
+      "maxAbsTarget": 0.952,
+      "maxAbsActual": 1.026,
+      "maxAbsPwm": 60.0,
+      "targetRows": 1628,
+      "pwmRows": 1613,
+      "actualRows": 1195,
+      "satRows": 0,
+      "satPct": 0.0,
+      "settleCount": 7,
+      "settledCount": 0,
+      "meanSettleTime": null,
+      "deadFeedback": false
+    },
+    "RL": {
+      "rmsError": 0.030969052978145922,
+      "maeError": 0.016426317556226915,
+      "maxAbsError": 0.37600000000000006,
+      "meanTarget": 0.6663504531722054,
+      "meanActual": 0.666672037596509,
+      "maxAbsTarget": 1.385,
+      "maxAbsActual": 1.481,
+      "maxAbsPwm": 77.0,
+      "targetRows": 1630,
+      "pwmRows": 1630,
+      "actualRows": 1632,
+      "satRows": 0,
+      "satPct": 0.0,
+      "settleCount": 13,
+      "settledCount": 2,
+      "meanSettleTime": 21.477800011634827,
+      "deadFeedback": false
+    }
+  },
+  "findings": [
+    {
+      "level": "warn",
+      "title": "Diagonal mismatch is visible",
+      "body": "FR-RL RMS is 0.906 rad/s and FL-RR RMS is 0.794 rad/s."
+    }
+  ],
+  "map": {
+    "pgmName": "run_20260915_140253.pgm",
+    "yamlName": "run_20260915_140253.yaml",
+    "stats": {
+      "width": 197,
+      "height": 199,
+      "total": 39203,
+      "occupied": 903,
+      "free": 7622,
+      "unknown": 30678,
+      "occupiedPct": 2.303395148330485,
+      "freePct": 19.44238961303982,
+      "unknownPct": 78.2542152386297,
+      "resolution": 0.05,
+      "extentWidthM": 9.850000000000001,
+      "extentHeightM": 9.950000000000001
+    },
+    "findings": [
+      {
+        "level": "warn",
+        "title": "Sparse coverage",
+        "body": "78.3% unknown. Fine as a pipeline check, not yet a usable map for navigation."
+      }
+    ]
+  }
+}

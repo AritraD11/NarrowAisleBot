@@ -7,9 +7,10 @@ the project record.
 
 | File | What it is |
 |---|---|
-| [`APS_Report_Draft.md`](APS_Report_Draft.md) | The report. **Edit this one.** |
-| [`APS_Report_Draft.docx`](APS_Report_Draft.docx) | Built from the Markdown, all 28 figures embedded, table of contents included. Download and open. Regenerate it after every edit with the command below rather than editing it directly, or the two will diverge. |
-| [`figures/`](figures/) | 28 figures, PNG at 300 dpi, numbered to match the in-text figure numbers |
+| [`APS_Report_Draft_v2.md`](APS_Report_Draft_v2.md) | **The report. Edit this one.** Structured around all three objectives. Decided as the submission draft on 15 Sep 2026. |
+| [`APS_Report_Draft.md`](APS_Report_Draft.md) | **Superseded, kept for its figures.** The earlier single-objective structure. Do not edit it; do not submit it. It still references ten figures v2 does not, listed below, and that is the only reason it is still here. |
+| [`APS_Report_Draft.docx`](APS_Report_Draft.docx) | **Stale.** Built from the superseded `APS_Report_Draft.md` on 12 Sep and not rebuilt since. Regenerate from v2 before submission. Download and open. Regenerate it after every edit with the command below rather than editing it directly, or the two will diverge. |
+| [`figures/`](figures/) | 30 figures, PNG at 300 dpi, numbered to match the in-text figure numbers |
 | [`figure_src/`](figure_src/) | The scripts that generate every figure |
 | [`NarrowAisleBot_APS_Seminar.pptx`](NarrowAisleBot_APS_Seminar.pptx) | The seminar deck. 16 slides, figures and platform photograph placed, speaker notes on every slide. Built by `deck_src/build_deck.js`. |
 | [`deck_src/`](deck_src/) | The deck generator and its layout-overflow check |
@@ -26,6 +27,11 @@ the project record.
 - **Numbers.** Every quantitative claim traces to a file in this repository or a
   DOI in §12. If a number changes on the robot, change it here too, and prefer
   regenerating the figure to editing the caption.
+- **Layout.** `figure_src/qa_layout.py` renders every generator and fails on a
+  label another label overlaps, or that an arrow or data line is drawn through
+  without a masking background. Run it after touching any figure; it is the only
+  check that catches a collision introduced by a data change rather than by an
+  edit.
 
 ## Regenerating the figures
 
@@ -42,11 +48,17 @@ the plots are regenerated from source data rather than being static images that
 can silently go stale. Paths resolve relative to the script's own location, so
 they run from anywhere.
 
-Two figures are computed rather than transcribed, because they carry claims:
+Several figures are computed rather than transcribed, because they carry claims:
 **Figure 10** recomputes the ground-load feedforward increase from the 5 and
-6 August telemetry logs, and **Figure 16** replots the map-to-odom correction
-traces from the three field runs. Both agree with the journal to the digit,
-which is the point of regenerating them rather than screenshotting.
+6 August telemetry logs, **Figure 16** replots the map-to-odom correction traces
+from the three field runs, and **Figure 29** rebuilds the three commissioning
+maps from the saved PGM/YAML with the driven path overlaid. All of them agree
+with the journal to the digit, which is the point of regenerating them rather
+than screenshotting. **Figure 30** is the one deliberate exception: it embeds
+the operator's own annotated dashboard screenshots of those same three drives
+exactly as captured, because that annotation cannot be regenerated from source
+and is not meant to be — it is the primary record, kept alongside its
+regenerated counterpart rather than replaced by it.
 
 `style.py` holds the shared colour language, and it is worth keeping consistent:
 orange for the command path, blue for telemetry and perception, red for a defect
@@ -58,15 +70,15 @@ does not have to infer it.
 
 ```bash
 # Word, keeping the figures
-pandoc APS_Report_Draft.md -o APS_Report.docx --resource-path=.
+pandoc APS_Report_Draft_v2.md -o APS_Report.docx --resource-path=.
 
 # PDF via LaTeX, with a table of contents and numbered sections
-pandoc APS_Report_Draft.md -o APS_Report.pdf --resource-path=. \
+pandoc APS_Report_Draft_v2.md -o APS_Report.pdf --resource-path=. \
        --toc --number-sections -V geometry:margin=25mm
 ```
 
 The Word conversion is verified: it produces a roughly 9 MB file with all
-28 figures embedded. The PDF route additionally needs a LaTeX engine
+30 figures embedded. The PDF route additionally needs a LaTeX engine
 (`texlive-latex-recommended` plus `texlive-fonts-recommended` is enough), or
 `--pdf-engine=weasyprint` to avoid LaTeX entirely.
 
@@ -86,7 +98,49 @@ into that template's body.
 - [ ] Read a recent accepted report from the department for format and length
 - [ ] Agree with the supervisor how much of §10 to include
 - [ ] Consult IRCC on disclosure if a patent filing is contemplated
-- [ ] Recover the full bibliographic details for references 1–4
+- [ ] Recover the full bibliographic details for references 1–2
 - [ ] Fill in the parallel project's dates and effort fraction (§9.3)
 - [ ] Resolve every `[CONFIRM]` marker
 - [ ] Have someone who is not the author read it
+
+
+---
+
+## Which draft is the submission, and what the switch costs
+
+**15 Sep 2026.** Two drafts had diverged and neither referenced the other.
+`APS_Report_Draft_v2.md` was chosen: it is structured around all three
+objectives, including the worker-fatigue framework the earlier draft does not
+cover at all, and that structure is what an annual progress review is asked to
+report against.
+
+The switch has a cost that has to be paid before submission rather than
+discovered at it. **v2 references 21 figures; the superseded draft references
+29.** These ten exist on disk, are generated by scripts in `figure_src/`, and
+are not currently placed anywhere in v2:
+
+```
+fig03_openloop_characterisation.png    fig15_map_coverage.png
+fig04_control_loop.png                 fig20_costmap_inflation.png
+fig07_kff_artefact.png                 fig30_dashboard_screenshots.png
+fig09_tracking_comparison.png
+fig11_mapping_pipeline.png
+fig13_lidar_mirror.png
+fig14_lidar_placement.png
+```
+
+Some of these are load-bearing. `fig13_lidar_mirror` and `fig14_lidar_placement`
+carry the front/back scan reflection and the mount geometry, which §4.5's three
+perception faults describe in words alone without them.
+`fig30_dashboard_screenshots` is the only photographic evidence in the repository
+that the operator interface exists and works.
+
+Deciding which of the ten to place in v2, and where, is an editorial task that
+has not been done. It is tracked here because a figure that exists, is
+generated, and is referenced by nothing is the easiest thing in this folder to
+lose track of.
+
+**Figure renumbering.** v2 numbers its figures independently of the older
+draft, so a figure moved across needs its in-text number reassigned to v2's
+sequence rather than carried over. `figure_src/qa_layout.py` checks collisions,
+not numbering, so nothing will catch a duplicate number automatically.

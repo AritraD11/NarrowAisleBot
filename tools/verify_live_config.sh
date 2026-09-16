@@ -13,7 +13,7 @@
 # Every check below asks a LIVE NODE, never a file. Run it after every
 # deploy, before the first metre of driving. It is the G1 gate, automated.
 #
-#   ./tools/verify_live_config.sh              # expects Stage G
+#   ./tools/verify_live_config.sh              # expects Stage H
 #
 # Exit 0 = everything matches. Exit 1 = at least one mismatch; the drive
 # you were about to do would have measured something other than what you
@@ -55,7 +55,7 @@ expect() {   # expect <node> <param> <wanted>
 }
 
 echo "════════════════════════════════════════════════════════════════"
-echo " STAGE G — live config verification    $(date '+%Y-%m-%d %H:%M:%S')"
+echo " STAGE H — live config verification    $(date '+%Y-%m-%d %H:%M:%S')"
 echo "════════════════════════════════════════════════════════════════"
 
 echo
@@ -67,8 +67,13 @@ expect "$LIDAR_NODE" range_max  10.0
 echo
 echo "── 2. slam_toolbox ─────────────────────────────────────────────"
 # THE TWO THAT DEFINE THIS STAGE. If either reads the old value, stop:
-# the drive would score the previous configuration under a new name.
-expect /slam_toolbox use_scan_matching false
+# the drive would score the previous configuration under a name it does not
+# have. Stage H flips use_scan_matching back to TRUE over the 5 m cap that
+# Stage G introduced -- the matcher has never run at 5 m on this robot, and
+# that, not the search parameters, is what the drive is testing. A `false`
+# here means slam_nodom_stageB.yaml landed under the wrong filename on the
+# Pi and mapping_full.launch.py is still loading the Stage G file.
+expect /slam_toolbox use_scan_matching true
 expect /slam_toolbox max_laser_range   5.0
 # Frozen on purpose — listed so a silent drift shows up here rather than in
 # a map three sessions from now.
@@ -151,26 +156,54 @@ else
 fi
 
 echo
-echo "── 6. Does loop closure survive use_scan_matching: false? ──────"
-# HYPOTHESIS until this prints something. slam_toolbox gates the SEQUENTIAL
-# matcher with this parameter; loop closure uses a separate matcher object.
-# Read it, do not recall it.
-SRC_HITS="$(grep -rl "SequentialScanMatcher\|LoopScanMatcher\|UseScanMatching" \
-             /opt/ros/"${ROS_DISTRO:-jazzy}"/include/ 2>/dev/null | head -3)"
-if [ -n "$SRC_HITS" ]; then
-  info "headers found:"; echo "$SRC_HITS" | sed 's/^/        /'
-  grep -rh "m_pSequentialScanMatcher\|m_pLoopScanMatcher" \
-       /opt/ros/"${ROS_DISTRO:-jazzy}"/include/ 2>/dev/null \
-       | sed 's/^[[:space:]]*//' | sort -u | head -8 | sed 's/^/        /'
-  ok "source is readable — confirm the two matchers are separate objects"
+echo "── 6. Is the pose graph actually being built? ──────────────────"
+# §17.56 left this as an open HYPOTHESIS: with use_scan_matching false,
+# graph_residuals.py --watch found no publisher on the graph topic twice,
+# and the live guess was that matching-off suppresses pose-graph
+# construction entirely -- in which case do_loop_closing: true was inert and
+# slam_toolbox was a pure scan-stamper. Stage H settles it from the other
+# side. With matching ON the graph MUST publish. A publisher count of zero
+# here means loop closure cannot fire no matter what the config says, and
+# the drive's single most valuable success criterion is unreachable before
+# the first metre. Check it now, not afterwards in the CSV.
+# WARN, not FAIL, and the distinction is deliberate. The graph topic is ONE
+# instrument for detecting closure; slam_toolbox's own log and step changes
+# in the pose CSV's corr_* columns are two more. A quiet graph topic costs
+# instrumentation, it does not invalidate the drive, so it must not block
+# one. Blocking here would repeat the exact failure this script exists to
+# prevent -- a gate that is wrong in the safe-looking direction.
+GRAPH_TOPIC=/slam_toolbox/graph_visualization
+GT_OUT="$(timeout 10 ros2 topic info "$GRAPH_TOPIC" 2>/dev/null)"
+if [ -z "$GT_OUT" ]; then
+  warn "$GRAPH_TOPIC does not exist -- 17.56's suppression hypothesis SURVIVES"
+  info "  Drive anyway, but score loop closure from the slam_toolbox log and"
+  info "  from corr_* step changes in the pose CSV, not from the graph."
 else
-  info "slam_toolbox headers not installed locally (binary install)."
-  info "EMPIRICAL CHECK INSTEAD: watch for 'Loop closure' in the SLAM log"
-  info "during the drive, or run tools/graph_residuals.py --watch and look"
-  info "for moved!=0. Either proves closure is alive with matching off."
+  echo "$GT_OUT" | sed 's/^/        /'
+  PUBS="$(echo "$GT_OUT" | sed -n 's/^Publisher count: *\([0-9]*\).*/\1/p' | tail -1)"
+  if [ "${PUBS:-0}" -ge 1 ]; then
+    ok "pose graph is published ($PUBS publisher) -- closure is reachable"
+    info "  NOT a falsification of 17.56. That hypothesis says matching-OFF"
+    info "  suppresses graph construction; a publisher with matching ON is"
+    info "  exactly what it predicts. What this DOES kill is the rival"
+    info "  explanation -- that the topic never publishes for tooling reasons"
+    info "  (enable_interactive_mode). Silent with matching off, publishing"
+    info "  with it on, leaves 17.56 standing as the best explanation."
+  else
+    warn "publisher count ${PUBS:-0} -- topic exists but nothing publishes"
+    info "  Closure may still fire; the graph just is not being broadcast."
+    info "  Score it from the log and corr_* instead. Drive is still valid."
+  fi
 fi
 
 echo
+echo "── 7. Loop-closure watch, for during the drive ─────────────────"
+info "leave this running in a second terminal while you drive:"
+info "    ros2 run slam_toolbox ... | grep -i \"loop closure\""
+info "or:  python3 tools/graph_residuals.py --watch     (look for moved!=0)"
+info "A loop closure is a STEP change in corr_*; sequential matching is a"
+info "small continuous trickle. Both present is the Stage H success case."
+
 echo "════════════════════════════════════════════════════════════════"
 printf ' %d passed, %d failed, %d warned\n' "$PASS" "$FAIL" "$WARN"
 if [ "$FAIL" -gt 0 ]; then

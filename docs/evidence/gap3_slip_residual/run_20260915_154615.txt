@@ -1,0 +1,57 @@
+
+========================================================================
+  WHEEL FORENSICS   run_20260915_154615
+========================================================================
+  telemetry   4615 samples over 230.9 s (20.0 Hz)
+  geometry    r=0.0762 Ko=0.56069 Ki=0.49069 lateral_scale=0.92
+              slip constant Ko/Ki = 1.142656
+
+------------------------------------------------------------------------
+  POSITION FROM WHEEL ROTATION ALONE
+------------------------------------------------------------------------
+  path driven      9.527 m
+  net displacement 0.002 m   at (-0.002, -0.001)
+  net yaw          -0.02 deg
+  closure          0.002 m = 0.02% of path
+                   (only a closure if the robot physically ended where it started)
+
+------------------------------------------------------------------------
+  SLIP RESIDUAL   FR + 1.142656*FL - 1.142656*RR - RL   [rad/s]
+------------------------------------------------------------------------
+  Zero for ANY rigid non-slipping motion. Non-zero means at least
+  one wheel is not tracking the body.
+  all samples      median 0.0274   p95 0.1054   max 0.2885
+  while moving     median 0.0356   p95 0.1123   max 0.2885
+  worst as rim speed  0.022 m/s
+
+  episodes over 0.5 rad/s: 0
+
+------------------------------------------------------------------------
+  PER WHEEL
+------------------------------------------------------------------------
+          rms_err  max_err   sat%  sign  max_pwm  mean|w|   arc_m
+  FR        0.029    0.314    0.0     0       35    0.060    1.05
+  FL        0.032    0.347    0.0     0       75    1.067   18.77
+  RR        0.025    0.357    0.0     0       36    0.016    0.28
+  RL        0.039    0.410    0.0     0       85    1.142   20.09
+
+  travel spread  0.28 m (RR) .. 20.09 m (RL), ratio 72.37
+  diagonal pairs FR+RL 21.14 m vs FL+RR 19.05 m  -> +9.9%  (biases yaw when non-zero)
+
+------------------------------------------------------------------------
+  WHEELS vs RECORDED ODOM vs SLAM
+------------------------------------------------------------------------
+  wheels vs odom   max divergence 0.0077 m, final 0.0001 m
+    -> odometry_publisher is faithfully integrating what the
+       wheels reported. Any error is upstream (slip, scale) or
+       downstream (SLAM), not in the integration.
+
+                     x         y     |pos|   yaw deg
+  wheels        -0.002    -0.001     0.002     -0.02
+  odom          -0.002    -0.001     0.002     -0.03
+  SLAM map      -0.002    -0.001     0.002     -0.03
+
+  If the robot physically ended on the zero mark, every row above
+  should read ~0 and the ones that do not are that estimate's error.
+
+  wrote docs/evidence/gap3_slip_residual/.json

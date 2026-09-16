@@ -156,11 +156,40 @@ class ESP32Link:
 
     @staticmethod
     def _autodetect():
-        for p in serial.tools.list_ports.comports():
+        """`/dev/esp32` first, always. system/99-aislebot.rules pins it by
+        physical USB port precisely because the ESP32 and the YDLIDAR X4
+        Pro share the same CP2102 chip AND the same factory serial (0001)
+        -- see docs/Research_Journal.md Part V and LiDAR_SLAM_Bringup.md.
+        A description/manufacturer string cannot tell them apart, and
+        list_ports.comports() has no guaranteed order, so scanning by
+        chip identity is exactly the bug the udev rule exists to prevent:
+        this used to return /dev/ttyUSB2 (the LiDAR) as often as
+        /dev/ttyUSB1 (the ESP32), and the LiDAR does not speak this
+        protocol -- every open succeeds, nothing ever answers.
+
+        Falls back to a chip-identity guess only if the symlink is
+        missing (a fresh Pi before the udev rule is installed), and
+        explicitly excludes anything already claimed by /dev/ydlidar so
+        the fallback cannot make the same mistake it exists to avoid.
+        """
+        if os.path.exists("/dev/esp32"):
+            return "/dev/esp32"
+
+        ydlidar_real = os.path.realpath("/dev/ydlidar") if os.path.exists("/dev/ydlidar") else None
+        candidates = [p for p in serial.tools.list_ports.comports()
+                      if os.path.realpath(p.device) != ydlidar_real]
+
+        for p in candidates:
             blob = f"{p.description or ''} {p.manufacturer or ''}"
             if any(k in blob for k in ("CP210", "CH340", "Silicon Labs", "FTDI")):
+                print(f"!! /dev/esp32 not found -- guessed {p.device} by chip "
+                      f"identity. The ESP32 and the YDLIDAR use the same "
+                      f"chip; if this is wrong, pass --port explicitly. "
+                      f"Run 'sudo udevadm control --reload' if "
+                      f"system/99-aislebot.rules is installed but not "
+                      f"applied.", file=sys.stderr)
                 return p.device
-        for p in serial.tools.list_ports.comports():
+        for p in candidates:
             if "USB" in (p.device or ""):
                 return p.device
         return None
@@ -580,7 +609,16 @@ def test_steps(link, args, gains=None, tag="steps"):
             pwm = col(rows, i, 2, True)
             ss = steady_state(act, t_end - 0.5, t_end)
             pk = peak(act, t_step, t_end)
-            st = settling_time(act, t_step, sp)
+            # settling_time()'s "never leaves the band again" check is only
+            # meaningful within THIS step's own window. act is the whole
+            # multi-setpoint run, so left unwindowed it always sees the next
+            # step (or the final return to zero) pull the signal back out of
+            # band later, and returns None regardless of how good the gains
+            # are. Every row in a --test sweep printed "settle: none" for
+            # this reason on 14 Sep 2026, across three gain sets, before this
+            # fix -- not because nothing ever settled.
+            act_window = [(t, v) for t, v in act if t <= t_end]
+            st = settling_time(act_window, t_step, sp)
             win = [p for t, p in pwm if t_step <= t <= t_end]
             sat = 100.0 * sum(1 for p in win if abs(p) >= 250) / len(win) if win else 0.0
             err = ss - sp

@@ -1,7 +1,38 @@
-# Verified working slam_toolbox config for the current (no external
+# ═══════════════════════════════════════════════════════════════════
+# ⛔ SUPERSEDED 3 Sep 2026 — DO NOT DEPLOY THIS FILE.
+#
+# The config that belongs at ~/ros2_ws/slam_nodom.yaml on the Pi is
+# system/slam_nodom_stageB.yaml. That is what tools/pi_audit.sh already
+# hashes the live file against:
+#     "$WS/slam_nodom.yaml:system/slam_nodom_stageB.yaml"
+#
+# This file still carries the PRE-Stage-G values, and the four that
+# matter are the four Stage G changed:
+#     use_scan_matching            true  (stageB: false)
+#     correlation_search_space_dim  0.7  (stageB: 0.3)
+#     max_laser_range              12.0  (stageB: 5.0)
+#     coarse_search_angle_offset  absent (stageB: 0.175)
+#
+# Copying THIS file to the Pi turns the sequential scan matcher back on
+# and silently undoes the only change that has ever driven map->odom
+# corrections to zero (698 s, 18.5 m, two routes, 6994 pose samples,
+# zero events). Nothing would error. The maps would simply fold again,
+# and the cause would look like the robot rather than the deploy.
+#
+# That failure has happened twice already in this project under a
+# different name: §17.32 (tuning committed to git that never reached the
+# robot) and §17.33 (a config landed under a name nothing loads). The
+# filename is the trap both times.
+#
+# Kept, not deleted, because it is the record of what the mapping stack
+# ran from 8 July to 3 Sep and every result in that window was produced
+# by these values.
+# ═══════════════════════════════════════════════════════════════════
+#
+# Verified working slam_toolbox config for the (no external
 # odometry, scan-matching only) LiDAR mapping bringup — pulled directly
 # from the Pi on 8 July 2026. Confirmed exact match with the copy at
-# ~/ros2_ws/slam_nodom.yaml.
+# ~/ros2_ws/slam_nodom.yaml as it stood on that date.
 #
 # Lives directly in the ROS2 workspace ROOT on the Pi (NOT inside any
 # package's config/ folder), and is launched with an absolute path:

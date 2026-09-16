@@ -20,7 +20,10 @@ analysis tools.)
 | `tests/dashboard_goal_roundtrip.py` | PC (needs playwright) | Drives the real dashboard page in headless Chromium. Proves a tap becomes the goal you meant — **position AND heading** — that the goal-marker and robot-nose renderers agree, that a stale canvas cache self-repairs, and that a command which cannot be delivered is never reported as sent. Guards the §17.49 fixes. |
 | `verify_axis_chain.py` | anywhere (stdlib only) | Proves `W→+Y, S→−Y, D→+X, A→−X` by running the real drive arithmetic end to end, and **fails if the §17.38 frame fix is edited back out**. Run it before and after touching anything axis-related. |
 | `pi_audit.sh` | Pi | Read-only inventory — disk, network, services, deployed code, run data, cleanup candidates. Deletes nothing. With `--online`, diffs every deployed source file against GitHub. |
-| `pi_clean.sh` | Pi | Removes accumulated waste (journald, `~/.ros/log`, stale snaps, old kernels, dead workspace code). **Dry run by default**; `--apply` to execute. |
+| `pi_clean.sh` | Pi | Removes accumulated waste (journald, rotated `/var/log`, `~/.vscode-server`, `~/.ros/log`, stale snaps, old kernels, dead workspace code). **Dry run by default**; `--apply` to execute. |
+| `tests/scan_relay_gate.py` | anywhere (stdlib only) | Drives `scan_relay.py`'s LiDAR quality gate — range floor/cap, the K-of-N persistence gate, live parameter validation. 47 checks against the real methods, `ast`-extracted from the shipped source. Proves the gate is off by default, never alters a range value, and refuses a configuration that could never pass a beam. |
+| `tests/dashboard_lidar.py` | anywhere (stdlib only) | **Cross-file.** The LIDAR panel lives in `phone_dashboard.py` and its knobs live in `scan_relay.py`, and those two deploy separately — every way they can disagree is silent. 60 checks that the parameter names, ROS types and defaults match on both sides, that every preset validates, that every button maps to a real preset, that every element the JS reaches for exists, and that every message it sends has a dispatch case. |
+| `tests/dashboard_html_syntax.py` | anywhere (needs `node`) | **Run this before every commit that touches `DASHBOARD_HTML`.** 15 Sep 2026: a `\'` inside the Python string was valid Python-escape syntax but broke the JS it produced, and it took the ENTIRE dashboard offline (`node --check` on the raw file text passed cleanly, because the raw file text still has the escape intact — the bug only exists in what Python actually *evaluates* the string to). This test `ast.literal_eval`s the real `DASHBOARD_HTML` assignment — the same thing `python3` does on import — and runs `node --check` against THAT, plus a direct sweep for any backslash surviving into the served page at all. See `CLAUDE.md` for the full account. |
 
 ---
 
@@ -296,9 +299,15 @@ paste. It **only reads** — nothing is deleted, moved, or restarted.
 
 ```bash
 curl -sSL -o /tmp/pi_audit.sh \
-  https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/mapping-autonomous-nav-695glw/tools/pi_audit.sh
+  https://raw.githubusercontent.com/AritraD11/NarrowAisleBot/claude/aps-report-draft-2nywbq/tools/pi_audit.sh
 bash /tmp/pi_audit.sh --online
 ```
+
+On `aislebot-ap` (no uplink), `curl` on the Pi itself can't reach GitHub —
+fetch the script on Windows and `scp` it over instead, same as any other
+tool deployment, then run it locally on the Pi. `--online`'s own internal
+fetches face the same constraint: they only succeed if the Pi itself is on
+a network with a real route out (eduroam), not just the Pi's own AP.
 
 `--online` adds section 16, which fetches each deployed source file from
 GitHub and reports `match` / `DIFFERS` / `MISSING-ON-PI` / `EXTRA`. That is
@@ -368,7 +377,7 @@ tools\sync_bench_logs.ps1
 
 Defaults to `aritra@10.42.0.1` (the fixed AisleBot-Pi AP address),
 `~/aislebot_logs` on the Pi, and
-`C:\Users\aritradas\Documents\mecanum robot ROS2\Encoder readings\Reading`
+`C:\Users\aritradas\Documents\NAB\Encoder readings\Reading`
 locally. Override any of the three:
 
 ```powershell

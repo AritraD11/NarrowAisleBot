@@ -36,6 +36,43 @@ Eight days out, that is the single largest schedule risk in the project, and
 it is a decision rather than a task. Deciding it wrong costs a day of
 merging; deciding it late costs more.
 
+**Decided, 15 Sep: v2 is the submission.** Tonight's material was ported into
+v2 §4.6.5, its phantom-yaw table and the four datasheet corrections;
+`README.md` and both pandoc commands now point at v2; the older draft carries
+a superseded banner and is kept only for its figures.
+
+That switch leaves one debt, now tracked in `docs/aps_report/README.md`. **v2
+references 21 figures and the superseded draft references 29.** The ten
+difference includes `fig13_lidar_mirror` and `fig14_lidar_placement`, which
+carry the scan-reflection fault and the mount geometry that §4.5 otherwise
+describes in words alone, and `fig30_dashboard_screenshots`, the only
+photographic evidence in the repository that the operator interface works.
+Placing or explicitly dropping those ten is an editorial job nobody has done,
+and a figure that exists, is generated, and is referenced by nothing is the
+easiest thing in that folder to lose.
+
+### The nine [CONFIRM] markers, which are a submission checklist nobody has worked
+
+`README.md` states the rule: none should survive into the final version. Nine
+survive in v2. One was resolvable from the repository and was resolved on
+15 Sep; the rest need a person.
+
+| Where | What it needs | Who |
+|---|---|---|
+| §4.6 UVGI figure, "five sensors" | **Resolved 15 Sep.** The generator draws four boxes and mislabelled itself. Source fixed; the PNG still needs regenerating on a machine with matplotlib | done |
+| Header, §1 | Departmental report format and length | supervisor or department |
+| Reference [1] | Full bibliographic details for the asymmetric narrow-aisle robot paper | you, from the archived PDF |
+| Reference [2] | Full citation for Galati et al., the source of the 4.56°-over-10 m figure that motivates inertial fusion | you |
+| UVGI section | Whether it may be circulated; no patent application filed | supervisor or IRCC |
+| Objective time split | Honest estimate of working-time fraction per objective | you |
+| Intended outputs | Target venues, and whether a conference paper is expected | supervisor |
+| Objective 3 numbers | Figures reproduced from the proposal's reading rather than re-extracted from full text; needs a per-DOI retraction sweep | you |
+
+Reference [2] is the one to chase first. The 4.56°-over-10 m drift figure is
+load-bearing for the inertial-sensor argument, it is cited in the summary, and
+an uncited number supporting the report's main hardware recommendation is
+exactly what a committee asks about.
+
 ---
 
 ## 2. What today actually produced

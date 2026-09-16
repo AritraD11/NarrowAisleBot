@@ -85,8 +85,29 @@ the sensor input instead, for the first time in the project, found 74.8 to
 78 % of LiDAR rays flipping between valid and invalid between consecutive
 scans with the robot stationary, and only 47.4 % valid at any instant. The
 scan matcher is handed a different point cloud every sweep. The YDLIDAR X4 Pro
-is a triangulation scanner rated at under 2 % of range and it is performing to
-that specification. The specification is not sufficient for the task.
+is a triangulation scanner and it is performing to its published specification.
+The specification is not sufficient for the task. That specification is worth
+quoting exactly, because this report previously paraphrased it as "under 2 % of
+range" and the vendor datasheet says no such thing: the figure is 2 cm absolute
+below 1 m, 3.5 % of range from 1 to 6 m, and **no accuracy specification
+whatsoever above 6 m**, despite the sensor being rated to range to 10 m. At the
+1.6 m median scan range measured in this laboratory that is 56 mm of expected
+error per ray, not the 32 mm the earlier paraphrase implied.
+
+**The front end was then put back and measured, which is the year's cleanest
+result.** Restoring scan matching over the reduced 5 m range, with nothing else
+changed and against a matching-off run of the same trajectory on the same day,
+degraded closure at the start mark from 6.4 mm to 206.7 mm: a factor of 32,
+with the map verdict falling from suspect to folded and the occupied wall
+length inflating 2.8-fold as the same wall was drawn in more places. The
+drive's own wheel odometry closed at 16.2 mm, so the estimator was handed a
+healthy prior and returned a worse answer. Underneath the verdict sits the
+mechanism: all seventeen corrections fired at a mean interval of 0.183 m of
+travelled distance, spread one centimetre across the whole run. They track
+pose-graph node creation rather than any disagreement between scan and prior,
+which is why no loop closure has ever been observed to fire on this robot, and
+why five sessions of parameter search could not have succeeded. §4.6.5 reports
+this in full.
 
 The response was to select the better of two measured estimators rather than
 continue tuning the worse one. Disabling the sequential scan matcher, so that
@@ -368,7 +389,7 @@ carried into Appendix D as an open item.
 | Encoders | FR and FL: GTK08 at 186,264 CPR; RR and RL: optical at 93,132 CPR |
 | Real-time controller | ESP32-WROOM-32, FreeRTOS, 100 Hz loop |
 | Host | Raspberry Pi 5, Ubuntu 24.04, ROS 2 Jazzy |
-| LiDAR | YDLIDAR X4 Pro, triangulation, rated under 2 % of range |
+| LiDAR | YDLIDAR X4 Pro, triangulation; 2 cm absolute below 1 m, 3.5 % of range 1 to 6 m, unspecified above 6 m |
 | Local controller | MPPI, omnidirectional motion model |
 | Power | LiFePO₄ 12.8 V / 30 Ah; boost to 24 V drive, buck to 5 V logic |
 | Cargo arm | 2 × NEMA 23 lateral, 1 × NEMA 34 vertical, 3-tube staged UV-C |
@@ -571,7 +592,7 @@ correlative front ends approximate [6], the nonlinear least-squares pose-graph
 formulation [7], and the Bayesian log-odds occupancy update [8]. That last
 connection turned out to be practically useful: the three-value convention the
 map files use, 0 occupied, 205 unknown, 254 free, is the saturated log-odds
-value, so the recurring "unknown cell" fraction of §4.6.5 is not a separate
+value, so the recurring "unknown cell" fraction of §4.6.6 is not a separate
 diagnostic but a direct statement that those cells never accumulated enough
 evidence to move off a prior of one half.
 
@@ -717,9 +738,20 @@ badly. It is handed a different point cloud every sweep, and no search
 parameter can fix a moving objective function.
 
 The sensor is behaving correctly. The YDLIDAR X4 Pro is a triangulation scanner
-rated at under 2 % of range, which is 32 mm at the 1.6 m median range measured
-in this lab and 200 mm at 10 m. The measured 90th-percentile scatter of 22.8 mm
-is inside specification. The sensor is performing to specification and the
+whose datasheet specifies 2 cm of absolute error below 1 m and 3.5 % of range
+between 1 and 6 m, with no accuracy figure given at all beyond 6 m even though
+the sensor is rated to range to 10 m. At the 1.6 m median range measured in this
+lab that is 56 mm. The measured 90th-percentile scatter of 22.8 mm is inside
+specification, comfortably.
+
+This paragraph previously quoted "under 2 % of range", giving 32 mm at 1.6 m and
+200 mm at 10 m. That figure appears nowhere in the vendor document and was
+propagated through this project for months; it is corrected here, and the
+correction makes the argument stronger rather than weaker, because the real
+specification is looser than the one the argument was built on. The absence of
+any specification beyond 6 m is also the cleanest justification available for
+the 5 m range cap adopted in Stage G: past that distance the vendor declines to
+say what the sensor does. The sensor is performing to specification and the
 specification is not adequate for what is being asked of it. That is a
 conclusion pointing at hardware, and the reason to exhaust the software levers
 first was to justify it rather than guess at it.
@@ -744,6 +776,9 @@ gone. Whether the resulting map is geometrically true over a real route is the
 next run's question, and loop closure running on a separate matcher is expected
 to survive but is recorded as a hypothesis rather than as a result.
 
+That hypothesis was tested on 15 September and it does not survive in the form
+it was written. §4.6.5 reports the test.
+
 #### 4.6.4 Phantom yaw: a measurement that changes the roadmap
 
 Photogrammetry on the run video, using the floor tile grout as a world-static
@@ -754,10 +789,41 @@ repository. Two runs, on different routes:
 |---|---|---|---|---|
 | Two circles | 723.8° | −3.85° | −0.03° | −28.0° read as −27.07° |
 | 12 m out-and-back | 364.5° | −4.49° | +0.00° | −19.4° read as −18.50° |
+| Single circle, 15 Sep | 361.7° | −1.74° | operator's eye only | none |
 
-The robot physically returned to its starting heading both times. The estimator
-did not. Phantom yaw rates of 0.60°/m and 0.37°/m bracket the 0.58°/m this
+The robot physically returned to its starting heading every time. The estimator
+did not. Phantom yaw rates of 0.60, 0.37 and 0.55 °/m bracket the 0.58°/m this
 project measured over 18 m in August and attributed to physical slip.
+
+The third row is weaker evidence than the first two and is marked as such: it
+was recorded during the Stage H drive of §4.6.5, which carried no video, so the
+physical return heading is the operator's judgement rather than a validated
+measurement. It is reported because of what it does to the analysis, not
+because of its own quality.
+
+**What the error is proportional to, which is the useful question and was not
+asked until an outside review asked it.** Four candidate models, scored across
+the three runs by the ratio of their worst to their best fit:
+
+| Model | Spread, worst over best |
+|---|---|
+| ∝ distance travelled | **1.60×** |
+| ∝ elapsed time | 2.27× |
+| ∝ rotation commanded | 2.56× |
+| constant per run | 2.58× |
+
+Distance is the tightest and rotation is close to the worst, which matters
+because rotation is the intuitive candidate and the one a yaw-rate scale error
+would produce. The sharpest single comparison is the second and third rows:
+**near-identical commanded rotation, 364.5° against 361.7°, and heading error
+differing by a factor of 2.6 while distance differs by a factor of 3.8.** Two
+drives that turn through the same angle and accumulate very different heading
+error is close to a direct refutation of any multiplicative bias on yaw rate.
+
+A distance-proportional heading error points instead at wheel-radius or
+encoder-scale error, which is precisely the class the slip-residual instrument
+names as invisible to itself. Three points is not enough to settle a mechanism,
+and this is reported as a direction for year two rather than as a finding.
 
 The consequence is not small. Physical slip cannot be fixed by better
 estimation; estimator error can. A substantial fraction of what has been
@@ -776,7 +842,113 @@ caught only because a frame with a known answer was checked before the result
 was believed. A measurement that cannot fail its own check is not a
 measurement.
 
-#### 4.6.5 Why no map has been accepted
+#### 4.6.5 Putting the front end back, and measuring what it does
+
+Disabling the scan matcher on 3 September left an obvious objection open. Every
+measurement of the matcher's behaviour in this project had been taken with the
+LiDAR admitting returns out to 10 or 12 m, and the same change that disabled the
+matcher also cut `max_laser_range` to 5 m. On a triangulation scanner whose
+vendor gives no accuracy figure at all beyond 6 m, that cut removes exactly the
+long, weak returns most likely to have been poisoning the match. The matcher had
+never been scored on the input it would now receive.
+
+On 15 September it was turned back on and nothing else was changed. Predictions
+and revert criteria were registered before the drive and are reproduced from the
+pre-drive document unedited:
+
+> REVERT on any single-step correction ≥ 0.15 m, a FOLDED map verdict, return to
+> mark > 0.15 m, or visible tearing. KEEP only if corrections stay small and
+> frequent, at least one loop closure fires, closure at the mark is ≤ 9.9 cm,
+> doubled walls are < 1.0 %, and unknown percentage is roughly unchanged.
+
+Three of the four revert triggers fired. One keep criterion was met, and it was
+the one predicted to be neutral.
+
+The comparison is unusually clean, because a matching-off run of the same
+trajectory existed from the same day, on the same quality gate and the same
+configuration, with only `use_scan_matching` differing:
+
+| | Matching off | Matching on | |
+|---|---|---|---|
+| Path length | 3.163 m | 3.193 m | matched to 1 % |
+| Closure at the mark | **6.4 mm** | **206.7 mm** | 32× worse |
+| Heading closure | −0.27° | −4.82° | 18× worse |
+| `map→odom` corrections | 0 of 885 samples | 17, smallest 107 mm | |
+| Map verdict | SUSPECT | **FOLDED** | |
+| Doubled walls | 0.8 % | 6.6 % | 8× worse |
+| Skeleton junctions per 10 m | 1.92 | 9.93 | 5× worse |
+| Occupied wall length | 26.1 m | 72.5 m | 2.8× more |
+
+The wall-length row is the one that explains the others. Same room, same circle,
+essentially the same path, and the matched map contains 2.8 times as many
+occupied cells. The matcher is not finding more wall; it is drawing the same
+wall in more places, which is what the doubled-wall and junction counts measure
+from two other directions. It also disposes of the single figure that looks like
+an improvement: unknown cells fell from 84.6 % to 72.6 %, but a smeared wall
+paints cells that were previously unknown, so part of that apparent coverage
+gain is the defect itself.
+
+A within-run control rules out the obvious alternative explanation, that the
+matching-on drive simply had worse odometry. It did not. That drive's own wheel
+odometry closed at 16.2 mm over 3.193 m, 0.51 % of path, inside this platform's
+measured 1.1 to 1.5 % band and the same order as the 6.4 mm of the matching-off
+run. The odometry was healthy. The matcher took a 16 mm estimate and returned a
+207 mm one.
+
+**The mechanism, which is worth more than the verdict.** Every one of the
+seventeen corrections fired at a fixed cadence in odometry distance:
+
+| Statistic | Value |
+|---|---|
+| Mean gap between corrections | 0.183 m |
+| Minimum gap | 0.176 m |
+| Maximum gap | 0.186 m |
+| `minimum_travel_distance` in configuration | 0.200 m |
+
+A one-centimetre spread across seventeen events. The corrections are not
+responses to the scan disagreeing with the odometric prior. They fire once per
+pose-graph node, on a distance schedule, whether or not there is anything to
+correct. An earlier session had noticed this pattern and named it a metronome;
+it has now survived three distinct search-parameter sets and a halving of the
+admitted laser range, which is the strongest available evidence that this was
+never a tuning problem and that five sessions of parameter search were searching
+the wrong space.
+
+It also answers a question this report could not previously answer. **No loop
+closure has ever been observed to fire on this robot.** A closure is a step
+correction arriving off-cadence, when the graph recognises a place it has seen
+before. Not one of these seventeen was off-cadence. The pose graph itself was
+confirmed present before the drive, so the earlier suspicion recorded in §4.6.3,
+that disabling the matcher suppressed graph construction and left
+`do_loop_closing` inert, is no longer needed to explain the absence. Under
+matching-on the graph is built, the matcher runs, and closure still does not fire
+on a circle that returns to its own start. What remains are the loop-match
+response thresholds and a minimum chain length of eight nodes, which a 3.2 m
+circle at 0.18 m per node can only just reach.
+
+**What this does not establish, stated because it bears on how much weight the
+result can carry.** The trajectory driven was a tight circle, which an earlier
+session had already flagged as degenerate for scan matching because it presents
+the same walls from continuously rotating vantage points. The planned test was a
+12 m out-and-back route with an existing matching-off baseline, and that test
+remains unrun. This result therefore establishes that the 5 m cap does not rescue
+the matcher, and that the corrections are schedule-driven rather than
+evidence-driven, but it does not establish how the matcher behaves on
+non-degenerate geometry. The revert criteria were written unconditionally and
+fired regardless.
+
+**How the system should therefore be described.** With the front end disabled,
+the `map→odom` transform is constant, no loop closure has been observed, and the
+pose underlying the map is pure wheel odometry. Describing that as SLAM without
+qualification would not survive an examiner asking to see a loop close. The
+accurate description is that the system runs a pose-graph SLAM back end with the
+front-end scan matcher deliberately disabled, on the evidence above; that the map
+is built from LiDAR returns under wheel-odometry pose; and that loop closure is
+configured and reachable but has never been observed to fire, for the reason the
+cadence measurement gives. That is a narrower claim than a working SLAM stack and
+a considerably better supported one.
+
+#### 4.6.6 Why no map has been accepted
 
 ![The three commissioning maps](figures/fig29_field_maps.png)
 
@@ -937,9 +1109,13 @@ Every one of those appears in §4 applied to the robot.
 seven measured channels, two actuators, three concurrent wireless channels, two
 independent control paths, and four monitored zones across two radio-isolated
 deployments sharing one database, with no cloud dependency.
-**[CONFIRM]** the figure's own heading says "five sensors" where the bill of
-materials lists four sensor packages (SCD40, MPM10-AS, MQ-135, GUVA-S12SD).
-Reconcile before submission; the text above uses the bill of materials.
+Resolved 15 Sep 2026: the generator `figure_src/f_iot.py` draws exactly four
+sensor boxes (SCD40, MPM10-AS, MQ-135, GUVA-S12SD) and then labelled itself
+"five sensors" in two places. Its own drawing settles it, and the seven measured
+channels are three from the SCD40, two from the MPM10-AS and one each from the
+MQ-135 and GUVA-S12SD. The generator is corrected. **The committed PNG still
+reads "five" and must be regenerated** (`python3 figure_src/f_iot.py`) on a
+machine with matplotlib, which the environment this was fixed in did not have.
 
 ![The unit as built](figures/fig31_uvgi_assembly.png)
 
@@ -1298,10 +1474,21 @@ the gap the year's work opened and the most defensible item in this section,
 because it rests on measurement rather than on a literature shortage. The
 low-cost 2D SLAM literature is built on a sensor tier whose specified accuracy,
 quantified against a corridor-width error budget, does not close: a
-triangulation scanner at 2 % of range gives 32 mm at 1.6 m, against a lateral
-budget of a few centimetres over 10 m. Separately, a substantial fraction of the
-heading drift this project attributed to physical slip is estimator error
-recoverable with a gyroscope. The open question is the minimum sensor
+triangulation scanner specified at 3.5 % of range gives 56 mm at 1.6 m, against
+a lateral budget of a few centimetres over 10 m, and its vendor specifies no
+accuracy at all beyond 6 m. Separately, a substantial fraction of the heading
+drift this project attributed to physical slip is estimator error recoverable
+with a gyroscope.
+
+The measurement in §4.6.5 sharpens this gap rather than settling it. Scan
+matching, the mechanism by which LiDAR precision is supposed to reach pose at
+all, was measured on this platform to degrade pose by a factor of 32 against
+odometry alone. An error budget that compares LiDAR ray scatter against
+odometric drift therefore compares the wrong two quantities, because the ray
+scatter only reaches the pose estimate through a front end that does not work
+here. The honest form of the gap is that with the front end disabled there is no
+closed-loop correction of heading at any range, so the binding constraint is not
+sensor precision but the absence of an independent heading reference. The open question is the minimum sensor
 complement, and its cost, that closes a stated error budget on a platform of
 this class. The field answers that question by convention rather than by
 measurement.
@@ -1558,9 +1745,9 @@ for the full review.
 | Gate | Criterion | State |
 |---|---|---|
 | G1 | Every pending file hashed on arrival; every changed parameter confirmed on the live node | **Passed** |
-| G2 | No correction above 0.30 m; largest heading step under 10° | **Passed** at 0.202 m and 4.57°, on a shorter test than the gate specifies |
+| G2 | No correction above 0.30 m; largest heading step under 10° | **Passed** at 0.202 m and 4.57° with the front end disabled, on a shorter test than the gate specifies. With the front end enabled (§4.6.5) the same gate **fails**: 0.309 m and 6.22° |
 | G3 | Control loop at or above 15 Hz sustained; no transform-extrapolation errors in five minutes | **Open**, measured at 7.5 to 13.7 Hz |
-| G4 | Map not folded; doubled walls under 1.0 %; unknown under 50 %; return to mark under 0.15 m | **One of four met, once** (0.085 m return) |
+| G4 | Map not folded; doubled walls under 1.0 %; unknown under 50 %; return to mark under 0.15 m | **One of four met, once** (0.085 m return). Unknown % is the sub-criterion that fails hardest and it did not move across seven drives on 15 Sep, three LiDAR quality gates or the front-end A/B (72.6 to 84.6 %) |
 | G5 | Localisation reaches active on a saved map; pose covariance converges | **Never executed** |
 | G6 | Five consecutive tapped goals, each within 0.15 m and 10° measured on the floor | **Partially met** on a live map |
 | G7 | Three taught locations recalled after a full power cycle | **Never executed** |

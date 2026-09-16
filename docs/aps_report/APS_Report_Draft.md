@@ -1,3 +1,18 @@
+> ## ⚠ SUPERSEDED, 15 Sep 2026. Do not edit. Do not submit.
+>
+> The submission draft is **[`APS_Report_Draft_v2.md`](APS_Report_Draft_v2.md)**,
+> which is structured around all three objectives and carries the
+> worker-fatigue framework this file does not cover.
+>
+> This file is kept for one reason: it references ten figures that v2 does not
+> yet place. `README.md` lists them. Once those are placed in v2, or explicitly
+> dropped, this file can go.
+>
+> Edits made here after this date will not reach the submission. The Stage H
+> material in §8.5, the three-run phantom-yaw table in §8.4 and the datasheet
+> corrections throughout were all ported to v2 on 15 Sep; they exist in both
+> and the v2 copy is the live one.
+
 # Annual Progress Report — Year 1
 
 ## An Asymmetric Mecanum Platform for Autonomous Operation in Narrow Aisles

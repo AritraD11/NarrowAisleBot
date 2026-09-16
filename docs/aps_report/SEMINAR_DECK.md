@@ -1,6 +1,7 @@
 # APS seminar deck
 
-The slide deck that accompanies `APS_Report_Draft.md`. It exists twice.
+The slide deck that accompanies `APS_Report_Draft_v2.md`, the submission
+draft as of 15 Sep 2026. It exists twice.
 
 | | What it is |
 | --- | --- |
@@ -87,7 +88,7 @@ the deck each answer lives.
 ## Keeping the deck in step with the report
 
 The deck asserts the same numbers as the report. When a figure in
-`APS_Report_Draft.md` changes, the matching slide needs the same edit. The
+`APS_Report_Draft_v2.md` changes, the matching slide needs the same edit. The
 quantities that appear in both:
 
 - 403 / 333 mm wheel radii from centre, 0.561 / 0.491 m yaw coefficients (§5)

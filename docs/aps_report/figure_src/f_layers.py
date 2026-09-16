@@ -35,9 +35,9 @@ L = [
  ('Safety chain, collision monitor through to the wheels', 'rate',
   'confirmed end to end; issues stale-scan warnings under the same CPU load'),
  ('Scan matching into the pose estimate', 'open',
-  'measured to increase closure error, 0.229 m to 0.477 m on an 18 m drive and\n'
-  '2.58 cm to 6.2 cm on a 38 s square, so it was disabled on measured evidence.\n'
-  'A re-enabled configuration with the range cap now settled is prepared and not yet driven'),
+  'measured to increase closure error on three routes, most tightly at the 5 m cap where\n'
+  'the same drive gave 16.2 mm on wheel odometry and 206.7 mm matched; corrections fire on a\n'
+  '0.183 m odometry cadence, not on scan disagreement. Disabled on that evidence; perimeter A/B owed'),
  ('A commissioning map meeting all four acceptance criteria', 'open',
   'three of four met: verdict not folded, doubled walls 0.7-1.03 %, return to mark\n'
   '6.4-80.6 mm. Coverage fails at 77.6-84.6 % unclassified because the available\n'

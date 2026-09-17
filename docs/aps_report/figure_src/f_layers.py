@@ -6,7 +6,7 @@ import matplotlib.patches as mp
 # bands: 'measured' | 'rate' | 'open'
 L = [
  ('Motor control, ESP32, PID with feedforward, 100 Hz', 'measured',
-  'per-wheel RMS 0.040-0.047 rad/s over 26 468 bench samples, 0.066-0.077 rad/s under\n'
+  'per-wheel RMS 0.040-0.047 rad/s over 26 468 bench samples, 0.066-0.074 rad/s under\n'
   'chassis load over 35 248; no channel saturated in any recorded run'),
  ('Encoders and level-shifted return path', 'measured',
   'quadrature decoded on hardware counters; travel-spread ratio 1.00 on a\n'
@@ -39,9 +39,9 @@ L = [
   'the same drive gave 16.2 mm on wheel odometry and 206.7 mm matched; corrections fire on a\n'
   '0.183 m odometry cadence, not on scan disagreement. Disabled on that evidence; perimeter A/B owed'),
  ('A commissioning map meeting all four acceptance criteria', 'open',
-  'three of four met: verdict not folded, doubled walls 0.7-1.03 %, return to mark\n'
-  '6.4-80.6 mm. Coverage fails at 77.6-84.6 % unclassified because the available\n'
-  'test area permits a traversable loop of only a few metres'),
+  'three of four met on the 15 Sep maps: not folded, doubled walls 0.7-2.9 %, return\n'
+  'to mark from 6.4 mm. Coverage sits at 73.0-84.6 % unclassified against a 50 %\n'
+  'threshold, set by a test area permitting a traversable loop of only a few metres'),
  ('Localisation against a previously saved map', 'open',
   'requires an accepted map, the row above; not yet exercised for that reason'),
  ('Inertial measurement and fused state estimation', 'open',

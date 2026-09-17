@@ -142,7 +142,7 @@ g1.set_title('(a) The same controller, unloaded and loaded', loc='left')
 
 g2.bar(xx, inc, 0.55, color=C['fixed'], edgecolor='k', lw=0.5)
 g2.axhspan(10, 30, color=C['command'], alpha=0.16, zorder=0)
-g2.text(-0.42, 35.0, 'the 10–30 % band predicted in\nPID_Calibration.md §7, before the run',
+g2.text(-0.42, 35.0, 'the 10–30 % band predicted\nbefore the run',
         ha='left', fontsize=7.4, color='#7a3e00')
 for i, v in enumerate(inc):
     g2.text(i, v+0.9, f'{v:+.1f} %', ha='center', fontsize=8)
@@ -151,8 +151,9 @@ g2.set_ylabel('increase under load (%)')
 g2.set_title('(b) The prediction, tested', loc='left')
 
 fig.suptitle('Ground-load feedforward, measured. The increase was predicted in advance '
-             'at 10–30 %;\nall four motors land inside that band, at a mean of '
-             f'{np.mean(inc):.0f} %.',
+             'at 10–30 %.\n'
+             f'Three of the four motors fall inside that band and the fourth sits '
+             f'{max(inc)-30:.1f} points above it, at a mean of {np.mean(inc):.0f} %.',
              fontsize=9.5, y=1.05, x=0.02, ha='left')
 plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig10_ground_load.png'); plt.close()
 print('ground-load fig ok')

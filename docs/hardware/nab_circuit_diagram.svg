@@ -9,7 +9,7 @@
 <marker id="a_enc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6A1B9A"/></marker>
 </defs>
 <text x="40" y="46" font-size="27" font-weight="bold" fill="#17202A">NarrowAisleBot &#8212; deployed electronics</text>
-<text x="40" y="70" font-size="13.5" fill="#5D6D7E">Base chassis power distribution, drive control and odometry feedback. Pin assignments per Master_Reference.md &#167;4 and Bench_Test_Map.md.</text>
+<text x="40" y="70" font-size="13.5" fill="#5D6D7E">Base chassis power distribution, drive control and odometry feedback.</text>
 <text x="1180" y="34" font-size="11.5" font-weight="bold" fill="#17202A">RAILS</text>
 <line x1="1180" y1="52" x2="1206" y2="52" stroke="#7B1E1E" stroke-width="3.4"/>
 <text x="1213" y="56" font-size="11.5" fill="#5D6D7E">12.8 V battery</text>
@@ -86,13 +86,14 @@
 <text x="638.0" y="594" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">Arduino Mega 2560</text>
 <text x="638.0" y="613" font-size="11.5" fill="#5D6D7E" text-anchor="middle">/dev/mega &#183; 115200 bd</text>
 <text x="638.0" y="628" font-size="11.5" fill="#5D6D7E" text-anchor="middle">arm + UV lighting (v8)</text>
-<rect x="880" y="452" width="250" height="152" rx="7" fill="#FFFFFF" stroke="#1565C0" stroke-width="2"/>
-<rect x="880" y="452" width="250" height="5" rx="2.5" fill="#1565C0"/>
-<text x="1005.0" y="476" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">ESP32-WROOM-32</text>
-<text x="1005.0" y="495" font-size="11.5" fill="#5D6D7E" text-anchor="middle">/dev/esp32 &#183; 921600 bd</text>
-<text x="1005.0" y="510" font-size="11.5" fill="#5D6D7E" text-anchor="middle">hardware PCNT quadrature</text>
-<text x="1005.0" y="525" font-size="11.5" fill="#5D6D7E" text-anchor="middle">PID @ 50 Hz &#183; Kp50 Ki30 Kd3</text>
-<text x="1005.0" y="540" font-size="11.5" fill="#5D6D7E" text-anchor="middle">AMS1117 &#8594; 3.3 V domain</text>
+<rect x="880" y="446" width="250" height="162" rx="7" fill="#FFFFFF" stroke="#1565C0" stroke-width="2"/>
+<rect x="880" y="446" width="250" height="5" rx="2.5" fill="#1565C0"/>
+<text x="1005.0" y="470" font-size="15" font-weight="bold" fill="#17202A" text-anchor="middle">ESP32-WROOM-32</text>
+<text x="1005.0" y="489" font-size="11.5" fill="#5D6D7E" text-anchor="middle">/dev/esp32 &#183; 921600 bd</text>
+<text x="1005.0" y="504" font-size="11.5" fill="#5D6D7E" text-anchor="middle">hardware PCNT quadrature</text>
+<text x="1005.0" y="519" font-size="11.5" fill="#5D6D7E" text-anchor="middle">PID @ 100 Hz &#183; Kp 45 &#183; Ki 250 &#183; Kd 0.5</text>
+<text x="1005.0" y="534" font-size="11.5" fill="#5D6D7E" text-anchor="middle">feedforward Kff 37.3&#8211;38.4 + Kstat 8 PWM</text>
+<text x="1005.0" y="549" font-size="11.5" fill="#5D6D7E" text-anchor="middle">AMS1117 &#8594; 3.3 V domain</text>
 <path d="M 370,500 L 520,500" fill="none" stroke="#37474F" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_sig)"/>
 <rect x="430.1" y="480" width="29.8" height="18" rx="3" fill="#FFFFFF" opacity="0.95"/>
 <text x="445" y="493" font-size="11" font-weight="bold" fill="#37474F" text-anchor="middle">USB</text>
@@ -103,8 +104,8 @@
 <path d="M 756,528 L 880,528" fill="none" stroke="#37474F" stroke-width="2.6" marker-end="url(#a_sig)" marker-start="url(#a_sig)"/>
 <rect x="756.9" y="508" width="122.2" height="18" rx="3" fill="#FFFFFF" opacity="0.95"/>
 <text x="818" y="521" font-size="11" font-weight="bold" fill="#37474F" text-anchor="middle">USB serial 921600</text>
-<rect x="720.0" y="537" width="196.0" height="17" rx="3" fill="#FFFFFF" opacity="0.95"/>
-<text x="818" y="549" font-size="10" font-weight="normal" fill="#5D6D7E" text-anchor="middle">&#60;V,fr,fl,rr,rl&#62; / CSV telemetry</text>
+<rect x="672.0" y="547" width="196.0" height="17" rx="3" fill="#FFFFFF" opacity="0.95"/>
+<text x="770" y="559" font-size="10" font-weight="normal" fill="#5D6D7E" text-anchor="middle">&#60;V,fr,fl,rr,rl&#62; / CSV telemetry</text>
 <path d="M 628,384 L 628,416 L 245,416 L 245,448" fill="none" stroke="#EF6C00" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v5)"/>
 <rect x="415.1" y="396" width="29.8" height="18" rx="3" fill="#FFFFFF" opacity="0.95"/>
 <text x="430" y="409" font-size="11" font-weight="bold" fill="#EF6C00" text-anchor="middle">5 V</text>
@@ -153,7 +154,7 @@
 <path d="M 300,786 L 276,786 L 276,837 L 258,837" fill="none" stroke="#D32F2F" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v24)"/>
 <path d="M 300,888 L 276,888 L 276,917 L 258,917" fill="none" stroke="#D32F2F" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v24)"/>
 <path d="M 300,912 L 276,912 L 276,997 L 258,997" fill="none" stroke="#D32F2F" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_v24)"/>
-<text x="330" y="1204" font-size="10.5" fill="#5D6D7E">Motor leads: Red &#8594; MxA, Black &#8594; MxB, identical on all four. Left/right direction handled in firmware via MOTOR_DIR_SIGN[].</text>
+<text x="330" y="1204" font-size="10.5" fill="#5D6D7E">Motor leads: Red &#8594; MxA, Black &#8594; MxB, identical on all four. Left and right direction is handled in firmware by a per-motor sign table.</text>
 <rect x="660" y="726" width="200" height="96" rx="7" fill="#FFFFFF" stroke="#1565C0" stroke-width="2"/>
 <rect x="660" y="726" width="200" height="5" rx="2.5" fill="#1565C0"/>
 <text x="760.0" y="750" font-size="13.5" font-weight="bold" fill="#17202A" text-anchor="middle">PWM + DIR</text>
@@ -207,7 +208,7 @@
 <path d="M 60,1258 L 1720,1258" fill="none" stroke="#212121" stroke-width="4.2" stroke-linejoin="round"/>
 <text x="60" y="1244" font-size="13" font-weight="bold" fill="#212121">COMMON GROUND BUS</text>
 <text x="300" y="1244" font-size="11.5" fill="#B71C1C">ESP32 GND &#183; boost GND &#183; buck GND &#183; both MDD20A logic GND &#183; shifter LV&#8722;/HV&#8722; &#183; all 4 encoder Black &#8212; every one of these on a single rail.</text>
-<text x="60" y="1284" font-size="11" fill="#5D6D7E">Missing any one of these connections produces phantom motor behaviour (Master_Reference.md &#167;3.2). Pi GND reaches ESP32 GND through the USB cable.</text>
+<text x="60" y="1284" font-size="11" fill="#5D6D7E">Missing any one of these connections produces phantom motor behaviour Pi ground reaches ESP32 ground through the USB cable.</text>
 <line x1="150" y1="1249" x2="150" y2="1258" stroke="#212121" stroke-width="2.2"/>
 <line x1="430" y1="1249" x2="430" y2="1258" stroke="#212121" stroke-width="2.2"/>
 <line x1="700" y1="1249" x2="700" y2="1258" stroke="#212121" stroke-width="2.2"/>

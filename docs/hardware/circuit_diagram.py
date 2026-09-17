@@ -109,8 +109,7 @@ def band(x, y, w, h, label, col):
 add(f'<text x="40" y="46" font-size="27" font-weight="bold" fill="{C_INK}">'
     f'NarrowAisleBot &#8212; deployed electronics</text>')
 add(f'<text x="40" y="70" font-size="13.5" fill="{C_MUTE}">'
-    f'Base chassis power distribution, drive control and odometry feedback. '
-    f'Pin assignments per Master_Reference.md &#167;4 and Bench_Test_Map.md.</text>')
+    f'Base chassis power distribution, drive control and odometry feedback.</text>')
 
 # legend
 lx = 1180
@@ -180,9 +179,11 @@ box(520, 452, 236, 96, "YDLIDAR X4 Pro",
 box(520, 570, 236, 84, "Arduino Mega 2560",
     ["/dev/mega &#183; 115200 bd", "arm + UV lighting (v8)"], C_SIG)
 
-box(880, 452, 250, 152, "ESP32-WROOM-32",
+box(880, 446, 250, 162, "ESP32-WROOM-32",
     ["/dev/esp32 &#183; 921600 bd", "hardware PCNT quadrature",
-     "PID @ 50 Hz &#183; Kp50 Ki30 Kd3", "AMS1117 &#8594; 3.3 V domain"], C_33)
+     "PID @ 100 Hz &#183; Kp 45 &#183; Ki 250 &#183; Kd 0.5",
+     "feedforward Kff 37.3&#8211;38.4 + Kstat 8 PWM",
+     "AMS1117 &#8594; 3.3 V domain"], C_33)
 
 # Pi <-> peripherals
 wire([(370, 500), (520, 500)], C_SIG, "sig")
@@ -193,7 +194,7 @@ wire([(370, 528), (760, 528), (760, 528), (880, 528)], C_SIG)
 add(f'<path d="M 756,528 L 880,528" fill="none" stroke="{C_SIG}" stroke-width="2.6" '
     f'marker-end="url(#a_sig)" marker-start="url(#a_sig)"/>')
 tag(818, 518, "USB serial 921600", C_SIG)
-tag(818, 546, "&#60;V,fr,fl,rr,rl&#62; / CSV telemetry", C_MUTE, 10, bold=False)
+tag(770, 556, "&#60;V,fr,fl,rr,rl&#62; / CSV telemetry", C_MUTE, 10, bold=False)
 
 # Pi power in
 wire([(628, 384), (628, 416), (245, 416), (245, 448)], C_5, "v5")
@@ -239,7 +240,7 @@ wire([(300, 888), (276, 888), (276, 917), (258, 917)], C_24, "v24")
 wire([(300, 912), (276, 912), (276, 997), (258, 997)], C_24, "v24")
 add(f'<text x="330" y="1204" font-size="10.5" fill="{C_MUTE}">'
     f'Motor leads: Red &#8594; MxA, Black &#8594; MxB, identical on all four. '
-    f'Left/right direction handled in firmware via MOTOR_DIR_SIGN[].</text>')
+    f'Left and right direction is handled in firmware by a per-motor sign table.</text>')
 
 # --- ESP32 GPIO -> drivers  (PWM/DIR, no level shifting needed)
 box(660, 726, 200, 96, "PWM + DIR",
@@ -322,7 +323,7 @@ add(f'<text x="300" y="{gy-14}" font-size="11.5" fill="{C_WARN}">'
     f'every one of these on a single rail.</text>')
 add(f'<text x="60" y="{gy+26}" font-size="11" fill="{C_MUTE}">'
     f'Missing any one of these connections produces phantom motor behaviour '
-    f'(Master_Reference.md &#167;3.2). Pi GND reaches ESP32 GND through the USB cable.</text>')
+    f'Pi ground reaches ESP32 ground through the USB cable.</text>')
 for x in (150, 430, 700, 990, 1270, 1560):
     add(f'<line x1="{x}" y1="{gy-9}" x2="{x}" y2="{gy}" stroke="{C_GND}" stroke-width="2.2"/>')
 

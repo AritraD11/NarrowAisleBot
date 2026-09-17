@@ -40,6 +40,10 @@ Consequence: regenerating figures from `main` produces a different report.
 Merge `claude/determined-feynman-rw4tfh` before anyone runs
 `for f in figure_src/f_*.py; do python3 "$f"; done` again.
 
+**Done, 17 Sep 2026.** That branch is merged, as is the branch carrying this
+audit, so `main` now generates the figures the submitted report uses. Nothing
+is left outside `main`.
+
 ---
 
 ## 1. Errors to fix before submission

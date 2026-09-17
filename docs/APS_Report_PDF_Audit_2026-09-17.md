@@ -391,3 +391,115 @@ Two items from `docs/aps_report/README.md`'s own checklist are still open and
 are not visible in the PDF: the parallel project's dates and effort fraction,
 and the IRCC consultation on whether the monitoring-system section can be
 circulated given no patent has been filed.
+
+---
+
+## 5. If only four things get fixed
+
+Asked on 17 Sep which changes are critical with six days left. These four, in
+this order. All of them are edits to the Word file, not to the repository, and
+together they are about twenty minutes of work. Paste-ready text below.
+
+### Fix 1. Section 6.4, first sentence of the two-route paragraph
+
+Replace:
+
+> On two structurally different routes the robot finished 3.85° and 4.49° away
+> from its commanded heading, while wheel odometry, the published estimate and
+> the SLAM pose all agreed with one another to within a few hundredths of a
+> degree.
+
+With:
+
+> On two structurally different routes, wheel odometry, the published estimate
+> and the SLAM pose all reported 3.85° and 4.49° of heading change by the end
+> of the drive, while the floor, read photogrammetrically against the tile
+> grout, put the robot within 0.03° of the heading it started from. The robot
+> came back to its heading. The estimators did not.
+
+The sentence after it ("Three estimates agreeing while all three disagree with
+the floor...") still works and should stay.
+
+Why this is first: as printed, the report claims the platform has a physical
+heading error of several degrees. That is a control and hardware failure, and
+it is not what was measured. The measurement is the opposite and it is better
+news, because estimator error is recoverable by calibration and by the
+gyroscope that Chapter 7 asks for. Sections 6.6 and 7.1 already describe it
+correctly, so the report currently disagrees with itself on the single result
+that justifies the Year-2 plan.
+
+### Fix 2. Section 5.2, the encoder paragraph
+
+Replace the first two sentences of the third paragraph:
+
+> Each drive motor produces 93,132 encoder counts per revolution at the wheel,
+> after the optical encoder is read in full quadrature and the gear reduction
+> is applied. At the rated speed the output shaft turns once per second, so one
+> motor emits 93,132 counted edges per second and four motors emit 372,528.
+
+With:
+
+> The two front motors carry GTK08 encoders producing 186,264 counts per
+> revolution at the wheel, and the two rear motors optical encoders producing
+> 93,132, in both cases after full quadrature decoding and the gear reduction.
+> At the rated speed the output shaft turns once per second, so the four motors
+> together emit 558,792 counted edges per second.
+
+Then change "approximately 43 cycles per edge" to "approximately 29 cycles per
+edge" (16 MHz ÷ 558,792 = 28.6).
+
+Add a row to the §5.1 table, which currently lists the motors and no encoders:
+
+| Encoders | Front pair GTK08, 186,264 CPR at the wheel; rear pair optical, 93,132 CPR |
+
+Why: Figure 3's caption on the same spread already says the front and rear
+encoders differ in resolution, so the page contradicts itself as printed.
+Anyone who checks the arithmetic gets a different edge rate. And the corrected
+number makes the case for the ESP32 stronger, not weaker.
+
+### Fix 3. Section 6.1, the ground-load paragraph
+
+Two changes. First, the four percentages must match Figure 9 printed beside
+them: **22.5, 23.6, 30.3 and 21.0**, not 22.4, 23.6, 30.3 and 21.2. The mean
+stays 24.
+
+Second, add after "against a band of 10 to 30 per cent set in advance":
+
+> These figures come from the first of three floor runs recorded on 6 August.
+> The two later runs of the same afternoon, driven over different patches of
+> floor, give means of 14 and 3 per cent, so the size of the increase is not
+> established to better than the width of the predicted band itself. A
+> structured staircase test, held in one position while sweeping demand, is
+> what would settle it, and it has not been run on the floor.
+
+Why: the digit mismatch is visible to anyone who reads the text and the figure
+together. The run-to-run spread is the real exposure, because
+`data/bench_logs/README.md` records it plainly and a committee member with the
+CSVs finds two other answers. Saying it first costs nothing and removes the
+question.
+
+### Fix 4. Figure 10 and its two references, the word "autonomous"
+
+- Figure 10 title: "three autonomous drives" becomes "three logged drives".
+- Figure 10 caption: "for three logged autonomous drives" becomes "for three
+  logged drives, each driven manually".
+- Section 6.1: "the autonomous drive shown as Drive C in Figure 10" becomes
+  "the drive shown as Drive C in Figure 10".
+
+All three drives were teleoperated. The closure numbers themselves are correct
+and were reproduced from the pose logs for this audit, so nothing else in
+either section has to move.
+
+### Deliberately left for later
+
+The peak-PWM figure (§1.6), Figure 8's step-response caption (§1.7), the
+scan-rate wording (§1.9) and the navigation goal count (§1.10) are all real and
+none of them is likely to be caught in a one-hour seminar. Fix them in the next
+revision.
+
+The one judgement call that is not mine is §1.8, the monitoring system's
+missing self-audit. Restoring the UV-channel finding is honest and it is what
+the v2 draft argued for. It also puts a second uncalibrated channel in front of
+the committee, and the report's own Figure 5 already states it in red, so the
+asymmetry between the figure and the text is itself a risk. Worth five minutes
+with the supervisor before the file is submitted.

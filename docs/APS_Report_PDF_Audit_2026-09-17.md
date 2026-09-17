@@ -581,3 +581,84 @@ Still not applied, because each needs a decision rather than an edit: Figure
 8's step-response caption (§1.7), the monitoring system's missing self-audit
 (§1.8), the scan-rate wording (§1.9), and the navigation trial count with its
 omitted collision (§1.10).
+
+---
+
+## 8. Check of the submitted version, 17 Sep 2026, 20:32
+
+`APS_Report.pdf`, 39 pages, Word LTSC, author `aritradas`. Built in Word from
+the operator's own file rather than from the rebuilt `.docx`, so it was checked
+the same way the original was: diffed word by word against the 18:41 version,
+with every change inspected.
+
+### What landed
+
+Ten of the twelve substantive corrections, all reading cleanly in place with no
+duplicated or dangling text:
+
+| Where | State |
+|---|---|
+| §5.1, Encoders row | present |
+| §5.2, encoder paragraph and 29 cycles per edge | present |
+| §6.1, the tracking table's drive as operator-driven, 4,713 rows | present |
+| Figure 9 caption, 22.5 / 23.6 / 30.3 / 21.0 | present |
+| §6.1, the run provenance and the other two floor runs | present |
+| Figure 10 caption, manually driven, closure not physical return | present |
+| §6.4, the photogrammetry result in the measured direction | present |
+
+One further change the operator made independently, in §2.1: "inform both
+actuation and operator awareness" became "inform both automatic actuation and
+human monitoring". It reads correctly and changes nothing factual.
+
+### What did not land
+
+**§6.1 still reads "134 of the 255 available, leaving about 47 per cent".** The
+maximum drive demand in any bench or ground log is 131, and 131 of 255 leaves
+48.6 per cent. This is §1.6 of this audit, and it was left out of the
+paste-ready list in §5, so the miss is the list's rather than the operator's.
+Two digits: 134 becomes 131, 47 becomes 49.
+
+**§6.2 still reads "each returns to its starting mark within 1 per cent of the
+distance travelled"**, where the quantity is the odometry's closure rather than
+a measurement of the physical return. Optional, and flagged as such.
+
+### What the editing introduced
+
+**The Encoders row is set in Cambria, not Times New Roman.** Confirmed from the
+PDF's own font records: on page 12 both `Encoders` and `Front pair GTK08,
+186,264 counts…` render in Cambria 12 while every other cell in that table, and
+every other line of body text in the report, is TimesNewRomanPSMT 12. It is
+visible on the page. Select the row and set the font.
+
+**Three of the four tables changed border style.** Ruling rectangles per table:
+
+| Table | 18:41 version | submitted version |
+|---|---|---|
+| §5.1 hardware specification | 3 | 73 |
+| §5.8 monitoring specification | 17 | 95 |
+| §6.4 scan-matching comparison | 7 | 69 |
+| §6.1 per-wheel tracking | 7 | 7 |
+
+Three now carry a full grid, vertical rules and a line under every row, while
+the per-wheel table keeps the original rule above the header, below it and
+under the last row. Whichever style is preferred, one of them should be applied
+to all four.
+
+**Figure 10's cropped title leaves three marks.** The title was cropped, so the
+word "autonomous" is gone from the image, which was the point. Three descender
+tips survive as specks along the top edge, about one point tall. Cropping two
+more pixels off removes them. Cosmetic.
+
+### Verified sound
+
+39 pages, and all 35 contents entries point at the page their heading actually
+falls on, so the contents was rebuilt after the edits. All four rewritten
+passages read correctly in context. 37 references, every one cited in the text
+and every citation resolving, no gaps. No `[CONFIRM]` markers. All 15 images
+present, the monitoring architecture still reading "Four sensor packages". Body
+text grew by 153 words, which is the added paragraph and nothing else, so
+nothing was deleted by accident.
+
+The four items §5 left open (Figure 8's step-response caption, the monitoring
+system's missing self-audit, the scan-rate wording, the navigation trial count)
+are unchanged, as expected. They remain decisions rather than errors.

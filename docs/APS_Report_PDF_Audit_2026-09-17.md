@@ -545,3 +545,39 @@ digits (§1.3) and the peak-PWM figure (§1.6). Worth noting on the first of
 these that the uniform 93,132 count is the exact fault v2 §4.3.1 documents, the
 one that produced clean telemetry while the robot drove wrong. Restoring it to
 print is unfortunate rather than damaging.
+
+---
+
+## 7. The corrected document
+
+`docs/aps_report/APS report Aritra.docx` is the submitted report with the fixes
+of §5 applied, plus the three smaller ones §5 defers: the peak drive demand
+(§1.6), the goal count wording left alone, and the odometry-closure phrasing in
+§6.2. The `.docx` behind the submitted PDF is not in this repository, so the
+document was rebuilt from the PDF itself rather than retyped.
+`docs/aps_report/final_src/` holds the extractor, the builder and the inputs,
+and its README records the measured layout and the checks.
+
+What changed, in the order it appears in the report:
+
+| Where | Change |
+|---|---|
+| §5.1 table | new Encoders row, front pair 186,264 and rear pair 93,132 |
+| §5.2 | the encoder count, the 558,792 edge rate, 29 cycles per edge |
+| §6.1 | the tracking table's drive described as operator-driven, 4,713 rows |
+| §6.1, Figure 9 | percentages corrected to 22.5, 23.6, 30.3, 21.0 |
+| §6.1 | the 24 % is named as one of three floor runs; the other two given |
+| §6.1 | peak drive demand 131 of 255, 49 % unused |
+| §6.2, Figure 10 | the three drives described as manually driven |
+| §6.2 | closure described as the odometry's, not a physical return |
+| §6.4 | the photogrammetry result stated in the direction it was measured |
+
+Verified after the build: the old wording is gone in all thirteen places and
+the new wording present in all sixteen; all 35 headings fall on the same page
+as the original; the document is 37 pages, as the original is; every contents
+page number matches where its heading now lands.
+
+Still not applied, because each needs a decision rather than an edit: Figure
+8's step-response caption (§1.7), the monitoring system's missing self-audit
+(§1.8), the scan-rate wording (§1.9), and the navigation trial count with its
+omitted collision (§1.10).

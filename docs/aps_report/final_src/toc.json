@@ -1,0 +1,177 @@
+[
+ {
+  "text": "Chapter 1",
+  "page": 5,
+  "level": 1
+ },
+ {
+  "text": "1.1 Introduction",
+  "page": 5,
+  "level": 2
+ },
+ {
+  "text": "1.2 Review of Literature",
+  "page": 5,
+  "level": 2
+ },
+ {
+  "text": "Chapter 2",
+  "page": 7,
+  "level": 1
+ },
+ {
+  "text": "2.1 Introduction",
+  "page": 7,
+  "level": 2
+ },
+ {
+  "text": "2.2 Review of Literature",
+  "page": 7,
+  "level": 2
+ },
+ {
+  "text": "Chapter 3",
+  "page": 8,
+  "level": 1
+ },
+ {
+  "text": "3.1 Introduction",
+  "page": 8,
+  "level": 2
+ },
+ {
+  "text": "3.2 Review of Literature",
+  "page": 8,
+  "level": 2
+ },
+ {
+  "text": "Chapter 4",
+  "page": 9,
+  "level": 1
+ },
+ {
+  "text": "4.1 Motivation",
+  "page": 9,
+  "level": 2
+ },
+ {
+  "text": "4.2 Objectives",
+  "page": 10,
+  "level": 2
+ },
+ {
+  "text": "Chapter 5",
+  "page": 11,
+  "level": 1
+ },
+ {
+  "text": "5.1 The platform and its starting condition",
+  "page": 11,
+  "level": 2
+ },
+ {
+  "text": "5.2 Migration of the drive controller",
+  "page": 13,
+  "level": 2
+ },
+ {
+  "text": "5.3 Level translation on the encoder return path",
+  "page": 13,
+  "level": 2
+ },
+ {
+  "text": "5.4 Kinematic model",
+  "page": 15,
+  "level": 2
+ },
+ {
+  "text": "5.5 Control architecture and software integration",
+  "page": 16,
+  "level": 2
+ },
+ {
+  "text": "5.6 Perception and mapping",
+  "page": 17,
+  "level": 2
+ },
+ {
+  "text": "5.7 Autonomous navigation",
+  "page": 17,
+  "level": 2
+ },
+ {
+  "text": "5.8 Environmental monitoring system",
+  "page": 18,
+  "level": 2
+ },
+ {
+  "text": "5.9 Analysis method",
+  "page": 20,
+  "level": 2
+ },
+ {
+  "text": "Chapter 6",
+  "page": 21,
+  "level": 1
+ },
+ {
+  "text": "6.1 Closed-loop velocity control",
+  "page": 21,
+  "level": 2
+ },
+ {
+  "text": "6.2 Kinematics and motion estimation",
+  "page": 23,
+  "level": 2
+ },
+ {
+  "text": "6.3 Perception",
+  "page": 25,
+  "level": 2
+ },
+ {
+  "text": "6.4 Mapping, and the constraint imposed by the available workspace",
+  "page": 26,
+  "level": 2
+ },
+ {
+  "text": "6.5 Autonomous navigation",
+  "page": 29,
+  "level": 2
+ },
+ {
+  "text": "6.6 Operating without an inertial sensor",
+  "page": 29,
+  "level": 2
+ },
+ {
+  "text": "6.7 Present state of the platform",
+  "page": 31,
+  "level": 2
+ },
+ {
+  "text": "6.8 Environmental monitoring system",
+  "page": 32,
+  "level": 2
+ },
+ {
+  "text": "Chapter 7",
+  "page": 33,
+  "level": 1
+ },
+ {
+  "text": "7.1 Future Work",
+  "page": 33,
+  "level": 2
+ },
+ {
+  "text": "7.2 Year-One Conclusions",
+  "page": 34,
+  "level": 2
+ },
+ {
+  "text": "Bibliography",
+  "page": 34,
+  "level": 1
+ }
+]

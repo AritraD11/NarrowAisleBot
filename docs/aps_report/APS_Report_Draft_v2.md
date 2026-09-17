@@ -270,7 +270,7 @@ says so.
 | 2 | The asymmetric forward kinematic model is exact | Measured | Reproduces ground-truth twist to 1.7 × 10⁻¹⁶ over 20,000 random twists |
 | 3 | Odometry integration is exact | Measured | Offline re-integration from raw encoders diverges 0.0054 m peak, 0.0000 m final |
 | 4 | Wheel odometry closes to 1.1 to 1.5 % of path | Measured | 3.1 mm over 4.582 m; 2.58 cm on a 38 s square; 0.229 m over ~18 m (1.27 %) and 0.257 m over 18.14 m (1.42 %) |
-| 5 | Ground load raises feedforward demand by a mean of 24 % | Measured | Predicted at 10 to 30 % in writing before the run; all four motors inside the band |
+| 5 | Ground load raises feedforward demand by a mean of 24 % on the first of three floor runs | Measured | Predicted at 10 to 30 % in writing before the run; three of the four motors inside the band and the rear-right 0.3 points above it. The two later runs of 6 Aug give means of 14 % and 3 %, so the size is not settled |
 | 6 | The self-occlusion blind sector is a 90° wedge, 107 of 430 beams | Measured | Consistent across five independent headings |
 | 7 | Rotation in place adds no pose-graph node and no map cell | Measured | Three runs; 714° over 642 s produced 43 occupied cells, 2.1 m of wall |
 | 8 | Turning while translating maps normally | Measured | A 111 s arc gave 18 nodes and 77.2 m of wall, 88 % of a perimeter drive's coverage in 18 % of its time |

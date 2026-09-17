@@ -662,3 +662,38 @@ nothing was deleted by accident.
 The four items §5 left open (Figure 8's step-response caption, the monitoring
 system's missing self-audit, the scan-rate wording, the navigation trial count)
 are unchanged, as expected. They remain decisions rather than errors.
+
+---
+
+## 9. Disposition, 17 Sep 2026
+
+The 20:32 version is the one being submitted. The four items §8 lists as open
+(Figure 8's step-response caption, the monitoring system's self-audit, the
+scan-rate wording, the navigation trial count) are being handled in the seminar
+rather than in the text, by the operator's decision. They are not outstanding
+edits. The two cosmetic items from §8, the Cambria row in the specification
+table and the three tables that switched to a full grid, go in as they are.
+
+Carry into the seminar preparation, one answer each:
+
+**Figure 8.** The 0.20 s is command-following on a ramped command rather than a
+step response, since the commanded value itself takes 0.15 s to arrive. The
+overshoot and the settled offset are real. `nab_pid_logger.py --test steps` is
+the measurement that would support a rise time and it has not been run.
+
+**Monitoring system.** Volunteer the register rather than wait for it. Eight
+verified findings against the one the report carries: the UV channel reads
+3.64 mW/cm² with the lamp off and sits in no control or alert path; an
+operator's explicit off is reverted within one loop iteration; the gas
+calibration is computed, stored and never used; neither deployed LoRa frequency
+falls in India's 865 to 867 MHz delicensed band.
+
+**Scan rate.** Not commandable through the ROS driver as currently wired. The
+M_CTR pin does control it, 6 to 12 Hz with the vendor's resolution table, and
+that is one bounded experiment after APS.
+
+**Navigation.** Four goals reached rather than three. The first goal ever sent
+travelled 0.96 m at 88.4° to the commanded direction and was stopped after
+contacting an obstacle, two separately validated axis conventions meeting at
+the velocity topic, fixed by converting between them at the single point they
+meet rather than editing either validated file.

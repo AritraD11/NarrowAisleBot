@@ -503,3 +503,45 @@ the v2 draft argued for. It also puts a second uncalibrated channel in front of
 the committee, and the report's own Figure 5 already states it in red, so the
 asymmetry between the figure and the text is itself a risk. Worth five minutes
 with the supervisor before the file is submitted.
+
+---
+
+## 6. Which of these are scientific, and which are not
+
+§5 ranks the findings by what a committee is likely to catch in an hour. That
+is not the same as ranking them by scientific weight, and the two orders differ
+enough to be worth writing down separately.
+
+Nothing found in this audit is a data error or an analysis error. Every number
+that could be recomputed from a raw log reproduced. The experiments hold and
+the analysis tools do what they claim. What is wrong is the description.
+
+**Claims not supported as stated.** The ground-load result (§1.4) is the most
+serious item in this audit on scientific grounds, and §5 ranks it third only
+because it is the least likely to be noticed from the page alone. "A prediction
+registered in advance and then met" carries the paragraph, and it holds on one
+of three floor runs, one of which lands outside the predicted band. That is
+reproducibility, not wording.
+
+Figure 8's step response (§1.7) belongs in the same category and §5 defers it,
+which is right on seminar risk and wrong on validity. It fits a rise time and
+an overshoot from a live driving log that v2 §4.3.2 says cannot support one,
+and most of the quoted 0.20 s is the commanded value's own ramp across four log
+samples rather than the loop following it. A controller characterisation drawn
+from data that cannot produce one is a methodological fault whether or not
+anyone asks about it.
+
+**A correct finding, stated backwards.** §6.4 (§1.1) misreports a sound
+measurement, and §6.6 states the same measurement correctly. The error is in
+the report rather than in the science. It stays first in §5 because of what it
+does to a reader's confidence in everything near it.
+
+**A methods-description error.** Calling three teleoperated drives autonomous
+(§1.5) misdescribes the conditions under which the data were collected, which
+matters in its own right even though none of the numbers move.
+
+**Factual and transcription.** The encoder CPR (§1.2), the two ground-load
+digits (§1.3) and the peak-PWM figure (§1.6). Worth noting on the first of
+these that the uniform 93,132 count is the exact fault v2 §4.3.1 documents, the
+one that produced clean telemetry while the robot drove wrong. Restoring it to
+print is unfortunate rather than damaging.

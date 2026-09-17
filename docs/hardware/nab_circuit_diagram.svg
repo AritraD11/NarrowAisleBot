@@ -93,8 +93,9 @@
 <text x="999.0" y="498" font-size="12.4" fill="#5D6D7E" text-anchor="middle">hardware PCNT quadrature</text>
 <text x="999.0" y="513" font-size="12.4" fill="#5D6D7E" text-anchor="middle">PID @ 100 Hz</text>
 <text x="999.0" y="528" font-size="12.4" fill="#5D6D7E" text-anchor="middle">Kp 45 &#183; Ki 250 &#183; Kd 0.5</text>
-<text x="999.0" y="543" font-size="12.4" fill="#5D6D7E" text-anchor="middle">Kff 37.3&#8211;38.4 + Kstat 8 PWM/(rad/s)</text>
-<text x="999.0" y="558" font-size="12.4" fill="#5D6D7E" text-anchor="middle">AMS1117 &#8594; 3.3 V domain</text>
+<text x="999.0" y="543" font-size="12.4" fill="#5D6D7E" text-anchor="middle">Kff 37.3&#8211;38.4 PWM/(rad/s)</text>
+<text x="999.0" y="558" font-size="12.4" fill="#5D6D7E" text-anchor="middle">Kstat 8 PWM breakaway offset</text>
+<text x="999.0" y="573" font-size="12.4" fill="#5D6D7E" text-anchor="middle">AMS1117 &#8594; 3.3 V domain</text>
 <path d="M 370,500 L 520,500" fill="none" stroke="#37474F" stroke-width="2.6" stroke-linejoin="round" marker-end="url(#a_sig)"/>
 <rect x="428.75" y="478.5" width="32.5" height="19.5" rx="3" fill="#FFFFFF" opacity="0.95"/>
 <text x="445" y="493" font-size="12.5" font-weight="bold" fill="#37474F" text-anchor="middle">USB</text>

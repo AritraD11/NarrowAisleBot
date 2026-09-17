@@ -182,7 +182,8 @@ box(520, 570, 236, 84, "Arduino Mega 2560",
 box(846, 440, 306, 186, "ESP32-WROOM-32",
     ["/dev/esp32 &#183; 921600 bd", "hardware PCNT quadrature",
      "PID @ 100 Hz", "Kp 45 &#183; Ki 250 &#183; Kd 0.5",
-     "Kff 37.3&#8211;38.4 + Kstat 8 PWM/(rad/s)",
+     "Kff 37.3&#8211;38.4 PWM/(rad/s)",
+     "Kstat 8 PWM breakaway offset",
      "AMS1117 &#8594; 3.3 V domain"], C_33, ls=12.4)
 
 # Pi <-> peripherals

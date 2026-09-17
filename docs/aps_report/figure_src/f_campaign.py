@@ -65,32 +65,32 @@ for i, (v, n) in enumerate(zip(wall, nodes)):
             ha='center', va='center', fontsize=7.4,
             color='white' if inside else C['defect'])
 b1.set_xticks(range(3)); b1.set_xticklabels(runs, fontsize=7.6)
-b1.set_ylim(0, 105); b1.set_ylabel('wall observed (m)')
-b1.set_title('(a) Ten and a half minutes of sweeping a room, for two metres of wall',
+b1.set_ylim(0, 105)
+b1.set_ylabel('occupied-cell equivalent length (m)')
+b1.set_title('(a) Ten and a half minutes of rotating in place, for 43 occupied cells',
              loc='left', fontsize=8.8)
 
 b2.axis('off'); b2.set_xlim(0,1); b2.set_ylim(0,1)
-b2.text(0.02, 0.97, 'What was actually happening', fontsize=9, fontweight='bold', va='top')
+b2.text(0.02, 0.97, 'What the three drives show', fontsize=9, fontweight='bold', va='top')
 b2.text(0.02, 0.86,
-        'The commissioning procedure adopted in §17.39 was\n'
-        '"perimeter, nose leading, rotating at every corner so\n'
-        'the LiDAR sweeps every wall". Those corner rotations\n'
-        'contribute nothing: no scan accepted, no graph node,\n'
-        'no occupied cell.\n\n'
-        'Set the heading threshold to 0.05 rad and a full 360°\n'
-        'in place still produced one node in 166 seconds — the\n'
-        'session\'s first scan, and not one more. The threshold\n'
-        'is not the gate.\n\n'
-        'Holding forward and yaw together instead reached 88 %\n'
-        'of the perimeter drive\'s wall coverage in 18 % of its\n'
-        'time and 18 % of its distance.',
+        'The commissioning procedure in use specified a perimeter\n'
+        'drive, nose leading, rotating at every corner so that the\n'
+        'scanner sweeps every wall. Those corner rotations return\n'
+        'almost nothing: 714 degrees of rotation over 642 s produced\n'
+        'one pose-graph node and 43 occupied cells.\n\n'
+        'The heading threshold is not the gate. Set to 0.05 rad, a\n'
+        'full 360 degrees in place still produced a single node in\n'
+        '166 s, which was the session\'s first scan and not one more.\n\n'
+        'Holding forward and yaw together instead reached 88 % of\n'
+        'the perimeter drive\'s coverage in 18 % of its duration and\n'
+        '18 % of its distance.',
         fontsize=7.8, va='top', linespacing=1.40)
-b2.add_patch(mp.Rectangle((0.01, 0.015), 0.97, 0.115, fc='#fdecea', ec=C['defect'], lw=0.9))
-b2.text(0.5, 0.072, 'Three sessions of tuning had been spent against a test\n'
-        'geometry that records nothing.',
-        ha='center', va='center', fontsize=7.8, color=C['defect'], fontweight='bold')
-fig.suptitle('Rotation in place adds no pose-graph node and no map cell, '
-             'which invalidated the drive procedure\nitself rather than its parameters.',
+b2.add_patch(mp.Rectangle((0.01, 0.015), 0.97, 0.115, fc='#eef4ee', ec=C['fixed'], lw=0.9))
+b2.text(0.5, 0.072, 'The correction is procedural: take turns as rounded arcs\n'
+        'while rolling, rather than as stationary pivots.',
+        ha='center', va='center', fontsize=7.8, color=C['fixed'], fontweight='bold')
+fig.suptitle('In-place rotation contributes negligible map coverage, which makes the drive procedure\n'
+             'the thing to change rather than its parameters.',
              fontsize=9.5, y=1.05, x=0.02, ha='left')
 plt.tight_layout(); plt.savefig(f'{FIGDIR}/fig17_rotation_deadzone.png'); plt.close()
 print('ok')

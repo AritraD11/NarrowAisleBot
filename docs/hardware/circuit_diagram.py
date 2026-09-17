@@ -27,7 +27,7 @@ from pathlib import Path
 OUT = Path("docs/hardware/nab_circuit_diagram.svg")
 PNG = Path("docs/hardware/nab_circuit_diagram.png")
 
-W, H = 1780, 1310
+W, H = 1190, 1330
 
 # Voltage-domain colours, used consistently for every wire and rail.
 C_BATT = "#7B1E1E"   # 12.8 V raw battery
@@ -60,7 +60,7 @@ for name, col in [("b", C_BATT), ("v24", C_24), ("v5", C_5), ("v33", C_33),
 add("</defs>")
 
 
-def box(x, y, w, h, title, lines, accent=C_EDGE, fill=C_BOX, ts=15, ls=11.5):
+def box(x, y, w, h, title, lines, accent=C_EDGE, fill=C_BOX, ts=17, ls=13.2):
     add(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="7" fill="{fill}" '
         f'stroke="{accent}" stroke-width="2"/>')
     add(f'<rect x="{x}" y="{y}" width="{w}" height="5" rx="2.5" fill="{accent}"/>')
@@ -88,7 +88,7 @@ def vislen(t):
     return len(t)
 
 
-def tag(x, y, text, col, size=11, anchor="middle", bold=True, bg=True):
+def tag(x, y, text, col, size=12.5, anchor="middle", bold=True, bg=True):
     if bg:
         wpx = vislen(text) * size * 0.60 + 10
         add(f'<rect x="{x-wpx/2 if anchor=="middle" else x-5}" y="{y-size+1}" '
@@ -112,12 +112,12 @@ add(f'<text x="40" y="70" font-size="13.5" fill="{C_MUTE}">'
     f'Base chassis power distribution, drive control and odometry feedback.</text>')
 
 # legend
-lx = 1180
-add(f'<text x="{lx}" y="34" font-size="11.5" font-weight="bold" fill="{C_INK}">RAILS</text>')
+lx = 660
+add(f'<text x="{lx}" y="34" font-size="13" font-weight="bold" fill="{C_INK}">RAILS</text>')
 for i, (col, txt) in enumerate([(C_BATT, "12.8 V battery"), (C_24, "24 V motor"),
                                 (C_5, "5 V logic"), (C_33, "3.3 V ESP32"),
                                 (C_SIG, "USB / serial"), (C_ENC, "encoder A/B")]):
-    cx = lx + (i % 3) * 200
+    cx = lx + (i % 3) * 172
     cy = 52 + (i // 3) * 19
     add(f'<line x1="{cx}" y1="{cy}" x2="{cx+26}" y2="{cy}" stroke="{col}" stroke-width="3.4"/>')
     add(f'<text x="{cx+33}" y="{cy+4}" font-size="11.5" fill="{C_MUTE}">{txt}</text>')
@@ -157,13 +157,13 @@ def stub(x, y, text, col, direction="right"):
 
 
 # 24 V and 5 V leave the power band as labelled rails and re-enter where used.
-wire([(732, 158), (1150, 158)], C_24, None, 3.2)
-tag(940, 148, "24 V rail", C_24)
-stub(1150, 158, "A &#8594; both MDD20A VB+/VB&#8722;", C_24)
+wire([(732, 158), (852, 158)], C_24, None, 3.2)
+tag(792, 148, "24 V rail", C_24)
+stub(852, 158, "A &#8594; both MDD20A VB+/VB&#8722;", C_24)
 
-wire([(732, 258), (1150, 258)], C_5, None, 3.2)
-tag(940, 248, "5 V rail", C_5)
-stub(1150, 258, "B &#8594; 4&#215; encoder V<tspan font-size='8'>CC</tspan> &#183; shifter HV+", C_5)
+wire([(732, 258), (852, 258)], C_5, None, 3.2)
+tag(792, 248, "5 V rail", C_5)
+stub(852, 258, "B &#8594; 4&#215; encoder V<tspan font-size='8'>CC</tspan> &#183; shifter HV+", C_5)
 
 # =====================================================================
 # COMPUTE BAND
@@ -179,11 +179,11 @@ box(520, 452, 236, 96, "YDLIDAR X4 Pro",
 box(520, 570, 236, 84, "Arduino Mega 2560",
     ["/dev/mega &#183; 115200 bd", "arm + UV lighting (v8)"], C_SIG)
 
-box(880, 446, 250, 162, "ESP32-WROOM-32",
+box(846, 440, 306, 186, "ESP32-WROOM-32",
     ["/dev/esp32 &#183; 921600 bd", "hardware PCNT quadrature",
-     "PID @ 100 Hz &#183; Kp 45 &#183; Ki 250 &#183; Kd 0.5",
-     "feedforward Kff 37.3&#8211;38.4 + Kstat 8 PWM",
-     "AMS1117 &#8594; 3.3 V domain"], C_33)
+     "PID @ 100 Hz", "Kp 45 &#183; Ki 250 &#183; Kd 0.5",
+     "Kff 37.3&#8211;38.4 + Kstat 8 PWM/(rad/s)",
+     "AMS1117 &#8594; 3.3 V domain"], C_33, ls=12.4)
 
 # Pi <-> peripherals
 wire([(370, 500), (520, 500)], C_SIG, "sig")
@@ -193,8 +193,9 @@ tag(446, 640, "USB", C_SIG)
 wire([(370, 528), (760, 528), (760, 528), (880, 528)], C_SIG)
 add(f'<path d="M 756,528 L 880,528" fill="none" stroke="{C_SIG}" stroke-width="2.6" '
     f'marker-end="url(#a_sig)" marker-start="url(#a_sig)"/>')
-tag(818, 518, "USB serial 921600", C_SIG)
-tag(770, 556, "&#60;V,fr,fl,rr,rl&#62; / CSV telemetry", C_MUTE, 10, bold=False)
+tag(801, 498, "USB serial", C_SIG, 11.5)
+tag(801, 512, "921600 bd", C_SIG, 11.5)
+tag(801, 545, "CSV telemetry", C_MUTE, 10.5, bold=False)
 
 # Pi power in
 wire([(628, 384), (628, 416), (245, 416), (245, 448)], C_5, "v5")
@@ -250,14 +251,6 @@ wire([(980, 604), (980, 660), (760, 660), (760, 726)], C_33, "v33")
 wire([(660, 774), (516, 774)], C_33, "v33")
 wire([(660, 790), (580, 790), (580, 900), (516, 900)], C_33, "v33")
 
-gp = [("FR", "G4 / G16", 745), ("FL", "G17 / G18", 761),
-      ("RR", "G19 / G21", 777), ("RL", "G22 / G23", 793)]
-for i, (nm, pins, yy) in enumerate(gp):
-    add(f'<text x="1160" y="{745+i*17}" font-size="11.5" fill="{C_INK}">'
-        f'<tspan font-weight="bold">{nm}</tspan>  PWM/DIR = {pins}</text>')
-add(f'<text x="1160" y="726" font-size="12" font-weight="bold" fill="{C_33}">'
-    f'ESP32 &#8594; driver pins</text>')
-
 # --- level shifter
 box(660, 900, 200, 116, "8-ch level shifter",
     ["discrete MOSFET", "(BSS138-style, no OE)",
@@ -286,35 +279,11 @@ tag(430, 1078, "8 &#215; A/B @ 5 V", C_ENC)
 wire([(860, 958), (940, 958), (940, 604)], C_ENC, "enc")
 tag(945, 700, "8 &#215; A/B @ 3.3 V", C_ENC, 11, anchor="start")
 
-# encoder channel map table
-tx, ty = 1160, 830
-add(f'<text x="{tx}" y="{ty}" font-size="12" font-weight="bold" fill="{C_ENC}">'
-    f'Encoder channel map</text>')
-rows = [("FR", "Green/White", "H0/H1", "L0/L1", "36 / 39", "PCNT_0", "&#8722;1"),
-        ("FL", "Green/White", "H2/H3", "L2/L3", "34 / 35", "PCNT_1", "+1"),
-        ("RR", "Yellow/Green", "H4/H5", "L4/L5", "32 / 33", "PCNT_2", "&#8722;1"),
-        ("RL", "Yellow/Green", "H6/H7", "L6/L7", "25 / 26", "PCNT_3", "+1")]
-hdr = ("", "A / B wire", "5 V", "3.3 V", "GPIO", "unit", "dir")
-colx = [0, 34, 130, 178, 228, 292, 352]
-add(f'<text x="{tx}" y="{ty+20}" font-size="10.5" fill="{C_MUTE}">' +
-    "".join(f'<tspan x="{tx+colx[i]}">{h}</tspan>' for i, h in enumerate(hdr)) + '</text>')
-BOLD = ' font-weight="bold"'
-for r, row in enumerate(rows):
-    yy = ty + 38 + r * 17
-    cells = "".join(
-        '<tspan x="{}"{}>{}</tspan>'.format(tx + colx[i], BOLD if i == 0 else "", c)
-        for i, c in enumerate(row))
-    add(f'<text y="{yy}" font-size="11" fill="{C_INK}">{cells}</text>')
-add(f'<text x="{tx}" y="{ty+122}" font-size="10.5" fill="{C_WARN}">'
-    f'Front and rear encoders use different A/B wire colours.</text>')
-add(f'<text x="{tx}" y="{ty+137}" font-size="10.5" fill="{C_WARN}">'
-    f'Verify against the physical wire, not memory.</text>')
-
 # =====================================================================
 # GROUND BUS
 # =====================================================================
 gy = 1258
-wire([(60, gy), (1720, gy)], C_GND, None, 4.2)
+wire([(60, gy), (1130, gy)], C_GND, None, 4.2)
 add(f'<text x="60" y="{gy-14}" font-size="13" font-weight="bold" fill="{C_GND}">'
     f'COMMON GROUND BUS</text>')
 add(f'<text x="300" y="{gy-14}" font-size="11.5" fill="{C_WARN}">'
@@ -322,21 +291,10 @@ add(f'<text x="300" y="{gy-14}" font-size="11.5" fill="{C_WARN}">'
     f'shifter LV&#8722;/HV&#8722; &#183; all 4 encoder Black &#8212; '
     f'every one of these on a single rail.</text>')
 add(f'<text x="60" y="{gy+26}" font-size="11" fill="{C_MUTE}">'
-    f'Missing any one of these connections produces phantom motor behaviour '
+    f'Missing any one of these connections produces phantom motor behaviour. '
     f'Pi ground reaches ESP32 ground through the USB cable.</text>')
-for x in (150, 430, 700, 990, 1270, 1560):
+for x in (150, 380, 610, 840, 1060):
     add(f'<line x1="{x}" y1="{gy-9}" x2="{x}" y2="{gy}" stroke="{C_GND}" stroke-width="2.2"/>')
-
-# deployment note
-add(f'<rect x="1160" y="452" width="560" height="96" rx="7" fill="#FFF8E1" '
-    f'stroke="{C_WARN}" stroke-width="1.6"/>')
-add(f'<text x="1178" y="475" font-size="12.5" font-weight="bold" fill="{C_WARN}">'
-    f'Deployment note &#8212; ESP32 supply</text>')
-for i, ln in enumerate([
-        "Powering the ESP32 from Pi USB couples SMPS switching noise and",
-        "PWM ground transients into the encoder counts. For deployment, cut",
-        "VBUS in the Pi&#8594;ESP32 cable and feed VIN from the 5 V buck instead."]):
-    add(f'<text x="1178" y="{494+i*16}" font-size="11" fill="{C_MUTE}">{ln}</text>')
 
 add("</svg>")
 

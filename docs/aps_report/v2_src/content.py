@@ -161,13 +161,27 @@ fig('iotdash', 'NEW/fig41_iot_dashboard.png', 451.0,
     'schema.')
 
 # ── Chapter 3 ────────────────────────────────────────────────────────
+fig('fatcrisis', 'SRC/image2.jpeg', 440.0,
+    'Figure 20. The case for the strand, set out side by side: on the left the conditions that make '
+    'fatigue a safety problem in Indian warehouses, and on the right what a contactless node would '
+    'watch instead. The wearable on the left is the point of the whole approach. A device that degrades '
+    'in heat and perspiration, and that a worker has to choose to put on, is not a measurement system '
+    'for an eight-hour shift. This figure was generated with an AI tool from the text of the research '
+    'proposal for this strand, and is included as a summary rather than as evidence.')
 fig('fatga', 'SRC/image3.png', 350.0,
-    'Figure 20. The proposed framework in one view, reproduced from the research proposal for this '
+    'Figure 21. The proposed framework in one view, reproduced from the research proposal for this '
     'strand. Four contactless modalities feed one edge platform, a fused model produces a single score '
     'per crossing, and the score drives a rest or rotation decision rather than a record. Nothing below '
     'the sensing row exists yet.')
+fig('fatfusion', 'SRC/image4.jpeg', 440.0,
+    'Figure 22. The same framework read left to right: each modality with the fatigue indicator it is '
+    'there to supply, the fusion stage that weights them against each other when one is occluded, and '
+    'the single score that comes out. The fourth row on the left is the operating condition rather than '
+    'a sensor, and it is the one that decides whether any of the rest survives a real floor: clothing, '
+    'dust and dense metal shelving. This figure was also generated with an AI tool from the proposal '
+    'text.')
 fig('fatdes', 'NEW/fig36_fatigue_design.png', 451.0,
-    'Figure 21. The three objectives, and the physical reference each one is measured against. The '
+    'Figure 23. The three objectives, and the physical reference each one is measured against. The '
     'right-hand column is the part that makes the strand falsifiable: each modality is checked against '
     'marker-based motion capture or against the contact method it proposes to replace before anything is '
     'fused, and the fused score is then required to beat four single-modality baselines and an ablation '
@@ -176,7 +190,7 @@ fig('fatdes', 'NEW/fig36_fatigue_design.png', 451.0,
 
 # ── Chapter 4 ────────────────────────────────────────────────────────
 fig('road', 'NEW/fig37_three_strand_roadmap.png', 451.0,
-    'Figure 22. The three strands across the remaining years. Each is carried on its own until it stands '
+    'Figure 24. The three strands across the remaining years. Each is carried on its own until it stands '
     'up by itself, and the convergence sits at the end rather than the beginning, because a strand that '
     'has not been characterised alone contributes nothing measurable to a combined system.')
 
@@ -195,7 +209,9 @@ LABELS = {
     'iotarch': 'Monitoring and control architecture',
     'iotlaw': 'The control law, and what a source audit of it found',
     'iotdash': 'The operator dashboard in service',
+    'fatcrisis': 'The problem, and what a contactless node would watch',
     'fatga': 'The proposed framework',
+    'fatfusion': 'The sensing modalities and the fusion stage',
     'fatdes': 'Objectives and the references they are measured against',
     'road': 'The three strands across the remaining years',
 }
@@ -862,7 +878,9 @@ BODY += [
      'and ambient temperatures that routinely exceed 40 °C. Occupational heat stress in Indian '
      'workplaces has been measured directly, with documented exceedances of established thresholds and '
      'associated health and productivity consequences [23], and comparable findings are reported across '
-     'steel [24], construction [25] and multi-sector southern-Indian settings [26].'),
+     'steel [24], construction [25] and multi-sector southern-Indian settings [26]. Figure 20 sets the '
+     'two halves of the problem side by side.'),
+    ('F', 'fatcrisis'),
     ('R', 87),
     ('p',
      'The goal, stated at its largest, is a warehouse that can tell how hard the people in it are '
@@ -899,7 +917,7 @@ BODY += [
 
     ('h2', '3.3 The framework proposed'),
     ('p',
-     'Figure 20 gives the proposed arrangement in one view. Four contactless modalities feed a single '
+     'Figure 21 gives the proposed arrangement in one view. Four contactless modalities feed a single '
      'edge computing platform, a fused model produces one score per crossing, and that score drives a '
      'rest or rotation decision rather than a record. Each modality is there for a specific reason. A '
      'camera with on-device pose estimation recovers two-dimensional gait: stride, sway and cadence. A '
@@ -907,8 +925,10 @@ BODY += [
      'lighting. A millimetre-wave radar at 60 GHz reaches heart and respiration rate through clothing, '
      'which neither of the other two can see. And a long-wave infrared camera reads facial skin '
      'temperature, which in the ambient conditions described above is likely to carry more information '
-     'than it would in a temperate facility.'),
+     'than it would in a temperate facility. Figure 22 reads the same arrangement left to right, with '
+     'each modality against the indicator it is there to supply.'),
     ('F', 'fatga'),
+    ('F', 'fatfusion'),
     ('p',
      'Two design decisions are worth drawing out. The capture is fixed and single-subject: rather than '
      'tracking several people continuously across a floor, the node sits at one point everybody passes, '
@@ -935,7 +955,7 @@ BODY += [
 
     ('h2', '3.4 How the framework would be validated'),
     ('p',
-     'Figure 21 sets out the three objectives and, more usefully, what each one would be measured '
+     'Figure 23 sets out the three objectives and, more usefully, what each one would be measured '
      'against. The right-hand column is the part that makes the strand falsifiable. Gait from the camera '
      'and the lidar is checked against marker-based motion capture, which is an external physical '
      'reference rather than another estimate. A subset of volunteers wears surface electromyography on '
@@ -1014,7 +1034,7 @@ BODY += [
 
     ('h2', '4.3 Objectives for the years ahead'),
     ('p',
-     'The plan runs one strand at a time rather than all three at once, and Figure 22 lays it out. Each '
+     'The plan runs one strand at a time rather than all three at once, and Figure 24 lays it out. Each '
      'strand is carried on its own until it stands up by itself, and only then do they meet. That '
      'ordering is a judgement rather than a convention: a strand whose behaviour has not been '
      'characterised alone contributes nothing measurable to a combined system, and combining early would '

@@ -89,10 +89,10 @@ mathtext so an equation inside a box sets the same as the same equation in a
 paragraph, while the plots stay on `dg.py`'s sans, where a serif would fight the
 axis labels.
 
-Figure 20 is the research proposal's own graphical abstract, used unchanged.
-The two NotebookLM infographics in that proposal are deliberately not used:
-both carry a visible watermark and read as illustration rather than as
-technical figures.
+Figures 20, 21 and 22 all come out of the research proposal itself. Figure 21
+is its graphical abstract. Figures 20 and 22 are the two infographics generated
+for it with an AI tool, kept at the author's request; each caption says so, and
+the tool's own watermark is left in place rather than cropped out.
 
 ## Three diagrams were checked against the firmware before being redrawn
 

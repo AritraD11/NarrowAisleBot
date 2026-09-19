@@ -446,6 +446,10 @@ for el in C.BODY:
                 p.add_run(full)
     elif kind == 'ref':
         srcp = SP[el[1]]
+        # four entries carry a stray space inside the page range, which the
+        # en dash makes obvious in print: "1271\u2013 1278"
+        def _pages(t):
+            return re.sub('(\\d)\\s*\u2013\\s*(\\d)', '\\1\u2013\\2', t)
         p = doc.add_paragraph()
         p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         p.paragraph_format.left_indent = Inches(0.5)
@@ -453,7 +457,7 @@ for el in C.BODY:
         p.paragraph_format.space_after = Pt(6)
         p.paragraph_format.line_spacing = 1.0
         for r in srcp.runs:
-            nr = p.add_run(r.text)
+            nr = p.add_run(_pages(r.text))
             nr.italic = r.italic
             nr.bold = r.bold
             nr.font.name = 'Cambria'

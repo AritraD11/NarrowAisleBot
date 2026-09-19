@@ -19,10 +19,25 @@ gs = fig.add_gridspec(1, 2, width_ratios=[1.0, 1.22], wspace=0.16,
 
 # ── (a) the law ──────────────────────────────────────────────────────
 ax = fig.add_subplot(gs[0, 0])
-idx = np.linspace(0, 600, 2400)
-fan = np.where(idx < 200, 0.0, np.clip(128 + (255 - 128) * (idx - 200) / 300, 0, 255))
+# The law is two-valued between the thresholds: between 150 and 200 the node
+# holds whatever state it already had, so the curve has a rising branch and a
+# falling one. Drawing only the rising branch would read as a plain switch.
+idx = np.linspace(200, 600, 1600)
+fan_up = np.clip(128 + (255 - 128) * (idx - 200) / 300, 0, 255)
 ax.axvspan(150, 200, color=P['cmd'], alpha=0.14, zorder=1)
-ax.plot(idx, fan, color=P['tel'], lw=2.2, zorder=4, solid_capstyle='round')
+ax.plot([0, 200], [0, 0], color=P['tel'], lw=2.2, zorder=4, solid_capstyle='round')
+ax.plot([200, 200], [0, 128], color=P['tel'], lw=2.2, zorder=4)
+ax.plot(idx, fan_up, color=P['tel'], lw=2.2, zorder=4, solid_capstyle='round')
+# falling branch: the command is held across the dead band, then released
+ax.plot([200, 150], [128, 128], color=P['tel'], lw=1.8, ls=(0, (5, 3)), zorder=4)
+ax.plot([150, 150], [128, 0], color=P['tel'], lw=1.8, ls=(0, (5, 3)), zorder=4)
+for x, y, dx in ((176, 128, -1), (330, 193, 1)):
+    ax.annotate('', xy=(x + dx * 16, y), xytext=(x, y), zorder=6,
+                arrowprops=dict(arrowstyle='-|>', color=P['tel'], lw=1.4,
+                                mutation_scale=11))
+ax.text(104, 168, 'falling: the command is held\nacross the band, then released',
+        ha='center', va='bottom', fontsize=7.6, color=P['tel'], zorder=7,
+        linespacing=1.4, bbox=dict(fc='white', ec='none', pad=0.3))
 ax.axvline(150, color=P['new'], ls='--', lw=1.1, zorder=3)
 ax.axvline(200, color=P['bad'], ls='--', lw=1.1, zorder=3)
 ax.plot([143], [0], 'o', ms=7, mfc=P['new'], mec='white', mew=1.2, zorder=6)
@@ -30,12 +45,12 @@ ax.annotate('dashboard capture:\nindex 143, lamp off',
             xy=(143, 0), xytext=(250, 46), fontsize=8.2, color=P['new'],
             zorder=7, linespacing=1.4,
             arrowprops=dict(arrowstyle='-', color=P['new'], lw=0.9))
-ax.text(175, 244, 'hysteresis\ndead band', ha='center', va='top', fontsize=8.2,
+ax.text(175, 252, 'hysteresis\ndead band', ha='center', va='top', fontsize=8.2,
         color='#7a3e00', zorder=7, linespacing=1.4,
         bbox=dict(fc='white', ec='none', pad=0.2))
-ax.text(146, 118, 'lamp OFF below 150', rotation=90, ha='right', va='center',
+ax.text(146, 84, 'lamp OFF below 150', rotation=90, ha='right', va='center',
         fontsize=8.0, color=P['new'], zorder=7)
-ax.text(204, 118, 'lamp ON above 200', rotation=90, ha='left', va='center',
+ax.text(204, 84, 'lamp ON above 200', rotation=90, ha='left', va='center',
         fontsize=8.0, color=P['bad'], zorder=7)
 ax.set_xlim(0, 600)
 ax.set_ylim(-14, 272)

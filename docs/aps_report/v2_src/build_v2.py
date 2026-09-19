@@ -61,7 +61,61 @@ REMAP = [
 # document. Only three figures are referred to by number in reused prose.
 REMAP += [('Figure 14', 'Figure 15'), ('Figure 13', 'Figure 14'),
           ('Figure 10', 'Figure 11')]
+TEXT_W = 453.4          # A4 less 25.4 mm each side, in points
+
 REMAP_HITS = {a: 0 for a, _ in REMAP}
+
+# The register pass. The previous document was written to be read aloud in a
+# review; this one is submitted for examination, so a handful of sentences in
+# the reused prose are restated in the third person and without the
+# conversational turn. Only sentences are touched, never numbers, and every
+# substitution is asserted to fire exactly once.
+POLISH = [
+    ('Clearance is measured in centimetres rather than in metres.',
+     'Available clearance is therefore of the order of centimetres rather than metres.'),
+    ('A front end correcting on a metronome is not responding to evidence.',
+     'A front end that corrects at a fixed odometric interval is responding to a '
+     'schedule rather than to disagreement between scans.'),
+    ('the obvious reading is stronger than the evidence',
+     'the immediate interpretation is stronger than the evidence supports'),
+    ('The honest statement is therefore bounded:',
+     'The defensible statement is therefore a bounded one:'),
+    ('The mechanism is the part worth reporting.',
+     'The mechanism is the substantive finding.'),
+    ('the quantity driving a control decision is the quantity that actually matters',
+     'the quantity driving a control decision is the quantity intended'),
+    ('Inverting this system recovers the body twist from the four measured wheel '
+     'velocities',
+     'Inverting the system of Equation (1.2) recovers the body twist from the '
+     'four measured wheel velocities'),
+    ('The specification below describes the machine as it stands at the end of '
+     'the reporting period.',
+     'Table 1.1 describes the machine as it stands at the end of the reporting '
+     'period.'),
+    ('The table below comes from the motor telemetry of the drive shown as '
+     'Drive C in Figure 11',
+     'Table 1.2 is drawn from the motor telemetry of the drive shown as Drive C '
+     'in Figure 11'),
+    ('The comparison was made twice, at two scales, with the robot physically '
+     'returned to a marked start point and the closure measured against that '
+     'mark.',
+     'The comparison was made twice, at two scales, with the robot physically '
+     'returned to a marked start point and the closure measured against that '
+     'mark; Table 1.3 gives both.'),
+    ('what sensing this class of platform actually requires',
+     'what sensing this class of platform requires'),
+    ('the path length a 50 per cent coverage criterion actually demands',
+     'the path length a 50 per cent coverage criterion demands'),
+    ('What the asymmetry contributes here is worth stating narrowly, because it '
+     'is easy to overstate.',
+     'The contribution of the asymmetry is stated narrowly here, because it is '
+     'readily overstated.'),
+    ('The aisle itself has received far less attention, and it is the part of the '
+     'building where the geometric constraint is hardest.',
+     'The aisle itself has received considerably less attention, and it is the '
+     'part of the building in which the geometric constraint is most severe.'),
+]
+POLISH_HITS = {a: 0 for a, _ in POLISH}
 # A reference that must NOT survive into the new document at all.
 STALE = re.compile(r'Section [56]\.\d|Chapter [567]\b')
 
@@ -70,6 +124,14 @@ def remap(t):
     for a, b in REMAP:
         if a in t:
             REMAP_HITS[a] += t.count(a)
+            t = t.replace(a, b)
+    return t
+
+
+def polish(t):
+    for a, b in POLISH:
+        if a in t:
+            POLISH_HITS[a] += t.count(a)
             t = t.replace(a, b)
     return t
 
@@ -186,7 +248,7 @@ def copy_runs(p, srcp, size=None, force_italic=False):
     """Reproduce a paragraph of the previous document run for run, so bold
     lead-ins and italic journal titles survive, with cross-references remapped."""
     for r in srcp.runs:
-        t = remap(r.text)
+        t = polish(remap(r.text))
         nr = p.add_run(t)
         nr.bold = r.bold
         nr.italic = True if force_italic else r.italic
@@ -266,6 +328,22 @@ from _tables_eqs import *  # noqa  (TABLES, EQS and the m: helpers)
 
 
 def add_table(spec):
+    # A table caption sits above its table, a figure caption below its figure.
+    # The number is the chapter number and the table's order within it.
+    cp = doc.add_paragraph()
+    cp.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    cp.paragraph_format.space_before = Pt(4)
+    cp.paragraph_format.space_after = Pt(4)
+    cp.paragraph_format.line_spacing = 1.0
+    cp.paragraph_format.keep_with_next = True
+    r1 = cp.add_run('Table %s. ' % spec['num'])
+    r1.bold = True
+    r1.font.size = Pt(9)
+    r2 = cp.add_run(spec['title'] + '. ')
+    r2.italic = True
+    r2.font.size = Pt(9)
+    r3 = cp.add_run(spec['cap'])
+    r3.font.size = Pt(9)
     t = doc.add_table(rows=1, cols=len(spec['cols']))
     t.alignment = WD_TABLE_ALIGNMENT.LEFT
     t.autofit = False
@@ -331,13 +409,50 @@ def add_table(spec):
     return t
 
 
-def add_equation(xmls):
-    for x in xmls:
+STRAY_PUBLISHER = [0]
+
+
+def _fix_stray_publisher(runs):
+    """Reference 21 is exported with 'IEEE' italicised at the head of the
+    article title rather than at the head of the venue, so it reads 'IEEE
+    Aggressive driving with...'. Move it to the venue, which is where every
+    other entry in this bibliography puts it."""
+    for i, (t, ital, _b) in enumerate(runs):
+        if ital and t.strip() == 'IEEE':
+            for j in range(i + 1, len(runs)):
+                if runs[j][1]:
+                    runs[j][0] = 'IEEE ' + runs[j][0]
+                    break
+            else:
+                return runs
+            del runs[i]
+            STRAY_PUBLISHER[0] += 1
+            return runs
+    return runs
+
+
+def add_equation(xmls, num=None):
+    """A display equation, centred, with its number set against the right
+    margin. A set that runs over two lines carries one number, on the last
+    line, because the lines are one statement rather than two."""
+    for i, x in enumerate(xmls):
         p = doc.add_paragraph()
-        p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p.paragraph_format.space_after = Pt(9)
         p.paragraph_format.space_before = Pt(9)
+        if num is None:
+            p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p._p.append(parse_xml(f'<m:oMath xmlns:m="{M}" xmlns:w="{W}">{x}</m:oMath>'))
+            continue
+        p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        tabs = p.paragraph_format.tab_stops
+        tabs.add_tab_stop(Pt(TEXT_W / 2), WD_TAB_ALIGNMENT.CENTER)
+        tabs.add_tab_stop(Pt(TEXT_W), WD_TAB_ALIGNMENT.RIGHT)
+        p.add_run().add_tab()
         p._p.append(parse_xml(f'<m:oMath xmlns:m="{M}" xmlns:w="{W}">{x}</m:oMath>'))
+        if i == len(xmls) - 1:
+            r = p.add_run()
+            r.add_tab()
+            r.add_text('(%s)' % num)
 
 
 def _proposal_media(_cache=[]):
@@ -369,23 +484,28 @@ def add_figure(key):
     p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_after = Pt(0)
     p.add_run().add_picture(path, width=Pt(w))
-    lp = doc.add_paragraph()
-    lp.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    lp.paragraph_format.space_after = Pt(9.5)
-    lp.paragraph_format.line_spacing = 1.0
-    lr = lp.add_run(C.LABELS[key])
-    lr.italic = True
-    lr.font.size = Pt(9)
+    # One caption block per figure, in the order a caption is read: the label
+    # in bold, the title of the figure in italic, then the description upright.
+    # The centred line that used to sit between picture and caption is gone;
+    # it was a second, unnumbered title for the same object.
+    label, rest = cap.split('. ', 1)
     cp = doc.add_paragraph()
     cp.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    cp.paragraph_format.space_before = Pt(6)
     cp.paragraph_format.space_after = Pt(8)
     cp.paragraph_format.line_spacing = 1.0
-    cr = cp.add_run(cap)
-    cr.italic = True
-    cr.font.size = Pt(9)
+    r1 = cp.add_run(label + '. ')
+    r1.bold = True
+    r1.font.size = Pt(9)
+    r2 = cp.add_run(C.LABELS[key] + '. ')
+    r2.italic = True
+    r2.font.size = Pt(9)
+    r3 = cp.add_run(rest)
+    r3.font.size = Pt(9)
 
 
 HEADINGS = []          # (text, level) in document order, for the contents pass
+eq_no = [0]            # display equations, numbered in document order
 first_chapter = True
 chapter_open = 0
 used_figs = set()
@@ -433,7 +553,7 @@ for el in C.BODY:
         if kind == 'R':
             copy_runs(p, srcp)
         else:
-            full = remap(srcp.text)
+            full = polish(remap(srcp.text))
             for find, repl in el[2]:
                 assert full.count(find) == 1, (el[1], find[:50])
                 full = full.replace(find, repl)
@@ -456,10 +576,12 @@ for el in C.BODY:
         p.paragraph_format.first_line_indent = Inches(-0.333)
         p.paragraph_format.space_after = Pt(6)
         p.paragraph_format.line_spacing = 1.0
-        for r in srcp.runs:
-            nr = p.add_run(_pages(r.text))
-            nr.italic = r.italic
-            nr.bold = r.bold
+        runs = [[_pages(r.text), r.italic, r.bold] for r in srcp.runs]
+        runs = _fix_stray_publisher(runs)
+        for text, ital, bold in runs:
+            nr = p.add_run(text)
+            nr.italic = ital
+            nr.bold = bold
             nr.font.name = 'Cambria'
             nr._element.rPr.rFonts.set(qn('w:eastAsia'), 'Cambria')
             nr._element.rPr.rFonts.set(qn('w:cs'), 'Cambria')
@@ -472,7 +594,8 @@ for el in C.BODY:
         add_table(TABLES[el[1]])
         para('', space_after=0, space_before=0)
     elif kind == 'E':
-        add_equation(EQS[el[1]])
+        eq_no[0] += 1
+        add_equation(EQS[el[1]], '1.%d' % eq_no[0])
     else:
         raise SystemExit('unknown element ' + kind)
 
@@ -497,6 +620,50 @@ doc.save(OUT)
 print('wrote', OUT)
 print('paragraphs %d  tables %d  figures %d  headings %d'
       % (len(doc.paragraphs), len(doc.tables), len(used_figs), len(HEADINGS)))
+missed = [a for a, n in POLISH_HITS.items() if n != 1]
+assert not missed, 'register pass did not fire exactly once: %r' % (
+    [m[:60] for m in missed],)
+assert STRAY_PUBLISHER[0] == 1, STRAY_PUBLISHER[0]
+print('register pass: %d sentences restated, 1 reference repaired'
+      % len(POLISH))
+# ── subscripts written as underscores in the reused prose ────────────
+# One paragraph of Section 1.5 refers to the two yaw lever arms in running
+# text as K_o and K_i, which is how they are typed in source and not how they
+# are set in print. Split those runs so the symbol is italic and the index is
+# a real subscript, as it is in Equations (1.3) and (1.4).
+SUBS = re.compile(r'([A-Za-z])_([A-Za-z0-9]+)')
+_subs_done = 0
+for _p in doc.paragraphs:
+    for _r in list(_p.runs):
+        if '_' not in _r.text or not SUBS.search(_r.text):
+            continue
+        pieces, pos = [], 0
+        for m in SUBS.finditer(_r.text):
+            pieces.append(('plain', _r.text[pos:m.start()]))
+            pieces.append(('sym', m.group(1)))
+            pieces.append(('sub', m.group(2)))
+            pos = m.end()
+        pieces.append(('plain', _r.text[pos:]))
+        _r.text = ''
+        _anchor = _r._element
+        for kind_, txt_ in pieces:
+            if not txt_:
+                continue
+            nr_ = _p.add_run(txt_)
+            nr_.bold, nr_.italic = _r.bold, _r.italic
+            if _r.font.size:
+                nr_.font.size = _r.font.size
+            if kind_ == 'sym':
+                nr_.italic = True
+            elif kind_ == 'sub':
+                nr_.font.subscript = True
+                _subs_done += 1
+            _anchor.addnext(nr_._element)
+            _anchor = nr_._element
+        _r._element.getparent().remove(_r._element)
+assert _subs_done == 4, _subs_done
+print('subscripts set in running text: %d' % _subs_done)
+
 print('cross-references remapped:',
       ', '.join('%s→%s x%d' % (a, b, REMAP_HITS[a])
                 for a, b in REMAP if REMAP_HITS[a]))

@@ -25,66 +25,63 @@ def fig(key, src, w, cap):
 
 # ── Chapter 1 ────────────────────────────────────────────────────────
 fig('prior', 'NEW/fig38_prior_chassis.png', 451.0,
-    'Figure 1. The geometry this platform inherits, reproduced from the prior work [1]. Panels (a) and '
-    '(b) are the two chassis variants that paper proposes: in (a) the lateral wheels sit close together '
-    'and in (b) they are distributed along the length. Variant (a) is the arrangement built here. Panel '
-    '(c) is that paper’s kinematic schematic, with the wheel origins at longitudinal distances '
-    'l₁ and l₂ from the body centre and a half track of d, which are the symbols used throughout '
-    'Section 1.5.')
+    'Figure 1. Reproduced from the prior work [1]; this is the geometry the present platform inherits. '
+    'Panels (a) and (b) are the two chassis variants that paper proposes: in (a) the lateral wheels sit '
+    'close together and in (b) they are distributed along the length. Variant (a) is the arrangement '
+    'built here. Panel (c) is that paper’s kinematic schematic, with the wheel origins at longitudinal '
+    'distances l₁ and l₂ from the body centre and a half track of d, which are the symbols used '
+    'throughout Section 1.5.')
 fig('kin', 'NEW/fig35_prior_kinematics.png', 451.0,
     'Figure 2. What the non-collinear placement changes, drawn at the dimensions of the machine built '
-    'here. In the symmetric case every wheel shares one yaw lever arm. Moving one diagonal pair inward '
-    'gives the two pairs lever arms of 0.5607 m and 0.4907 m, a difference of 14 per cent. The '
+    'here. In the symmetric layout every wheel shares one yaw lever arm. Moving one diagonal pair '
+    'inward gives the two pairs lever arms of 0.5607 m and 0.4907 m, a difference of 14 per cent. The '
     'translation terms are identical between the two layouts, so only the yaw column of the '
     'transformation changes, and that is both the whole of the difference and the whole of the risk.')
 fig('plat', 'MEDIA/image2.jpg', 313.6,
-    'Figure 3. The platform as built. The chassis is 1.00 m long and 0.36 m wide across the wheels, and '
-    'the four mecanum wheels sit non-collinearly rather than at the corners of a rectangle: the pair '
-    'nearer the camera is visibly offset along the length from the pair behind. The vertical mast '
-    'carries the three normal tubes and the stepper axis of the cargo arm. The mast and its payload sit '
-    'within the plane of the lidar, which is the black unit above the battery, and are the cause of the '
-    'self-occlusion sector measured in Section 1.12.')
+    'Figure 3. The chassis is 1.00 m long and 0.36 m wide across the wheels, and the four mecanum '
+    'wheels sit non-collinearly rather than at the corners of a rectangle: the pair nearer the camera '
+    'is visibly offset along the length from the pair behind. The vertical mast carries the three '
+    'normal tubes and the stepper axis of the cargo arm. The mast and its payload sit within the plane '
+    'of the lidar, which is the black unit above the battery, and are the cause of the self-occlusion '
+    'sector measured in Section 1.12.')
 fig('trial', 'MEDIA/image3.png', 420.0,
-    'Figure 4. The platform during hardware trials. Panel (a) is a top-down view with the body axis '
+    'Figure 4. Photographed during hardware trials. Panel (a) is a top-down view with the body axis '
     'convention marked and the lidar at its mounting position above the battery. Panel (b) is the '
     'corresponding view in the visualiser. Panels (c) and (d) are the start and end frames of the '
     'forward-drive test used to establish the lidar angular convention.')
 fig('elec', 'REPO/docs/hardware/nab_circuit_diagram.png', 453.0,
-    'Figure 5. The deployed electronics, organised in three layers: power distribution, compute and '
-    'command, and drive with odometry feedback, each on its own rail colour. The front and rear motors '
-    'carry encoders of different resolution and different wiring convention, which is recorded '
-    'explicitly because the difference has caused a channel to be miswired during commissioning. The '
-    'control constants shown against the microcontroller are the deployed ones, and they are the values '
-    'derived in Section 1.6.')
+    'Figure 5. Organised in three layers, each on its own rail colour: power distribution, compute and '
+    'command, and drive with odometry feedback. The front and rear motors carry encoders of different '
+    'resolution and different wiring convention, which is recorded explicitly because the difference '
+    'has caused a channel to be miswired during commissioning. The control constants shown against the '
+    'microcontroller are the deployed ones, and they are the values derived in Section 1.6.')
 fig('geom', 'MEDIA/image5.png', 419.9,
-    'Figure 6. Dimensioned plan view of the wheel layout, taken from the mechanical assembly. The outer '
-    'diagonal pair sits 403 mm from the body centre along the longitudinal axis and the inner pair 333 '
-    'mm, an offset of 70 mm. The half track width is the same for all four wheels. Two width figures '
-    'appear in this report and they measure the same span by different means. The 360 mm quoted in the '
-    'hardware table of Section 1.3, and used for the collision footprint, is the tape measurement of the '
-    'built machine, wheel outer to wheel outer. The 375.4 mm marked here is derived from the assembly, '
-    'being twice the 157.69 mm half track plus two 30 mm wheel half-widths. The two differ by 15.4 mm, '
-    'and the tape figure is the one every experimental result in this report is referenced to.')
+    'Figure 6. Dimensioned plan view, taken from the mechanical assembly. The outer diagonal pair sits '
+    '403 mm from the body centre along the longitudinal axis and the inner pair 333 mm, an offset of 70 '
+    'mm. The half track width is the same for all four wheels. Two width figures appear in this report '
+    'and they measure the same span by different means. The 360 mm quoted in the hardware table of '
+    'Section 1.3, and used for the collision footprint, is the tape measurement of the built machine, '
+    'wheel outer to wheel outer. The 375.4 mm marked here is derived from the assembly, being twice the '
+    '157.69 mm half track plus two 30 mm wheel half-widths. The two differ by 15.4 mm, and the tape '
+    'figure is the one every experimental result in this report is referenced to.')
 fig('loop', 'NEW/fig33_pid_loop.png', 451.0,
-    'Figure 7. The per-wheel velocity loop as the deployed firmware runs it, one of these for each of the '
-    'four wheels at 100 Hz. Green marks the three blocks this version of the firmware added, orange the '
-    'command path out to the wheel, and purple the controller and the measurement path back from the '
-    'encoder. The two notes at the left are details that a block diagram cannot show and that change how '
-    'the loop behaves.')
+    'Figure 7. As the deployed firmware runs it, one loop for each of the four wheels at 100 Hz. Green '
+    'marks the three blocks this version of the firmware added, orange the command path out to the '
+    'wheel, and purple the controller and the measurement path back from the encoder. The two notes at '
+    'the left are details that a block diagram cannot show and that change how the loop behaves.')
 fig('ff', 'MEDIA/image8.png', 419.9,
-    'Figure 8. The two-term feedforward model fitted against measured open-loop data. The static term '
-    'accounts for breakaway friction and the speed-proportional term for the remaining demand. A '
-    'single-slope model systematically under-drives the wheels at low speed, which is why the second '
-    'term is required.')
+    'Figure 8. The two-term model fitted against measured open-loop data. The static term accounts for '
+    'breakaway friction and the speed-proportional term for the remaining demand. A single-slope model '
+    'systematically under-drives the wheels at low speed, which is why the second term is required.')
 fig('track', 'MEDIA/image9.png', 420.0,
-    'Figure 9. Closed-loop wheel velocity tracking, wheels free of the ground. Panel (a) is the '
+    'Figure 9. Wheel velocity against command with the wheels free of the ground. Panel (a) is the '
     'front-right wheel over the full 90.8 s run, with the shaded band marking the region expanded in '
     'panel (b). Panel (b) expands the largest commanded step in the run, plotted against time relative '
     'to the step edge with one marker per 20 Hz log sample: the wheel reaches within 5 per cent of the '
     'commanded −2.207 rad/s in 0.20 s, overshoots by 3.5 per cent, and then holds the level to a mean '
     'offset of 0.003 rad/s. Panel (c) gives the tracking error for all four wheels, showing that the '
-    'excursions coincide with commanded step edges and not with steady state. The step transient occupies '
-    'three to four log samples, which is why it appears in (a) as a vertical edge.')
+    'excursions coincide with commanded step edges and not with steady state. The step transient '
+    'occupies three to four log samples, which is why it appears in (a) as a vertical edge.')
 fig('load', 'MEDIA/image10.png', 419.9,
     'Figure 10. Steady-state drive demand per unit wheel speed, unloaded against loaded. The increase '
     'under chassis weight was predicted to fall between 10 and 30 per cent before the measurement was '
@@ -96,7 +93,7 @@ fig('odom', 'MEDIA/image11.png', 419.9,
     'and the wheel-odometry estimate closed to 19 mm over 8.00 m, 28 mm over 9.61 m and 96 mm over 10.61 '
     'm, which is 0.23, 0.29 and 0.91 per cent of path travelled respectively.')
 fig('occl', 'MEDIA/image12.png', 420.0,
-    'Figure 12. The self-occlusion sector, re-measured at five independent headings. The mast and payload '
+    'Figure 12. The occluded sector, re-measured at five independent headings. The mast and payload '
     'block a wedge of approximately 90 degrees, covering 107 of the 430 beams returned per revolution. '
     'Unmasked, these returns are interpreted as an obstacle travelling with the robot.')
 fig('cov', 'MEDIA/image13.png', 419.9,
@@ -109,37 +106,37 @@ fig('cov', 'MEDIA/image13.png', 419.9,
     'rotation with translation produced 1545 cells, 77.2 m, which is 88 per cent of what a full perimeter '
     'drive accumulates in 18 per cent of its duration.')
 fig('maps', 'MEDIA/image14.png', 419.9,
-    'Figure 14. The three commissioning maps of 15 September, rendered from the saved occupancy grids. '
-    'Within the classified regions the recovered wall geometry is consistent across all three runs and '
-    'with the layout of the room, and the robot returns to its starting mark in each case. The grey '
-    'regions are cells that never accumulated enough observation to be classified, and they are the '
-    'criterion that fails on all three. The driven path is visible as a small loop near the origin in each '
-    'panel, which is the coverage problem seen directly: the robot cannot classify what it cannot drive past.')
+    'Figure 14. The three maps of 15 September, rendered from the saved occupancy grids. Within the '
+    'classified regions the recovered wall geometry is consistent across all three runs and with the '
+    'layout of the room, and the robot returns to its starting mark in each case. The grey regions are '
+    'cells that never accumulated enough observation to be classified, and they are the criterion that '
+    'fails on all three. The driven path is visible as a small loop near the origin in each panel, '
+    'which is the coverage problem seen directly: the robot cannot classify what it cannot drive past.')
 fig('audit', 'MEDIA/image15.png', 484.5,
-    'Figure 15. Evidence status of each layer of the system, with the measurement given beside each '
-    'entry. The evidence is not all of one kind: closure against the floor is an external reference, the '
+    'Figure 15. Each layer with the measurement that supports it, or with the reason it has none. The '
+    'evidence is not all of one kind: closure against the floor is an external reference, the '
     'kinematics and odometry rows are checks against an independent implementation, and the planner, '
     'controller and safety rows are operational demonstrations rather than measurements against a '
-    'reference. Three components work but run below their requested update rates. For the five layers that '
-    'are not yet established, the entry states the specific reason rather than recording a failure; in '
-    'three of those five the reason is the size of the available test area rather than anything on the '
-    'platform.')
+    'reference. Three components work but run below their requested update rates. For the five layers '
+    'that are not yet established, the entry states the specific reason rather than recording a '
+    'failure; in three of those five the reason is the size of the available test area rather than '
+    'anything on the platform.')
 
 # ── Chapter 2 ────────────────────────────────────────────────────────
 fig('iothw', 'NEW/fig40_iot_hardware.png', 451.0,
-    'Figure 16. The appliance and the sensing node as built. Panel (a) is the integrated unit: an '
-    'aluminium duct on a stand with the germicidal lamp inside it, the control enclosure mounted on top '
-    'near one end, and the 120 mm fan set into the end face. Panel (b) is both control boxes powered and '
-    'linked, with the two helical antennas and the transparent panels visible. The displays are reading '
-    'live, which is how a node is checked without attaching a computer to it: irradiance and gas state '
-    'on the left, uptime and firmware build on the right.')
+    'Figure 16. Both units as built. Panel (a) is the integrated unit: an aluminium duct on a stand '
+    'with the germicidal lamp inside it, the control enclosure mounted on top near one end, and the 120 '
+    'mm fan set into the end face. Panel (b) is both control boxes powered and linked, with the two '
+    'helical antennas and the transparent panels visible. The displays are reading live, which is how a '
+    'node is checked without attaching a computer to it: irradiance and gas state on the left, uptime '
+    'and firmware build on the right.')
 fig('iotarch', 'NEW/fig34_iot_architecture.png', 451.0,
-    'Figure 17. The monitoring architecture end to end, from the devices on the edge node, through the '
-    'three communication channels, to the containerised stack that ingests, stores and displays. The '
-    'figure is drawn so that each channel can be followed separately, because they are not '
-    'interchangeable: the three arrive at three different places and only two of them reach the '
-    'database. Blue is telemetry travelling outward from the node and orange a command travelling back '
-    'to it. Red marks the one measurement channel that is fitted, reads, and does nothing.')
+    'Figure 17. End to end, from the devices on the edge node, through the three communication '
+    'channels, to the containerised stack that ingests, stores and displays. The figure is drawn so '
+    'that each channel can be followed separately, because they are not interchangeable: the three '
+    'arrive at three different places and only two of them reach the database. Blue is telemetry '
+    'travelling outward from the node and orange a command travelling back to it. Red marks the one '
+    'measurement channel that is fitted, reads, and does nothing.')
 fig('iotlaw', 'NEW/fig39_iot_control_law.png', 451.0,
     'Figure 18. Panel (a) is the actuation law as implemented. The lamp switches on above a gas index of '
     '200 and off below 150, and the fan is ramped rather than switched, starting at half command at the '
@@ -152,33 +149,38 @@ fig('iotlaw', 'NEW/fig39_iot_control_law.png', 451.0,
     'sample window, was checked and found to be wrong, and the residual error there is a small high bias '
     'from loop latency.')
 fig('iotdash', 'NEW/fig41_iot_dashboard.png', 451.0,
-    'Figure 19. The operator dashboard in service, photographed rather than captured. Panel (a) is the '
-    'status view for one zone: the gas index reads 143, below the 150 threshold, with the lamp '
-    'correspondingly off, while carbon dioxide at the same instant reads 1240 ppm, above its 1200 ppm '
+    'Figure 19. Photographed off the screen rather than captured from it. Panel (a) is the status view '
+    'for one zone. The gas index reads 143, below the 150 threshold, with the lamp correspondingly off; '
+    'the tile is headed air quality and carries no unit, which is the dashboard reproducing the defect '
+    'of Section 2.3 rather than a second one, and the quantity behind it is the dimensionless index and '
+    'not a concentration. while carbon dioxide at the same instant reads 1240 ppm, above its 1200 ppm '
     'alert threshold. Panel (b) is the trend view, whose legends expose the stored tag structure and '
-    'were used to confirm the database schema, and whose left panel puts humidity and temperature on one '
-    'axis labelled in degrees, which is a fault in the dashboard rather than in the data.')
+    'were used to confirm the database schema, and whose left panel puts humidity and temperature on '
+    'one axis labelled in degrees, which is a fault in the dashboard rather than in the data.')
 
 # ── Chapter 3 ────────────────────────────────────────────────────────
-fig('fatcrisis', 'SRC/image2.jpeg', 440.0,
-    'Figure 20. The case for the strand, set out side by side: on the left the conditions that make '
-    'fatigue a safety problem in Indian warehouses, and on the right what a contactless node would '
-    'watch instead. The wearable on the left is the point of the whole approach. A device that degrades '
-    'in heat and perspiration, and that a worker has to choose to put on, is not a measurement system '
-    'for an eight-hour shift. This figure was generated with an AI tool from the text of the research '
-    'proposal for this strand, and is included as a summary rather than as evidence.')
-fig('fatframework', 'NEW/fig42_fatigue_framework.png', 451.0,
-    'Figure 21. The proposed framework end to end, with each modality shown against the fatigue '
-    'indicator it is there to supply. The fourth box at the foot is the part that matters most to '
-    'whether any of this works, and it is the one an architecture diagram usually leaves out: what the '
-    'estimate would be checked against, one reference measurement for each modality. Nothing to the '
-    'right of the sensing column exists. Like Figure 20, this was generated with an AI tool from the '
-    'proposal text, and carries no weight beyond summarising it.')
+fig('fatcrisis', 'NEW/fig43_fatigue_problem.png', 451.0,
+    'Figure 20. The left-hand column states the conditions under which any instrument for this strand '
+    'would have to work; the right-hand column pairs each class of method now in use with the specific '
+    'reason it does not survive those conditions. The three reasons are not equivalent. Subjective '
+    'report is unreliable at its source, and no instrument corrects that. The contact methods are '
+    'reliable in themselves and cannot be maintained in contact across a ten-hour shift above 40 °C, '
+    'which is a limitation of the instrument rather than of the measurement principle, and therefore a '
+    'tractable one. It is that second class of failure, and only that class, which this strand '
+    'addresses.')
+fig('fatframework', 'NEW/fig44_fatigue_pipeline.png', 451.0,
+    'Figure 21. One crossing of the monitored zone, from capture to a single score. Four contactless '
+    'streams are reduced on the node itself, each supplying a distinct fatigue indicator, and the fused '
+    'estimate is computed without any raw video or point cloud leaving the sensor bracket, which is '
+    'what makes the privacy position a property of the architecture rather than an undertaking. The '
+    'dashed rule marks the limit of what the proposal fixes: the sensor set and its mounting are '
+    'specified and costed, and everything to the right of the rule is design. The two decisions that '
+    'carry most of the risk are marked on the figure and taken up in the text below it.')
 fig('fatdes', 'NEW/fig36_fatigue_design.png', 451.0,
-    'Figure 22. The three objectives, and the physical reference each one would be measured against. '
-    'Reading down the right-hand column gives the order the work has to happen in: a modality that has '
-    'not been checked against motion capture cannot sensibly be fused, and a fused score has nothing to '
-    'be compared against until the contact reference has been recorded on the same subjects.')
+    'Figure 22. Where Figure 21 gives the signal path, this figure gives the order of work. Reading '
+    'down the right-hand column establishes that order: a modality that has not been checked against '
+    'motion capture cannot sensibly be fused, and a fused score has nothing to be compared against '
+    'until the contact reference has been recorded on the same subjects during the same task.')
 
 # the short centred line that sits between a figure and its caption
 LABELS = {
@@ -195,43 +197,44 @@ LABELS = {
     'iotarch': 'Monitoring and control architecture',
     'iotlaw': 'The control law, and what a source audit of it found',
     'iotdash': 'The operator dashboard in service',
-    'fatcrisis': 'The problem, and what a contactless node would watch',
-    'fatframework': 'The proposed framework, end to end',
-    'fatdes': 'Objectives and the references they are measured against',
+    'fatcrisis': 'The operating condition, and where each established method stops',
+    'fatframework': 'The proposed pipeline, capture to score',
+    'fatdes': 'The three objectives, and the reference each is measured against',
 }
 
 ABSTRACT = [
-    "This report covers the first year of a doctoral project that runs three strands at once: a robot "
-    "that can work inside a narrow storage aisle, an instrumented environmental monitoring system for "
-    "the space that robot moves through, and a proposed method for assessing the physical fatigue of "
-    "the people who share that space, without asking any of them to wear anything.",
+    "This report covers the first year of a doctoral project pursuing three strands in parallel: an "
+    "autonomous mobile platform dimensioned for a narrow storage aisle, an instrumented environmental "
+    "monitoring system for the space that platform traverses, and a proposed method for assessing the "
+    "physical fatigue of the people who share that space without requiring them to wear an instrument.",
 
-    "The first strand is the substantial one, and most of this report is about it. A storage aisle is "
-    "sized for the goods it holds and for a human picker, so a vehicle working there has centimetres of "
-    "clearance rather than metres. Earlier work in this laboratory derived the kinematics for an "
-    "asymmetric, non-collinear mecanum wheel layout intended for exactly that constraint, and "
-    "demonstrated the principle on a small prototype. This year took that geometry to a full-scale "
-    "machine of 45.54 kg, built the closed-loop velocity control it needs at every wheel, and measured "
-    "what the result actually does. Four results are established against physical references rather "
-    "than asserted: the velocity controller tracks to 0.040 to 0.047 rad/s root-mean-square with the "
-    "wheels free and 0.066 to 0.074 under chassis weight, with no channel saturating in any recorded "
-    "run; the kinematic and odometry implementations agree with an independent reference to machine "
-    "precision across twenty thousand generated cases; wheel-odometry endpoint closure stays below 1 per "
-    "cent of path travelled out to about 10 m; and a scan-matching front end was measured to increase "
-    "pose error rather than reduce it, most sharply on a drive where the same wheels and the same scans "
-    "gave 16.2 mm unmatched and 206.7 mm matched. Autonomous point-to-point navigation has been "
-    "demonstrated, though within a live mapping session rather than against a saved map.",
+    "The first strand is the principal one and occupies most of this report. A storage aisle is "
+    "dimensioned for the goods it holds and for a human picker, so a vehicle operating there has "
+    "clearances of the order of centimetres rather than metres. Earlier work in this laboratory derived "
+    "the kinematics for an asymmetric, non-collinear mecanum wheel layout intended for exactly that "
+    "constraint, and demonstrated the principle on a small prototype. The present year has taken that "
+    "geometry to a full-scale machine of 45.54 kg, implemented the closed-loop velocity control it "
+    "requires at every wheel, and characterised the result by measurement. Four results are established "
+    "against physical references rather than asserted: the velocity controller tracks to 0.040 to 0.047 "
+    "rad/s root-mean-square with the wheels free and 0.066 to 0.074 under chassis weight, with no "
+    "channel saturating in any recorded run; the kinematic and odometry implementations agree with an "
+    "independent reference to machine precision across twenty thousand generated cases; wheel-odometry "
+    "endpoint closure stays below 1 per cent of path travelled out to about 10 m; and a scan-matching "
+    "front end was measured to increase pose error rather than reduce it, most sharply on a drive where "
+    "the same wheels and the same scans gave 16.2 mm unmatched and 206.7 mm matched. Autonomous "
+    "point-to-point navigation has been demonstrated, though within a live mapping session rather than "
+    "against a saved map.",
 
-    "Running alongside it is a multi-parameter monitoring and control system, built from nothing over "
-    "the same period and now deployed across four zones in two radio-isolated installations sharing one "
-    "database. It drives an ultraviolet lamp and a fan from measured air condition rather than from a "
-    "timer, reports over three wireless channels that run concurrently rather than as a failover chain, "
-    "and recovers from a power interruption without anyone attending to it.",
+    "The second strand is a multi-parameter monitoring and control system, developed over the same "
+    "period and now deployed across four zones in two radio-isolated installations reporting to a "
+    "single database. It drives an ultraviolet lamp and a fan from measured air condition rather than "
+    "from a timer, reports over three wireless channels that run concurrently rather than as a failover "
+    "chain, and recovers from a power interruption without intervention.",
 
-    "The third strand is, at this stage, a hypothesis and a completed literature survey. No hardware has "
-    "been built and no data collected. It is carried here because the argument for it is already "
-    "specific: the contact-based methods work well and are unusable on an operating floor for reasons "
-    "that are practical rather than evidential, and the contactless modalities that might replace them "
+    "The third strand is, at this stage, a hypothesis and a completed literature survey. No hardware "
+    "has been built and no data collected. It is included because the argument supporting it is already "
+    "specific: the contact-based methods perform well and are unusable on an operating floor for "
+    "practical rather than evidential reasons, and the contactless modalities that might replace them "
     "have each been characterised alone but never fused for whole-body physical fatigue in an "
     "uncontrolled industrial setting.",
 
@@ -257,38 +260,6 @@ BODY = [
     # ══════════════════════════════════════════════════ INTRODUCTION ══
     ('h1', 'Introduction'),
     ('R', 62),
-    ('p',
-     'Three separate problems live in that same corridor, and this project takes all three. The first is '
-     'motion: getting a machine down the aisle and back without touching anything, and knowing where it '
-     'is well enough to do that without a person driving it. Then there is the condition of the space '
-     'itself, which is where the goods sit and where the air is least controlled anywhere in the '
-     'building. And there are the people, who walk that aisle under load for a full shift in conditions '
-     'that, in Indian facilities, are often well outside anything comfortable.'),
-    ('p',
-     'They are treated here as three strands of one problem rather than three projects, and the reason '
-     'is not that they share a theme. It is that they share instrumentation. Multi-sensor integration, '
-     'calibration against a physical reference, real-time acquisition, and closed-loop control with '
-     'interlocks that fail safe are the same engineering in all three, and a mistake made in one strand '
-     'shows up as a lesson in the next. The monitoring system taught the robot work how to verify a '
-     'configuration against a running system rather than against a file. The robot work taught the '
-     'monitoring system that a control law has to be measured responding to a change, not inferred from '
-     'a consistent snapshot.'),
-    ('p',
-     'A robot that already traverses every aisle is also the obvious carrier for the sensing the second '
-     'strand does from fixed points, so there may be one system here in the end. That is '
-     'an observation rather than a plan. Whether the three end up as one thing depends on results none '
-     'of them has yet, and this report does not assume it. What it does assume is the weaker and safer '
-     'version: a strand whose behaviour has not been characterised on its own contributes nothing '
-     'measurable to anything built on top of it, so each one is carried until it stands up by itself.'),
-    ('p',
-     'The three are at very different stages, and the report does not pretend otherwise. The robot is '
-     'built, instrumented and measured, and Chapter 1 is correspondingly long. The monitoring system is '
-     'deployed and running, and Chapter 2 describes it without the same depth of characterisation, '
-     'because it has not had the same depth of measurement. The fatigue strand is a hypothesis and a '
-     'literature survey, and Chapter 3 says so in its first paragraph rather than dressing the position '
-     'up. Chapter 4 sets out what comes next for each of them.'),
-
-    ('h2', 'Motivation'),
     ('R', 63),
     ('R', 64),
     ('R', 65),
@@ -298,14 +269,43 @@ BODY = [
                  'mecanum layout intended for narrow aisles and demonstrated the principle on a prototype [1], '
                  'and Section 1.2 sets out what that transformation is.')]),
     ('R', 99),
+    ('p',
+     'The same corridor presents two further problems, and this project addresses all three together. '
+     'The first is the condition of the space itself, which holds the stored goods and is the least '
+     'controlled volume of air in the building. The second is the condition of the people, who traverse '
+     'that aisle under load for a full shift in an environment that, in Indian facilities, frequently '
+     'exceeds established limits for thermal comfort and for heat strain.'),
     ('R', 100),
     ('p',
-     'Both of those supporting strands answer a question the first one raises but cannot settle. A robot '
-     'that surveys an environment is only as useful as the measurement it carries, and a measurement '
-     'that has never been calibrated against anything is not a measurement. A machine sharing an aisle '
-     'with people ought to know something about the state those people are in. Neither question needs '
-     'the robot to exist first, which is why both strands were started in parallel rather than queued '
-     'behind it.'),
+     'Both supporting strands address a question the primary strand raises but cannot itself settle. A '
+     'platform that surveys an environment is useful only to the extent that the measurement it carries '
+     'is traceable, and a quantity that has never been calibrated against a reference is not a '
+     'measurement. A machine that shares an aisle with people has a legitimate interest in the '
+     'condition of those people. Neither question is contingent on the platform existing first, which '
+     'is why both strands were begun in parallel rather than deferred behind it.'),
+    ('p',
+     'The three are treated as strands of a single problem rather than as three projects, and not '
+     'because they share a subject. They share instrumentation. Multi-sensor integration, calibration '
+     'against a physical reference, real-time acquisition, and closed-loop control with interlocks that '
+     'fail safe recur in all three, and an error made in one strand has repeatedly become a method in '
+     'the next. The monitoring system established the practice of verifying a configuration against the '
+     'running system rather than against a file, which was then applied to the platform. The platform '
+     'work established that a control law must be observed responding to a change rather than inferred '
+     'from a steady-state snapshot, which was then applied to the monitoring system.'),
+    ('p',
+     'A platform that already traverses every aisle is also the natural carrier for the sensing the '
+     'second strand performs from fixed points, so a single integrated system is a plausible eventual '
+     'outcome. That is an observation rather than a plan. Whether the three converge depends on results '
+     'none of them has yet produced, and this report does not assume it. The weaker premise is the one '
+     'adopted here: a strand whose behaviour has not been characterised in isolation contributes nothing '
+     'measurable to anything built above it, so each is developed until it stands on its own.'),
+    ('p',
+     'The three strands are at markedly different stages, and the report states each position as it '
+     'stands. The platform is built, instrumented and measured, and Chapter 1 is correspondingly the '
+     'longest. The monitoring system is deployed and operating, and Chapter 2 describes it without the '
+     'same depth of characterisation, because it has not yet received the same depth of measurement. '
+     'The fatigue strand is a hypothesis supported by a literature survey, and Chapter 3 opens by saying '
+     'so. Chapter 4 sets out what follows for each of them.'),
 
     ('h2', 'Objectives'),
     ('lead', 'Objective 1: Development and experimental characterisation of a full-scale asymmetric '
@@ -323,7 +323,7 @@ BODY = [
 
     # ═════════════════════════════════════════════════════ CHAPTER 1 ══
     ('h1', 'Chapter 1  The Narrow-Aisle Robot'),
-    ('h2', '1.1 Motivation'),
+    ('h2', '1.1 Problem and Design Rationale'),
     ('p',
      'The aisle is where inventory is counted, where goods are picked and replaced, and where the '
      'environment is least controlled. It is also precisely the space in which conventional mobile '
@@ -333,17 +333,19 @@ BODY = [
      'distinct warehouse tasks automatable on one platform: inventory scanning, environmental survey, '
      'surface disinfection, and cargo transfer between a rack and a pick point.'),
     ('p',
-     'Scale is what the prior work leaves open. Its prototype settles the transformation between wheel '
-     'and body velocity, which is the hard part of the theory, and settles nothing about a 45.54 kg '
-     'machine: whether four geared motors will hold a commanded velocity accurately, whether the pose '
-     'estimate that follows is good enough to navigate on, or whether a perception stack can sit on top '
-     'of the asymmetry without it causing trouble somewhere unexpected. None of that can be answered from '
-     'a drawing. It needs a machine on the floor and an instrument pointed at it.'),
+     'The open question identified in the Introduction is one of scale, and it is specific. A prototype '
+     'establishes that the transformation between wheel and body velocity is correct, which is the '
+     'substantive part of the theory. It establishes nothing about a 45.54 kg machine: whether four '
+     'geared motors will hold a commanded velocity to a useful tolerance, whether the pose estimate '
+     'derived from them is adequate for navigation, or whether a perception stack can be built above the '
+     'asymmetry without the geometry introducing an unanticipated failure. None of those can be resolved '
+     'analytically. Each requires a built machine and an instrument directed at it.'),
     ('p',
-     'That is what this chapter reports: the platform as built, the control and perception layers put on '
-     'top of it, and what each of those layers was measured to do. The order runs from what the machine '
-     'is, through how it was made to work, to what it was found to do, and ends with an honest statement '
-     'of which layers are established and which are not.'),
+     'This chapter reports that work: the platform as constructed, the control and perception layers '
+     'placed above it, and the measured performance of each. The order proceeds from the configuration '
+     'of the machine, through the means by which it was brought into operation, to the results obtained, '
+     'and closes with an explicit statement of which layers are established by measurement and which are '
+     'not.'),
 
     ('h2', '1.2 Review of Literature'),
     ('R', 68),
@@ -371,10 +373,10 @@ BODY = [
     ('F', 'trial'),
     ('R', 121),
     ('p',
-     'Figures 3 and 4 show the machine as it stands, and the second is worth a moment of attention. '
+     'Figures 3 and 4 show the machine as it stands, and Figure 4 records a specific commissioning step. '
      'Establishing which way the scanner counts its angles took a drive against a placed block, recorded '
-     'start to end, because nothing on the sensor says which way it is looking. That is the sort of '
-     'thing that looks trivial once it is fixed and is expensive for as long as it is not.'),
+     'start to end, because nothing on the sensor says which way it is looking. A fault of that kind is '
+     'trivial to correct once identified and costly for as long as it is not.'),
     ('R', 122),
     ('T', 'TABLE_SPEC'),
 
@@ -413,25 +415,25 @@ BODY += [
     ('h2', '1.6 Wheel-level velocity control, and where the gains came from'),
     ('p',
      'Velocity control runs on the ESP32 at 100 Hz, one independent loop for each of the four wheels, '
-     'and Figure 7 shows the structure of a single one. The loop is not a plain proportional-integral-'
-     'derivative controller, and the distinction matters for everything that follows: a two-term '
-     'feedforward model supplies most of the drive from the commanded velocity alone, and the '
-     'three feedback terms correct only what the feedforward gets wrong. That split is what lets the '
-     'integral gain be as large as it is without the loop becoming lively.'),
+     'and Figure 7 shows the structure of a single one. The loop is not a plain '
+     'proportional-integral-derivative controller, and the distinction matters for everything that '
+     'follows: a two-term feedforward model supplies most of the drive from the commanded velocity '
+     'alone, and the three feedback terms correct only what the feedforward gets wrong. That separation '
+     'is what permits the integral gain to be as large as it is without the loop becoming oscillatory.'),
     ('p',
-     'The feedforward came first, because it was the part that could be fitted to data rather than '
-     'tuned by hand. Its form is a speed-proportional term plus a static term carrying the sign of the '
+     'The feedforward came first, because it was the part that could be fitted to data rather than tuned '
+     'by hand. Its form is a speed-proportional term plus a static term carrying the sign of the '
      'command. The speed-proportional coefficient sits between 37.3 and 38.4 drive counts per rad/s '
      'across the four motors, a spread of 3 per cent, and the static term is 8 counts on all four. Both '
      'were fitted against three independent open-loop campaigns rather than one: a manual drive logged '
      'at steady state, an automated test sweeping demand in 1.5 s windows, and a back-calculation from '
-     'an earlier closed-loop run. The reason a single-slope model will not do is visible in the data '
-     'before any fitting: the ratio of drive command to resulting wheel speed rises as speed falls, '
-     'which is the signature of a breakaway friction term that a straight line through the origin '
+     'an earlier closed-loop run. The inadequacy of a single-slope model is evident in the raw data, '
+     'before any fit is attempted: the ratio of drive command to resulting wheel speed rises as speed '
+     'falls, which is the signature of a breakaway friction term that a straight line through the origin '
      'cannot reproduce. The two-term fit holds every measured point inside 8 per cent, and the two '
-     'high-confidence points inside 2.2 per cent, which Figure 8 shows against the measurements. The static term is faded in across 0.05 to 0.20 '
-     'rad/s rather than applied as a step at any non-zero command, so that a very small commanded '
-     'velocity does not produce a discontinuity in the drive.'),
+     'high-confidence points inside 2.2 per cent, which Figure 8 shows against the measurements. The '
+     'static term is faded in across 0.05 to 0.20 rad/s rather than applied as a step at any non-zero '
+     'command, so that a very small commanded velocity does not produce a discontinuity in the drive.'),
     ('F', 'loop'),
     ('F', 'ff'),
     ('p',
@@ -450,15 +452,15 @@ BODY += [
      'carries the bulk of the command, the integral is correcting a small residual rather than supplying '
      'drive from zero, so a gain that would be reckless on a bare loop is appropriate here.'),
     ('p',
-     'The proportional gain is the one number in the loop that is an estimate rather than a fit, and it '
-     'is worth saying so plainly. Direct synthesis sets it as the product of the integral gain and the '
-     'plant time constant, and that time constant had never been measured on this machine, because every '
-     'bench run to that point had logged steady-state points and no transients. A value of 0.18 s was '
-     'assumed, on the grounds that it is plausible for a 100 W motor behind a 47:1 planetary gearbox, '
-     'and it gives a proportional gain of 45. The assumption was later tested. Plant identification put '
-     'the true time constant at about 0.09 s, half what had been assumed, which by the same formula '
-     'would call for a proportional gain of roughly 22. Two recomputed gains were then run against the '
-     'gain already in service, across sixteen combinations of setpoint and motor, and both produced more '
+     'The proportional gain is the one quantity in the loop that is an estimate rather than a fit, and '
+     'it is recorded as such. Direct synthesis sets it as the product of the integral gain and the plant '
+     'time constant, and that time constant had never been measured on this machine, because every bench '
+     'run to that point had logged steady-state points and no transients. A value of 0.18 s was assumed, '
+     'on the grounds that it is plausible for a 100 W motor behind a 47:1 planetary gearbox, and it '
+     'gives a proportional gain of 45. The assumption was later tested. Plant identification put the '
+     'true time constant at about 0.09 s, half what had been assumed, which by the same formula would '
+     'call for a proportional gain of roughly 22. Two recomputed gains were then run against the gain '
+     'already in service, across sixteen combinations of setpoint and motor, and both produced more '
      'overshoot. The original value was kept, on measured evidence rather than on the theory that '
      'produced it. This is the least satisfying part of the tuning and it is recorded as such: the '
      'deployed gain is right, but the argument that originally justified it turned out to rest on a '
@@ -592,14 +594,14 @@ BODY += [
 
     ('h2', '1.17 Conclusions on the robot'),
     ('p',
-     'The asymmetric geometry survives the move to full scale. That is the headline, and it is worth '
-     'stating in the form the evidence supports rather than in the form the project would prefer: no '
-     'asymmetry-specific penalty has been detected in any experiment performed. The transformation is '
-     'implemented correctly to the limit of double precision, tracking is clean on every axis including '
-     'the lateral and rotational ones, endpoint closure holds below 1 per cent of path out to 10.61 m, '
-     'and no yaw-consistency residual above the episode threshold has appeared. An absence of penalty '
-     'across a year of measurement is not the same thing as a measured cost of zero, and Objective 3 is '
-     'not closed until a matched symmetric baseline exists to compare against.'),
+     'The asymmetric geometry survives the move to full scale. That result is stated in the form the '
+     'evidence supports rather than in the stronger form: no asymmetry-specific penalty has been '
+     'detected in any experiment performed. The transformation is implemented correctly to the limit of '
+     'double precision, tracking is clean on every axis including the lateral and rotational ones, '
+     'endpoint closure holds below 1 per cent of path out to 10.61 m, and no yaw-consistency residual '
+     'above the episode threshold has appeared. An absence of penalty across a year of measurement is '
+     'not the same thing as a measured cost of zero, and Objective 3 is not closed until a matched '
+     'symmetric baseline exists to compare against.'),
     ('p',
      'Below the map, the platform is characterised. The motors track to a known error in both the '
      'unloaded and loaded conditions, the encoder path is clean after the level-translation work of '
@@ -622,6 +624,9 @@ BODY += [
 # A replacement for the previous document's monitoring table, which described
 # the system in generic terms. The parts are now named.
 TABLE_IOT2 = {
+    'num': '2.1',
+    'title': 'The monitoring node as deployed',
+    'cap': ('Parts as fitted, not as specified: every entry was read off the assembled unit or out of its firmware. The gas channel is listed as an index rather than as a concentration, for the reason given in Section 2.3.'),
     'cols': [132.0, 322.0],
     'head': ['Item', 'Specification'],
     'rows': [
@@ -656,18 +661,18 @@ TABLE_IOT2 = {
 BODY += [
     # ═════════════════════════════════════════════════════ CHAPTER 2 ══
     ('h1', 'Chapter 2  Environmental Monitoring for the Warehouse Space'),
-    ('h2', '2.1 Motivation'),
+    ('h2', '2.1 System Context and Design Rationale'),
     ('R', 76),
     ('R', 77),
     ('p',
-     'There is a narrower version of the same argument, and it is the one the system was actually built '
-     'against. Continuous monitoring in a laboratory or a store room is usually done one of two ways: '
-     'with proprietary instruments that are expensive and will not be told what to do, or by somebody '
-     'writing readings down, which introduces transcription error and leaves a gap whenever nobody is '
-     'there. An air-treatment appliance adds a second requirement on top of that. It has to act on what '
-     'it measures, and somebody has to be able to confirm that the action had an effect. A treatment '
-     'duct running on a timer offers neither. It cannot raise airflow when the air is dirty, and it '
-     'cannot tell anyone when its lamp has failed.'),
+     'A narrower form of the same argument is the one against which the system was built. Continuous '
+     'monitoring in a laboratory or a store room is usually done one of two ways: with proprietary '
+     'instruments, which are costly and closed to modification, or by manual transcription, which '
+     'introduces recording error and leaves a gap in the record whenever the space is unattended. An '
+     'air-treatment appliance adds a second requirement on top of that. It must act on what it measures, '
+     'and the effect of that action must be independently confirmable. A treatment duct running on a '
+     'timer offers neither. It cannot raise airflow when the air is contaminated, and it cannot report '
+     'the failure of its own lamp.'),
     ('R', 78),
 
     ('h2', '2.2 Review of Literature'),
@@ -698,10 +703,10 @@ BODY += [
      'relative humidity come from a single photoacoustic part, which gives all three from one device and '
      'one calibration. Particulate mass at two size fractions comes from an optical counter on the same '
      'serial bus. A metal-oxide sensor supplies a general reducing-gas index on an analogue channel, '
-     'with a separate digital line that trips at a hardware threshold, and an ultraviolet photodiode on a '
-     'second analogue channel reads irradiance in the duct. A character display on the same serial bus '
+     'with a separate digital line that trips at a hardware threshold, and an ultraviolet photodiode on '
+     'a second analogue channel reads irradiance in the duct. A character display on the same serial bus '
      'cycles through eight status screens, which is how a node is checked in the laboratory without '
-     'attaching a computer to it. The table below lists the parts.'),
+     'attaching a computer to it. Table 2.1 lists the parts.'),
     ('p',
      'The two actuators are driven differently and for different reasons. The lamp runs from mains and '
      'is switched through an opto-isolated relay, so there is no electrical path between the mains side '
@@ -714,11 +719,12 @@ BODY += [
      'One measurement channel does not do what the system design assumes, and it is recorded here rather '
      'than left for a reader to discover. Ultraviolet irradiance is reported in milliwatts per square '
      'centimetre, but the responsivity coefficient that would convert the photodiode voltage into that '
-     'unit is still set to one. The number is a voltage with a unit written after it. The sensor is '
-     'fitted, it reads, and its value reaches the display and both telemetry payloads, but it appears in '
-     'no control path and no alert path, which means the loop described in some project documents as '
-     'taking two inputs in fact takes one. Correcting it needs a reference radiometer and a fixed '
-     'measurement geometry, neither of which is difficult, and it is listed in Chapter 4.'),
+     'unit is still set to one. The quantity reported is a voltage carrying the label of a '
+     'concentration. The sensor is fitted, it reads, and its value reaches the display and both '
+     'telemetry payloads, but it appears in no control path and no alert path, which means the loop '
+     'described in some project documents as taking two inputs in fact takes one. Correcting it needs a '
+     'reference radiometer and a fixed measurement geometry, neither of which is difficult, and it is '
+     'listed in Chapter 4.'),
     ('T', 'TABLE_IOT'),
 
     ('h2', '2.4 The communication architecture'),
@@ -794,9 +800,9 @@ BODY += [
      'templated per zone so that one layout serves all four installations. Alongside the readings it '
      'carries in-panel actuator control, and this is where the most interesting defect lives. An '
      'operator command to switch the lamp or the fan off actuates correctly and then does not clear '
-     'automatic mode, so the closed loop reverts it on its next pass. The on-commands do clear it. Off is '
-     'precisely the command an operator issues when they want the machine to stop doing what it is '
-     'doing, and it is the one that does not hold.'),
+     'automatic mode, so the closed loop reverts it on its next pass. The on-commands do clear it. The '
+     'off command is the one an operator issues to halt automatic actuation, and it is the one that does '
+     'not persist, which makes this a safety defect rather than an inconvenience.'),
 
     ('h2', '2.6 What is deployed, and what it does not yet establish'),
     ('R', 256),
@@ -810,12 +816,13 @@ BODY += [
      'transmitted; nothing acts on it. A dead lamp currently raises nothing. Both are identified with '
      'the specific code paths involved in the project record for that system, and both are in Chapter 4.'),
     ('p',
-     'One finding from the same audit is worth reporting because it affects timing rather than accuracy '
-     'and because it explains several symptoms at once. The cellular inbox poll waits a fixed five '
-     'seconds on every call and is invoked every ten, so a node with a working modem spends roughly half '
-     'its wall-clock time inside that loop. That is the underlying cause of publish intervals jittering '
-     'between five and ten seconds and of dashboard commands taking up to five seconds to act. It is '
-     'about six lines to fix and is the single highest-value change available in that firmware.'),
+     'One further finding from the same audit is reported here because it affects timing rather than '
+     'accuracy, and because it accounts for several symptoms simultaneously. The cellular inbox poll '
+     'waits a fixed five seconds on every call and is invoked every ten, so a node with a working modem '
+     'spends roughly half its wall-clock time inside that loop. That is the underlying cause of publish '
+     'intervals jittering between five and ten seconds and of dashboard commands taking up to five '
+     'seconds to act. It is about six lines to fix and is the single highest-value change available in '
+     'that firmware.'),
 
     ('h2', '2.7 Towards warehouse management'),
     ('R', 267),
@@ -828,36 +835,38 @@ BODY += [
      'continuously rather than by inspection, and would drive treatment from that condition rather than '
      'from a timetable.'),
     ('p',
-     'The step that makes it more than a set of fixed instruments is the one that needs the other strand. '
-     'Fixed nodes measure the places they are bolted to, and a warehouse has far more places than anyone '
-     'will instrument. A robot that already traverses every aisle, carrying the same sensor complement, '
-     'samples the spaces between the fixed nodes and reports into the same database on the same schema. '
-     'That turns a handful of point measurements into something closer to a survey. It needs the '
-     'navigation layer of Chapter 1 finished first, which is why it is not being attempted now.'),
+     'The step that makes it more than a set of fixed instruments is the one that needs the other '
+     'strand. Fixed nodes measure the places they are bolted to, and a warehouse contains far more such '
+     'places than can realistically be instrumented. A robot that already traverses every aisle, '
+     'carrying the same sensor complement, samples the spaces between the fixed nodes and reports into '
+     'the same database on the same schema. That turns a handful of point measurements into something '
+     'closer to a survey. It needs the navigation layer of Chapter 1 finished first, which is why it is '
+     'not being attempted now.'),
 ]
 
 BODY += [
     # ═════════════════════════════════════════════════════ CHAPTER 3 ══
     ('h1', 'Chapter 3  Contactless Assessment of Worker Fatigue'),
-    ('h2', '3.1 The problem, and the goal'),
+    ('h2', '3.1 Problem Statement and Research Goal'),
     ('p',
-     'This chapter is short, and the reason is that the work it describes has not been done. The strand '
+     'This chapter is brief because the work it describes has not yet been carried out. The strand '
      'consists of a hypothesis, a completed literature survey and a research proposal built on them. No '
      'hardware has been built, no data has been collected, and nothing has been measured. It is carried '
      'in this report because the argument is already specific enough to state, to criticise and to test, '
      'and because the first year of a doctorate is the right time to establish whether a direction is '
      'worth pursuing at all.'),
     ('p',
-     'The setting is the third thing in the aisle. India’s logistics and warehousing sector employs '
-     'over 22 million people, is expanding under the National Logistics Policy of 2022, and records more '
-     'than 26,800 workplace incidents a year. Nearly 70 per cent of that workforce is in the unorganised '
-     'sector, where occupational health protocols are minimal or absent. The conditions make fatigue '
-     'worse rather than merely present: shifts of ten to twelve hours, sustained walking and lifting, '
-     'and ambient temperatures that routinely exceed 40 °C. Occupational heat stress in Indian '
-     'workplaces has been measured directly, with documented exceedances of established thresholds and '
-     'associated health and productivity consequences [23], and comparable findings are reported across '
-     'steel [24], construction [25] and multi-sector southern-Indian settings [26]. Figure 20 sets the '
-     'two halves of the problem side by side.'),
+     'The setting is the third of the three problems identified in the Introduction. India’s logistics '
+     'and warehousing sector employs over 22 million people, is expanding under the National Logistics '
+     'Policy of 2022, and records more than 26,800 workplace incidents a year. Nearly 70 per cent of '
+     'that workforce is in the unorganised sector, where occupational health protocols are minimal or '
+     'absent. The conditions make fatigue worse rather than merely present: shifts of ten to twelve '
+     'hours, sustained walking and lifting, and ambient temperatures that routinely exceed 40 °C. '
+     'Occupational heat stress in Indian workplaces has been measured directly, with documented '
+     'exceedances of established thresholds and associated health and productivity consequences [23], '
+     'and comparable findings are reported across steel [24], construction [25] and multi-sector '
+     'southern-Indian settings [26]. Figure 20 places those conditions alongside the class of instrument '
+     'each established method belongs to, and the reason each one fails under them.'),
     ('F', 'fatcrisis'),
     ('R', 87),
     ('p',
@@ -877,17 +886,17 @@ BODY += [
      'Subjective instruments, the sleepiness and perceived-exertion scales and the vigilance test, are '
      'the accepted references, and they interrupt the work they are measuring, which rules them out as a '
      'continuous signal. Wearable physiological monitoring solves the continuity problem and creates an '
-     'adoption one. Contactless sensing has reached real technical maturity one modality at a time, '
-     'without anyone having pointed it at industrial fatigue, and that last gap is what the rest of this '
-     'section is about.'),
+     'adoption one. Contactless sensing has reached technical maturity one modality at a time, without '
+     'being directed at industrial fatigue, and it is that gap which the remainder of this section '
+     'addresses.'),
     ('R', 90),
     ('R', 91),
     ('Rs', 92, [('Lidar gives three-dimensional gait measurement robust to illumination',
                  'Lidar gives three-dimensional gait measurement that is unaffected by illumination')]),
     ('R', 93),
     ('p',
-     'The gap is therefore not a shortage of capable sensors. It is that nobody has fused them for this '
-     'purpose. Existing multi-modal fatigue work is overwhelmingly contact-based or aimed at seated '
+     'The gap is therefore not a shortage of capable sensors. It is that they have not been fused for '
+     'this purpose. Existing multi-modal fatigue work is overwhelmingly contact-based or aimed at seated '
      'drivers, and the contactless studies are single-modality and laboratory-bound. The second gap is '
      'regulatory rather than technical: India’s data protection legislation of 2023 has created real '
      'uncertainty about workplace monitoring, and an architecture that extracts a derived score on the '
@@ -901,20 +910,21 @@ BODY += [
      'rest or rotation decision rather than a record. Each modality is there for a specific reason. A '
      'camera with on-device pose estimation recovers two-dimensional gait: stride, cadence, trunk sway '
      'and left-right asymmetry. A solid-state lidar recovers the same geometry in three dimensions, '
-     'adding step width and centre-of-mass motion, and does not care about the lighting. A '
-     'millimetre-wave radar at 60 GHz reaches heart rate, respiration and their variability through '
-     'clothing, which neither of the other two can see. And a long-wave infrared camera reads facial '
-     'skin temperature and the forehead-to-cheek gradient, which in the ambient conditions described '
-     'above is likely to carry more information than it would in a temperate facility.'),
+     'adding step width and centre-of-mass motion, and is insensitive to illumination. A millimetre-wave '
+     'radar at 60 GHz reaches heart rate, respiration and their variability through clothing, which '
+     'neither of the other two can see. And a long-wave infrared camera reads facial skin temperature '
+     'and the forehead-to-cheek gradient, which in the ambient conditions described above is likely to '
+     'carry more information than it would in a temperate facility.'),
     ('F', 'fatframework'),
     ('p',
-     'Two design decisions are worth drawing out. The capture is fixed and single-subject: rather than '
-     'tracking several people continuously across a floor, the node sits at one point everybody passes, '
-     'an aisle end or a doorway, mounted two and a half to three and a half metres up and angled down, '
-     'working at one to five metres. Each crossing then yields one clean measurement of one person. That '
-     'trades coverage for tractability, and it is the trade the strand makes deliberately, because '
-     'continuous multi-person tracking is a harder problem than the one being asked about and solving it '
-     'is not a prerequisite for answering whether fatigue is legible at all.'),
+     'Two design decisions determine what the framework can and cannot do. The first is that capture is '
+     'fixed and single-subject: rather than tracking several people continuously across a floor, the '
+     'node sits at one point everybody passes, an aisle end or a doorway, mounted two and a half to '
+     'three and a half metres up and angled down, working at one to five metres. Each crossing then '
+     'yields one clean measurement of one person. That trades coverage for tractability, and it is the '
+     'trade the strand makes deliberately, because continuous multi-person tracking is a harder problem '
+     'than the one being asked about and solving it is not a prerequisite for answering whether fatigue '
+     'is legible at all.'),
     ('p',
      'The second is that every feature is referred to the worker’s own baseline, recorded at the '
      'start of their shift, before it reaches the model. That converts an absolute measurement, which '
@@ -934,14 +944,14 @@ BODY += [
     ('h2', '3.4 How the framework would be validated'),
     ('p',
      'Figure 22 sets out the three objectives and, more usefully, what each one would be measured '
-     'against. The right-hand column is the part that makes the strand falsifiable. Gait from the camera '
-     'and the lidar is checked against marker-based motion capture, which is an external physical '
-     'reference rather than another estimate. A subset of volunteers wears surface electromyography on '
-     'the calf muscles and inertial bands at the same time as the contactless capture, so the proposed '
-     'method is compared directly against the established contact method it proposes to replace, on the '
-     'same subjects during the same task. Field deployment then runs in an operational, '
-     'non-air-conditioned warehouse across thirty to fifty workers and several shifts, scored against '
-     'the vigilance and sleepiness instruments.'),
+     'against. The right-hand column is what makes the strand falsifiable. Gait from the camera and the '
+     'lidar is checked against marker-based motion capture, which is an external physical reference '
+     'rather than another estimate. A subset of volunteers wears surface electromyography on the calf '
+     'muscles and inertial bands at the same time as the contactless capture, so the proposed method is '
+     'compared directly against the established contact method it proposes to replace, on the same '
+     'subjects during the same task. Field deployment then runs in an operational, non-air-conditioned '
+     'warehouse across thirty to fifty workers and several shifts, scored against the vigilance and '
+     'sleepiness instruments.'),
     ('F', 'fatdes'),
     ('p',
      'The comparison that decides the thing is the last row. The fused score is required to beat four '
@@ -982,7 +992,7 @@ BODY += [
 
 BODY += [
     # ═════════════════════════════════════════════════════ CHAPTER 4 ══
-    ('h1', 'Chapter 4  Conclusions and Objectives for the Work Ahead'),
+    ('h1', 'Chapter 4  Conclusions and Research Plan'),
     ('h2', '4.1 What the first year established'),
     ('R', 270),
     ('R', 271),
@@ -1009,12 +1019,13 @@ BODY += [
      'all four are fixable, and none of them should be carried forward. The fatigue strand has '
      'nothing to correct because it has nothing built, which is itself the thing to change.'),
 
-    ('h2', '4.3 Objectives for the work ahead'),
+    ('h2', '4.3 Research Plan and Overall Conclusion'),
     ('p',
-     'What follows is ordered by what unblocks what, not by calendar. Putting dates against research '
-     'that depends on securing a test space, on a sensor arriving, and on a result that might come back '
-     'negative would be a guess dressed as a plan, so none are given. Within each strand the order is '
-     'real: the items are listed so that each one is possible once the one above it is done.'),
+     'What follows is ordered by what unblocks what, not by calendar. Dates are not given: the work '
+     'depends on securing a test space, on the procurement of a sensor, and on a result that may be '
+     'negative, and a schedule asserted over those contingencies would not be a plan. Within each strand '
+     'the order is real: the items are listed so that each one is possible once the one above it is '
+     'done.'),
     ('lead', 'The robot.', 'Five things follow directly from Chapter 1, and they are given here in the '
              'order in which they unblock each other.'),
     ('R', 262),
@@ -1043,30 +1054,31 @@ BODY += [
              'and stops being one once there is not.'),
 
     ('p',
-     'Three things are worth saying to close, and the first is where the project actually stands. The '
-     'robot is built, instrumented and characterised, with four results established against physical '
-     'references and three specific shortfalls, two of which are the size of a room rather than anything '
-     'on the machine. The monitoring system runs unattended across four zones and carries a list of '
-     'defects that stop its numbers being quoted, every one of them identified against the code that '
-     'causes it. The fatigue strand has an argument and no data. Those are three different kinds of '
-     'position and the report has tried not to flatten them into one.'),
+     'Three statements close this report, and the first concerns where the project stands. The robot is '
+     'built, instrumented and characterised, with four results established against physical references '
+     'and three specific shortfalls, two of which are the size of a room rather than anything on the '
+     'machine. The monitoring system runs unattended across four zones and carries a list of defects '
+     'that stop its numbers being quoted, every one of them identified against the code that causes it. '
+     'The fatigue strand has an argument and no data. These are three distinct kinds of position, and '
+     'the report has been written so as not to flatten them into one.'),
     ('p',
-     'The second is what the three actually share, which is less romantic than a combined system and '
+     'The second concerns what the three strands share, which is more modest than a combined system and '
      'more useful. The same engineering recurs in all of them: multi-sensor integration, calibration '
      'against something physical, acquisition that has to keep its own schedule, and control that fails '
-     'safe. A mistake made in one has already arrived as a lesson in the next, and that return is '
-     'collected whether or not the strands ever become one thing. Whether they do is a question for '
+     'safe. An error made in one has already become a method in the next, and that return accrues '
+     'whether or not the strands ever converge into a single system. Whether they do is a question for '
      'results none of them has yet.'),
     ('p',
      'The third is that the next step in each strand is specific rather than general, and none of the '
      'three waits on the others. The robot needs an angular-rate measurement that does not come from the '
      'wheels, and the test of whether it helps is already written down: 3.85\u00b0 and 4.49\u00b0 of '
-     'heading error that every instrument currently fitted misses. Driving the monitoring channels from calibrations that have already been computed turns a '
-     'set of relative signals into measurements, which is the difference between a system that works and '
-     'one that can be quoted. And building a single capture node is the only thing that turns the third '
-     'strand from a proposal into something that can be shown to be wrong. That last point is the one '
-     'this year has most changed my mind about: the useful question is not whether an idea is promising '
-     'but how quickly it can be put in a position to fail.'),
+     'heading error that every instrument currently fitted misses. Driving the monitoring channels from '
+     'calibrations that have already been computed turns a set of relative signals into measurements, '
+     'which is the difference between a system that works and one that can be quoted. And building a '
+     'single capture node is the only step that converts the third strand from a proposal into something '
+     'that can be shown to be wrong. That last point is the methodological conclusion of the year: the '
+     'useful question is not whether a direction is promising, but how quickly it can be placed in a '
+     'position to fail.'),
 
     ('h1', 'Bibliography'),
 ] + [('ref', n) for n in range(276, 313)]

@@ -41,8 +41,8 @@ guessed at:
 | | |
 |---|---|
 | Abstract | new, and placed before the contents |
-| Introduction | all three strands and why they are run together, then the five objectives |
-| Chapter 1 | the narrow-aisle robot, motivation through to its own conclusion |
+| Introduction | the aisle constraint, why mecanum, why asymmetric, what the prior work left open, then the two supporting strands and the five objectives |
+| Chapter 1 | the narrow-aisle robot, design rationale through to its own conclusion |
 | Chapter 2 | the environmental monitoring system |
 | Chapter 3 | the proposed contactless fatigue work |
 | Chapter 4 | what year one established, what is open, and the plan for all three |
@@ -196,3 +196,44 @@ and are placed inside composite plates, which took them from 115 and 192 dpi to
 Advanced, Image Size and Quality: select this document, tick "Do not compress
 images in file", set default resolution to High fidelity. Export with "Optimize
 for: Standard".
+
+
+## The register pass
+
+The previous document was written to be read aloud in a review. This one is
+submitted for examination, so fourteen sentences in the reused prose are
+restated in the third person and without the conversational turn. They are a
+list of `(find, replace)` pairs in `build_v2.py` called `POLISH`, each asserted
+to fire exactly once; new prose is edited in `content.py` directly. Only
+sentences are touched, never a number.
+
+The same pass repairs reference 21, whose exporter left the publisher's name
+italicised at the head of the article title rather than at the head of the
+venue, and sets the two subscripts that Section 1.5 refers to in running text
+as `K_o` and `K_i`, which is how they are typed and not how they are set.
+
+## Captions, tables and equations
+
+A figure caption is one block below its figure: the label in bold, the title
+of the figure in italic, the description upright, all at 9 pt. The centred
+line that used to sit between picture and caption is gone, because it was a
+second and unnumbered title for the same object; the same text is now the
+italic title. No caption restates the sentence beside it.
+
+A table caption sits above its table and is numbered by chapter, Table 1.1 to
+Table 2.1, and each is referred to by number in the prose rather than as "the
+table below".
+
+Display equations are numbered (1.1) to (1.4) against the right margin, set by
+a centre tab at half the text width and a right tab at the margin. A set
+running over two lines carries one number, on the last line, because the lines
+are one statement.
+
+## Chapter 3's figures
+
+Figures 20 and 21 were the two images supplied with the research proposal, both
+produced with a generative tool. They are redrawn here as `f_fatproblem.py` and
+`f_fatpipe.py` on the same toolkit as every other drawn figure in the report.
+The argument each one makes is unchanged; what changes is that the report no
+longer contains an image it cannot account for line by line, and the pair no
+longer sets its own type and palette against the rest of the document.

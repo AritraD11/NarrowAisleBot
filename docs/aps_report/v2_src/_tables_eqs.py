@@ -2,6 +2,9 @@
 """Table data and equation markup, lifted unchanged from the previous build."""
 # ------------------------------------------------------------------ tables ---
 TABLE_SPEC = {
+    'num': '1.1',
+    'title': 'The platform as built',
+    'cap': ('Every figure is measured on the machine rather than taken from a data sheet, except the lidar range specification, which is the manufacturer’s and is treated in Section 1.12 as a factory acceptance condition rather than a runtime error distribution.'),
     'cols': [126.2, 327.8],
     'head': ['Item', 'Value'],
     'rows': [
@@ -26,6 +29,9 @@ TABLE_SPEC = {
     ],
 }
 TABLE_IOT = {
+    'num': '2.1',
+    'title': 'The monitoring system as deployed',
+    'cap': ('Two radio-isolated installations report to one database. The measured quantities are listed as the node reports them, which is why the gas channel appears as an index rather than as a concentration.'),
     'cols': [87.9, 366.1],
     'head': ['Item', 'Specification'],
     'rows': [
@@ -44,6 +50,9 @@ TABLE_IOT = {
     ],
 }
 TABLE_WHEEL = {
+    'num': '1.2',
+    'title': 'Per-wheel tracking error under chassis weight',
+    'cap': ('Pooled over the floor drives of Section 1.10. No channel saturated at any point and no feedback channel was lost, so these figures are controller performance rather than an artefact of the drive reaching its limit.'),
     'cols': [72.4, 112.2, 164.3, 105.1],
     'head': ['Wheel', 'RMS error (rad/s)', 'Mean absolute error (rad/s)', 'Saturated samples'],
     'rows': [
@@ -54,6 +63,9 @@ TABLE_WHEEL = {
     ],
 }
 TABLE_SCAN = {
+    'num': '1.3',
+    'title': 'Endpoint closure with and without the scan-matching front end',
+    'cap': ('The same wheel data and the same scans on each row, differing only in whether the front end was applied. On every route the front end increases the endpoint error rather than reducing it.'),
     'cols': [153.1, 56.7, 106.1, 138.1],
     'head': ['Route', 'Range cap', 'Wheel odometry alone', 'With the scan-matching front end'],
     'rows': [

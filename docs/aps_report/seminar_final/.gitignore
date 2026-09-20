@@ -1,0 +1,7 @@
+# Everything here regenerates from the report PDF and the photographs already
+# in the repository. assets/extract_figs.py, assets/crop_figs.py and
+# assets/prep_photos.py rebuild it; src/qa.py writes build/.
+assets/fig/
+assets/slide/
+assets/photo/
+build/

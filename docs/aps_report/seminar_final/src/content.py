@@ -39,8 +39,7 @@ dict(layout='title',
      meta=[('', 'Aritra Das'),
            ('Roll No', '25D0074'),
            ('Supervisor', 'Prof. Ambarish Kunwar'),
-           ('Department', 'Biosciences and Bioengineering, IIT Bombay'),
-           ('Fellowship', 'IITB–FedEx ALFA')],
+           ('Department', 'Biosciences and Bioengineering, IIT Bombay')],
      date='23 September 2026',
      notes="""
 Three strands in parallel: an autonomous mobile platform dimensioned for a narrow
@@ -64,8 +63,8 @@ dict(layout='content', kicker='Overview',
          'four results established against physical references.', None, 'Robot. '),
         ('Deployed and running. Four zones, two radio-isolated installations, one database, '
          'three concurrent communication channels.', None, 'Monitoring. '),
-        ('A hypothesis and a completed literature survey. No hardware built, no data collected. '
-         'The chapter opens by saying so.', None, 'Fatigue. '),
+        ('A hypothesis and a completed literature survey. No hardware built, no data collected.',
+         None, 'Fatigue. '),
         ('Multi-sensor integration, calibration against a physical reference, real-time '
          'acquisition, and control that fails safe, recur in all three.', None, 'What is shared. '),
      ],
@@ -217,7 +216,7 @@ dict(layout='content', kicker=R,
         ('No closed-loop velocity regulation, no odometry, no on-board kinematic model, '
          'no perception, no autonomy.', None, 'Absent. '),
         ('The firmware, the ROS 2 software, the instrumentation and every measurement '
-         'quoted in this report were carried out by the author.', None, 'Everything beyond that. '),
+         'quoted in this report were carried out end to end.', None, 'Everything beyond that. '),
      ],
      takeaway='Establishing which way the scanner counts its angles took a drive against a '
               'placed block, because nothing on the sensor says which way it is looking.',

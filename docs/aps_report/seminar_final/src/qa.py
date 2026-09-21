@@ -58,8 +58,12 @@ def overflow():
         if s.get('tiles'):
             top += 1.16
         bottom = 5.86 if s.get('takeaway') else layouts.BODY_B
-        img, side = s.get('image'), s.get('side', 'right')
-        if img and side in ('right', 'left'):
+        if s.get('videos'):
+            top += min(2.55, bottom - top - 1.6) + 0.24
+        if s.get('images'):
+            top += min(3.1, bottom - top - 1.9) + 0.36
+        img, side = (s.get('image') or s.get('video')), s.get('side', 'right')
+        if img and side in ('right', 'left') and not (s.get('videos') or s.get('images')):
             w = layouts.COL * (1 - s.get('image_w', 0.50)) - 0.42
         else:
             w = layouts.COL * s.get('text_w', 0.88)

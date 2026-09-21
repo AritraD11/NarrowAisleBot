@@ -110,6 +110,36 @@ def _tiles(slide, tiles, x, y, w, h=0.92, gap=0.16):
         run(p2, label, size=10, color=MUTED)
 
 
+def _video_placeholder(slide, x, y, w, h, filename, caption=None):
+    """A box to paste a video into, labelled with the exact source filename.
+
+    Not a still frame: python-pptx cannot embed a linked video the way
+    PowerPoint's own Insert > Video does, so this is deliberately a marked
+    box rather than a fake thumbnail. The filename is what the presenter
+    matches against the Drive folder when dropping the real clip in.
+    """
+    from pptx.enum.shapes import MSO_SHAPE
+    box(slide, x, y, w, h, fill=TINT, line=ACCENT_2, lw=1.25)
+    box(slide, x, y, w, 0.05, fill=ACCENT_2)
+    box(slide, x, y + h - 0.05, w, 0.05, fill=ACCENT_2)
+    cx, cy = x + w / 2, y + h / 2 - 0.22
+    tri = slide.shapes.add_shape(MSO_SHAPE.ISOSCELES_TRIANGLE, Inches(cx - 0.20), Inches(cy - 0.20), Inches(0.40), Inches(0.40))
+    tri.rotation = 90
+    tri.shadow.inherit = False
+    tri.fill.solid(); tri.fill.fore_color.rgb = ACCENT
+    tri.line.fill.background()
+    tf = textbox(slide, x + 0.20, cy + 0.28, w - 0.40, 0.26, anchor=MSO_ANCHOR.TOP)
+    p = para(tf, first=True, align=PP_ALIGN.CENTER)
+    run(p, 'VIDEO  ·  INSERT HERE', size=9.5, color=MUTED, bold=True, spacing=1.3)
+    tf2 = textbox(slide, x + 0.20, cy + 0.54, w - 0.40, 0.36, anchor=MSO_ANCHOR.TOP)
+    p2 = para(tf2, first=True, align=PP_ALIGN.CENTER, line=1.0)
+    run(p2, filename, size=12.5, font=TEXT, color=INK, bold=True)
+    if caption:
+        tf3 = textbox(slide, x + 0.18, y + h - 0.40, w - 0.36, 0.36)
+        p3 = para(tf3, first=True, align=PP_ALIGN.CENTER, line=0.95)
+        run(p3, caption, size=9.5, color=MUTED, italic=True)
+
+
 def _table(slide, headers, rows, x, y, w, h, size=11.5, col_w=None, right=()):
     nrows, ncols = len(rows) + 1, len(headers)
     col_w = col_w or [1.0 / ncols] * ncols
@@ -214,10 +244,40 @@ def content(prs, s, n):
         y += 1.16
 
     img = s.get('image')
+    vid = s.get('video')
     side = s.get('side', 'right')
     img_w = s.get('image_w', 0.50)
 
-    if img and side in ('right', 'left'):
+    if s.get('videos'):
+        # a pair of video placeholders, side by side, spanning the full width
+        gap = 0.30
+        n_v = len(s['videos'])
+        vw = (COL - gap * (n_v - 1)) / n_v
+        vh = min(2.55, bottom - y - 1.6)
+        for i, (fname, cap) in enumerate(s['videos']):
+            _video_placeholder(slide, MARGIN + i * (vw + gap), y, vw, vh, fname, caption=cap)
+        y += vh + 0.24
+        if s.get('bullets'):
+            _bullets(slide, s['bullets'], MARGIN, y, COL * s.get('text_w', 0.88),
+                     bottom - y, size=s.get('size', 13.5), gap=s.get('gap', 9))
+    elif s.get('images'):
+        # two figures side by side, each with its own caption, spanning the full width
+        gap = 0.30
+        n_i = len(s['images'])
+        iw2 = (COL - gap * (n_i - 1)) / n_i
+        ih2 = min(3.1, bottom - y - 1.9)
+        for i, (path, cap) in enumerate(s['images']):
+            ix2 = MARGIN + i * (iw2 + gap)
+            fit_image(slide, path, ix2, y, iw2, ih2, frame=s.get('frame', False))
+            if cap:
+                tf = textbox(slide, ix2, y + ih2 + 0.06, iw2, 0.28)
+                p = para(tf, first=True, align=PP_ALIGN.CENTER)
+                run(p, cap, size=10, color=MUTED, italic=True)
+        y += ih2 + 0.36
+        if s.get('bullets'):
+            _bullets(slide, s['bullets'], MARGIN, y, COL * s.get('text_w', 0.88),
+                     bottom - y, size=s.get('size', 13.5), gap=s.get('gap', 9))
+    elif (img or vid) and side in ('right', 'left'):
         gap = 0.42
         bw = COL * (1 - img_w) - gap
         iw = COL * img_w
@@ -228,13 +288,22 @@ def content(prs, s, n):
         if s.get('table'):
             _table(slide, s['table'][0], s['table'][1], bx, y, bw, bottom - y,
                    size=s.get('table_size', 11.5), col_w=s.get('col_w'), right=s.get('right', ()))
-        fit_image(slide, img, ix, y, iw, bottom - y, frame=s.get('frame', False))
-    elif img and side == 'bottom':
-        fit_image(slide, img, MARGIN, y, COL, bottom - y, frame=s.get('frame', False))
-    elif img and side == 'full':
+        if vid:
+            _video_placeholder(slide, ix, y, iw, bottom - y, vid, caption=s.get('video_caption'))
+        else:
+            fit_image(slide, img, ix, y, iw, bottom - y, frame=s.get('frame', False))
+    elif (img or vid) and side == 'bottom':
+        if vid:
+            _video_placeholder(slide, MARGIN, y, COL, bottom - y, vid, caption=s.get('video_caption'))
+        else:
+            fit_image(slide, img, MARGIN, y, COL, bottom - y, frame=s.get('frame', False))
+    elif (img or vid) and side == 'full':
         cap = s.get('caption')
         ih = bottom - y - (0.30 if cap else 0)
-        fit_image(slide, img, MARGIN, y, COL, ih, frame=s.get('frame', False))
+        if vid:
+            _video_placeholder(slide, MARGIN, y, COL, ih, vid, caption=s.get('video_caption'))
+        else:
+            fit_image(slide, img, MARGIN, y, COL, ih, frame=s.get('frame', False))
         if cap:
             tf = textbox(slide, MARGIN, y + ih + 0.08, COL, 0.28)
             p = para(tf, first=True, align=PP_ALIGN.CENTER)

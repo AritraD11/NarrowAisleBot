@@ -4,14 +4,24 @@
 Rules this file keeps to, because the deck is being presented against a report
 a committee has already read:
 
-  * No number appears here that is not in APS_Report_Aritra_.pdf. Where a
-    number is quoted, the section it comes from is named in the notes.
+  * No number appears here that is not in APS_Report_Aritra_-_final.docx.
+    Where a number is quoted, the section it comes from is named in the notes.
   * The notes are the report's own sentences, lightly cut for speaking. That is
     what "the narration as it is" means: the slide is the headline, the notes
     are the argument, and the argument is the one that was submitted.
   * A claim keeps its qualifier. "Below 1 per cent out to about 10 m" does not
     become "below 1 per cent". "Demonstrated within a live mapping session"
     does not become "demonstrated".
+  * Video slides carry the exact source filename from the Drive folder, so a
+    placeholder can be matched against the real clip without guessing.
+
+42 slides, condensed from the original 51 by cutting slides whose single
+point could be folded into a neighbour's notes without losing the point
+itself, and by pairing figures that make the same kind of argument onto one
+slide rather than two. Four videos are placed at the results they are
+evidence for, not narrated as more than that: the two circle-trajectory
+clips are the scan-matching result, not a demonstration of wheel-level
+control, which is proven separately by the RMS tracking numbers.
 """
 import os
 import sys
@@ -50,6 +60,46 @@ people who share that space without requiring them to wear an instrument.
 The photograph is the machine itself, on the laboratory floor, August 2026. Every
 image in this deck is either a photograph of this robot or a figure generated from
 this project's own logs.
+"""),
+
+dict(layout='content', kicker='Introduction',
+     title='Why the aisle, and why this fellowship',
+     size=13, gap=10,
+     two_col=(
+        ('The aisle in an Indian warehouse', [
+            'India’s logistics and warehousing sector is a large and growing part of the '
+            'economy, expanding under the National Logistics Policy of 2022.',
+            'Warehouse automation has grown around machines that move goods along wide, '
+            'well-structured routes. The aisle itself has received considerably less '
+            'attention, and it is the part of the building where the geometric constraint '
+            'is most severe.',
+            'A storage aisle is sized for the goods it holds and for a human picker, not '
+            'for a vehicle, so a mobile robot working there operates in a corridor barely '
+            'wider than itself.',
+            'That is the specific gap this project works in: not warehouse automation in '
+            'general, but the aisle current automation leaves alone.',
+        ]),
+        ('Advanced Logistics, Focused Analytics', [
+            'This work is carried out under the IITB–FedEx ALFA fellowship, the Centre '
+            'for Advanced Logistics and Focused Analytics at IIT Bombay.',
+            ('A full-scale platform built specifically around aisle geometry, the part of '
+             'a warehouse current automation does not reach.', None, 'Advanced logistics. '),
+            ('Calibration against a physical reference, and a measured failure mode stated '
+             'rather than assumed. That method recurs in the robot, the monitoring system '
+             'and the proposed fatigue work alike.', None, 'Focused analytics. '),
+            'Only the first strand is a completed measurement programme at this stage; the '
+            'other two sit at different stages of deployment and proposal, and this talk '
+            'says so throughout rather than at the end.',
+        ])),
+     notes="""
+This slide earns the fellowship name without claiming the three strands are already one
+system. The report is explicit that what they share is instrumentation and method, not a
+combined architecture: multi-sensor integration, calibration against a physical reference,
+real-time acquisition, and control that fails safe recur in all three.
+
+Frame the project around the aisle specifically, not around "warehouse automation" in
+general. The important distinction the whole talk rests on is the geometric constraint,
+not the sector's growth on its own.
 """),
 
 dict(layout='content', kicker='Overview',
@@ -100,7 +150,7 @@ dict(layout='content', kicker='Overview',
         ('A contactless framework for assessing worker fatigue.', None, 'O5  '),
         ('~Proposed. Survey complete, hypothesis stated, nothing built.'),
      ],
-     takeaway='Two close on measurement, one closes as characterised rather than optimal, one is open for a reason that is not the platform\u2019s, and one has not begun.',
+     takeaway='Two close on measurement, one closes as characterised rather than optimal, one is open for a reason that is not the platform’s, and one has not begun.',
      notes="""
 Read the sub-lines out as the status of each objective, because the committee will ask
 and it is better to state it up front than to be drawn to it.
@@ -152,33 +202,11 @@ Mecanum kinematics alone do not solve the aisle problem, because a conventional 
 mecanum platform places its wheels at the four corners of a rectangle. The chassis must
 then be wide enough to carry that rectangle, and the width of the machine is set by the
 wheel layout rather than by the payload. That is the next slide.
-"""),
 
-dict(layout='content', kicker=R,
-     title='The geometry is inherited, not proposed here',
-     sub='Figure 1 · prior work in this laboratory [1]',
-     side='right', image=FIG(1), image_w=0.52,
-     bullets=[
-        'Earlier work in this group derived the kinematics for an asymmetric, non-collinear '
-        'mecanum layout intended for narrow aisles, and demonstrated the principle on a small '
-        'prototype.',
-        'Panels (a) and (b) are the two chassis variants that paper proposes. Variant (a), with '
-        'the lateral wheels close together, is the arrangement built here.',
-        'Panel (c) is that paper’s kinematic schematic: wheel origins at longitudinal '
-        'distances l₁ and l₂ from the body centre, half track d.',
-        'Point-symmetric rather than mirror-symmetric placement preserves the three planar '
-        'degrees of freedom while relaxing the constraint that sets vehicle width.',
-     ],
-     takeaway='What the prior work did not establish is whether the geometry survives '
-              'the transition to a full-scale machine.',
-     notes="""
-Section 1.2. The geometric premise for such a machine already exists. Mecanum drive is
-mature as a mechanism and the symmetric four-wheel configuration is standard. The
-asymmetric, non-collinear placement used here is far less common, and the prior work
-establishing its kinematics for narrow-aisle application is the laboratory study cited
-as reference 1.
-
-Say plainly: this slide is somebody else's result. Mine begins at full scale.
+The asymmetric, non-collinear version used here is not proposed in this report: it was
+derived and demonstrated on a small prototype in earlier work in this group (Figure 1 in
+the report). This year's contribution begins at full scale, which is what the next slide
+measures.
 """),
 
 dict(layout='content', kicker=R,
@@ -207,21 +235,25 @@ The risk: a wheel driven with the wrong lever arm produces a yaw rate wrong by t
 
 dict(layout='content', kicker=R,
      title='The starting condition, stated plainly',
-     side='right', image=PIC('chassis_wheels'), image_w=0.42, frame=True,
-     two_col=None,
+     side='right', image_w=0.42,
+     video='robot_demo_under25MB.mp4',
+     video_caption='Open-loop joystick drive · the original Arduino Mega control',
      bullets=[
         ('Chassis, four mecanum wheels on the asymmetric layout, four geared drive motors, '
          'two motor drivers and the power system. Control by an Arduino Mega 2560.',
          None, 'Present at the start. '),
         ('No closed-loop velocity regulation, no odometry, no on-board kinematic model, '
          'no perception, no autonomy.', None, 'Absent. '),
-        ('The firmware, the ROS 2 software, the instrumentation and every measurement '
+        ('The firmware, the ROS 2 software, the instrumentation and every measurement '
          'quoted in this report were carried out end to end.', None, 'Everything beyond that. '),
      ],
      takeaway='Establishing which way the scanner counts its angles took a drive against a '
               'placed block, because nothing on the sensor says which way it is looking.',
      notes="""
 Section 1.3. Work began from an assembled mechanical platform.
+
+Do not oversell this clip: it shows the platform before this year's work, open-loop and
+hand-joysticked. It is a before-picture, not a result.
 
 The takeaway line is Figure 4, the commissioning step: a fault of that kind is trivial to
 correct once identified, and costly for as long as it is not. It is worth one sentence
@@ -263,7 +295,7 @@ dict(layout='content', kicker=R,
         ('Encoders', 'Front pair GTK08, 186,264 counts/rev at the wheel; rear pair optical, 93,132'),
         ('Motor drivers', '2 × dual-channel, 20 A continuous, 1.5 V logic threshold'),
         ('Real-time controller', 'ESP32, 100 Hz control loop, hardware quadrature decoding'),
-        ('Host computer', 'Raspberry Pi 5, Ubuntu 24.04, ROS 2'),
+        ('Host computer', 'Raspberry Pi 5, Ubuntu 24.04, ROS 2'),
         ('Lidar', 'YDLIDAR X4 Pro, single-plane triangulation, 360°, 0.12–10 m rated'),
         ('Power', 'LiFePO₄ 12.8 V 30 Ah, boost to 24 V drive, buck to 5 V logic'),
         ('Cargo arm and lighting', 'Two lateral and one vertical stepper axis, three-tube staged UV'),
@@ -308,7 +340,8 @@ dict(layout='content', kicker=R,
             'Only the feedback direction is translated. The drivers threshold at 1.5 V and '
             'accept 3.3 V command signals directly.',
             'A fault in the command path moves the machine. A fault in the feedback path '
-            'only misreports it.',
+            'ordinarily just misreports it, except where the loop treats the corrupted signal '
+            'as authoritative for direction, which is why a dedicated trip catches that case.',
         ])),
      size=12.5,
      notes="""
@@ -319,36 +352,13 @@ capability and memory than the part it replaced, and an integrated 2.4 GHz radio
 allowed the first phone-based control surface to be hosted on the controller itself
 before the host computer was introduced.
 
+The full deployed wiring, battery through the 24 V drive rail and 5 V logic rail to the
+four motors and their encoder return, is Figure 5 in the report, organised in three
+layers each on its own rail colour. The control constants shown against the
+microcontroller there are the ones derived a few slides from now.
+
 The asymmetry in the level translation is deliberate, and the last line on the right is
 the reason: fewer components in the command path is worth having.
-"""),
-
-dict(layout='content', kicker=R,
-     title='Deployed electronics, end to end',
-     sub='Figure 5 · organised in three layers, each on its own rail colour',
-     side='right', image=FIG(5), image_w=0.36,
-     bullets=[
-        ('LiFePO₄ 12.8 V 30 Ah, boosted to the 24 V drive rail and bucked to the 5 V logic '
-         'rail.', None, 'Power distribution. '),
-        ('Raspberry Pi 5 for planning and perception; ESP32 for the 100 Hz real-time loop; the '
-         'original Arduino Mega reassigned to the cargo arm and the ultraviolet lighting rather '
-         'than discarded.', None, 'Compute and command. '),
-        ('Four motors through two dual-channel drivers, with all eight encoder channels returning '
-         'through the level translator.', None, 'Drive and odometry feedback. '),
-        'The control constants shown against the microcontroller are the deployed ones, and they '
-        'are the values derived later in this section.',
-        'The encoder rows carry their wire colours, because the front and rear motors do not '
-        'share a convention, and that difference has already put a channel on the wrong pin '
-        'once during commissioning.',
-     ],
-     size=13,
-     notes="""
-Section 1.4, Figure 5. Do not walk through this figure block by block. Trace one path and
-stop: battery to the 24 V drive rail and the 5 V logic rail; the ESP32 command out to a
-driver; the encoder return back through the level shifter.
-
-The control constants shown against the microcontroller are the deployed ones, and they
-are the values derived in Section 1.6, which is the next part of the talk.
 """),
 
 dict(layout='content', kicker=R,
@@ -378,39 +388,6 @@ and this inverse is what the odometry integrates.
 The two width figures differ by 15.4 mm. The report states which one every result is
 referenced to, because a collision footprint set from the wrong one would be wrong by
 that much in a corridor with centimetres of clearance.
-"""),
-
-dict(layout='content', kicker=R,
-     title='A free observable, and why it is worth less than it looks',
-     bullets=[
-        'The first and fourth rows of the inverse kinematic matrix share a translational term, '
-        'and the second and third share its complement. Each diagonal pair therefore yields '
-        'an independent yaw-rate estimate on its own lever arm.',
-        'The mean of the two is the published yaw rate. Their difference is an encoder-derived '
-        'yaw-consistency residual, obtained without any additional sensor.',
-        'It is not a calibrated measurement of slip. Unequal effective wheel radii, encoder '
-        'scale error, backlash and mechanical compliance all contribute to the same residual.',
-        'The two estimates are formed from disjoint pairs of wheels, which is what makes them '
-        'separate estimates, not the lever arms differing. A symmetric platform carries a '
-        'residual of exactly the same form.',
-        'What the differing lever arms change is the weighting: '
-        'eω = (r/2)(δₒ/Kₒ − δᵢ/Kᵢ). On a symmetric platform the common-mode component '
-        'cancels exactly. Here it survives, scaled by (r/2)(1/Kₒ − 1/Kᵢ) = 0.0097.',
-     ],
-     size=14,
-     takeaway='The asymmetry does not create the observable. It makes the residual sensitive '
-              'to a class of error a symmetric layout cancels, at about one per cent of that '
-              'error’s magnitude.',
-     notes="""
-Section 1.5. The contribution of the asymmetry is stated narrowly here, because it is
-readily overstated.
-
-The two estimates are not statistically independent, since a disturbance common to both
-pairs enters both.
-
-Whether that one-per-cent sensitivity is useful for drivetrain diagnostics is a question
-for measurement rather than for algebra, and I report what the residual actually did
-across four drives later in the talk.
 """),
 
 dict(layout='content', kicker=R,
@@ -524,8 +501,9 @@ dict(layout='content', kicker=R,
          'and produced a limit cycle at low speed.', None, 'Minimum drive output. '),
         ('Overspeed, stall, and a runaway detector looking for a saturated command pushing one '
          'way while the wheel turns the other. Drive sign and encoder sign must agree; if they '
-         'disagree the loop sees positive feedback, and a motor rated at 60 rpm cannot overspeed '
-         'its way past the overspeed threshold, so nothing else would catch it.',
+         'disagree the loop sees positive feedback that drives the command toward saturation '
+         'without the wheel speed itself crossing the overspeed threshold, so the detector checks '
+         'command against response direction rather than speed alone.',
          None, 'Three trips per wheel. '),
      ],
      size=13.5,
@@ -541,63 +519,40 @@ air, and the ground measurement is the reason it has to be revisited.
 """),
 
 dict(layout='content', kicker=R,
-     title='Result: the loop tracks, in air and on the floor',
-     sub='Figure 9 · wheel velocity against command, wheels free of the ground',
-     side='right', image=FIG(9), image_w=0.50,
+     title='Result: the loop tracks, loaded and unloaded',
+     images=[(FIG(9), 'Fig 9 · wheel velocity vs command, unloaded'),
+             (FIG(10), 'Fig 10 · steady-state demand, unloaded vs loaded')],
      tiles=[('0.040–0.047', 'rad/s RMS per wheel, unloaded · 26,468 samples', GREEN),
             ('0.066–0.074', 'rad/s RMS per wheel, under chassis weight · 35,248 samples', GREEN),
-            ('0.0 %', 'Saturated samples, every channel, every recorded run', GREEN)],
+            ('0.0 %', 'Saturated samples, every channel, every recorded run', GREEN),
+            ('22–30 %', 'Ground-load drive-demand increase, mean 24 %', AMBER)],
      bullets=[
         'The wheel reaches within 5 per cent of the commanded −2.207 rad/s in 0.20 s, '
-        'overshoots by 3.5 per cent, and holds to a mean offset of 0.003 rad/s.',
-        'Tracking error excursions coincide with commanded step edges, not with steady state.',
-        'The autonomous drive falls in the same band as the loaded case, which is the band that '
-        'matters operationally.',
-        'Largest drive demand observed at the operating velocity limit was 131 of 255, '
-        'headroom in the command, not a measurement of torque or traction reserve.',
+        'overshoots by 3.5 per cent, and holds to a mean offset of 0.003 rad/s. No channel '
+        'saturated at any point in any recorded run.',
+        'The autonomous drive falls in the loaded band, which is the one that matters '
+        'operationally. Largest drive demand at the operating velocity limit was 131 of 255, '
+        'headroom in the command rather than a torque measurement.',
+        'The 10 to 30 per cent ground-load band was written down before the measurement was '
+        'made. Three of the four motors landed inside it; the rear-right reached 30.3 per '
+        'cent, an exceedance rather than rounded into agreement.',
+        'Two later runs the same afternoon, different floor patches, gave means of 14 and 3 '
+        'per cent: the increase is real, its size is not settled past the width of the band '
+        'it was predicted against.',
      ],
-     size=12.5,
+     size=12,
+     takeaway='Controller performance, not an artefact of hitting a limit: tracking holds and '
+              'no channel saturates, loaded or not, even as steady-state demand rises with the ground.',
      notes="""
-Section 1.10. The two conditions are reported separately because the figures differ by
-about half. The unloaded figure is reported because it separates the controller from the
-wheel-ground interaction, not because it is the number the robot works at.
+Sections 1.9 and 1.10. Two conditions, reported separately because the figures differ by
+about half. The unloaded figure separates the controller from the wheel-ground
+interaction; the loaded figure is the one the robot actually works at.
 
-No channel saturated at any point and no feedback channel was lost, so these figures are
-controller performance rather than an artefact of the drive reaching its limit.
-
-Be precise about the 131 of 255: it bounds what the controller was asked for, not what
-the drivetrain could deliver.
-"""),
-
-dict(layout='content', kicker=R,
-     title='Result: a prediction written down, then tested',
-     sub='Figure 10 · steady-state drive demand per unit wheel speed, unloaded against loaded',
-     side='right', image=FIG(10), image_w=0.50,
-     bullets=[
-        'The band of 10 to 30 per cent was written down before the measurement was made.',
-        'Measured increases: 22.5, 23.6, 30.3 and 21.0 per cent, a mean of 24.',
-        'Three of the four motors fall inside the predicted band. The rear-right reaches '
-        '30.3 per cent, 0.3 points above its upper bound, and is reported as an exceedance '
-        'rather than rounded into agreement.',
-        'Two later runs the same afternoon, at the same commanded levels but over different '
-        'patches of floor, gave means of 14 and 3 per cent.',
-        'So the increase is real while its size is not established to better than the width of '
-        'the band it was predicted against. The likeliest reason is the surface rather than '
-        'the load.',
-     ],
-     size=13,
-     takeaway='A staircase test holding position and sweeping demand is what would settle the '
-              'figure. It has not been run on the floor. The one motor at the edge of the band '
-              'is worth keeping in view when it is.',
-     notes="""
-Section 1.10. The ground-load result is stated as a prediction and a test rather than as
-an observation, because the predicted band was written down before the run. That is a
-convention adopted after early errors, and it is stated in Section 1.9 alongside the other
-one: configuration is verified by querying the running system rather than by reading a
-configuration file.
-
-Casual driving covers different floor patches and headings, where a staircase test holds
-position and sweeps demand instead.
+The ground-load result is a prediction and a test rather than an observation, because the
+band was written down before the run. That convention, verifying against the running
+system rather than a file or a guess, recurs across both this strand and the monitoring
+one. A staircase test holding position and sweeping demand is what would settle the exact
+size of the effect; casual driving covers different floor patches and headings instead.
 """),
 
 dict(layout='content', kicker=R,
@@ -613,25 +568,27 @@ dict(layout='content', kicker=R,
         'Position recomputed offline from the raw encoder record agrees with the estimate the '
         'robot published live. That rules out a discrepancy between them as the source of the '
         'observed drift. It does not rule out an error shared by both.',
-        'Yaw-consistency residual across four analysed drives, one of them deliberately '
-        'irregular: 95th percentile 0.111 to 0.124 rad/s, worst instantaneous value 0.354 rad/s. '
-        'No sample crossed the 0.5 rad/s episode threshold, which was fixed before the drives '
-        'were analysed.',
-        'That threshold sits about four times the observed 95th percentile, so it detects gross '
-        'events and would not resolve a slow systematic drift.',
+        'The yaw-consistency residual comes from the two diagonal wheel pairs’ independent '
+        'yaw-rate estimates on their own lever arms. On a symmetric platform a shared '
+        'disturbance cancels out of that comparison exactly; here it survives, at about one '
+        'per cent of whatever the two pairs share.',
+        'Across four analysed drives, one deliberately irregular: 95th percentile 0.111 to '
+        '0.124 rad/s, worst instantaneous value 0.354 rad/s. No sample crossed the 0.5 rad/s '
+        'episode threshold, which was fixed before the drives were analysed.',
      ],
-     size=12.5,
+     size=12,
      takeaway='Within the sensitivity of this measure, the asymmetric geometry is not producing '
               'the sustained wheel-fight or scrubbing a non-symmetric layout might be expected to. '
               'The measure is blind to all four wheels slipping together.',
      notes="""
-Sections 1.11. These say nothing about the physical wheel-ground model, which is what the
-floor measurements address next.
+Sections 1.5 and 1.11. These say nothing about the physical wheel-ground model, which is
+what the floor measurements address next.
 
 Be careful with the yaw-residual claim. The episode threshold is the default of the
-analysis tool rather than a value derived from the drivetrain. The honest statement is the
-one on the slide: within the sensitivity of this measure, and at the roughly one-per-cent
-common-mode weighting derived earlier.
+analysis tool rather than a value derived from the drivetrain, and the one-per-cent
+weighting is not a calibrated slip measurement: unequal effective wheel radii, encoder
+scale error, backlash and mechanical compliance all contribute to the same residual. The
+honest statement is the one on the slide: within the sensitivity of this measure.
 
 The blindness to a rigid all-wheel slip mode matters, and it comes back in the
 photogrammetry result.
@@ -669,65 +626,39 @@ extensively characterised source of state estimation.
 """),
 
 dict(layout='content', kicker=R,
-     title='Result: what the robot cannot see',
-     sub='Figure 12 · the occluded sector, re-measured at five independent headings',
-     side='right', image=FIG(12), image_w=0.44,
+     title='Result: two perception constraints the room exposes',
+     images=[(FIG(12), 'Fig 12 · the occluded sector'),
+             (FIG(13), 'Fig 13 · coverage by drive pattern')],
      tiles=[('≈ 90°', 'Blind wedge, mast and payload in the scan plane', AMBER),
             ('107 / 430', 'Beams masked, per revolution', AMBER),
-            ('5', 'Independent headings the sector was measured at', GREEN)],
+            ('88% in 18%', 'Of a full perimeter drive’s coverage, in that share of its duration', GREEN)],
      bullets=[
-        'The robot occludes its own scanner over part of the sweep, because the mast and payload '
-        'sit within the scan plane.',
-        'Those beams are masked in software before the scan reaches the mapping layer. Unmasked, '
-        'a self-return is interpreted as a stationary obstacle travelling with the robot.',
-        'It is stated as a result because it is a general consequence of carrying a payload above '
-        'a single-plane scanner, and the trade-off between sensor placement, sector masking '
-        'and accepted coverage loss does not appear to be characterised quantitatively in the '
-        'literature.',
+        'The robot occludes its own scanner over part of the sweep, because the mast and '
+        'payload sit within the scan plane. Those beams are masked in software before the '
+        'scan reaches the mapping layer; measured consistent at five independent headings.',
+        'A deliberate 714-degree rotation over 642 s produced 43 occupied cells; an 111 s arc '
+        'combining rotation with translation produced 1545 cells, 88 per cent of a full '
+        'perimeter drive’s coverage in 18 per cent of its duration.',
+        'The commissioning procedure in use specified rotating in place at each corner to '
+        'survey the space. That procedure discards its own corner observations: coverage '
+        'accumulates through translation, not rotation.',
      ],
      size=12.5,
+     takeaway='Two different limits on what the robot can see: a fixed blind wedge from its own '
+              'payload, and a mapping procedure that discards most of what rotation alone shows it.',
      notes="""
-Section 1.12. The sector was measured at five independent headings rather than assumed
-from the geometry, and it is consistent across all five.
+Section 1.12. Both results are properties of this configuration rather than of lidar or of
+mapping in general: sector masking trades sensor placement against coverage loss in a way
+that does not appear to be characterised quantitatively in the literature, and the
+thresholds governing scan integration and pose-graph node insertion are both
+motion-dependent here and neither was varied.
 
-Also from Section 1.12, if asked about the scanner itself: stationary ray scatter is 12 to
-14 mm below 1.5 m in both captures; 22.3 mm in the 1.5 to 2.0 m band in one capture and
-31.9 mm in a second taken from a differently obstructed parking spot, which fails the 25 mm
-half-cell criterion the occupancy resolution implies. Beyond 2.5 m both captures return
-55 to 200 mm and do not agree with each other. Neither a linear nor a quadratic degradation
-model reproduces that, so the behaviour is scene-dependent: a range cap derived in one
-position is a fact about that position until it reproduces elsewhere.
-"""),
+The quantity plotted in Figure 13 is an occupied-cell equivalent length, occupied-cell
+count multiplied by the 0.05 m cell size, a proxy for committed occupancy rather than a
+physical wall length. Say that if anyone asks why the totals exceed the room's perimeter.
 
-dict(layout='content', kicker=R,
-     title='Result: rotating in place maps almost nothing',
-     sub='Figure 13 · map coverage accumulated under three drive patterns',
-     side='right', image=FIG(13), image_w=0.52,
-     bullets=[
-        'A deliberate 714-degree rotation over 642 s produced 43 occupied cells, 2.1 m on '
-        'this measure.',
-        'A 111 s arc combining rotation with translation produced 1545 cells, 77.2 m: '
-        '88 per cent of what a full perimeter drive accumulates, in 18 per cent of its duration.',
-        'The commissioning procedure in use had specified rotating in place at each corner to '
-        'survey the space. That procedure discards its own corner observations.',
-        'The effect is a property of this mapping configuration rather than of lidar in general: '
-        'the thresholds governing scan integration and pose-graph node insertion are both '
-        'motion-dependent, and neither was varied here.',
-     ],
-     size=13,
-     takeaway='Coverage accumulates through translation. Turns are taken as rounded arcs while '
-              'rolling, not as stationary pivots. No hardware modification is needed, and it is the '
-              'highest-value procedural change identified during this work.',
-     notes="""
-Section 1.12. This is the most operationally consequential perception result obtained.
-
-The quantity plotted is an occupied-cell equivalent length: occupied-cell count multiplied
-by the 0.05 m cell size. It is a proxy for how much occupancy the map has committed to
-rather than a physical wall length, and a single wall rendered several cells thick
-contributes several times its own length, which is why the totals exceed the perimeter of
-the room. Say that if anyone asks why 77 m appears in a room that size.
-
-It is nonetheless the configuration the robot maps in, so the procedural consequence stands.
+Unmasked, a lidar self-return reads as a stationary obstacle travelling with the robot,
+which is the practical reason the occlusion sector has to be handled in software.
 """),
 
 dict(layout='content', kicker=R,
@@ -794,7 +725,7 @@ pose estimate. Here it increased pose error instead of reducing it.
 The third row carries its own control: the same 3.193 m of driving, the same wheels and the
 same scans, with the robot physically returned to its mark. The matching-on drive's own
 wheel odometry closed at 16.2 mm, which is healthy, and the matched estimate on that same
-data closed at 206.7 mm.
+data closed at 206.7 mm. The video on the next slide is that third row, played twice.
 
 The corrections tracking the creation of pose-graph nodes rather than scan disagreement also
 explains the zero loop closures on a route that returns to its own start: a closure would
@@ -804,6 +735,31 @@ Bound the finding, because it is easy to overstate. This scanner, this front-end
 configuration, three routes of which two are tight circuits, which are poor geometry for a
 matcher. A one-variable comparison on the 12.04 m perimeter route against an existing
 matching-off baseline is still owed.
+"""),
+
+dict(layout='content', kicker=R,
+     title='See it: scan matching, on and off',
+     sub='The same circle route, wheel odometry alone against the same drive with matching on',
+     videos=[('Circel Trajectory .mp4', 'Wheel odometry alone · closes to 16.2 mm'),
+             ('Circle_with_pose_estimation_under25MB.mp4', 'Same drive, matching on · closes to 206.7 mm')],
+     bullets=[
+        'Same wheels, same scans, the robot returned to its own mark: this is the third row '
+        'of the table on the previous slide, played twice.',
+        'This pair is the scan-matching result, not a demonstration of wheel-level control. '
+        'Rotation and translation tracking accurately is the PID and feedforward result '
+        'reported earlier, on the floor and in the air, and it is the same in both clips.',
+     ],
+     size=13,
+     takeaway='Watch the drift appear only once matching is switched on. The wheels were '
+              'already accurate; the front end made the estimate worse.',
+     notes="""
+Do not overclaim from this pair. It is easy to look at a circle drawn cleanly and read it
+as proof of accurate closed-loop wheel control, but that claim is made and measured
+elsewhere in this talk, by the RMS tracking numbers, not by these two clips.
+
+What these two clips are evidence for is narrower and specific: the same wheel data and
+the same scans, once with the scan-matching front end engaged and once without, on the
+route in Table 1.3's third row. Say the qualifier every time this plays.
 """),
 
 dict(layout='content', kicker=R,
@@ -846,7 +802,9 @@ comparable to it. That is what makes them interpretable.
 
 dict(layout='content', kicker=R,
      title='Result: autonomous navigation, as far as it goes',
-     side='right', image=PIC('three_quarter'), image_w=0.36, frame=True,
+     side='right', image_w=0.36,
+     video='autonomous_under25MB.mp4',
+     video_caption='Goal-directed autonomous drive, inside a live mapping session',
      bullets=[
         'The first complete autonomous round trip, in August: the robot drove out, reversed its '
         'heading and returned, holding direction to within 5.5 and 3.7 degrees on the two legs and '
@@ -860,13 +818,16 @@ dict(layout='content', kicker=R,
         'That is a check that the transformation is coded correctly, not a statement about pointing '
         'accuracy, which is set by the size of a fingertip against the map scale and was not measured.',
      ],
-     size=13,
+     size=12.5,
      takeaway='Demonstrated within a live mapping session rather than against a saved map. '
               'The number of trials is small, and it is reported as what it is.',
      notes="""
-Section 1.14. Establishing a success rate, a stopping-error distribution and behaviour
-against obstacles requires a larger trial count in a space that permits varied routes,
-which places this alongside the mapping work behind the same test-space constraint.
+Section 1.14. Do not overclaim from this clip: three goals, three trials, inside a live
+mapping session, not against a saved map. Say the qualifier every time this plays.
+
+Establishing a success rate, a stopping-error distribution and behaviour against obstacles
+requires a larger trial count in a space that permits varied routes, which places this
+alongside the mapping work behind the same test-space constraint.
 
 If asked about the local controller: a dynamic-window controller was adopted first, on the
 reasoning that it is computationally lighter, and replaced with a sampling-based predictive
@@ -945,7 +906,7 @@ than of the software, and a faster host raises all three.
 
 dict(layout='content', kicker=R,
      title='What is not, and the reason stated against each row',
-     sub='Figure 15, lower half \u00b7 remaining work, with the reason it has not been done',
+     sub='Figure 15, lower half · remaining work, with the reason it has not been done',
      side='full', image=os.path.join(A, 'slide', 'fig15b.png'),
      caption='For the five layers that are not yet established, the entry states the specific '
              'reason rather than recording a failure, and in three of those five the reason '
@@ -953,48 +914,17 @@ dict(layout='content', kicker=R,
      notes="""
 Section 1.16. Walk these five rows and notice that three of them carry the same reason.
 
-Scan matching is the one entry switched off by choice rather than by constraint, on the
-measurement reported a few slides ago. Inertial measurement is deferred by decision, for the
-reason on the previous slide. The other three - a commissioning map meeting all four criteria,
-localisation against a saved map, and the named-location library - are one cause wearing three
-faces, and that is the next slide.
-"""),
+Two causes account for all five. The size of the available test area accounts for three:
+an accepted commissioning map, localisation against a saved map, and the named-location
+library, in that dependency order, since each of the last two needs the one before it. The
+deliberate absence of inertial measurement accounts for a fourth, fused state estimation.
+Scan matching is the fifth, switched off by choice on the measurement reported a few
+slides ago, not blocked by either constraint.
 
-dict(layout='content', kicker=R,
-     title='Everything still open resolves to two constraints',
-     size=13.5,
-     two_col=(
-        ('One: the size of the available test area', [
-            'Coverage accumulates through translation past surfaces, at a rate set by how far the '
-            'robot can drive while observing new geometry. The laboratory available permits a '
-            'traversable circuit of a few metres.',
-            'That single limit holds the coverage criterion below threshold, which withholds an '
-            'accepted commissioning map, which leaves localisation against a saved map unexercised, '
-            'which gives the named-location library no coordinates to store.',
-            'Four entries in the status figure, and one cause. No further work on the platform '
-            'moves any of them.',
-        ]),
-        ('Two: the deliberate absence of inertial measurement', [
-            'Working without it is what made the unfused baseline measurable.',
-            'The cost is one specific error class that stays unobservable to a wheel-only '
-            'instrument set.',
-            'Adding the sensor is the first item of the research plan, and it now has a measured '
-            'target to be tested against.',
-            'Scan matching is the one entry switched off by choice rather than by constraint, on '
-            'the measurement reported earlier in this section.',
-        ])),
-     takeaway='A test space offering a continuous traversable loop lifts all four together. '
-              'An initial target of fifteen to twenty metres of path is proposed.',
-     notes="""
-Section 1.16. The fifteen-to-twenty-metre figure is proposed on the grounds that it is
-several times the few metres currently available, not derived from a measured
-coverage-accumulation rate. Establishing that rate, and with it the path length a
-50 per cent coverage criterion demands, is itself one of the first measurements the new
-space would support. Say that; do not let the number sound harder than it is.
-
-Securing such a space is the principal practical prerequisite for the next stage of the
-work, and it is the reason the localisation mode that depends on a saved map has not yet
-been exercised.
+A test space offering a continuous traversable loop lifts the first three together. An
+initial target of fifteen to twenty metres of path is proposed, several times the few
+metres currently available rather than derived from a measured coverage-accumulation rate;
+establishing that rate is itself one of the first things the new space would support.
 """),
 
 dict(layout='content', kicker=R,
@@ -1042,38 +972,15 @@ Two considerations motivated it. Environmental variables relevant to storage con
 worker exposure are measurable but are not necessarily incorporated into the control of
 air-treatment systems. And timer-based operation of treatment equipment provides no feedback
 from the condition of the air being treated.
-"""),
 
-dict(layout='content', kicker=E,
-     title='Why a closed loop, and why local',
-     bullets=[
-        'Storage temperature and relative humidity are the principal levers on quality loss and '
-        'shelf life for perishable produce. Carbon dioxide concentration is a long-established '
-        'surrogate for ventilation adequacy. Particulate load affects both product quality and '
-        'worker health. In Indian conditions these quantities frequently sit outside the range in '
-        'which either people or goods do well.',
-        'Continuous monitoring in a laboratory or store room is usually done one of two ways: with '
-        'proprietary instruments, which are costly and closed to modification, or by manual '
-        'transcription, which introduces recording error and leaves a gap in the record whenever '
-        'the space is unattended.',
-        'An air-treatment appliance adds a second requirement. It must act on what it measures, '
-        'and the effect of that action must be independently confirmable.',
-        'Cloud-hosted monitoring makes continuity of monitoring dependent on external connectivity. '
-        'For a facility where the monitored condition matters most during a disruption, that '
-        'dependency is misplaced. A locally hosted data platform removes it.',
-     ],
-     size=13.5,
-     takeaway='The same architecture is intended to transfer to cold storage, to '
-              'controlled-atmosphere rooms used for produce ripening, and to general warehouse '
-              'environmental monitoring.',
-     notes="""
-Sections 2.1 and 2.2. The engineering difficulty is rarely the individual sensor. It lies in
-integration, in calibration, in keeping a deployed system reporting reliably without
-attention, and in ensuring that the quantity driving a control decision is the quantity
-intended. That last clause comes back twice in this chapter.
-
-Note the qualifier on the takeaway if asked: the system has so far been deployed in one
-application, and transferability is a design expectation rather than a demonstrated result.
+Continuous monitoring in a room is usually done one of two ways: with proprietary
+instruments, costly and closed to modification, or by manual transcription, which
+introduces recording error and leaves a gap whenever the space is unattended. An
+air-treatment appliance adds a further requirement on top of measuring correctly: it must
+act on what it measures, and that action has to be independently confirmable, which a
+timer cannot do. Note if asked: the system has so far been deployed in one application,
+and transferability to cold storage or controlled-atmosphere rooms is a design expectation
+rather than a demonstrated result.
 """),
 
 dict(layout='content', kicker=E,
@@ -1099,7 +1006,7 @@ enclosure is not a cube. The photographs show a box visibly wider than it is dee
 """),
 
 dict(layout='content', kicker=E,
-     title='Five sensing devices, two actuators, one microcontroller',
+     title='Four sensing devices, two actuators, one microcontroller',
      sub='Table 2.1 · parts as fitted, read off the assembled unit or out of its firmware',
      table=(['', ''], [
         ('Sensing node', 'Arduino UNO R4 WiFi, Renesas RA4M1 core'),
@@ -1120,9 +1027,13 @@ dict(layout='content', kicker=E,
               'than assumed. The power split is not an elegance: the next slide gives the '
               'failure it exists to prevent.',
      notes="""
-Section 2.3. The two actuators are driven differently and for different reasons. The lamp
-runs from mains and is switched through an opto-isolated relay, so there is no electrical
-path between the mains side and the logic.
+Section 2.3. The four sensing devices, one microcontroller framing corrects an earlier
+miscount in project documents that also called the character display a fifth device; it
+reports state and drives no control decision.
+
+The two actuators are driven differently and for different reasons. The lamp runs from
+mains and is switched through an opto-isolated relay, so there is no electrical path
+between the mains side and the logic.
 
 Non-selective metal-oxide gas sensors respond to a mixture of reducing gases rather than to
 any one species, which is why the index they produce is treated in this work as a relative
@@ -1163,43 +1074,14 @@ The cellular channel is also the only one bidirectional at the human end. The no
 same command vocabulary on every channel, including short messages from a handset, so an
 operator with no network access can still ask a node for a snapshot or switch its lamp.
 
-Commands from the dashboard travel one of two ways, selected at runtime by a variable read from
-the browser address rather than by a firmware change: through the flow engine and the broker
-when the node is inside Wi-Fi coverage, or through the control service and out by radio when it
-is not. That is what lets a zone move in and out of coverage without anything being reflashed.
-"""),
-
-dict(layout='content', kicker=E,
-     title='Three design decisions that answered observed failures',
-     bullets=[
-        ('Attempted and abandoned. The command protocol requires deterministic timing that a '
-         'non-real-time operating system does not provide, and scheduler jitter produced dropped '
-         'packets that were indistinguishable from radio link failures. Interposing a dedicated '
-         'microcontroller moved the timing-critical work to where timing is deterministic.',
-         None, 'Driving the long-range radio from the host computer’s GPIO. '),
-        ('Sharing a supply rail with the microcontroller produced brownout resets. Two supplies '
-         'with a single common ground point eliminated them.',
-         None, 'The cellular modem draws approximately 2 A in transmit bursts. '),
-        ('The three channels run concurrently rather than as a chain, for the detection '
-         'reason on the previous slide.',),
-        ('Separation between the two co-located deployments is by network identifier, which the '
-         'transceiver filters at the protocol layer. That is an addressing filter, not a security '
-         'mechanism: the control path carries no message authentication, so any transmitter within '
-         'range configured to the right identifier can actuate a lamp. Acceptable on an isolated '
-         'laboratory network, and not acceptable anywhere else.', RED, 'Stated rather than implied. '),
-     ],
-     size=13,
-     takeaway='Separately: the two deployments were configured on different frequencies, and '
-              'neither matches the delicensed band available in India. Nothing has been obstructed, '
-              'and it would have to be settled before the system went near a real facility.',
-     notes="""
-Section 2.4. These three were responses to observed failures rather than anticipatory choices,
-and it is worth saying so: each one is a fault that was diagnosed and designed out, not a
-precaution taken in advance.
-
-The security and frequency statements are in the report for the same reason. A bench deployment
-on an isolated network does not need message authentication, and the report says exactly that
-rather than implying the system has a security posture it does not have.
+Three design decisions followed directly from observed failures rather than anticipation:
+driving the long-range radio from the host computer's GPIO was tried and abandoned, because
+a non-real-time operating system cannot meet the protocol's deterministic timing and
+scheduler jitter looked identical to a radio failure, so a dedicated microcontroller took
+over the timing-critical work. The cellular modem draws about 2 A in transmit bursts, which
+produced brownout resets on a shared supply rail; two supplies with one common ground point
+eliminated them. And the three channels run concurrently rather than as a chain, for the
+detection reason above.
 """),
 
 dict(layout='content', kicker=E,
@@ -1230,7 +1112,7 @@ which is well inside that flapping range.
 The dashboard is also where the most interesting defect lived. An operator command to switch the
 lamp or the fan off actuated correctly and then did not clear automatic mode, so the closed loop
 reverted it on its next pass. The on-commands did clear it. The off command is the one an operator
-issues to halt automatic actuation, and it is the one that did not persist, which makes it a safety
+issues to halt automatic actuation, and it is the one that did not persist, which made it a safety
 defect rather than an inconvenience. It has since been fixed, and that is the next slide.
 """),
 
@@ -1246,10 +1128,10 @@ dict(layout='content', kicker=E,
             'below its actuation threshold with the lamp correspondingly off, and the carbon dioxide '
             'reading at the same instant above its alert threshold with alerts raised on all three '
             'channels.',
-            'That establishes the deployed logic produces the configured states for the inputs '
-            'present at an instant. A time-resolved recording (measurement, threshold crossing, '
-            'actuator command and response on one time axis) is the next capture the control '
-            'path needs.',
+            ('Separation between the two co-located deployments is by network identifier alone, not '
+             'message authentication, and neither deployment’s frequency matches India’s '
+             'delicensed band. Acceptable on an isolated laboratory network; not acceptable '
+             'anywhere else.', RED, 'Stated rather than implied. '),
         ]),
         ('Closed by the source-level audit', [
             'Lamp-failure detection now runs from the irradiance the unit was already measuring: '
@@ -1299,185 +1181,106 @@ respect a proposal dressed as a result.
 """),
 
 dict(layout='content', kicker=F,
-     title='The setting, and where each established method stops',
+     title='The setting, and the hypothesis it doesn’t yet answer',
      sub='Figure 19 · the operating condition against the class of instrument each method belongs to',
-     side='right', image=FIG(19), image_w=0.54,
+     side='right', image=FIG(19), image_w=0.50,
      bullets=[
-        'India’s logistics and warehousing sector employs over 22 million people, is expanding '
-        'under the National Logistics Policy of 2022, and records more than 26,800 workplace '
-        'incidents a year. Nearly 70 per cent of that workforce is in the unorganised sector, where '
-        'occupational health protocols are minimal or absent.',
-        'Shifts of ten to twelve hours, sustained walking and lifting, and ambient temperatures that '
-        'routinely exceed 40 °C. Occupational heat stress in Indian workplaces has been measured '
-        'directly, with documented exceedances and associated health and productivity consequences.',
-        ('Unreliable at its source, and no instrument corrects that.', RED, 'Subjective report. '),
-        ('Reliable in themselves, and cannot be maintained in contact across a ten-hour shift above '
-         '40 °C. That is a limitation of the instrument rather than of the measurement principle, '
-         'and therefore a tractable one.', AMBER, 'Contact methods. '),
-     ],
-     size=12.5,
-     takeaway='It is that second class of failure, and only that class, which this strand addresses.',
-     notes="""
-Sections 3.1 and 3.2. The three reasons in the figure are not equivalent, and the distinction is
-the whole argument for the strand.
-
-The objections to instrumenting the worker instead of the space are practical rather than
-evidential, and the report gives them as design reasoning rather than as findings: a sensor worn
-against the skin for an eight-hour shift in these conditions is uncomfortable, electrode contact
-and signal quality degrade with perspiration, compliance depends on the worker choosing to wear it,
-and a facility employing hundreds of people acquires a daily charging and maintenance burden. None
-of these is fatal alone. Together they are why this strand asks whether the measurement can be made
-without contact at all.
-"""),
-
-dict(layout='content', kicker=F,
-     title='The hypothesis, and the gap it sits in',
-     bullets=[
+        'A large and growing workforce, shifts of ten to twelve hours, ambient temperatures '
+        'routinely above 40 °C, and minimal occupational health protocols across much of the '
+        'sector.',
+        ('Reliable in themselves, but cannot be maintained in contact across a ten-hour shift '
+         'above 40 °C. A limitation of the instrument, not of the measurement principle, and '
+         'therefore tractable.', AMBER, 'Contact methods, the established approach. '),
         ('Physical fatigue shows itself as a correlated signature across several physiological '
-         'domains at once: gait regularity deteriorating, heart and respiration rates rising, and '
-         'facial skin temperature climbing.', None, 'The hypothesis. '),
-        ('A system watching all of those at the same time should beat any system watching one of '
-         'them, and should beat it hardest under exactly the conditions where single modalities '
-         'struggle, which are occlusion, heat and an uncontrolled floor.', None, 'What follows if it holds. '),
-        'Surface electromyography with inertial measurement is the established laboratory approach, '
-        'reporting 87.9 per cent accuracy on induced fatigue under leave-one-subject-out validation '
-        'across 35 participants. The requirement for skin-contact electrodes and per-subject '
-        'placement is what prevents its use on an operating floor.',
-        'The most mature deployed fatigue systems monitor drivers, and thermal facial imaging alone '
-        'reaches 82 per cent against observer-rated drowsiness in a simulator. These assume a seated, '
-        'stationary, forward-facing and cooperative subject at fixed distance. A worker walking an '
-        'aisle under load satisfies none of those assumptions.',
-        ('The fusion of contactless modalities for whole-body physical fatigue assessment in an '
-         'uncontrolled industrial environment. No study meeting the criteria used in this review was '
-         'identified.', None, 'The gap. '),
+         'domains at once: gait deteriorating, heart and respiration rates rising, facial skin '
+         'temperature climbing. A system watching all of them should beat any system watching '
+         'one, especially under occlusion, heat and an uncontrolled floor.', None, 'The hypothesis. '),
+        ('87.9 per cent (surface electromyography, leave-one-subject-out) and 82 per cent '
+         '(thermal imaging, drivers) is what each single modality already reaches alone; the gap '
+         'is that they have not been fused for whole-body fatigue in an uncontrolled industrial '
+         'setting.', None, 'The gap. '),
      ],
      size=12.5,
-     takeaway='A bounded search, not an exhaustive one: Crossref and scite, June to September 2026, '
-              'peer-reviewed work only. The claim is a gap in a search rather than a gap in the field.',
+     takeaway='A bounded search, not an exhaustive one, and the technical case rests entirely on '
+              'other people’s results: each modality is proven alone, not yet fused for this purpose.',
      notes="""
-Sections 3.1 and 3.2. The gap is not a shortage of capable sensors. It is that they have not been
-fused for this purpose. Existing multi-modal fatigue work is overwhelmingly contact-based or aimed
-at seated drivers, and the contactless studies are single-modality and laboratory-bound.
+Sections 3.1 and 3.2. The objections to instrumenting the worker instead of the space are
+practical rather than evidential: a sensor worn against the skin for an eight-hour shift in
+these conditions is uncomfortable, electrode contact and signal quality degrade with
+perspiration, compliance depends on the worker choosing to wear it, and a facility employing
+hundreds of people acquires a daily charging and maintenance burden. None of these is fatal
+alone; together they are why this strand asks whether the measurement can be made without
+contact at all.
 
-The second gap is regulatory rather than technical. India's data protection legislation of 2023 has
-created real uncertainty about workplace monitoring, and an architecture that extracts a derived
-score on the device and never transmits raw video is a different legal object from one that streams
-a camera feed to a server. That distinction is designed in here rather than argued for afterwards.
+The two accuracy figures come with their own limits: surface electromyography needs
+skin-contact electrodes, and the thermal figure assumes a seated, stationary, cooperative
+subject at fixed distance, which a walking warehouse worker is not.
 
-Reported accuracies for the individual contactless modalities, if asked: camera pose estimation at
-0.02 s on temporal gait parameters and 4.0, 5.6 and 7.4 degrees on sagittal hip, knee and ankle;
-millimetre-wave radar correlating with a reference at 94 per cent on respiration and 80 on heart
-rate, though established for near-stationary subjects and degrading with body motion.
+The gap is not a shortage of capable sensors, it is that they have not been fused for this
+purpose. India's data protection legislation of 2023 also created real uncertainty about
+workplace monitoring, and an architecture that extracts a derived score on the device and
+never transmits raw video is a different legal object from one that streams a camera feed,
+which is designed in on the next slide rather than argued for afterwards.
 """),
 
 dict(layout='content', kicker=F,
-     title='The framework proposed',
-     sub='Figure 20 · one crossing of the monitored zone, capture to a single score',
-     side='right', image=FIG(20), image_w=0.54,
+     title='The framework proposed, and how it would be validated',
+     images=[(FIG(20), 'Fig 20 · the framework proposed'),
+             (FIG(21), 'Fig 21 · how it would be validated')],
      bullets=[
-        'Camera with on-device pose estimation: stride, cadence, trunk sway, left-right asymmetry. '
-        'Solid-state lidar: the same geometry in three dimensions, plus step width and '
-        'centre-of-mass motion, insensitive to illumination. 60 GHz radar: heart rate, '
-        'respiration and variability through clothing. Long-wave infrared: facial skin '
-        'temperature and the forehead-to-cheek gradient.',
-        ('Rather than tracking several people across a floor, the node sits at one point everybody '
-         'passes, mounted two and a half to three and a half metres up and angled down, working at '
-         'one to five metres. Each crossing yields one clean measurement of one person.',
-         None, 'Decision one: capture is fixed and single-subject. '),
-        ('That converts an absolute measurement, which varies enormously between people, into a '
-         'within-subject change, which is the quantity the question is actually about.',
-         None, 'Decision two: every feature is referred to the worker’s own shift-start baseline. '),
-        'Gait carries enough information to identify a person. A system installed to estimate fatigue '
-        'must not become one that recognises individuals, so the pipeline has to discard identity by '
-        'construction rather than by policy.',
+        'Camera, solid-state lidar, 60 GHz radar and long-wave infrared: one crossing of a fixed '
+        'monitored zone, capture to a single score, referred to the worker’s own shift-start '
+        'baseline. Only that number leaves the sensor bracket, never raw video or a point cloud.',
+        'Gait is checked against marker-based motion capture; a subset of volunteers wears '
+        'surface electromyography and inertial bands alongside the contactless capture, compared '
+        'directly against the method this strand proposes to replace.',
+        ('Thirty to fifty workers in a non-air-conditioned warehouse. The fused score must beat '
+         'four single-modality baselines and an ablation over them, a bar set before any data '
+         'exists.', None, 'Field deployment. '),
      ],
-     size=12,
-     takeaway='The fused estimate is computed without any raw video or point cloud leaving the sensor '
-              'bracket, which makes the privacy position a property of the architecture rather than '
-              'an undertaking.',
+     size=11.5, gap=7,
+     takeaway='The bar is set before any data is collected, because it is exactly the comparison '
+              'that becomes easy to avoid once a pipeline exists and produces plausible numbers.',
      notes="""
-Section 3.3. The dashed rule in the figure marks the limit of what the proposal fixes: the sensor set
-and its mounting are specified and costed, and everything to the right of the rule is design.
+Section 3.3 and 3.4. The single-subject, fixed-point capture is deliberate: continuous
+multi-person tracking is a harder problem than the one being asked about, and solving it is
+not a prerequisite for answering whether fatigue is legible at all. Gait carries enough
+information to identify a person, so the pipeline has to discard identity by construction
+rather than by policy.
 
-The single-subject trade is deliberate. Continuous multi-person tracking is a harder problem than the
-one being asked about, and solving it is not a prerequisite for answering whether fatigue is legible
-at all.
-
-The fusion itself is a convolutional branch per stream followed by a recurrent stage over the sequence,
-with attention across the modalities so the model can lean on whichever streams are usable when one is
-occluded. It produces a single number per crossing.
-
-On identity: the point-cloud gait benchmark cited in the review exists to demonstrate exactly that
-capability, which is a thing this strand has to constrain deliberately rather than a feature to exploit.
+A fused score that cannot beat the best single modality has bought nothing for four sensors
+and an edge processor. Simultaneously processing four high-bandwidth streams on one edge
+platform generates heat, and a non-air-conditioned Indian warehouse above 40 degrees is
+precisely where that platform will throttle, which is a design constraint on the node
+rather than a footnote.
 """),
 
 dict(layout='content', kicker=F,
-     title='How it would be validated, and the bar set in advance',
-     sub='Figure 21 · the three objectives, and the reference each is measured against',
-     side='right', image=FIG(21), image_w=0.50,
+     title='What exists at the end of the year',
      bullets=[
-        'Gait from the camera and the lidar is checked against marker-based motion capture, an '
-        'external physical reference rather than another estimate.',
-        'A subset of volunteers wears surface electromyography on the calf muscles and inertial bands '
-        'at the same time as the contactless capture, so the proposed method is compared directly '
-        'against the established contact method it proposes to replace, on the same subjects during '
-        'the same task.',
-        'Field deployment then runs in an operational, non-air-conditioned warehouse across thirty to '
-        'fifty workers and several shifts, scored against the vigilance and sleepiness instruments.',
-        ('The fused score must beat four single-modality baselines (camera, lidar, radar and '
-         'thermal alone), together with an ablation over the four.', None, 'The comparison that decides it. '),
+        ('The survey, the hypothesis it produced, and a research proposal built on both. '
+         'Alongside the sensing literature, the survey covered occupational fatigue physiology, '
+         'Indian industrial conditions and the data protection position, because a sensing method '
+         'that cannot be deployed lawfully in the place it was designed for is not a method.',
+         None, 'What exists. '),
+        ('The technical feasibility argument rests entirely on other people’s results. Each of '
+         'the four modalities has been demonstrated individually; none of that is evidence the '
+         'combination works here. It is evidence the combination is worth attempting.',
+         None, 'Stated rather than blurred. '),
+        ('First the capture node, because until one exists there is no data of any kind. Then '
+         'per-modality laboratory validation, the step most likely to end the strand and '
+         'therefore worth reaching early: if two of four modalities carry no usable signal on '
+         'walking subjects, the design changes before anything is built around them. Last, '
+         'fusion, field deployment and the baseline comparison, because they are the only steps '
+         'that need every one before them to have worked.', None, 'The sequence that follows. '),
      ],
-     size=12.5,
-     takeaway='Setting that bar before any data is collected is deliberate, because it is exactly the '
-              'comparison that becomes easy to avoid once a pipeline exists and produces '
-              'plausible-looking numbers.',
-     notes="""
-Section 3.4. Where the previous figure gives the signal path, this one gives the order of work.
-Reading down the right-hand column establishes that order: a modality that has not been checked
-against motion capture cannot sensibly be fused, and a fused score has nothing to be compared
-against until the contact reference has been recorded on the same subjects during the same task.
-
-A fused score that cannot beat the best single modality has bought nothing for four sensors and an
-edge processor. Say that line; it is the one that shows the strand is set up to be falsified rather
-than to be confirmed.
-
-One practical constraint sits across all of it. Simultaneously processing four high-bandwidth
-streams on a single edge platform generates heat, and a non-air-conditioned Indian warehouse above
-40 degrees is precisely where that platform will throttle. That is a design constraint on the node
-rather than a footnote, and it is one of the reasons the hardware objective has to be completed and
-tested in situ before the algorithmic one means anything.
-"""),
-
-dict(layout='content', kicker=F,
-     title='What exists, and the sequence that follows',
-     bullets=[
-        ('The survey, the hypothesis it produced, and a research proposal built on both. Alongside '
-         'the sensing literature the survey covered occupational fatigue physiology, Indian '
-         'industrial environmental conditions and the data protection position, because a sensing '
-         'method that cannot be deployed lawfully in the place it was designed for is not a method.',
-         None, 'What exists at the end of the year. '),
-        ('The technical feasibility argument rests entirely on other people’s results. Each of the '
-         'four modalities has been demonstrated to high accuracy individually, and fusion using this '
-         'class of architecture has outperformed single-modality baselines in related fatigue tasks. '
-         'None of that is evidence that the combination works here. It is evidence that the '
-         'combination is worth attempting.', None, 'Stated rather than blurred. '),
-        ('Until one exists there is no data of any kind.', None, 'First: the capture node. '),
-        ('The step most likely to end the strand, which is a reason to reach it early rather than '
-         'late: if two of the four modalities carry no usable fatigue signal on walking subjects, the '
-         'design changes before anything is built around them.',
-         None, 'Second: per-modality laboratory validation. '),
-        ('Because they are the only steps that need every preceding one to have worked.',
-         None, 'Last: fusion, field deployment, the baseline comparison. '),
-     ],
-     size=12.5,
+     size=13,
      takeaway='A negative result is a useful contribution while there is still time to act on it, '
               'and stops being one once there is not.',
      notes="""
-Section 3.5. The sequence matters more than the schedule.
-
-The comparison against surface electromyography on the same subjects during the same task comes as
-early as the hardware allows, specifically because it is the step most likely to show that the
-approach does not work.
+Section 3.5. The comparison against surface electromyography on the same subjects during the
+same task comes as early as the hardware allows, specifically because it is the step most
+likely to show the approach does not work.
 """),
 
 # ========================================================== CONCLUSIONS ======
@@ -1568,16 +1371,17 @@ dict(layout='content', kicker=C,
         ]),
         ('The other two strands', [
             'Monitoring: calibration first, because it is what converts a unit that behaves '
-            'correctly into one whose readings can be quoted. That means the gas channel driven '
-            'from the stored calibration, and the ultraviolet channel referred to a reference '
-            'radiometer at a fixed geometry.',
+            'correctly into one whose readings can be quoted. That means the gas channel checked '
+            'against a reference gas, and the ultraviolet channel referred to a reference '
+            'radiometer at a fixed geometry. Both need instruments, not development time.',
             'Then sensor integration, which is why the architecture was built the way it was: a new '
             'measurement channel is a configuration change rather than a redesign. That makes the unit '
             'worth extending to cold storage, controlled-atmosphere rooms, and the perishable-goods '
             'areas where temperature, humidity and gas composition together set shelf life.',
-            'Fatigue: the sequence of the previous section, with one ordering decision that belongs '
-            'in a plan: the per-modality validation, and in particular the comparison against surface '
-            'electromyography on the same subjects during the same task, comes as early as the '
+            'Fatigue: first the capture node, then per-modality laboratory validation, the step most '
+            'likely to end the strand and therefore worth reaching early, then fusion, field '
+            'deployment and the baseline comparison. The comparison against surface '
+            'electromyography on the same subjects during the same task comes as early as the '
             'hardware allows.',
             'No dates. The work depends on securing a test space, on the procurement of a sensor, and '
             'on a result that may be negative. A schedule asserted over those contingencies would not '
@@ -1588,7 +1392,7 @@ Section 4.3. Within each strand the order is real: the items are listed so that 
 once the one above it is done.
 
 If pressed on the absence of dates, the last bullet is the answer and it is the report's own. Offer
-the dependency order instead: the test space unblocks four entries in the status figure; the inertial
+the dependency order instead: the test space unblocks three entries in the status figure; the inertial
 sensor unblocks the heading question; the symmetric baseline closes Objective 3.
 
 Each monitoring deployment adds its own sensing and tests the architecture against an application it

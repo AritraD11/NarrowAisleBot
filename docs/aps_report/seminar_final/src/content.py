@@ -174,8 +174,8 @@ strands at opposite ends of their own development.
 # =========================================================== STRAND ONE ======
 dict(layout='divider', numeral='01', kicker='Strand One',
      title='The Narrow-Aisle Robot',
-     line='A prototype establishes that the transformation between wheel and body velocity '
-          'is correct. It establishes nothing about a 45.54 kg machine.',
+     line='A small prototype proved the maths were right. It said nothing about whether a '
+          'machine of more than 45 kg would track, sense or navigate correctly.',
      status='Built · instrumented · measured',
      notes="""
 This is the principal strand and it occupies most of the report. The open question

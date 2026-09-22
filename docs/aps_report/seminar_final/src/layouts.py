@@ -200,8 +200,9 @@ def title_slide(prs, s):
     return slide
 
 
-def divider(prs, s, n):
-    slide = _blank(prs)
+def divider(prs, s, n, slide=None):
+    if slide is None:
+        slide = _blank(prs)
     box(slide, 0, 0, SW, SH, fill=TINT)
     box(slide, 0, 0, 0.16, SH, fill=ACCENT)
 

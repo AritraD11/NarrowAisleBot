@@ -1,258 +1,201 @@
 # Slide plan, slides 1–12
 
-Not built yet. Same rule as before: this is the record of what's decided,
-nothing in `content.py` or the `.pptx` changes until you say build, slide
-by slide, the same way slides 3/5/9/10 were already patched in and pushed.
+Not built yet. Same rule as always: nothing in `content.py` or the
+`.pptx` changes until you say build, then it happens slide by slide with
+its own commit, same as slides 3/5/9/10 already patched in.
 
-Slide numbers below are the **new** sequence — 1 is the title, 12 is "why
-the drive controller changed."
+All images referenced below are committed under `assets/context/` (or the
+existing `assets/photo/` and `assets/slide/` for report/robot photos).
+Videos stay as placeholders carrying the exact filename — no video files
+are stored in the repo.
 
 ---
 
 ## Slide 1 — Title
-
-**Image:** `assets/photo/title.jpg` (the robot on the lab floor, existing).
-No change from the current deck.
-
----
+**Image:** `assets/photo/title.jpg`. Unchanged.
 
 ## Slide 2 — Indian warehouses are growing
-
-**Images:** your two supplied photos — `assets/context/warehouse_floor.jpg`,
-`assets/context/fedex_dock.jpg`.
-**No video.**
-Already built and pushed (commit `946d9a2` / patched again since). Growth
-stats, automation-outpaces-the-sector, environmental-monitoring gap,
-fatigue gap, closing bullet ties to the project. No further change pending.
-
----
+**Images:** `assets/context/warehouse_floor.jpg`, `assets/context/fedex_dock.jpg`.
+Already built and pushed. Unchanged.
 
 ## Slide 3 — Three problems, one engineering method
-
-**No image**, three stat-style tiles (Strand 1/2/3, one-line problem each).
-Already built and pushed (commit `2074598`). Retitled from "one problem,"
-"what is shared" reworded to instrumentation/control/communication, weight
-fixed to "more than 45 kg."
-
----
+**No image.** Already built and pushed. Unchanged.
 
 ## Slide 4 — Five objectives
-
-**No image.** Unchanged from the original report text, O1–O5 as submitted.
-Not yet touched by any recent edit.
-
----
+**No image.** Unchanged, original report text.
 
 ## Slide 5 — Strand One divider
-
-**No image** (full-bleed tint background is the layout itself).
-Already built and pushed (commit `101e624`). Line rewritten: "A small
-prototype proved the maths were right. It said nothing about whether a
-machine of more than 45 kg would track, sense or navigate correctly."
-
----
+**No image.** Already built and pushed. Unchanged.
 
 ## Slide 6 — The aisle sets the problem
-
-**Image:** `assets/photo/platform_side.jpg` (existing robot photo, side
-view). **No video.**
-Confirmed good by you, one addition pending (not yet built):
-
-> A holonomic drive commands all three planar degrees of freedom —
-> forward, lateral, yaw — independently and at the same time. A
-> conventional drive (differential, Ackermann) is non-holonomic: three
-> configuration variables, only two commandable velocities, so heading and
-> translation stay coupled. Mecanum wheels make the platform holonomic,
-> which is exactly the property a lateral aisle correction needs.
-
-Fact-check: standard mobile-robotics definition, not report-specific,
-solid.
+**Image:** `assets/photo/platform_side.jpg`.
+One addition pending (not yet built): the holonomic/omnidirectional/DOF
+bullet from last round. Everything else unchanged.
 
 ---
 
-## Slide 7 — Asymmetric layout & kinematics model **(your new mockup — confirmed, this is it)**
-
-**Images, left column:**
-1. Your new annotated top-down schematic — l₁ = 403 mm, l₂ = 333 mm, chassis
-   width 252 mm (wheels excluded), wheel-to-wheel width 360 mm (tape-measured),
-   L = 1000 mm front-to-back (tape-measured). **Have it** — extracted from
-   your mockup composite and committed at
-   `assets/context/dims_schematic.png` (780×420).
-2. The prior lab paper's own Figure 3 schematic (the l₁/l₂/d/θ coordinate-frame
-   drawing, world frame {W} and body frame {B}) — this is the "Fig. 3:
-   Schematic diagram of kinematic model" image you've been pasting. **Have
-   it** — same extraction, committed at
-   `assets/context/paper_fig3_schematic.png` (500×404).
-   Resolution note: both are cropped from your composite mockup image
-   (2000×824 total), so they're only as sharp as that source. Fine for a
-   slide at their current size; if you have either as a separate
-   higher-resolution original, send it and I'll swap it in.
-
-**No video on this slide.**
-
-**Right column — the equations, verified:**
-
-*Inverse kinematics* (body twist → wheel speeds):
-```
-ω_FR = (1/a)(u + v + r(l₁+d))      ω_FL = (1/a)(u − v − r(l₂+d))
-ω_RR = (1/a)(u − v + r(l₂+d))      ω_RL = (1/a)(u + v − r(l₁+d))
-```
-
-*Forward kinematics* (wheel speeds → body twist):
-```
-v_x = (a/4)(ω_FR+ω_FL+ω_RR+ω_RL)
-v_y = (a/4)(ω_FR−ω_FL−ω_RR+ω_RL)
-ω_z = a/(2(l₁+l₂+2d)) · (ω_FR−ω_FL+ω_RR−ω_RL)
-```
-with l₁ = 0.403 m, l₂ = 0.333 m, d = 0.1577 m, a = 0.0762 m (wheel radius),
-u = v_x, v = v_y, r = ω_z.
-
-**I checked this by hand, both ways:**
-- The inverse-kinematics equations are the report's own Eq. 1.2, just
-  relabelled — your notation keeps l₁, l₂, d separate and uses `a` for
-  wheel radius instead of overloading `r`/`ω`, which is clearer than the
-  report's own symbol choice, not a different model.
-- I independently re-derived the forward equations from your four inverse
-  ones (summing all four gives v_x, the FR−FL−RR+RL combination gives v_y,
-  the FR−FL+RR−RL combination gives ω_z after the l₁, l₂, d terms cancel
-  and regroup) and got exactly what's on the slide. It's correct, not just
-  plausible.
-- l₁ = 403 mm and l₂ = 333 mm match the report exactly. The 360 mm
-  wheel-to-wheel figure matches the report's own tape-measured width
-  exactly. L = 1000 mm matches "1.00 m long." The one number I can't
-  independently verify against the report is the 252 mm chassis-width
-  (wheels excluded) — the report never states a wheels-excluded width, so
-  this is presumably your own fresh tape measurement. No conflict with
-  anything, just noting it's new rather than report-sourced.
-
-**One labelling note**: your new schematic's caption currently reads "Fig.
-3 — generic kinematic model (reference)," and the paper's own image below
-it is captioned "Fig. 3: Schematic diagram of kinematic model." Two things
-both called "Fig. 3" on one slide will read as a typo to anyone who's read
-the report. Suggest renaming your new one to something like "This
-platform's dimensions, tape-measured" and reserving "Fig. 3" for the
-paper's original.
-
-**Content not yet placed**: the "why this arrangement" motor-size
-reasoning (heavy motors forcing width unless staggered) from the previous
-version of this plan. Your new mockup is dimensions + equations only — say
-if you still want the motor-size paragraph on this slide too, and I still
-need the actual motor housing dimensions to write it with real numbers.
-
----
+## Slide 7 — Asymmetric layout & kinematics model
+**Images:** `assets/context/dims_schematic.png` (your tape-measured
+dimension drawing) and `assets/context/paper_fig3_schematic.png` (the
+prior lab paper's own Figure 3). Both committed.
+**No video.**
+Inverse and forward kinematics, independently verified last round —
+correct, and the inverse-kinematics equations are the report's own Eq.
+1.2 under clearer notation. Still open: the caption collision (both
+images can't be "Fig. 3" on one slide), whether equations render as
+styled text or as typeset images, and whether the motor-size "why this
+arrangement" paragraph still belongs here.
 
 ## Slide 8 — What the non-collinearity actually changes
+**Image:** `assets/slide/fig02.png`.
+Unchanged — K₀ = 0.5607 m, K₁ = 0.4907 m, 14% difference, 0 translation
+terms changed. Re-verified against the report, nothing unverified found.
+Still waiting on what specifically you meant by "unverified" here.
 
-**Image:** `assets/slide/fig02.png` (K₀/K₁ diagram, existing report figure).
+---
+
+## Slide 9 — The starting condition **(now carries a trimmed spec table)**
+
+This is the change from last round: the spec table moves here, and it's
+cut down to only what was actually present before this year's work began.
+No ESP32, no lidar, no host computer — those didn't exist yet at this
+point in the story.
+
+**Video:** `robot_demo_under25MB.mp4` — the open-loop joystick drive.
+**No static image** (the video carries the "what it looked like" job).
+
+**Bullets**, present-at-start / absent, largely as before:
+- Present: chassis, four mecanum wheels (asymmetric layout), four geared
+  drive motors, two motor drivers, the power system, Arduino Mega 2560
+  control.
+- Absent: closed-loop velocity regulation, odometry, on-board kinematic
+  model, perception, autonomy.
+
+**Trimmed spec table** — motor, driver, battery, booster, buck, wheels,
+chassis only, as instructed:
+
+| | |
+|---|---|
+| Chassis | 1.00 × 0.36 m footprint (tape-measured); four mecanum wheels, non-collinear layout, 0.0762 m radius |
+| Drive motors | 4 × geared DC, 24 V, 1:47 reduction, 60 rpm rated |
+| Motor drivers | 2 × dual-channel (Cytron MDD20A), 20 A continuous, 6–30 V |
+| Battery | LiFePO₄ 12.8 V, 30 Ah, 384 Wh |
+| Boost converter | 12.8 V → 24 V, 1200 W, feeds the motor rail |
+| Buck converter | 12.8 V → 5 V, 60 W, feeds logic |
+
+**One honesty flag on this table.** The chassis, wheels, motors, drivers
+and "the power system" are explicitly stated in the report as present at
+the start (Section 1.3, quoted above in the bullets). The *specific*
+battery/boost/buck part numbers and ratings, though, come from the current
+deployed-electronics diagram, which describes the system **after** the
+ESP32 migration — the report never separately confirms whether this exact
+battery and these exact converters were already in place on day one, or
+were added/upgraded as part of that migration. The 24 V motors would have
+needed *some* 24 V supply even under the Mega, so it's plausible the same
+core power chain was there from the start, but "plausible" isn't
+"confirmed." Since this table is specifically framed as "what was there
+before this year," it's worth you confirming the battery/boost/buck row
+before it goes on a slide with that framing.
+
+---
+
+## Slide 10 — Why the drive controller changed, in one calculation
+**No image, no video.**
+Unchanged content — the four tiles (558,792 edges/s, 16 MHz, ≈29
+cycles/edge, 4 ESP32 quadrature units) and the two-column timing-argument
+/ interface-problem layout. Just moved here, right after the starting
+condition it's explaining the departure from.
+
+## Slide 11 — Deployed electronics
+**Image:** `assets/context/deployed_electronics.png` (your diagram,
+now committed at its full 1433×1450). Replaces the report's Figure 5.
 **No video.**
-Unchanged from the current deck (K₀ = 0.5607 m, K₁ = 0.4907 m, 14%
-difference, 0 translation terms changed). Re-checked against the report;
-nothing unverified found. Still waiting on your answer to what specifically
-you flagged as unverified here, if anything beyond a general "double-check"
-instruction.
-
-Given slide 7 now carries l₁, l₂, d and the full equations, this slide's
-job narrows to one thing: what the asymmetry actually *costs and changes*
-(the 14% lever-arm difference, and that translation is unaffected) — the
-consequence, not the setup. Worth keeping distinct from slide 7 rather than
-merging; they're doing different jobs.
+This is the payoff slide for the previous one: here's the full system
+that resulted from the ESP32 decision. Fact-check from last round still
+holds — its stated gains match the report's deployed values exactly.
+Still open: a higher-resolution source if one exists beyond this export.
 
 ---
 
-## Slide 9 — The machine as built (old "starting condition" + "machine as
-built," clubbed)
-
-**Video:** `robot_demo_under25MB.mp4` — open-loop joystick drive, the
-"before" picture, as its own placeholder box.
-**Image:** none additional planned (Figure 3, the chassis photo, would be
-the natural second visual but there may not be room alongside a video
-placeholder and four dimension tiles — flagging that this slide may need
-to choose between the photo and the video rather than carrying both; video
-wins on the "the video needs to actually be watched" argument already
-made for the other video slides).
-
-**Tiles:** mass (more than 45 kg), footprint (1.00 × 0.36 m, tape-measured),
-wheel longitudinal offsets (0.403 / 0.333 m), wheel radius (0.0762 m).
-
-**Bullets** (squeezed from two slides into one — expect this to need
-trimming once built):
-- Present at the start: chassis, four mecanum wheels, motors, drivers,
-  power, Arduino Mega 2560 control.
-- Absent at the start: no closed-loop control, no odometry, no perception,
-  no autonomy.
-- What changed: the wheel offset visible in the photo/video, the mast
-  carrying the UV tubes and cargo-arm stepper, the mast sitting in the
-  lidar's scan plane (the cause of the self-occlusion sector measured
-  later).
-
----
-
-## Slide 10 — Deployed electronics
-
-**Image:** your new detailed block diagram (rail-coloured, real part
-numbers — SSR-50DD, Cytron MDD20A ×2, Rhino RMCS-2086 ×4, 8-channel level
-shifter, common-ground-bus warning). Replaces the report's own Figure 5.
+## Slide 12 — The machine as built
+**Image:** `assets/slide/fig03.png` (Figure 3, unchanged, "as it is" per
+your instruction).
 **No video.**
 
-Fact-check done: the diagram's own stated gains (Kp 45, Ki 250, Kd 0.5,
-Kff 37.3–38.4 PWM/(rad/s)) match the report's deployed values exactly — the
-diagram is accurate to the real firmware, not just a nice picture.
+This is the final-state slide — the fully assembled machine, mast and all,
+closing out the build-history arc that started at slide 9.
 
-Still need: a higher-resolution export than the 1433×1450 webp preview, if
-one exists, since this is a full-bleed slide image with a lot of small
-text on it.
+**Mass — needs your confirmation before it goes on a slide.** You wrote
+"more than <70kg," which reads as contradictory (more-than and less-than
+in the same phrase). My best guess at what you mean is a bounded estimate
+— more than 45 kg (the bare chassis) and somewhere under 70 kg fully
+assembled with the mast, battery and electronics — but I'm not putting a
+number on a slide from a guess. Confirm the actual range (or point value)
+and I'll use exactly that.
 
----
+**The mast, briefly** (your instruction: "just a line or two"):
 
-## Slide 11 — The platform, as measured rather than as specified *(my
-inference — confirm or reject)*
+> The vertical mast is a tube holder carrying three stepper motors — one
+> for the mast's up/down travel, two for opening and closing the cargo
+> arm — all controlled by the Arduino Mega, reassigned to this job once
+> the ESP32 took over drive control.
 
-You haven't said what happens to the current spec table (Table 1.1: mass,
-half-track width, drive motors, encoders, motor drivers, real-time
-controller, host computer, lidar, power, cargo arm, operating velocity
-limit). I've placed it here as a "full picture" reference slide between
-the electronics diagram and the one specific decision (the controller
-swap) that slide 12 zooms into. **This is my guess at where it goes, not
-something you asked for — say if it should move, get cut, or merge into
-slide 9 or 10 instead.**
-
-**No image, no video** — it's a table.
-
----
-
-## Slide 12 — Why the drive controller changed, in one calculation
-
-**No image, no video** — four tiles (558,792 edges/s, 16 MHz, ≈29
-cycles/edge, 4 ESP32 quadrature units) plus a two-column timing-argument /
-interface-problem layout. Unchanged from the current deck.
-
-**Sequence check, confirmed**: 9 (machine + dimensions + open-loop video)
-→ 10 (deployed electronics, whole system) → 11 (full spec table) → 12 (the
-one decision worth defending, with the calculation behind it). Whole
-picture, then the specific thing that needs justifying. Holds together.
+Fact-check: consistent with the report's Table 1.1 ("Cargo arm and
+lighting: two lateral and one vertical stepper axis, three-tube staged
+UV") and with the existing deck's own electronics bullet ("the original
+Arduino Mega reassigned to the cargo arm and the ultraviolet lighting
+rather than discarded"). Your "one for up/down, one for opening/closing"
+matches "one vertical, two lateral" once you count the two lateral axes
+as the two sides of the opening/closing motion — same mechanism, just
+described from the operator's-eye view instead of the axis-count view. No
+conflict.
 
 ---
 
-## Open items, all of them
+## Then slide 13 onward: closed-loop control, one topic at a time
 
-1. ~~The annotated dimension schematic for slide 7~~ — done, have it.
-2. ~~A clean copy of the paper's Figure 3~~ — done, have it.
-3. Whether the motor-size "why this arrangement" paragraph still goes on
-   slide 7, and the actual motor housing dimensions if so.
-4. The Type-1 chassis photo with tape marks, mentioned two rounds ago —
-   assuming this is the same image as item 1 (the annotated schematic IS
-   a Type-1 chassis with tape-measured marks on it). Say if it's a
-   different, separate photo.
-5. A higher-resolution export of the electronics diagram for slide 10.
-6. What specifically was flagged as unverified on slide 8.
-7. Confirm or reject slide 11 (the spec table) — my placement, not yours.
-8. Equations as styled text (current, works) vs. rendered LaTeX/mathtext
-   images (matches the look of your slide-7 mockup) — the mockup you sent
-   uses real typeset fractions, which the current deck's equations don't.
-   If slide 7 should look like your mockup, this needs a real build change,
-   not a wording edit: I'd render each equation block to a small transparent
-   PNG (matplotlib mathtext, matching deck fonts/colours as closely as
-   mathtext allows) and place that image instead of a text run. Worth
-   doing once and reusing the same method everywhere else an equation
-   appears (slide 7's inverse/forward kinematics, and the report's Eq. 1.1
-   on the same slide if it goes there too).
+The per-wheel velocity loop, the feedforward fit, where the gains came
+from, the anti-windup/slew-limit/safety-trip arrangements, then results.
+Unchanged from the current deck, just renumbered to start after slide 12.
+
+---
+
+## Honest read on the narrative, slides 1–12
+
+Asked directly, so a direct answer.
+
+**It holds together, with one real seam** — not a break, but a place a
+sharp listener could ask "wait, why are we back at the beginning?"
+
+The shape is: problem and geometry first (6–8, the math that's true
+regardless of what was ever built), then build history in order (9–12:
+what existed at the start, why the controller changed, what the resulting
+electronics look like, what the finished machine is). That's a legitimate
+structure — geometry doesn't depend on build sequence, so establishing it
+before the history is reasonable — but the jump from slide 8 (talking
+about the finished asymmetric machine's kinematics) back to slide 9
+(talking about the machine *before any of this year's work*) is a real
+step backward in time that the deck doesn't currently signal out loud.
+Nothing on slide 8 or slide 9 says "now, here's how we actually got
+there." It'll probably read fine spoken aloud, because you'll say
+something like that naturally — but on the page, nothing marks the time
+jump.
+
+Two ways to close that seam, your call:
+1. Cheapest: add one clause to slide 9's kicker or opening line — something
+   like "Before any of this: what was actually on the bench" — so the
+   time-reversal is explicit rather than implicit.
+2. Structural: swap 7–8 and 9–12, so the story runs strictly chronologically
+   (what existed → what changed → the finished machine → *then* the
+   geometry/kinematics that machine embodies). This is a bigger reshuffle
+   and would need the kinematics slides re-anchored to "the machine you
+   just saw" instead of "the machine we're about to build."
+
+I'd take option 1 — it's a one-line fix and the current order (theory,
+then history) is a perfectly normal way to present engineering work. But
+it's your call, not mine to make silently.
+
+Past that seam, 9 → 10 → 11 → 12 is clean: starting point, the one
+decision that changed everything about the electronics, the resulting
+system, the finished machine. No abrupt drops — each slide's last idea is
+what the next slide is about.

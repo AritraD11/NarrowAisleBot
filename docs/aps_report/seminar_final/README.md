@@ -1,8 +1,39 @@
 # APS seminar deck, 23 September 2026
 
-The deck for the Annual Progress Seminar, built against
-[`APS Report Aritra - submitted.pdf`](../APS%20Report%20Aritra%20-%20submitted.pdf),
-the version actually handed in. 51 slides, 16:9, speaker notes on every one.
+The deck for the Annual Progress Seminar, built against the final edited
+report. 43 slides as of the last rebuild, 16:9, speaker notes on every one.
+
+## The narrative arc every rebuild follows
+
+Set by the author, 22 September 2026. Any future full rebuild of this deck
+should tell the story in this order, and the current 43-slide structure is
+meant to already follow it:
+
+1. **Problem.** What is wrong or missing, stated as a problem worth solving,
+   not as a list of features. Currently the title slide and the growth/gap
+   slide that follows it.
+2. **What we wish to do.** The objectives, stated as intent before any
+   evidence of delivery. Currently the objectives slide.
+3. **How we wish to do it.** The approach, at the level of "three strands,"
+   before the detail of any one of them. Currently the three-strands slide,
+   then each strand's own opening ("the aisle sets the problem" and its
+   equivalents in strands two and three).
+4. **What has been done.** Results, per strand, each claim keeping its
+   evidence grade and its qualifier. Currently the bulk of each strand's
+   slides.
+5. **What is yet to do.** Open items, per strand, each with the reason it is
+   open rather than a bare "not done." Currently each strand's closing
+   slide plus the cross-strand "what remains open" slide.
+6. **How we plan to do those.** The research plan, ordered by dependency
+   rather than by calendar. Currently the research-plan slide.
+7. **What better can we do.** Anything beyond the plan already stated: a
+   generalisation, an extension, a next application. Not yet a dedicated
+   slide as of this note; fold it in or add one on the next rebuild that
+   has material for it.
+
+A slide that does not know which of these seven jobs it is doing is a
+candidate for cutting or merging into a neighbour, per the condensing
+discipline already in this file.
 
 | File | What it is |
 |---|---|
@@ -26,11 +57,11 @@ Three stories, one after another, in the order the report tells them.
 
 | Slides | |
 |---|---|
-| 1–3 | Title, the three strands, the five objectives with their status |
-| 4–33 | **Strand one, the narrow-aisle robot.** Problem, geometry, platform, control, then ten result slides, then what is open and why |
-| 34–41 | **Strand two, environmental monitoring.** Rationale, the unit, three concurrent channels, the control law, what the audit fixed |
-| 42–47 | **Strand three, contactless fatigue.** The setting, the hypothesis and the gap, the framework, how it would be falsified |
-| 48–51 | What the year established, what is open, the plan, and the report's own closing three statements |
+| 1–4 | Title, the growth/gap problem statement, the three strands, the five objectives with their status |
+| 5–29 | **Strand one, the narrow-aisle robot.** Problem, geometry, platform, control, results, then what is open and why |
+| 30–35 | **Strand two, environmental monitoring.** Rationale, the unit, three concurrent channels, the control law, what the audit fixed |
+| 36–39 | **Strand three, contactless fatigue.** The setting, the hypothesis and the gap, the framework, how it would be falsified |
+| 40–43 | What the year established, what is open, the plan, and the report's own closing three statements |
 
 Roughly 45 seconds a slide puts the talk near 38 minutes, which leaves the rest
 of the hour for questions.

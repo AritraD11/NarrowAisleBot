@@ -32,6 +32,7 @@ from theme import ACCENT, GREEN, AMBER, RED, GREY, MUTED
 A = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'assets')
 FIG = lambda n: os.path.join(A, 'slide', 'fig%02d.png' % n)
 PIC = lambda n: os.path.join(A, 'photo', n + '.jpg')
+CTX = lambda n: os.path.join(A, 'context', n + '.jpg')
 
 R = 'The Narrow-Aisle Robot'
 E = 'Environmental Monitoring'
@@ -63,43 +64,72 @@ this project's own logs.
 """),
 
 dict(layout='content', kicker='Introduction',
-     title='Why the aisle, and why this fellowship',
-     size=13, gap=10,
-     two_col=(
-        ('The aisle in an Indian warehouse', [
-            'India’s logistics and warehousing sector is a large and growing part of the '
-            'economy, expanding under the National Logistics Policy of 2022.',
-            'Warehouse automation has grown around machines that move goods along wide, '
-            'well-structured routes. The aisle itself has received considerably less '
-            'attention, and it is the part of the building where the geometric constraint '
-            'is most severe.',
-            'A storage aisle is sized for the goods it holds and for a human picker, not '
-            'for a vehicle, so a mobile robot working there operates in a corridor barely '
-            'wider than itself.',
-            'That is the specific gap this project works in: not warehouse automation in '
-            'general, but the aisle current automation leaves alone.',
-        ]),
-        ('Advanced Logistics, Focused Analytics', [
-            'This work is carried out under the IITB–FedEx ALFA fellowship, the Centre '
-            'for Advanced Logistics and Focused Analytics at IIT Bombay.',
-            ('A full-scale platform built specifically around aisle geometry, the part of '
-             'a warehouse current automation does not reach.', None, 'Advanced logistics. '),
-            ('Calibration against a physical reference, and a measured failure mode stated '
-             'rather than assumed. That method recurs in the robot, the monitoring system '
-             'and the proposed fatigue work alike.', None, 'Focused analytics. '),
-            'Only the first strand is a completed measurement programme at this stage; the '
-            'other two sit at different stages of deployment and proposal, and this talk '
-            'says so throughout rather than at the end.',
-        ])),
+     title='India’s warehouses are growing. The aisle is where automation stops.',
+     images=[(CTX('warehouse_floor'), 'A modern automated distribution floor'),
+             (CTX('fedex_dock'), 'A logistics operator loading for last-mile delivery')],
+     tiles=[('~$27B → ~$41B', 'India’s warehousing market, 2026 to a 2031 forecast, at roughly '
+             '8.5% a year', None),
+            ('~15% a year', 'Growth of warehouse automation specifically, faster than the sector '
+             'as a whole', AMBER),
+            ('Top 6', 'Where India is expected to rank globally in warehouse-automation adoption '
+             'in 2026', None)],
+     bullets=[
+        'Automation is arriving fastest in the largest, most standardised spaces: sorting hubs, '
+        'cross-docks, high-bay pallet storage. It has been slower to reach the aisle, where a '
+        'human picker still walks a corridor a vehicle barely fits.',
+        'The National Logistics Policy of 2022 is pushing the sector toward organised, '
+        'standardised warehousing, and organised space is where an automated platform has '
+        'somewhere to work.',
+        'This project sits in that specific gap: a full-scale platform built around aisle '
+        'geometry, and a method, calibration against a physical reference, a measured failure '
+        'mode stated rather than assumed, that recurs across the robot, the monitoring system '
+        'and the proposed fatigue work alike.',
+     ],
+     size=13,
+     takeaway='Growth in the warehouse does not by itself reach the aisle. That is the specific '
+              'space this work is built around.',
      notes="""
-This slide earns the fellowship name without claiming the three strands are already one
-system. The report is explicit that what they share is instrumentation and method, not a
-combined architecture: multi-sensor integration, calibration against a physical reference,
-real-time acquisition, and control that fails safe recur in all three.
+Market figures: India warehouse market size, IMARC Group and Mordor Intelligence, 2026
+editions (roughly USD 27 billion in 2026 toward roughly USD 41 billion by 2031, about 8.5
+per cent CAGR); India warehouse automation market, IMARC Group, 2026 (automation segment
+growing at roughly 14.75 per cent CAGR, and India expected among the top six countries by
+warehouse-automation adoption in 2026). These are market figures, not report figures, and
+are sourced to industry market research rather than to the APS report.
+
+The last bullet earns the fellowship name (Advanced Logistics, Focused Analytics) without
+saying it outright: the platform is the advanced-logistics half, the calibrated,
+evidence-graded method is the focused-analytics half. Say the fellowship name only if
+asked; the slide is built so the connection is visible without being announced.
 
 Frame the project around the aisle specifically, not around "warehouse automation" in
 general. The important distinction the whole talk rests on is the geometric constraint,
 not the sector's growth on its own.
+"""),
+
+dict(layout='content', kicker='Introduction',
+     title='Abstract',
+     sub='As the report states it, cut for speaking',
+     bullets=[
+        ('A 45.54 kg asymmetric mecanum platform, closed-loop control at every wheel. Four '
+         'results established by measurement or independent computation: velocity tracking to '
+         '0.040–0.074 rad/s RMS, kinematics exact to machine precision, endpoint closure below '
+         '1 per cent out to about 10 m, and a scan-matching front end measured to increase pose '
+         'error rather than reduce it.', None, 'The robot. '),
+        ('A multi-parameter environmental monitoring and control system, deployed across four '
+         'zones in two radio-isolated installations sharing one database, driving a lamp and a '
+         'fan from measured air condition rather than a timer.', None, 'The monitoring system. '),
+        ('A hypothesis and a completed literature survey for a contactless method to assess '
+         'worker fatigue. No hardware built, no data collected.', None, 'The fatigue strand. '),
+        ('A commissioning map blocked by the size of the available test area, the cost of the '
+         'asymmetric geometry itself unquantified, and several degrees of heading error that '
+         'survive every instrument currently fitted.', None, 'Three things stay open, for three '
+         'different reasons. '),
+     ],
+     size=13,
+     notes="""
+This is the report's own Abstract, cut to four sentences for a slide rather than paraphrased
+into something new. Read it close to as written; the detail behind each clause is the rest of
+this talk.
 """),
 
 dict(layout='content', kicker='Overview',

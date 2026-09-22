@@ -176,24 +176,33 @@ def title_slide(prs, s):
     cover_image(slide, s['image'], SW - pw, 0, pw, SH)
     box(slide, SW - pw, 0, 0.05, SH, fill=ACCENT)
 
-    tf = textbox(slide, MARGIN, 0.90, SW - pw - MARGIN - 0.70, 0.40)
+    col_w = SW - pw - MARGIN - 0.70
+    if s.get('logo_left'):
+        fit_image(slide, s['logo_left'], MARGIN, 0.32, 0.62, 0.58)
+    if s.get('logo_right'):
+        from PIL import Image
+        iw, ih = Image.open(s['logo_right']).size
+        lw = min(1.55, 0.58 * iw / ih)
+        fit_image(slide, s['logo_right'], MARGIN + col_w - lw, 0.32, lw, 0.58)
+
+    tf = textbox(slide, MARGIN, 1.22, col_w, 0.40)
     p = para(tf, first=True)
     run(p, s['kicker'].upper(), size=11, color=ACCENT, bold=True, spacing=1.6)
 
-    tf = textbox(slide, MARGIN, 1.42, SW - pw - MARGIN - 0.62, 2.70)
+    tf = textbox(slide, MARGIN, 1.74, SW - pw - MARGIN - 0.62, 2.70)
     p = para(tf, first=True, line=1.04)
     run(p, s['title'], size=31, font=HEAD, color=INK, bold=True)
 
-    box(slide, MARGIN, 4.06, 1.10, 0.055, fill=ACCENT)
+    box(slide, MARGIN, 4.38, 1.10, 0.055, fill=ACCENT)
 
-    tf = textbox(slide, MARGIN, 4.42, SW - pw - MARGIN - 0.70, 2.10)
+    tf = textbox(slide, MARGIN, 4.74, SW - pw - MARGIN - 0.70, 2.10)
     for i, (label, value) in enumerate(s['meta']):
         p = para(tf, first=(i == 0), space_after=6, line=1.0)
         run(p, label + '   ', size=10.5, color=MUTED)
         run(p, value, size=13, color=INK if i == 0 else BODY, font=HEAD if i == 0 else TEXT,
             bold=(i == 0))
 
-    tf = textbox(slide, MARGIN, 6.72, SW - pw - MARGIN - 0.70, 0.40)
+    tf = textbox(slide, MARGIN, 6.95, SW - pw - MARGIN - 0.70, 0.40)
     p = para(tf, first=True)
     run(p, s['date'], size=10.5, color=MUTED)
     notes(slide, s.get('notes', ''))
@@ -285,9 +294,17 @@ def content(prs, s, n, slide=None):
         iw = COL * img_w
         bx = MARGIN if side == 'right' else MARGIN + iw + gap
         ix = MARGIN + bw + gap if side == 'right' else MARGIN
-        if s.get('bullets'):
+        if s.get('bullets') and s.get('table'):
+            # stack bullets above a table in the same column, table last
+            bh = s.get('bullets_h', (bottom - y) * 0.5)
+            _bullets(slide, s['bullets'], bx, y, bw, bh, size=s.get('size', 12.5),
+                     gap=s.get('gap', 7))
+            _table(slide, s['table'][0], s['table'][1], bx, y + bh + 0.12, bw,
+                   bottom - (y + bh + 0.12), size=s.get('table_size', 10.5),
+                   col_w=s.get('col_w'), right=s.get('right', ()))
+        elif s.get('bullets'):
             _bullets(slide, s['bullets'], bx, y, bw, bottom - y, size=s.get('size', 14.5))
-        if s.get('table'):
+        elif s.get('table'):
             _table(slide, s['table'][0], s['table'][1], bx, y, bw, bottom - y,
                    size=s.get('table_size', 11.5), col_w=s.get('col_w'), right=s.get('right', ()))
         if vid:
@@ -336,6 +353,59 @@ def content(prs, s, n, slide=None):
 
     if take:
         _takeaway(slide, take)
+    _footer(slide, n)
+    notes(slide, s.get('notes', ''))
+    return slide
+
+
+def kinematics_slide(prs, s, n, slide=None):
+    """Two schematics stacked on the left, typeset equations on the right.
+
+    A one-off layout: nothing else in the deck mixes two images and two
+    equation images in fixed positions, so this doesn't try to generalise
+    into content()'s dict-driven branches.
+    """
+    if slide is None:
+        slide = _blank(prs)
+    y = _heading(slide, s['title'], s.get('kicker'), s.get('sub'))
+    bottom = 6.02
+
+    gap = 0.32
+    left_w = COL * 0.40
+    right_w = COL - left_w - gap
+    lx, rx = MARGIN, MARGIN + left_w + gap
+
+    top_h = (bottom - y) * 0.58
+    fit_image(slide, s['image_top'], lx, y, left_w, top_h, frame=True)
+    tf = textbox(slide, lx, y + top_h + 0.03, left_w, 0.22)
+    p = para(tf, first=True, align=PP_ALIGN.CENTER)
+    run(p, s.get('image_top_caption', ''), size=9, color=MUTED, italic=True)
+    bot_y = y + top_h + 0.30
+    fit_image(slide, s['image_bottom'], lx, bot_y, left_w, bottom - bot_y - 0.24,
+              frame=True)
+    tf = textbox(slide, lx, bottom - 0.22, left_w, 0.22)
+    p = para(tf, first=True, align=PP_ALIGN.CENTER)
+    run(p, s.get('image_bottom_caption', ''), size=9, color=MUTED, italic=True)
+
+    ry = y
+    tf = textbox(slide, rx, ry, right_w, 0.26)
+    p = para(tf, first=True)
+    run(p, 'INVERSE KINEMATICS', size=11, color=ACCENT, bold=True, spacing=1.0)
+    ry += 0.32
+    ih = (bottom - y) * 0.46
+    fit_image(slide, s['eq_inverse'], rx, ry, right_w, ih)
+    ry += ih + 0.14
+
+    tf = textbox(slide, rx, ry, right_w, 0.26)
+    p = para(tf, first=True)
+    run(p, 'FORWARD KINEMATICS', size=11, color=ACCENT, bold=True, spacing=1.0)
+    ry += 0.32
+    ih2 = bottom - ry
+    fit_image(slide, s['eq_forward'], rx, ry, right_w, ih2)
+
+    box(slide, MARGIN, bottom + 0.10, COL, 0.008, fill=RULE)
+    fit_image(slide, s["eq_legend"], MARGIN, bottom + 0.18, COL, 0.62)
+
     _footer(slide, n)
     notes(slide, s.get('notes', ''))
     return slide

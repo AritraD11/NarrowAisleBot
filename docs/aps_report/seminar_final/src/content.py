@@ -33,6 +33,7 @@ A = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'a
 FIG = lambda n: os.path.join(A, 'slide', 'fig%02d.png' % n)
 PIC = lambda n: os.path.join(A, 'photo', n + '.jpg')
 CTX = lambda n: os.path.join(A, 'context', n + '.jpg')
+CTXP = lambda n: os.path.join(A, 'context', n + '.png')
 
 R = 'The Narrow-Aisle Robot'
 E = 'Environmental Monitoring'
@@ -47,6 +48,8 @@ dict(layout='title',
      title='Development and Validation of Narrow-Aisle Robotic '
            'and IoT-Based Systems for Warehouse Management',
      image=PIC('title'),
+     logo_left=CTXP('logo_iitb'),
+     logo_right=CTXP('logo_fedex_alfa'),
      meta=[('', 'Aritra Das'),
            ('Roll No', '25D0074'),
            ('Supervisor', 'Prof. Ambarish Kunwar'),
@@ -200,7 +203,13 @@ dict(layout='content', kicker=R,
         'wheels at different velocities produce motion in any direction in the plane.',
         'A lateral offset is then corrected by translating sideways, in the ideal case with '
         'no fore-aft travel at all.',
+        ('A holonomic drive commands all three planar degrees of freedom, forward, lateral '
+         'and yaw, independently and at the same time. A conventional drive is non-holonomic: '
+         'three configuration variables, only two commandable velocities, so heading and '
+         'translation stay coupled. Mecanum wheels make the platform holonomic, which is '
+         'exactly the property a lateral aisle correction needs.', None, 'Holonomic, not just omnidirectional. '),
      ],
+     size=13.5,
      takeaway='Warehouse automation has grown around wide, well-structured routes. '
               'The aisle is the part of the building where the geometric constraint is most severe.',
      notes="""
@@ -213,10 +222,43 @@ mecanum platform places its wheels at the four corners of a rectangle. The chass
 then be wide enough to carry that rectangle, and the width of the machine is set by the
 wheel layout rather than by the payload. That is the next slide.
 
+The holonomic point is standard mobile-robotics terminology, not report-specific, but it is
+the actual reason mecanum was worth the added mechanical complexity over a simpler drive:
+without it, a lateral aisle correction costs a manoeuvre the corridor cannot spare.
+
 The asymmetric, non-collinear version used here is not proposed in this report: it was
-derived and demonstrated on a small prototype in earlier work in this group (Figure 1 in
-the report). This year's contribution begins at full scale, which is what the next slide
-measures.
+derived and demonstrated on a small prototype in earlier work in this group. This year's
+contribution begins at full scale, which is what the next slide sets out.
+"""),
+
+dict(layout='kinematics', kicker=R,
+     title='Asymmetric layout & kinematics model',
+     image_top=CTXP('dims_schematic'),
+     image_top_caption='This platform’s dimensions, tape-measured',
+     image_bottom=CTXP('paper_fig3_schematic'),
+     image_bottom_caption='Fig. 3, prior work — schematic diagram of the kinematic model',
+     eq_inverse=CTXP('eq_inverse_kinematics'),
+     eq_forward=CTXP('eq_forward_kinematics'),
+     eq_legend=CTXP('eq_kinematics_legend'),
+     notes="""
+Section 1.2 and 1.5. l1 = 403 mm, l2 = 333 mm, the 360 mm wheel-to-wheel width and the
+1000 mm length all match the report exactly. The 252 mm wheels-excluded chassis width is
+a fresh tape measurement, not stated in the report, and does not conflict with anything in
+it.
+
+The inverse-kinematics equations (commanded body twist to the four wheel speeds) are the
+report's own Equation 1.2, written with l1, l2 and d kept separate rather than pre-combined
+into Ko/Ki, and with wheel radius relabelled a so it doesn't clash with yaw rate r.
+
+The forward-kinematics equations were independently checked by hand: summing all four
+inverse equations gives vx, the FR-FL-RR+RL combination gives vy, and the FR-FL+RR-RL
+combination gives omega_z once the l1, l2, d terms regroup. They are a genuine inverse
+pair, not just a plausible-looking rearrangement.
+
+Say plainly if asked: the prototype (bottom image) proved this transformation was correct
+at small scale. Nothing about it changes at full scale; what changes is whether the
+physical machine can actually track the commands this equation produces, which is the
+rest of the talk.
 """),
 
 dict(layout='content', kicker=R,
@@ -244,86 +286,44 @@ The risk: a wheel driven with the wrong lever arm produces a yaw rate wrong by t
 """),
 
 dict(layout='content', kicker=R,
-     title='The starting condition, stated plainly',
-     side='right', image_w=0.42,
+     title='The starting condition',
+     sub='Before any of this year’s work',
+     side='right', image_w=0.40,
      video='robot_demo_under25MB.mp4',
      video_caption='Open-loop joystick drive · the original Arduino Mega control',
      bullets=[
         ('Chassis, four mecanum wheels on the asymmetric layout, four geared drive motors, '
          'two motor drivers and the power system. Control by an Arduino Mega 2560.',
-         None, 'Present at the start. '),
+         None, 'Present. '),
         ('No closed-loop velocity regulation, no odometry, no on-board kinematic model, '
          'no perception, no autonomy.', None, 'Absent. '),
-        ('The firmware, the ROS 2 software, the instrumentation and every measurement '
-         'quoted in this report were carried out end to end.', None, 'Everything beyond that. '),
      ],
-     takeaway='Establishing which way the scanner counts its angles took a drive against a '
-              'placed block, because nothing on the sensor says which way it is looking.',
+     size=12,
+     bullets_h=1.35,
+     table=(['', ''], [
+        ('Chassis', '1.00 × 0.36 m footprint (tape-measured); four mecanum wheels, '
+         'non-collinear layout, 0.0762 m radius'),
+        ('Drive motors', '4 × geared DC, 24 V, 1:47 reduction, 60 rpm rated'),
+        ('Motor drivers', '2 × dual-channel (Cytron MDD20A), 20 A continuous, 6–30 V'),
+        ('Battery', 'LiFePO₄ 12.8 V, 30 Ah, 384 Wh'),
+        ('Boost converter', '12.8 V → 24 V, 1200 W, feeds the motor rail'),
+        ('Buck converter', '12.8 V → 5 V, 60 W, feeds logic'),
+     ]),
+     col_w=[0.30, 0.70], table_size=10,
      notes="""
 Section 1.3. Work began from an assembled mechanical platform.
 
 Do not oversell this clip: it shows the platform before this year's work, open-loop and
 hand-joysticked. It is a before-picture, not a result.
 
-The takeaway line is Figure 4, the commissioning step: a fault of that kind is trivial to
-correct once identified, and costly for as long as it is not. It is worth one sentence
-here because the same pattern recurs through the year: the faults that cost time were the
-ones that produced entirely normal-looking telemetry.
-"""),
-
-dict(layout='content', kicker=R,
-     title='The machine as built',
-     sub='Figure 3 · 1.00 m long, 0.36 m wide across the wheels',
-     side='right', image=FIG(3), image_w=0.34,
-     tiles=[('> 45 kg', 'Mass', None),
-            ('1.00 × 0.36 m', 'Footprint, tape-measured', None),
-            ('0.403 / 0.333 m', 'Outer and inner wheel longitudinal distance', None),
-            ('0.0762 m', 'Wheel radius', None)],
-     bullets=[
-        'The four mecanum wheels sit non-collinearly rather than at the corners of a rectangle: '
-        'the pair nearer the camera is visibly offset along the length from the pair behind.',
-        'The vertical mast carries the three ultraviolet tubes and the stepper axis of the cargo arm.',
-        'The mast and its payload sit within the plane of the lidar (the black unit above the '
-        'battery) and are the cause of the self-occlusion sector measured later.',
-     ],
-     notes="""
-Section 1.3, Figure 3. Point at the wheels: the offset is visible in the photograph, which
-is the easiest way to make the geometry concrete before the equations.
-
-Point at the mast: it is the reason for the 90-degree blind sector, and that is a general
-consequence of carrying a payload above a single-plane scanner rather than a mistake
-specific to this machine.
-"""),
-
-dict(layout='content', kicker=R,
-     title='The platform, as measured rather than as specified',
-     sub='Table 1.1 · every figure read off the machine, except the lidar range specification',
-     table=(['', ''], [
-        ('Mass', 'More than 45 kg'),
-        ('Half track width', '0.15769 m, identical for all four wheels'),
-        ('Drive motors', '4 × geared DC, 24 V, 1:47 reduction, 60 rpm rated'),
-        ('Encoders', 'Front pair GTK08, 186,264 counts/rev at the wheel; rear pair optical, 93,132'),
-        ('Motor drivers', '2 × dual-channel, 20 A continuous, 1.5 V logic threshold'),
-        ('Real-time controller', 'ESP32, 100 Hz control loop, hardware quadrature decoding'),
-        ('Host computer', 'Raspberry Pi 5, Ubuntu 24.04, ROS 2'),
-        ('Lidar', 'YDLIDAR X4 Pro, single-plane triangulation, 360°, 0.12–10 m rated'),
-        ('Power', 'LiFePO₄ 12.8 V 30 Ah, boost to 24 V drive, buck to 5 V logic'),
-        ('Cargo arm and lighting', 'Two lateral and one vertical stepper axis, three-tube staged UV'),
-        ('Operating velocity limit', '0.12 m/s linear, 0.30 rad/s yaw'),
-     ]),
-     col_w=[0.27, 0.73], table_size=12.5,
-     takeaway='The manufacturer’s lidar accuracy figure is treated as a factory acceptance '
-              'condition, not as a runtime error distribution.',
-     notes="""
-Table 1.1. Do not read this table out. Let it sit while you say the three things that
-matter about it: it is measured rather than taken from data sheets; the two encoder types
-differ by a factor of two in resolution and in wiring convention, which caused a
-miswiring during commissioning; and the operating velocity limit is low on purpose,
-because the machine works in a corridor.
-
-The lidar row is the one exception to "measured", and the report says so. Section 1.12
-measures the installed unit's stationary scatter instead of extrapolating from the
-specification.
+Honesty flag on the table, worth knowing before anyone asks: the chassis, wheels, motors,
+drivers and "the power system" are explicitly stated in the report as present at the
+start. The specific battery and converter part numbers/ratings in this table come from the
+current deployed-electronics diagram, which describes the system after the ESP32
+migration; the report never separately confirms this exact battery and these exact
+converters were already in place on day one rather than added or upgraded as part of that
+migration. The 24 V motors needed some 24 V supply regardless of controller choice, so
+continuity is plausible, but "plausible" isn't "confirmed."
 """),
 
 dict(layout='content', kicker=R,
@@ -363,8 +363,8 @@ allowed the first phone-based control surface to be hosted on the controller its
 before the host computer was introduced.
 
 The full deployed wiring, battery through the 24 V drive rail and 5 V logic rail to the
-four motors and their encoder return, is Figure 5 in the report, organised in three
-layers each on its own rail colour. The control constants shown against the
+four motors and their encoder return, is shown in full on the next slide, organised in
+three layers each on its own rail colour. The control constants named against the
 microcontroller there are the ones derived a few slides from now.
 
 The asymmetry in the level translation is deliberate, and the last line on the right is
@@ -372,32 +372,60 @@ the reason: fewer components in the command path is worth having.
 """),
 
 dict(layout='content', kicker=R,
-     title='Kinematic model',
-     sub='Figure 6 · dimensioned plan view, taken from the mechanical assembly',
-     side='right', image=FIG(6), image_w=0.46,
-     bullets=[
-        'The outer diagonal pair (front-right and rear-left) sits at l₁ = 0.403 m from the '
-        'body centre; the inner pair at l₂ = 0.333 m. Half track d = 0.15769 m is common to all four.',
-        'Two derived constants carry the asymmetry through every equation: '
-        'Kₒ = l₁ + d = 0.5607 m and Kᵢ = l₂ + d = 0.4907 m.',
-        'ωᶠᴿ = (u + v + ωKₒ)/r,  ωᶠᴸ = (u − v − ωKᵢ)/r,  '
-        'ωᴿᴿ = (u − v + ωKᵢ)/r,  ωᴿᴸ = (u + v − ωKₒ)/r.',
-        'Two width figures appear in the report and they measure the same span by different '
-        'means: 360 mm by tape, 375.4 mm from the assembly. Every experimental result is '
-        'referenced to the tape figure.',
-     ],
-     takeaway='Substituting a single shared coefficient anywhere in the software reduces the '
-              'machine, in that code path alone, to an ordinary symmetric mecanum platform.',
+     title='Deployed electronics',
+     sub='The full system that resulted from the ESP32 decision',
+     side='full', image=CTXP('deployed_electronics'),
      notes="""
-Section 1.5. Each wheel carries its own yaw coefficient, which is the practical
-consequence of the asymmetry.
+Section 1.4, Figure 5 in the report (this is a more detailed diagram than the report's own
+figure, built separately, with real part numbers and rail colouring).
 
-Inverting that system recovers the body twist from the four measured wheel velocities,
-and this inverse is what the odometry integrates.
+Fact-check: the diagram's own stated gains, Kp 45, Ki 250, Kd 0.5, Kff 37.3-38.4
+PWM/(rad/s), match the report's deployed values exactly. The diagram is accurate to the
+real firmware, not just a nice picture.
 
-The two width figures differ by 15.4 mm. The report states which one every result is
-referenced to, because a collision footprint set from the wrong one would be wrong by
-that much in a corridor with centimetres of clearance.
+Do not walk through this block by block. Trace one path and stop: battery to the 24 V
+drive rail and the 5 V logic rail; the ESP32 command out to a driver; the encoder return
+back through the level shifter. The common-ground-bus warning at the bottom is worth
+reading aloud once: missing any one of those connections produces phantom motor
+behaviour.
+"""),
+
+dict(layout='content', kicker=R,
+     title='The machine as built',
+     sub='Figure 3 · 1.00 m long, 0.36 m wide across the wheels',
+     side='right', image=FIG(3), image_w=0.34,
+     tiles=[('> 45 kg', 'Bare chassis mass — motors, wheels and frame (SolidWorks)', None),
+            ('1.00 × 0.36 m', 'Footprint, tape-measured', None),
+            ('0.403 / 0.333 m', 'Outer and inner wheel longitudinal distance', None),
+            ('0.0762 m', 'Wheel radius', None)],
+     bullets=[
+        'The four mecanum wheels sit non-collinearly rather than at the corners of a rectangle: '
+        'the pair nearer the camera is visibly offset along the length from the pair behind.',
+        ('A tube holder carrying the three staged ultraviolet tubes and three stepper motors: '
+         'one for the mast’s up/down travel, two for opening and closing the cargo arm. All '
+         'three are run by the Arduino Mega, reassigned to this job once the ESP32 took over '
+         'drive control.', None, 'The vertical mast. '),
+        'The mast and its payload sit within the plane of the lidar (the black unit above the '
+        'battery) and are the cause of the self-occlusion sector measured later.',
+     ],
+     size=13,
+     notes="""
+Section 1.3, Figure 3. Point at the wheels: the offset is visible in the photograph, which
+is the easiest way to make the geometry concrete before the equations.
+
+Point at the mast: it is the reason for the 90-degree blind sector, and that is a general
+consequence of carrying a payload above a single-plane scanner rather than a mistake
+specific to this machine.
+
+Mass, unresolved: the bare chassis figure (motors, wheels, frame) is more than 45 kg. The
+fully assembled machine, mast, battery and electronics included, is meaningfully heavier,
+but no confirmed total figure exists yet to put on this slide - say "more than 45 kg,
+fully assembled heavier still" rather than a specific number until one is confirmed.
+
+Cross-check on the mast: the report's Table 1.1 describes "two lateral and one vertical
+stepper axis, three-tube staged UV." The up/down plus opening/closing description here is
+the same three axes from the operator's-eye view rather than the axis-count view - no
+conflict, just a different way of saying it.
 """),
 
 dict(layout='content', kicker=R,

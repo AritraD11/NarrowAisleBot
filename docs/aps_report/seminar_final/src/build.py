@@ -34,6 +34,8 @@ def build(path=OUT):
             layouts.divider(prs, s, i)
         elif kind == 'closing':
             layouts.closing(prs, s, i)
+        elif kind == 'kinematics':
+            layouts.kinematics_slide(prs, s, i)
         else:
             layouts.content(prs, s, i)
 

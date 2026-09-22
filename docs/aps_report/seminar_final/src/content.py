@@ -107,22 +107,24 @@ not the sector's growth on its own.
 """),
 
 dict(layout='content', kicker='Overview',
-     title='Three strands, one problem',
-     sub='They share instrumentation, not a subject',
-     tiles=[('Strand 1', 'The machine that moves through the aisle', None),
-            ('Strand 2', 'The air it moves through', None),
-            ('Strand 3', 'The people who share it', None)],
+     title='Three problems, one engineering method',
+     sub='Robotics, IoT and AI, aimed at making the warehouse a better place to work and operate in',
+     tiles=[('Strand 1', 'A corridor a vehicle barely fits through', None),
+            ('Strand 2', 'Air nobody is watching in real time', None),
+            ('Strand 3', 'Fatigue nobody can measure without contact', None)],
      bullets=[
-        ('Built, instrumented and measured. 45.54 kg, closed-loop control at every wheel, '
-         'four results established against physical references.', None, 'Robot. '),
+        ('Built, instrumented and measured. More than 45 kg, closed-loop control at every '
+         'wheel, four results established against physical references.', None, 'Robot. '),
         ('Deployed and running. Four zones, two radio-isolated installations, one database, '
          'three concurrent communication channels.', None, 'Monitoring. '),
         ('A hypothesis and a completed literature survey. No hardware built, no data collected.',
          None, 'Fatigue. '),
-        ('Multi-sensor integration, calibration against a physical reference, real-time '
-         'acquisition, and control that fails safe, recur in all three.', None, 'What is shared. '),
+        ('Not the problem — the method. Instrumentation, control and communication run through '
+         'all three, applied the same way whether the target is a wheel, a duct, or a data '
+         'stream.', None, 'What is shared. '),
      ],
-     takeaway='An error made in one strand has repeatedly become a method in the next.',
+     takeaway='Three different problems, at three different stages, solved with the same '
+              'engineering discipline: measure, calibrate, act in real time, fail safe.',
      notes="""
 The three are treated as strands of a single problem rather than as three projects, and
 not because they share a subject. They share instrumentation.
@@ -135,6 +137,10 @@ monitoring system.
 
 The three strands are at markedly different stages, and the report states each position
 as it stands. I will do the same here, in that order.
+
+Say plainly if asked: the fatigue strand has designed for "control that fails safe" (the
+validation plan is built to fail loudly if a modality carries no usable signal) but has not
+demonstrated it, since nothing is built yet. The other two have.
 """),
 
 dict(layout='content', kicker='Overview',

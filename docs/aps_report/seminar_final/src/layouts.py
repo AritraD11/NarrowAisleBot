@@ -232,8 +232,9 @@ def divider(prs, s, n):
     return slide
 
 
-def content(prs, s, n):
-    slide = _blank(prs)
+def content(prs, s, n, slide=None):
+    if slide is None:
+        slide = _blank(prs)
     y = _heading(slide, s['title'], s.get('kicker'), s.get('sub'))
 
     take = s.get('takeaway')

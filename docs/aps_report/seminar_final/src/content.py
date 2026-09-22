@@ -106,32 +106,6 @@ general. The important distinction the whole talk rests on is the geometric cons
 not the sector's growth on its own.
 """),
 
-dict(layout='content', kicker='Introduction',
-     title='Abstract',
-     sub='As the report states it, cut for speaking',
-     bullets=[
-        ('A 45.54 kg asymmetric mecanum platform, closed-loop control at every wheel. Four '
-         'results established by measurement or independent computation: velocity tracking to '
-         '0.040–0.074 rad/s RMS, kinematics exact to machine precision, endpoint closure below '
-         '1 per cent out to about 10 m, and a scan-matching front end measured to increase pose '
-         'error rather than reduce it.', None, 'The robot. '),
-        ('A multi-parameter environmental monitoring and control system, deployed across four '
-         'zones in two radio-isolated installations sharing one database, driving a lamp and a '
-         'fan from measured air condition rather than a timer.', None, 'The monitoring system. '),
-        ('A hypothesis and a completed literature survey for a contactless method to assess '
-         'worker fatigue. No hardware built, no data collected.', None, 'The fatigue strand. '),
-        ('A commissioning map blocked by the size of the available test area, the cost of the '
-         'asymmetric geometry itself unquantified, and several degrees of heading error that '
-         'survive every instrument currently fitted.', None, 'Three things stay open, for three '
-         'different reasons. '),
-     ],
-     size=13,
-     notes="""
-This is the report's own Abstract, cut to four sentences for a slide rather than paraphrased
-into something new. Read it close to as written; the detail behind each clause is the rest of
-this talk.
-"""),
-
 dict(layout='content', kicker='Overview',
      title='Three strands, one problem',
      sub='They share instrumentation, not a subject',

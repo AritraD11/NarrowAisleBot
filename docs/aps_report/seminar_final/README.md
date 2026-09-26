@@ -5,9 +5,12 @@ report. 43 slides as of the last rebuild, 16:9, speaker notes on every one.
 
 ## The narrative arc every rebuild follows
 
-Set by the author, 22 September 2026. Any future full rebuild of this deck
-should tell the story in this order, and the current 43-slide structure is
-meant to already follow it:
+Set by the author, 22 September 2026, six beats as of 23 September (beat
+seven, a generalisation or next application beyond the stated plan, was cut
+for the first APS: a comprehensive exam wants confidence in what is open and
+the plan to close it, not a pitch for scope beyond that plan). Any future
+full rebuild of this deck should tell the story in this order, and the
+current 43-slide structure is meant to already follow it:
 
 1. **Problem.** What is wrong or missing, stated as a problem worth solving,
    not as a list of features. Currently the title slide and the growth/gap
@@ -26,14 +29,11 @@ meant to already follow it:
    slide plus the cross-strand "what remains open" slide.
 6. **How we plan to do those.** The research plan, ordered by dependency
    rather than by calendar. Currently the research-plan slide.
-7. **What better can we do.** Anything beyond the plan already stated: a
-   generalisation, an extension, a next application. Not yet a dedicated
-   slide as of this note; fold it in or add one on the next rebuild that
-   has material for it.
 
-A slide that does not know which of these seven jobs it is doing is a
+A slide that does not know which of these six jobs it is doing is a
 candidate for cutting or merging into a neighbour, per the condensing
-discipline already in this file.
+discipline already in this file. A later APS, once there is a plan already
+delivered against, is a more natural place to reopen a beat seven.
 
 | File | What it is |
 |---|---|

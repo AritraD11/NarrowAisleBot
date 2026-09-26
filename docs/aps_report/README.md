@@ -1,146 +1,45 @@
-# APS Report — working folder
+# APS Report — first year, submitted and presented
 
-First-year Annual Progress Report. The draft is kept here in Markdown so it can
-be edited continuously and converted to a submission format on the day it is
-needed, rather than being re-typed into a word processor and then diverging from
-the project record.
+The first Annual Progress Seminar was held 23 Sep 2026. The candidate qualified.
+This folder holds what was actually submitted and presented, plus the sources
+that built them. Everything from the drafting process that led up to
+submission is kept in `archive/`, not deleted, since the report's own working
+history is still worth being able to trace.
+
+## What to open
 
 | File | What it is |
 |---|---|
-| [`APS_Report_Draft_v2.md`](APS_Report_Draft_v2.md) | **The report. Edit this one.** Structured around all three objectives. Decided as the submission draft on 15 Sep 2026. |
-| [`APS_Report_Draft.md`](APS_Report_Draft.md) | **Superseded, kept for its figures.** The earlier single-objective structure. Do not edit it; do not submit it. It still references ten figures v2 does not, listed below, and that is the only reason it is still here. |
-| [`APS_Report_Draft.docx`](APS_Report_Draft.docx) | **Stale.** Built from the superseded `APS_Report_Draft.md` on 12 Sep and not rebuilt since. Regenerate from v2 before submission. Download and open. Regenerate it after every edit with the command below rather than editing it directly, or the two will diverge. |
-| [`figures/`](figures/) | 30 figures, PNG at 300 dpi, numbered to match the in-text figure numbers |
-| [`figure_src/`](figure_src/) | The scripts that generate every figure |
-| [`NarrowAisleBot_APS_Seminar.pptx`](NarrowAisleBot_APS_Seminar.pptx) | The seminar deck. 16 slides, figures and platform photograph placed, speaker notes on every slide. Built by `deck_src/build_deck.js`. |
-| [`deck_src/`](deck_src/) | The deck generator and its layout-overflow check |
-| [`SEMINAR_DECK.md`](SEMINAR_DECK.md) | How the deck is put together, which figure belongs on which slide, and the numbers the deck shares with the report |
+| [`APS Report Aritra - submitted.pdf`](APS%20Report%20Aritra%20-%20submitted.pdf) | **The report, as submitted.** The literal PDF handed in. |
+| [`seminar_final/`](seminar_final/) | **The deck.** `NarrowAisleBot_APS_Seminar.pptx` is the last build from this folder's pipeline; see its own README for the narrative arc and rebuild instructions. If a copy was hand-edited in PowerPoint just before presenting, that copy is the one actually presented — check `seminar_final/README.md` for whichever is current. |
+| [`aps_study/`](../aps_study/) | The 93-page study guide built alongside the deck, same source-of-truth discipline (`src/`, not the `.docx` directly). |
+| [`final_src/`](final_src/) | How `APS report Aritra.docx` (in `archive/`) was rebuilt from the submitted PDF plus the `Audit_2026-09-17` corrections. Read its own README before touching it. |
+| [`figure_src/`](figure_src/) | The scripts that generate the report's own figures from bench/field data. Still the source of truth for regenerating a figure — nothing here is superseded. |
+| [`figures/`](figures/) | The rendered figures, PNG at 300 dpi. |
 
-## Editing conventions
+## `archive/` — superseded, kept for provenance
 
-- **Figure numbering.** `figures/figNN_*.png` matches **Figure NN** in the text.
-  If a figure is inserted or removed, renumber both together, or the next person
-  to read this will spend an hour finding out why they disagree.
-- **`[CONFIRM]` markers.** Every place the report states something the
-  repository cannot supply. Search for the string before submitting; none should
-  survive into the final version.
-- **Numbers.** Every quantitative claim traces to a file in this repository or a
-  DOI in §12. If a number changes on the robot, change it here too, and prefer
-  regenerating the figure to editing the caption.
-- **Layout.** `figure_src/qa_layout.py` renders every generator and fails on a
-  label another label overlaps, or that an arrow or data line is drawn through
-  without a masking background. Run it after touching any figure; it is the only
-  check that catches a collision introduced by a data change rather than by an
-  edit.
+Draft history leading up to the 15–22 Sep 2026 submission and seminar. None of
+it is current; none of it should be edited or resubmitted. Kept because a
+report's revision history is evidence of its own kind, and because two of the
+docx variants (`APS report Aritra.docx`, the `final_src`-built corrected copy,
+and `Figures Explained.docx`, a plain-language walkthrough of every figure) are
+still useful reading even though they are not the submitted file.
 
-## Regenerating the figures
+| File | What it was |
+|---|---|
+| `APS_Report_Draft.md` / `.docx` | The original single-objective draft structure, superseded 15 Sep by the three-objective restructure. |
+| `APS_Report_Draft_v2.md` | The chosen three-objective draft, in progress before the final edited-report and restructure passes. |
+| `APS Report Aritra - restructured.docx` | An intermediate restructuring pass, before the version actually submitted. |
+| `APS report Aritra - high resolution.docx` | A high-resolution figure pass on the same draft lineage. |
+| `APS report Aritra.docx` | The corrected docx `final_src/` rebuilds from the submitted PDF; the editable counterpart to the PDF if the report text needs touching again. |
+| `Figures Explained.docx` | A plain-language explainer for every figure in the report — supplementary, not a report variant. |
+| `NarrowAisleBot_APS_Seminar_v1_16slide.pptx` | The first seminar deck, 16 slides, built against the single-objective draft. Superseded by `seminar_final/`. |
+| `SEMINAR_DECK.md` | How the v1 16-slide deck was put together. Superseded by `seminar_final/README.md`. |
+| `deck_src/` | The v1 deck's JS/PowerPoint generator (`build_deck.js`), plus a standalone gains-slide builder from seminar prep. Superseded by `seminar_final/src/` (Python/python-pptx). |
+| `v2_src/` | The build pipeline for `APS_Report_Draft_v2.md`. Superseded once the report was submitted. |
 
-Needs `numpy` and `matplotlib`. Nothing else; no LaTeX installation is required.
+## Related, one level up
 
-```bash
-pip install numpy matplotlib
-for f in docs/aps_report/figure_src/f_*.py; do python3 "$f"; done
-```
-
-The scripts read the bench telemetry in `data/bench_logs/`, the field pose logs
-in `data/field_runs/`, and the photographs in `docs/robot_photos/` directly, so
-the plots are regenerated from source data rather than being static images that
-can silently go stale. Paths resolve relative to the script's own location, so
-they run from anywhere.
-
-Several figures are computed rather than transcribed, because they carry claims:
-**Figure 10** recomputes the ground-load feedforward increase from the 5 and
-6 August telemetry logs, **Figure 16** replots the map-to-odom correction traces
-from the three field runs, and **Figure 29** rebuilds the three commissioning
-maps from the saved PGM/YAML with the driven path overlaid. All of them agree
-with the journal to the digit, which is the point of regenerating them rather
-than screenshotting. **Figure 30** is the one deliberate exception: it embeds
-the operator's own annotated dashboard screenshots of those same three drives
-exactly as captured, because that annotation cannot be regenerated from source
-and is not meant to be — it is the primary record, kept alongside its
-regenerated counterpart rather than replaced by it.
-
-`style.py` holds the shared colour language, and it is worth keeping consistent:
-orange for the command path, blue for telemetry and perception, red for a defect
-or a gap, green for something fixed or validated, grey for something configured
-but not yet exercised. The first caption in the report states this so a reader
-does not have to infer it.
-
-## Converting for submission
-
-```bash
-# Word, keeping the figures
-pandoc APS_Report_Draft_v2.md -o APS_Report.docx --resource-path=.
-
-# PDF via LaTeX, with a table of contents and numbered sections
-pandoc APS_Report_Draft_v2.md -o APS_Report.pdf --resource-path=. \
-       --toc --number-sections -V geometry:margin=25mm
-```
-
-The Word conversion is verified: it produces a roughly 9 MB file with all
-30 figures embedded. The PDF route additionally needs a LaTeX engine
-(`texlive-latex-recommended` plus `texlive-fonts-recommended` is enough), or
-`--pdf-engine=weasyprint` to avoid LaTeX entirely.
-
-The maths uses `$...$` and `$$...$$`, which both routes handle. Wide tables
-convert cleanly to Word; for PDF, `--columns=100` helps if any overflow the
-margin.
-
-If the department expects the IIT Bombay LaTeX report class, the Markdown
-converts to `.tex` with `pandoc -s -o body.tex` and the result can be dropped
-into that template's body.
-
-## Before submitting
-
-- [ ] Confirm the APS deadline and cycle with the Academic Office
-- [ ] Download the current APS form from the ASC portal and check its fields
-      against what this report states
-- [ ] Read a recent accepted report from the department for format and length
-- [ ] Agree with the supervisor how much of §10 to include
-- [ ] Consult IRCC on disclosure if a patent filing is contemplated
-- [ ] Recover the full bibliographic details for references 1–2
-- [ ] Fill in the parallel project's dates and effort fraction (§9.3)
-- [ ] Resolve every `[CONFIRM]` marker
-- [ ] Have someone who is not the author read it
-
-
----
-
-## Which draft is the submission, and what the switch costs
-
-**15 Sep 2026.** Two drafts had diverged and neither referenced the other.
-`APS_Report_Draft_v2.md` was chosen: it is structured around all three
-objectives, including the worker-fatigue framework the earlier draft does not
-cover at all, and that structure is what an annual progress review is asked to
-report against.
-
-The switch has a cost that has to be paid before submission rather than
-discovered at it. **v2 references 21 figures; the superseded draft references
-29.** These ten exist on disk, are generated by scripts in `figure_src/`, and
-are not currently placed anywhere in v2:
-
-```
-fig03_openloop_characterisation.png    fig15_map_coverage.png
-fig04_control_loop.png                 fig20_costmap_inflation.png
-fig07_kff_artefact.png                 fig30_dashboard_screenshots.png
-fig09_tracking_comparison.png
-fig11_mapping_pipeline.png
-fig13_lidar_mirror.png
-fig14_lidar_placement.png
-```
-
-Some of these are load-bearing. `fig13_lidar_mirror` and `fig14_lidar_placement`
-carry the front/back scan reflection and the mount geometry, which §4.5's three
-perception faults describe in words alone without them.
-`fig30_dashboard_screenshots` is the only photographic evidence in the repository
-that the operator interface exists and works.
-
-Deciding which of the ten to place in v2, and where, is an editorial task that
-has not been done. It is tracked here because a figure that exists, is
-generated, and is referenced by nothing is the easiest thing in this folder to
-lose track of.
-
-**Figure renumbering.** v2 numbers its figures independently of the older
-draft, so a figure moved across needs its in-text number reassigned to v2's
-sequence rather than carried over. `figure_src/qa_layout.py` checks collisions,
-not numbering, so nothing will catch a duplicate number automatically.
+- [`../APS_Seminar_QA_Log_2026-09-21.md`](../APS_Seminar_QA_Log_2026-09-21.md) — seminar prep Q&A: the PID/feedforward derivation walked through conversationally, an informal pose-estimation on/off check against the dashboard, and the full chain behind why no commissioning map has been accepted. Defers to the report and journal wherever they disagree.
+- [`figure_src/f_pidloop_corrected.py`](figure_src/f_pidloop_corrected.py) → [`figures/fig33_pid_loop_corrected.png`](figures/fig33_pid_loop_corrected.png) — a corrected-wiring variant of the PID/feedforward block diagram, kept as reference; not currently placed in the submitted report or the deck.

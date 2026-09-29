@@ -3,6 +3,12 @@
 Markdown is the source of truth here (diffs cleanly, renders on GitHub, greppable). Original `.docx`/`.pdf` files are kept in `originals/` as the source of record.
 
 
+## Year 2, after the 23 Sep 2026 APS
+
+| Document | What it answers |
+|---|---|
+| [`Year2_Autonomy_Research.md`](Year2_Autonomy_Research.md) | **How do we get to precise autonomous navigation, on a live map and on a saved one, and what should cover the rear blind wedge?** Research and a build order for the three Year 2 goals: what "precise" has to mean for a 1.00 × 0.36 m body in a narrow aisle, AMCL on a saved map without waiting for G4's unknown-cell gate, why NavFn is the wrong planner for this footprint, a ToF-ring layout that actually covers a long thin chassis, a rear DTOF LiDAR as the first sensor purchase, and a source-checked correction to the Stage H "metronome" reading. Planning only; gates G5 to G13 with predictions registered. Numbers from `tools/sensor_coverage.py`. |
+
 ## ⭐ Start here — the 28 Aug 2026 strategic package
 
 Four documents written together as one package. Read them in this order.

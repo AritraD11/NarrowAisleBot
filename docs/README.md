@@ -8,6 +8,7 @@ Markdown is the source of truth here (diffs cleanly, renders on GitHub, greppabl
 | Document | What it answers |
 |---|---|
 | [`Year2_Autonomy_Research.md`](Year2_Autonomy_Research.md) | **How do we get to precise autonomous navigation, on a live map and on a saved one, and what should cover the rear blind wedge?** Research and a build order for the three Year 2 goals: what "precise" has to mean for a 1.00 × 0.36 m body in a narrow aisle, AMCL on a saved map without waiting for G4's unknown-cell gate, why NavFn is the wrong planner for this footprint, a ToF-ring layout that actually covers a long thin chassis, a rear DTOF LiDAR as the first sensor purchase, and a source-checked correction to the Stage H "metronome" reading. Planning only; gates G5 to G13 with predictions registered. Numbers from `tools/sensor_coverage.py`. |
+| [`Firmware_Inventory.md`](Firmware_Inventory.md) | **What is actually running on the robot, node by node and wire by wire?** Every launch file, ROS node, topic, TF frame, Nav2 and slam_toolbox setting, the ESP32 and Mega firmware with their serial protocols, the dashboard's message types and the tools, written from the code at commit `09e52cb`. Laid out as boxes and arrows so it can be turned into a flow chart, with two Mermaid drafts. Also lists what reading the code turned up (AMCL's default scan topic, `install.sh` deploying the pre-Stage-G SLAM file, and others). |
 
 ## ⭐ Start here — the 28 Aug 2026 strategic package
 

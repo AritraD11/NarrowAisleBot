@@ -493,7 +493,7 @@ flowchart LR
   ESP <--> WHL
   BR -->|/wheel_velocities_actual| ODO
   BR -->|/motor_telemetry| DASH
-  ODO -->|/wheel_odom, TF odom to base_link| SLAM
+  ODO -->|TF odom to base_link| SLAM
   ODO -->|/wheel_odom| BT
   DASH -->|/odom/reset| ODO
   ARMB <-->|serial 115200| MEGA
@@ -553,3 +553,80 @@ Not a diagnosis. The pipeline in section 7 says every pose the robot believes is
 4. The filtered-velocity path (section 7): rectangular integration of 20 Hz filtered speeds against Pi-side arrival time. `<L2>` already exposes `position_rad`.
 5. The controller odometry topic suspicion in section 14 item 3, which affects control rather than estimation but would look the same from the driver's seat.
 6. Only then more sensing: the URDF already has an `imu_link` at (0, 0, 0.05), the bridge already parses `[IMU]` lines, and `ekf_params.yaml` is already drafted. What is missing is the sensor and the ESP32 code to read it.
+
+---
+
+## 17. Live graph check, 30 Sep 2026 16:44 IST
+
+Source: `~/check_ros.sh` on the Pi, output pasted by the operator. The script is not in the repo yet and its raw output is not stored here. Robot state at the time: up 1 h 39 min, drive stack running since 15:05, mapping stack (`mapping_full.launch.py`) since 16:12, Nav2 stopped.
+
+This check turned the inventory's "from code" claims into "seen running" for the graph. It found one wrong label, which is fixed above (the runtime graph shows slam_toolbox takes odometry from TF only, and `/wheel_odom` had no subscriber at all with Nav2 down).
+
+### Confirmed at runtime
+
+- All eleven `aislebot_full` processes are up (ten in the process list, `foxglove_bridge` in the node list), plus `ydlidar_ros2_driver_node`, `scan_relay`, `slam_toolbox` and `zero_point_tf` from the mapping launch.
+- Domain 42, `rmw_cyclonedds_cpp`, wlan0 at 10.42.0.1 (the AP), eth0 up with no address.
+- `ros2 doctor` reports every publisher and subscriber pair as QoS compatible. There are no mismatches in the running graph.
+- `/joint_states` has one subscriber (robot_state_publisher) and no publisher, as section 6 says.
+- `/motor_telemetry_raw` and `/arm/status` have no subscribers, as section 4 says.
+- `/joy` has two subscribers, `joy_to_aislebot` and `teleop_asym`. That is the latent `twist_mux` bypass from section 14 item 6, now seen on the live graph.
+- No `/odom` topic exists (the script's ODOM section printed nothing).
+
+### Not in section 4 (found on the live graph)
+
+| Topic or service | Publisher | Note |
+|---|---|---|
+| `/diagnostics` | probably joy_node | not checked |
+| `/point_cloud` (PointCloud) | probably the LiDAR driver | no subscribers. Check with `ros2 topic info /point_cloud -v`. |
+| `/pose` (PoseWithCovarianceStamped) | slam_toolbox | slam_toolbox's own pose output |
+| `/map_metadata` | slam_toolbox | |
+| `/slam_toolbox/graph_visualization`, `/slam_toolbox/scan_visualization`, `/slam_toolbox/update`, `/slam_toolbox/feedback` | slam_toolbox | the pose-graph markers are what the node-id-gap loop closure test would read |
+| `/clock` | none | one subscriber (probably foxglove_bridge) |
+| `/joy/set_feedback` | none | joy_node subscribes |
+| `/start_scan`, `/stop_scan` (services) | LiDAR driver | |
+| `/slam_toolbox/*` services | slam_toolbox | save_map, serialize_map, deserialize_map, pause_new_measurements, reset, manual_loop_closure and others |
+
+slam_toolbox appears twice as a `/tf` publisher, and `/tf` has four publishers in all (robot_state_publisher, slam_toolbox twice, odometry_publisher). The `transform_listener_impl_*` node is slam_toolbox's internal TF listener, not a separate program, so it does not belong on a flow chart.
+
+### Ghosts in the ROS 2 daemon cache
+
+The services list still shows `/controller_server/*`, `/planner_server/*`, `/bt_navigator/*`, `/collision_monitor/*`, `/lifecycle_manager_navigation/*`, both costmaps, and the old `launch_ros_2469`, `_2893` and `_4559` entries, even though Nav2 was not running (empty NAV2 and ACTIONS sections, no Nav2 in the process list). These are stale entries from processes that already exited. Do not read them as "Nav2 is up". `ros2 daemon stop` clears them.
+
+### Runtime edge list, from the QoS section of `ros2 doctor` (parameter_events left out)
+
+| Topic | Publisher | Subscribers |
+|---|---|---|
+| `/joy` | joy_node | joy_to_aislebot, teleop_asym |
+| `/cmd_vel_manual` | joy_to_aislebot, phone_dashboard | twist_mux |
+| `/cmd_vel` | twist_mux | teleop_asym |
+| `/wheel_speeds` | teleop_asym | esp32_bridge |
+| `/wheel_velocities_actual` | esp32_bridge | odometry_publisher |
+| `/motor_telemetry` | esp32_bridge | phone_dashboard |
+| `/esp32/command` | phone_dashboard | esp32_bridge |
+| `/odom/reset` | phone_dashboard | odometry_publisher |
+| `/arm/cmd_vel` | joy_to_aislebot | arm_bridge |
+| `/arm/command` | joy_to_aislebot, phone_dashboard | arm_bridge |
+| `/scan` | ydlidar_ros2_driver_node | scan_relay |
+| `/scan_reliable` | scan_relay | slam_toolbox, phone_dashboard |
+| `/scan_relay_stats` | scan_relay | phone_dashboard |
+| `/map` | slam_toolbox | phone_dashboard, slam_toolbox |
+| `/tf` | odometry_publisher, slam_toolbox, robot_state_publisher | phone_dashboard, slam_toolbox's listener |
+| `/tf_static` | zero_point_tf, robot_state_publisher | phone_dashboard, slam_toolbox's listener |
+
+### Load snapshot (`ps`, cumulative average since start, not peak)
+
+| Process | CPU since start |
+|---|---|
+| phone_dashboard | 13.9 % of one core (13 min 53 s of CPU in 1 h 39 min) |
+| esp32_bridge | 4.5 % |
+| arm_bridge | 4.2 % (a 50 Hz transmit timer to an idle Mega) |
+| odom_pub | 3.1 % |
+| scan_relay | 2.0 % |
+| slam_toolbox | 1.5 % |
+
+The dashboard is the largest single consumer in the stack. These are averages with Nav2 down, so they say nothing yet about the controller's 5.5 to 8.9 Hz. That needs `top` while Nav2 runs.
+
+### What the script does not do
+
+It lists the graph but checks no numbers: no message rates, no live parameters, no TF frame check, no file hashes. Its ODOM section queries `/odom`, which does not exist here, so it prints nothing; `/wheel_odom` is the topic to query. `pi_audit.sh` covers files and power, `verify_live_config.sh` covers parameters. This script covers the graph. Nothing on the ROS side can show which firmware is flashed on the ESP32 or the Mega. That takes a serial query (`<I>` and `<?>` on the ESP32, `INFO` on the arm).
+

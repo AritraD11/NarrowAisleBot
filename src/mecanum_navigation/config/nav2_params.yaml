@@ -170,6 +170,17 @@ bt_navigator:
 controller_server:
   ros__parameters:
     controller_frequency: 20.0
+    # 30 Sep 2026: this line was missing, and the live dump showed
+    # `odom_topic: odom` on the controller. Nothing publishes /odom (the
+    # topic only appeared once Nav2 started, because controller_server was
+    # its lone subscriber, publisher count 0). Real odometry is /wheel_odom,
+    # which bt_navigator and velocity_smoother already use below. Without
+    # this the controller has been running with a zero measured velocity
+    # at every cycle. Not live-settable: the subscription is created when
+    # the node configures, so it takes effect at the next Nav2 launch.
+    # Check: `ros2 topic info /wheel_odom -v` must list controller_server
+    # as a subscriber, and `/odom` must no longer appear.
+    odom_topic: "/wheel_odom"
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.001     # Enable lateral motion
     min_theta_velocity_threshold: 0.001
@@ -338,6 +349,24 @@ controller_server:
       # on top of the DWB rejection. At 0.30 the same turn is 5.2 s, a
       # real margin. Still slow in absolute terms for a 45 kg base.
       wz_max: 0.30
+
+      # 30 Sep 2026: acceleration limits, matched to velocity_smoother.
+      # These were unset, so the live dump showed MPPI's own defaults,
+      # ax/ay +-3.0 m/s^2 and az 3.5 rad/s^2, ten times what
+      # velocity_smoother below allows (accel 0.3, 0.6; decel 0.5, 1.0).
+      # MPPI was scoring rollouts that jump between stopped and full speed
+      # in one 50 ms step (3.0 x 0.05 = 0.15 m/s, more than the whole
+      # 0.12 m/s range), and the smoother then flattened them, so the
+      # robot never did what was planned. Same axes rule as everywhere:
+      # ax is the strafe axis and ay the forward/reverse axis on this
+      # robot, and both are symmetric here. Values are the smoother's,
+      # not a measured envelope; Diagnostic Phase 2 (measure the real
+      # acceleration on a straight run) may move them.
+      ax_max: 0.3
+      ax_min: -0.5
+      ay_max: 0.3
+      ay_min: -0.5
+      az_max: 0.6
 
       # Sampling spread. These are std-devs of the Gaussian noise added
       # around the current control sequence, i.e. how widely MPPI explores.

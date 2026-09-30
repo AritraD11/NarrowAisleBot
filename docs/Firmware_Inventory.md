@@ -265,6 +265,8 @@ Source: `src/mecanum_navigation/config/nav2_params.yaml` (874 lines). Every x/y-
 
 The behaviour tree is Nav2's stock `navigate_to_pose_w_replanning_and_recovery.xml`, which includes ClearEntireCostmap, Spin 1.57 and BackUp 0.30 in its recovery branch. Nothing in the repo replaces it.
 
+On this robot `BackUp` is a 0.30 m strafe to the left, not a reverse. Nav2's `DriveOnHeading` commands `linear.x` and checks collisions along the base frame's x axis (source read on 30 Sep 2026, upstream jazzy branch), and base_link +X is the robot's right. The `Collision Ahead - Exiting DriveOnHeading` abort in the 30 Sep run therefore meant something within 0.30 m to the robot's left.
+
 ---
 
 ## 9. slam_toolbox, live values

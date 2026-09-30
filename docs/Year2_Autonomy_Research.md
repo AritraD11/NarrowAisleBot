@@ -360,10 +360,16 @@ source `collision_monitor` has, so planner and safety layer see one world.
 The same default tree has a problem that isn't about replanning at all. Its
 general recovery round-robin includes `Spin` by 1.57 rad and `BackUp` by
 0.30 m. A quarter turn needs 1.2 m of clear width for the padded footprint,
-so in an aisle it can only fail. And `BackUp` reverses 30 cm into the one
-direction the robot can't see: the rear wedge is masked out of the scan that
-feeds both the costmap and `collision_monitor`, so nothing checks that space.
-Until rear sensing exists, the custom tree should drop both and use `Wait`.
+so in an aisle it can only fail. `BackUp` needs a correction, made on
+30 Sep 2026 after reading Nav2's `DriveOnHeading` source: it commands
+`linear.x` (negative for a back-up) and checks for collisions along the base
+frame's x axis. On this robot base_link +X is the robot's right, so `BackUp`
+is a 30 cm strafe to the LEFT, and its collision check looks left, not
+backwards. It does not reverse into the rear wedge. (An earlier version of this
+paragraph said it did. That was wrong.) The default tree still has no
+recovery that moves along the robot's real forward axis, and a left strafe is
+not what anyone wants from "back up". The custom tree should use `Wait` and
+a fresh plan first, and take Spin only where the width allows it.
 
 Two more settings belong to saved-map mode specifically, which argues for
 keeping two parameter sets, live-map and saved-map. On a cleaned saved map,

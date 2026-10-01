@@ -1,8 +1,9 @@
 # Working on NarrowAisleBot
 
-APS (Annual Progress Seminar, doubling as the comprehensive exam) is
-**23 Sep 2026, 14:30–15:30.** Every session between now and then should
-know that date and count backward from it.
+APS (Annual Progress Seminar, doubling as the comprehensive exam) was
+**23 Sep 2026** and is done. The project is now in Year 2, and the current
+focus is autonomous navigation in unknown space. Start with
+`docs/Session_Handoff_2026-10-01.md`.
 
 This file is read automatically at the start of a session. Its job is to
 carry forward the mistakes that have already cost real time, so they don't
@@ -91,7 +92,12 @@ matter to check — until the one time they aren't.
 
 ## Where the current plan lives
 
-`docs/Phase_234_Push.md` is the live execution plan for closing Phases 2
+`docs/Session_Handoff_2026-10-01.md` is the current state and the next
+steps for Year 2 autonomous navigation; `docs/Year2_Autonomy_Research.md`
+is the build order behind it, and `docs/Firmware_Inventory.md` is the
+node-by-node map of what runs on the robot.
+
+`docs/Phase_234_Push.md` was the execution plan for closing Phases 2
 (odometry/state estimation), 3 (perception/mapping, G4) and 4 (autonomous
 navigation, G5/G6/G7). Read it before proposing a different plan.
 `docs/Session_Handoff_2026-09-14.md` and any later-dated handoff file

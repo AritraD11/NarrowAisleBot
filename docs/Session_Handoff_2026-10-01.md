@@ -229,3 +229,119 @@ Command chain for reference, since every drive passes through it:
 `/cmd_vel`, `teleop_asym`, `/wheel_speeds`, `esp32_bridge`, the ESP32
 (100 Hz PID), encoders, `odometry_publisher`, `/wheel_odom` and the
 `odom` to `base_link` transform.
+
+---
+
+# Part 2. The hardware session of 1 Oct, afternoon
+
+Read this before section 4. Section 4's first two steps are done, and the
+answer to both was "no". The planner is fine, the start pose is not in
+collision, and the fault turned out to be somewhere else.
+
+## 6. What we ran, in order
+
+1. Clean start at the zero mark. Order that works: stop Nav2, stop the map,
+   re-zero odometry, start the map, wait 30 s, start Nav2. Moving the robot by
+   hand moves odometry too, so re-zero before the map starts, never after.
+2. Local costmap `get_cost` at the zero mark, centre point 0.0 and padded
+   footprint 196. Nothing sits within 0.65 m of the centre and the box is not
+   in collision. The "start pose already inside an inflated zone" idea is not
+   supported. [measured]
+3. The dashboard map twice showed one occupied cell inside the robot's box,
+   about 10 cm left and 17 cm ahead of the centre. It never appeared in a
+   costmap query and was gone in the later session. Unexplained. The dashboard
+   map is the slam map, not a costmap, so it cannot predict a costmap reading.
+4. First goal, (-0.23, 1.80). The planner failed five times ("Failed to create
+   plan with tolerance of: 0.5"), the behaviour tree spun the robot +92 degrees
+   (the "random turn"), BackUp strafed it 0.31 m left, and then the planner
+   worked but the controller barely moved. The cause of that first planner
+   failure is not known. [measured, log and wheel CSV]
+5. Planner-only test, `/compute_path_to_pose`, no motion: it succeeded from
+   y = 0.49 and again from the zero mark after a clean restart. [measured]
+6. Global costmap `get_cost` at (0,0): footprint 254 while the robot was
+   actually at y = 0.49 (so it described the wrong spot), then 164 once the map
+   had grown. Probable cause, not confirmed: the padded box hanging off the
+   edge of the map.
+7. Goal 0.6 m straight ahead, (0.0, 0.6). ABORTED, error 105, 16 recoveries,
+   194 s, no contact. End pose (-0.244, 0.249), yaw about -0.3 degrees. The
+   robot crept about 1.5 mm/s toward the goal, and the progress checker needs
+   0.10 m in 10 s.
+
+## 7. The key result: the speed is lost inside MPPI
+
+A bag of the 0.6 m run (`~/aislebot_logs/bags/fwd06_151045` on the Pi, 53 MB,
+plus `fwd06_small`, 4.7 MB, with only the command chain, the collision monitor
+state, `/plan` and the footprint) gives the speed at every stage of the chain
+between MPPI and the wheels, first 40 s of the goal, mean and peak in m/s:
+
+| Stage | 0 to 10 s | 10 to 20 s | 20 to 30 s | 30 to 40 s |
+|---|---|---|---|---|
+| `/cmd_vel_nav` (MPPI) | 0.0044 / 0.0084 | 0.0051 / 0.0103 | 0.0038 / 0.0089 | 0.0044 / 0.0092 |
+| `/cmd_vel_smoothed` | 0.0044 / 0.0084 | 0.0051 / 0.0103 | 0.0038 / 0.0089 | 0.0043 / 0.0092 |
+| `/cmd_vel_baselink` | 0.0044 / 0.0084 | 0.0050 / 0.0103 | 0.0038 / 0.0089 | 0.0043 / 0.0092 |
+| `/cmd_vel` | 0.0044 / 0.0084 | 0.0050 / 0.0103 | 0.0038 / 0.0089 | 0.0043 / 0.0092 |
+
+The numbers are the same at every stage, so `velocity_smoother`,
+`collision_monitor`, `cmd_vel_axis_adapter`, `twist_mux` and the ESP32 are
+cleared. MPPI itself is asking for about 4 mm/s. The collision monitor changed
+state only 14 times in 12 minutes, always to APPROACH and back, and always
+during a recovery behaviour, never while the controller was driving. Motor PWM
+peaked near 29 out of 255 during the stall. [measured]
+
+Two pieces of context, neither of them proof.
+
+- The size of the output matches averaging noise. `vx_std` and `vy_std` are
+  0.06 m/s over 300 samples, and 0.06 divided by the square root of 300 is
+  3.5 mm/s, against a measured 4.4 mm/s. That says the optimizer is hardly
+  preferring any direction. [arithmetic, matches]
+- The 30 Sep run, before the acceleration edit, had mean wheel commands 5 to
+  10 times larger than this run. My acceleration edit limits one 0.05 s step to
+  0.3 x 0.05 = 0.015 m/s, which is the scale of what we see. But the 30 Sep run
+  also stalled in places, so the edit is a suspect, not the cause. [suggestive]
+
+## 8. State when the session ended
+
+- `mapping_full` running, started with the robot on the zero mark and odometry
+  at 0, 0. Nav2 up (`nav2_slam.launch.py`, started after the map). Robot on
+  the zero mark.
+- MPPI acceleration limits set LIVE to the stock values: `ax_max 3.0`,
+  `ax_min -3.0`, `ay_max 3.0`, `ay_min -3.0`, `az_max 3.5`, confirmed with
+  `ros2 param get` (`ay_max` reads 3.0). The repo file still says
+  0.3 / -0.5 / 0.3 / -0.5 / 0.6. The live change is lost when Nav2 restarts.
+  `velocity_smoother` still caps real acceleration at 0.3 m/s^2.
+- The 0.6 m goal has not been re-sent since the change.
+
+## 9. Next steps, in order (replaces the order in section 4)
+
+1. Confirm the live parameters with `ros2 param get`, then send the 0.6 m goal
+   again with a hand on the E-STOP (Ctrl+C in the terminal cancels the goal).
+   Written prediction: it reaches the goal, about 60% confidence.
+   ```
+   ros2 action send_goal --feedback /navigate_to_pose nav2_msgs/action/NavigateToPose "{pose: {header: {frame_id: map}, pose: {position: {x: 0.0000, y: 0.6000, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}}}"
+   ```
+2. If it drives: choose permanent acceleration values (measure the real
+   acceleration on a straight run), edit `nav2_params.yaml`, hash it, deploy,
+   verify against the live node.
+3. If it still creeps at about 4 mm/s, the acceleration limits are not the
+   cause. Next suspects: `temperature` (0.3), the sampling spread (0.06), the
+   critic weights, and the real loop rate (5 to 14 Hz) against the 20 Hz and
+   0.05 s the model assumes.
+4. Then the ladder: 1 m forward, 1 m sideways, a 90 degree turn, a reverse with
+   the sheet behind it, then the explorer.
+
+## 10. Rules that bit us on 1 Oct
+
+- Query the robot's real pose before any `get_cost`. A reading at (0,0) is
+  meaningless if the robot is at y = 0.49.
+- The two services are `/local_costmap/get_cost_local_costmap` and
+  `/global_costmap/get_cost_global_costmap`. The planner uses the global one,
+  MPPI and the collision monitor use the local one.
+- A bag that is not closed has no `metadata.yaml` and may be unreadable. Stop
+  the recorder with `pkill -INT -f "ros2 bag record"`, wait for `metadata.yaml`.
+- Trim a big bag on the Pi before moving it, with `ros2 bag convert -i <bag>
+  -o small.yaml` (an `output_bags` list with `uri`, `storage_id: mcap` and
+  `topics: [...]`).
+- Read a bag anywhere with `tools/bag_cmd_chain.py` (needs `pip install mcap
+  mcap-ros2-support`). It prints the table in section 7 for any run.
+- Not in the repo: both bags, and the CSVs for `run_20261001_120846` (on the
+  Pi in `~/aislebot_logs/` and on the operator's PC).

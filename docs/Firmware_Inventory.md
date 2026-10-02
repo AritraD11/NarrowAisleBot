@@ -440,6 +440,8 @@ These are from reading code, not from driving. Most have a live check that would
 
 ## 15. Flowchart drafts
 
+The checked, presentation-grade versions of these now live in `docs/flowcharts/` (six slide figures, three dense handouts, PNG and SVG, with a QA record). The two Mermaid drafts below are kept as the quick-edit version.
+
 Mermaid, renders on GitHub and in most editors. Runtime data flow first, then launch grouping. Edit labels freely; every edge below is backed by a row in sections 3 to 5.
 
 ```mermaid

@@ -362,11 +362,22 @@ controller_server:
       # robot, and both are symmetric here. Values are the smoother's,
       # not a measured envelope; Diagnostic Phase 2 (measure the real
       # acceleration on a straight run) may move them.
-      ax_max: 0.3
-      ax_min: -0.5
-      ay_max: 0.3
-      ay_min: -0.5
-      az_max: 0.6
+      #
+      # 2 Oct 2026: REVERSED. With the values above (0.3 / -0.5 / 0.6) the
+      # 0.6 m goal crept at 4.4 mm/s and aborted after 194 s (error 105).
+      # Set LIVE to MPPI's stock values (3.0 / -3.0 / 3.5), the same goal
+      # then SUCCEEDED in 35 s, 0 recoveries, ended 5 cm from the goal in
+      # odometry. Same start, same Nav2, one variable changed, one run each.
+      # The mechanism is NOT established. velocity_smoother below still caps
+      # the real acceleration at 0.3 m/s^2, so MPPI now plans harder than
+      # the robot can follow. Treat these as the last values proven to
+      # drive, not as a tuned envelope; measure the real acceleration on a
+      # straight run before changing them again.
+      ax_max: 3.0
+      ax_min: -3.0
+      ay_max: 3.0
+      ay_min: -3.0
+      az_max: 3.5
 
       # Sampling spread. These are std-devs of the Gaussian noise added
       # around the current control sequence, i.e. how widely MPPI explores.

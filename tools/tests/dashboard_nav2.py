@@ -139,7 +139,7 @@ print('\nB. the server state machine, shipped methods on a stub node\n')
 
 ns = {}
 for name in ('NAV2_MAP_SETTLE_S', 'NAV2_STOP_GRACE_S', 'NAV2_GRAPH_SETTLE_S', 'NAV2_ACTIVE_SERVICE',
-             'NAV_GOAL_STATUS', 'NAV_GOAL_TERMINAL'):
+             'NAV_GOAL_STATUS', 'NAV_GOAL_TERMINAL', 'NAV_STOP_WINDOW_S'):
     ns[name] = module_const(name)
 exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef)
                               and n.name == 'pick_latest_goal'], type_ignores=[]),
@@ -155,7 +155,7 @@ cls = next(n for n in ast.walk(tree)
            if isinstance(n, ast.ClassDef) and n.name == 'PhoneDashboard')
 WANTED = {'_nav2_set', 'nav2_preflight', 'start_nav2', 'stop_nav2',
           '_close_nav2_log', '_nav2_watchdog', '_nav_status_cb', '_plan_cb',
-          'nav_status'}
+          'nav_status', 'cancel_nav_goals', '_scan_callback'}
 meths = [n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name in WANTED]
 chk({m.name for m in meths} == WANTED, f'all {len(WANTED)} Nav2 methods found in PhoneDashboard')
 for m in meths:                       # drop annotations that name ROS types
@@ -237,6 +237,7 @@ def node(mapping=True, since=60.0, graph=()):
     n._nav2_quiet_until = 0.0
     n._nav2_active_cli = Cli()
     n._nav_goal = n._plan_end = None
+    n._nav_stop_at = None
     n.latest_pose = {'x': 0.0, 'y': 0.0, 'yaw': 0.0}
     n.cancelled = 0
     n.cancel_nav_goals = lambda: setattr(n, 'cancelled', n.cancelled + 1)
@@ -347,6 +348,64 @@ chk(s['status'] == 'SUCCEEDED' and s['elapsed'] == 35.0 and not s['active'],
     'time stops at the result instead of running on')
 n._plan_cb(plan_msg(1.0, 1.0, 2101, frame='odom'))
 chk(n.nav_status()['goal']['dist'] is None, 'a plan not in the map frame is not measured against the map pose')
+
+# an operator stop is not a failure (5 Oct 2026: both "ABORTED" goals on the
+# screen were the operator pressing STOP)
+clock['t'] = 3000.0
+n = node()
+n._nav_status_cb(status_msg(b'h' * 16, 2995, 2))
+n._nav_stop_at = 3010.0                       # what the real cancel_nav_goals sets
+clock['t'] = 3010.0
+n.nav2_state = 'stopping'
+s = n.nav_status()['goal']
+chk(s['status'] == 'STOPPED' and not s['active'] and s['elapsed'] == 15.0,
+    f"executing goal + Nav2 stopping -> STOPPED, clock stopped ({s['status']}, {s['elapsed']})")
+clock['t'] = 3012.0
+n._nav_status_cb(status_msg(b'h' * 16, 2995, 6))   # Nav2 aborts the dropped goal
+clock['t'] = 3100.0
+s = n.nav_status()['goal']
+chk(s['status'] == 'STOPPED', 'Nav2 ABORTED within the window of an operator stop reads STOPPED')
+
+n = node()
+clock['t'] = 4000.0
+n._nav_status_cb(status_msg(b'i' * 16, 3990, 2))
+clock['t'] = 4005.0
+n._nav_status_cb(status_msg(b'i' * 16, 3990, 6))   # a genuine abort
+n._nav_stop_at = 4100.0                            # operator stops 95 s later
+clock['t'] = 4101.0
+chk(n.nav_status()['goal']['status'] == 'ABORTED',
+    'a real abort that happened BEFORE the stop keeps its ABORTED')
+n = node()
+clock['t'] = 5000.0
+n._nav_status_cb(status_msg(b'j' * 16, 4990, 2))
+clock['t'] = 5004.0
+n._nav_status_cb(status_msg(b'j' * 16, 4990, 6))
+chk(n.nav_status()['goal']['status'] == 'ABORTED',
+    'and with no operator stop at all an abort is still ABORTED')
+n = node()
+n.cancel_nav_goals = lambda: Stub.cancel_nav_goals(n)
+clock['t'] = 6000.0
+Stub.cancel_nav_goals(n)
+chk(n._nav_stop_at == 6000.0, 'the real cancel_nav_goals records when the operator stopped')
+
+# scan classification: the rear wedge is MASKED, a capped NaN is NO RETURN
+import math as _m
+n = node()
+n.scan_mask_min_deg, n.scan_mask_max_deg = 135.0, -135.0
+n.scan_max_points, n.scan_trust_range, n._prev_valid = 360, 5.0, None
+rng = []
+for i in range(360):
+    deg = -180.0 + i
+    in_wedge = ((deg - 135.0) % 360.0) <= 90.0
+    rng.append(float('nan') if in_wedge or deg > 60 else 1.5)   # >60 deg: past the cap
+msg = SN(ranges=rng, range_min=0.12, range_max=10.0,
+         angle_min=_m.radians(-180.0), angle_increment=_m.radians(1.0))
+n._scan_callback(msg)
+ls = n.latest_scan
+nan_all = sum(1 for r in rng if r != r)
+chk(ls['masked'] == 91, f"only the 90 deg rear wedge is MASKED ({ls['masked']} of {nan_all} NaN beams)")
+chk(ls['valid'] == 360 - nan_all and ls['live'] == 360 - 91,
+    f"capped beams stay in the VALID denominator (valid {ls['valid']}, live {ls['live']})")
 
 # ═══════════════════════════════════════════════════════════════════
 print('\nC. the browser: button, pose box, fold, taps\n')

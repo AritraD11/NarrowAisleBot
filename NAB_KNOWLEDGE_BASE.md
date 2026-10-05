@@ -125,7 +125,7 @@ Two ROS 2 packages under `src/`, plus one plain script package:
 **`src/mecanum_robot/`** — the core drive/teleop package.
 - Nodes: `esp32_bridge.py` (serial bridge to ESP32), `arm_bridge.py` (serial bridge to Mega), `mecanum_teleop_asymmetric.py` (the *correct* asymmetric-mecanum inverse kinematics — always used the right l₁/l₂/d parameters, unlike the ESP32's own WiFi-joystick IK which had the WHEEL_RADIUS bug in §3), `odometry_publisher.py`, `phone_dashboard.py` (web dashboard + click-to-goal, WebSocket has no server→client broadcast path yet — a known gap, see §8), `joy_to_aislebot.py`, `keyboard_teleop.py`, `lcd_display.py`, `gazebo_bridge.py`, `run_report.py`.
 - Launch files: `aislebot_full.launch.py` (primary), `mapping_full.launch.py`, `sensors.launch.py`, `simulation.launch.py`.
-- `urdf/aislebot.urdf` — note this uses a **non-standard base_link convention**: +X = right, +Y = forward (the reverse of REP-103), a deliberate consequence of an odometry fix (journal §17.10) that every x/y-labelled Nav2 parameter had to be swapped to match.
+- `urdf/aislebot.urdf` — standard REP-103 base_link (+X forward, +Y left) since 5 Oct 2026. Before that it used +X = right, +Y = forward, a consequence of an odometry fix (journal §17.10) that every x/y-labelled Nav2 parameter had to be swapped to match. See `docs/Axis_Convention.md`.
 
 **`src/mecanum_navigation/`** — Nav2/SLAM integration.
 - Nodes: `cmd_vel_axis_adapter.py`, `goal_pose_adapter.py`.
@@ -161,7 +161,7 @@ Full detail: `cad/README.md` and `cad/extracted_geometry.md`. Summary:
 This is the single longest thread in `docs/Research_Journal.md` (roughly §17.1 through §17.57) and the part most likely to need real narrative detail beyond this summary — go to the journal directly for anything below this doesn't answer.
 
 - **Self-occlusion / blind sector**: the robot's own chassis blocks ~90° of the LiDAR sweep (measured, refined from an initial ~120° estimate), masked in `scan_relay.py`.
-- **Axis convention bug**: `base_link` ended up with a non-standard +X=right/+Y=forward convention after an odometry fix, requiring every Nav2 x/y parameter to be swapped to match (§17.10).
+- **Axis convention bug**: `base_link` ended up with a non-standard +X=right/+Y=forward convention after an odometry fix, requiring every Nav2 x/y parameter to be swapped to match (§17.10). Reverted to standard REP-103 on 5 Oct 2026 (`docs/Axis_Refactor_Plan.md`).
 - **Footprint bug**: Nav2's costmap footprint was set smaller than the real robot (a collision bug, not a conservative margin) until tape-measured and corrected to 1.12×0.48 m (§17.7-adjacent).
 - **First Nav2 hardware launch** (§17.17): reached with two real bringup bugs found and fixed along the way.
 - **The "jumps" investigation** (§17.25 onward): repeated large pose jumps during autonomous drives, eventually isolated to the SLAM **front end** (scan matching), not loop closure — proven by two independent instruments (`graph_residuals.py` showing zero pose-graph node movement across closures, `run_analyzer.py` showing correction events consistent with `map→odom` moving while `odom→base_link` stayed smooth) and confirmed a third way by successfully predicting that shrinking the scan-matcher's search window would shrink the jump magnitude, then producing that result on command (§17.40–§17.43).

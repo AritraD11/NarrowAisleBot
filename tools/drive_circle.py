@@ -15,15 +15,14 @@ WHY THIS EXISTS
     wanders the radius), and counting laps.
 
 AXES -- READ THIS BEFORE EDITING
-    /cmd_vel_manual carries a REP-103 Twist: linear.x is FORWARD, linear.y
-    is LEFT, angular.z is CCW. This is NOT the same convention as the
-    base_link/odom/map FRAMES on this robot, which are +X right, +Y forward
-    (Research_Journal.md 17.10, 17.38). mecanum_teleop_asymmetric does the
-    conversion downstream. tools/verify_axis_chain.py is the guard, and
-    line 96 of it states the dashboard's own mapping.
+    Standard REP-103 everywhere since 5 Oct 2026. /cmd_vel_manual carries
+    linear.x FORWARD, linear.y LEFT, angular.z CCW, and the base_link/odom/
+    map FRAMES use the same axes: +X nose, +Y left, yaw CCW from +X. (Until
+    5 Oct the frames were +X right, +Y forward, and this script's docstring
+    had to say the Twist and the frames disagreed. They no longer do.)
+    tools/verify_axis_chain.py is the guard.
 
-    So: forward is linear.x HERE, and +Y in the map. Both are true and they
-    are not in conflict.
+    So: forward is linear.x here, and +X in the map, from a start at yaw 0.
 
 SAFETY
     - /cmd_vel_manual has twist_mux priority 100, ABOVE navigation's 10, and
@@ -48,8 +47,8 @@ import sys
 import time
 
 # Robot footprint, from nav2_params.yaml's footprint polygon
-# [[0.24, 0.56], [0.24, -0.56], [-0.24, -0.56], [-0.24, 0.56]] where the
-# long axis runs along +Y (the nose). See phone_dashboard.py's FOOT_HALF_*.
+# [[0.56, 0.24], [0.56, -0.24], [-0.56, -0.24], [-0.56, 0.24]] where the
+# long axis runs along +X (the nose). See phone_dashboard.py's FOOT_HALF_*.
 HALF_WIDTH_M = 0.24     # left..right
 HALF_LENGTH_M = 0.56    # tail..nose
 TILE_M = 0.62           # lab floor tile pitch, tape-measured (17.47)

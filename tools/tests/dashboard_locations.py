@@ -56,7 +56,14 @@ missing = [n for n in WANTED if n not in found]
 if missing:
     sys.exit(f'these methods are not in {SRC}: {", ".join(missing)}')
 
-ns = {'json': json, 'os': os, 'math': math, 'contextlib': contextlib}
+ns = {'json': json, 'os': os, 'math': math, 'contextlib': contextlib, 'shutil': shutil}
+for _node in tree.body:           # the shipped module constants, not copies of them
+    if isinstance(_node, ast.Assign) and getattr(_node.targets[0], 'id', '') in (
+            'LOCATIONS_FRAME', 'LOCATIONS_LEGACY_SUFFIX'):
+        ns[_node.targets[0].id] = ast.literal_eval(_node.value)
+missing_const = [k for k in ('LOCATIONS_FRAME', 'LOCATIONS_LEGACY_SUFFIX') if k not in ns]
+if missing_const:
+    sys.exit(f'missing constants in {SRC}: {missing_const}')
 mod = ast.Module(body=[found[n] for n in WANTED], type_ignores=[])
 exec(compile(ast.fix_missing_locations(mod), str(SRC), 'exec'), ns)
 
@@ -170,6 +177,33 @@ odd = str(tmp / 'odd.json')
 Path(odd).write_text('[1, 2, 3]')
 n6 = StubNode(odd, map_name='m')
 chk(n6.list_locations()['locations'] == [], 'a library of the wrong shape reads as empty')
+
+# ── files taught before the 5 Oct 2026 axis change are in the OLD frame ──
+# A goto from one would drive to a point rotated 90 deg from the taught one,
+# so they must be ignored, and kept (never deleted) on the next save.
+chk(json.loads(Path(lib).read_text()).get('frame') == 'rep103',
+    'a saved library is marked as standard-frame')
+old_lib = str(tmp / 'old_frame.json')
+Path(old_lib).write_text(json.dumps({'map': 'lab', 'locations': [
+    {'name': 'Dock', 'x': 2.0, 'y': 0.0, 'yaw': 0.0}]}))
+n7 = StubNode(old_lib, map_name='lab')
+chk(n7.goto_location('Dock') != '', 'an old-frame location cannot be recalled')
+chk(not n7.goals, 'and no goal is sent for it')
+lst = n7.list_locations()
+chk(lst['locations'] == [] and lst['legacy'] == 1,
+    'it is listed as empty with the ignored count (legacy = 1)')
+chk(any('IGNORED' in m for lvl, m in n7._log.lines if lvl == 'warn'),
+    'and the log says why')
+before = Path(old_lib).read_text()
+n7.save_location('New spot')
+chk(Path(old_lib + '.pre_rep103').exists()
+    and Path(old_lib + '.pre_rep103').read_text() == before,
+    'teaching a new one first keeps the old file as .pre_rep103')
+chk(n7.goto_location('Dock') != '' and n7.goto_location('New spot') == '',
+    'afterwards only the new standard-frame row recalls')
+n7.save_location('Another')
+chk(Path(old_lib + '.pre_rep103').read_text() == before,
+    'the backup is not overwritten by later saves')
 
 # no temporary file is left behind for the next boot to trip over
 leftovers = [p.name for p in tmp.iterdir() if p.name.endswith('.tmp')]

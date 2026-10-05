@@ -1,5 +1,7 @@
 # Outside-opinion brief: NarrowAisleBot, September 2026
 
+> **Superseded 5 Oct 2026:** the axis convention described here (`+X` right, `+Y` forward) was replaced by standard REP-103 (`+X` nose, `+Y` left). See `docs/Axis_Convention.md`. Kept as it was written, because it records what was true on the date.
+
 **Written 15 Sep 2026 for DeepSeek, or any model that has not seen this
 repository.** It is self-contained. Every number in it is quoted from a
 measurement recorded in the repo, and where a number is soft, thin or

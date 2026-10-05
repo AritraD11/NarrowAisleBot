@@ -64,20 +64,14 @@
 ║      inherited. Forward drive really did increase map X. Every    ║
 ║      compensation in this file existed to hide that.              ║
 ║    • It is fixed at the source now: odom, map and base_link all   ║
-║      share +X=right, +Y=forward. Forward drive increases map Y.   ║
-║      So this file prints the raw map frame verbatim, and that IS  ║
-║      ordinary graph paper -- no relabel, nothing to keep in sync. ║
-║    • DISPLAY_ROT = 0. It existed to spin the canvas so forward    ║
-║      looked like up while map +X was forward. Map +Y is forward   ║
-║      now and screen-up is already map +Y, so the correct value    ║
-║      is zero. The rotation-aware label helpers (drawUpright /     ║
-║      labelXGridline / labelYGridline) are kept and still correct  ║
-║      -- at rot 0 they are the identity -- so the garbled-text bug ║
-║      cannot come back if anyone ever sets it non-zero again.      ║
+║      share one frame (then +X right, +Y forward; v2.8 made it     ║
+║      REP-103). This file prints the raw map frame verbatim --     ║
+║      no relabel, nothing to keep in sync.                         ║
+║    • (v2.6 set DISPLAY_ROT = 0 because map +Y was forward. That  ║
+║      was the old convention; v2.8 below supersedes it.)           ║
 ║    • NOSE prints raw yaw. The old +90 deg existed so that "on the ║
 ║      mark" read 0 deg while raw yaw was -90; raw yaw on the mark  ║
-║      is 0 now, so the offset would introduce the error it used to ║
-║      remove.                                                      ║
+║      is 0, so the offset would introduce the error it removed.    ║
 ║    • Do NOT re-add a display-side axis fix here. If the printed   ║
 ║      X/Y ever disagrees with the robot again, the frame is wrong  ║
 ║      upstream and this is the wrong file to change -- read        ║
@@ -85,6 +79,18 @@
 ║    • The Python ROS/control class below is unchanged (verified    ║
 ║      byte-identical against the deployed fork, 27 Aug) -- only    ║
 ║      this HTML/JS presentation layer ever differed.               ║
+║                                                                    ║
+║  NEW in v2.8 (5 Oct 2026) -- STANDARD AXES, SAME PICTURE:        ║
+║    • The whole stack is REP-103 now: +X nose, +Y left, yaw CCW    ║
+║      from +X. The map still draws with the nose UP the screen,    ║
+║      because DISPLAY_ROT = -PI/2 spins the canvas: world +X is    ║
+║      screen-up and world +Y is screen-left. Nothing printed is    ║
+║      relabelled; the numbers are the real map frame.              ║
+║    • vecToYaw / yawToVec are plain atan2 / (cos, sin). The robot  ║
+║      footprint is 1.12 long on X, 0.48 wide on Y; the LiDAR sits  ║
+║      0.27 m ahead on X. Joystick sendDrive() was already standard.║
+║    • Saved goals, maps and bags from before 5 Oct are in the old  ║
+║      frame: x_new = y_old, y_new = -x_old.                        ║
 ║                                                                    ║
 ║  NEW in v2.7 (5 Oct 2026) -- NAV2 button, LIDAR tuner removed:   ║
 ║    • NAV2 starts and stops nav2_slam.launch.py as a managed       ║
@@ -136,6 +142,7 @@ import csv
 import math
 import os
 import contextlib
+import shutil
 import signal
 import subprocess
 import time
@@ -467,10 +474,10 @@ function updateLivePoseCard() {
   const y = document.getElementById('liveY');
   const n = document.getElementById('liveNose');
   const d = document.getElementById('liveDist');
-  // Raw map frame, printed verbatim: since §17.38 map +X is right and
-  // map +Y is forward, so the raw numbers already read as ordinary graph
-  // paper. No relabel here or in updateHud() -- if one ever looks needed,
-  // the frame upstream is wrong. See docs/Axis_Convention.md.
+  // Raw map frame, printed verbatim: standard REP-103 (map +X is the way the
+  // nose pointed at the zero mark, +Y is its left). No relabel here or in
+  // updateHud() -- if one ever looks needed, the frame upstream is wrong.
+  // See docs/Axis_Convention.md.
   if (x) x.textContent = robotPose.x.toFixed(3) + ' m';
   if (y) y.textContent = robotPose.y.toFixed(3) + ' m';
   const noseDeg = ((robotPose.yaw * 180 / Math.PI + 180) % 360 + 360) % 360 - 180;
@@ -640,14 +647,13 @@ function hudToggle() {
 }
 
 // ── MAP STATE ─────────────────────────────────────────────────────
-// base_link on this robot is NOT REP-103: +X is the robot's RIGHT and +Y is
-// its NOSE (§17.10). So in nav2_params.yaml's footprint polygon
-//   [[0.24, 0.56], [0.24, -0.56], [-0.24, -0.56], [-0.24, 0.56]]
-// the 0.24 is half the WIDTH and the 0.56 is half the LENGTH — the long axis
-// runs along +Y. Getting this backwards draws the robot sideways in its own
-// aisle, and this is the sixth place the convention has bitten the project.
-const FOOT_HALF_X = 0.24;   // half width  (left..right)
-const FOOT_HALF_Y = 0.56;   // half length (tail..nose)
+// base_link is standard REP-103 (since 5 Oct 2026): +X is the NOSE, +Y is
+// LEFT. nav2_params.yaml's footprint polygon
+//   [[0.56, 0.24], [0.56, -0.24], [-0.56, -0.24], [-0.56, 0.24]]
+// has the 0.56 (half the LENGTH) on X and the 0.24 (half the WIDTH) on Y.
+// Getting this backwards draws the robot sideways in its own aisle.
+const FOOT_HALF_X = 0.56;   // half length (tail..nose)
+const FOOT_HALF_Y = 0.24;   // half width  (right..left)
 
 let mapView    = false;
 let mapGrid    = null;   // {w,h,res,ox,oy}
@@ -1309,56 +1315,43 @@ if (window.ResizeObserver) {
 }
 
 // ── Map-frame display orientation ────────────────────────────────────────
-// This whole section used to carry two compensations. Both are gone, and
-// the history is kept here because the temptation to re-add them is exactly
-// what this comment exists to stop.
+// The map frame is standard REP-103: +X is where the nose pointed when odometry
+// was zeroed, +Y is to its left, yaw is counter-clockwise from +X.
 //
-// The map frame used to have REP-103's axes (map +X = whichever way the
-// robot faced when odometry was zeroed) while base_link had +X=right,
-// +Y=forward. odometry_publisher.py rotated its published orientation but
-// not its published translation, and that mismatch WAS the -90 deg. So:
-//   - the canvas was spun -90 deg to make forward look like up, and
-//   - every printed number was relabeled dispX = -raw_y, dispY = raw_x.
-// Both were display-side patches over a frame that was genuinely rotated.
+// The canvas is spun -90 deg (DISPLAY_ROT = -PI/2) so that the nose points UP
+// the screen, which is how this map has always been read. World +X draws
+// screen-up and world +Y draws screen-left. That is the ONLY presentation
+// choice in this file: every printed number is the raw map frame, and every
+// pointer is un-rotated before it becomes a world coordinate (unrotatePtr /
+// unrotateDelta), so a tap and a drag land where they look.
 //
-// §17.38 fixed the frame instead. odom, map and base_link now all use
-// +X=right, +Y=forward. Screen-up is already map +Y, which is already
-// forward, so the correct canvas rotation is ZERO, and the raw numbers are
-// already ordinary graph paper, so the correct relabel is NONE.
-//
-// If the printed X/Y ever looks wrong again, do not fix it here. A display
-// patch would hide a real frame fault for a second time. Read
+// History, because the temptation to patch the display again is exactly what
+// this comment is for. Until 5 Oct 2026 the whole stack used a private frame
+// (+X right, +Y forward, §17.10/§17.38) and this value was 0. Before §17.38 it
+// was -90 over a frame that was genuinely rotated, and every printed number
+// was relabeled to hide it. If the printed X/Y ever looks wrong, do not fix it
+// here: a display patch would hide a real frame fault for a third time. Read
 // docs/Axis_Convention.md, then check odometry_publisher.py.
 //
 // drawUpright() and the labelXGridline()/labelYGridline() helpers below are
-// KEPT even though DISPLAY_ROT is 0 (where they reduce to the identity).
-// They are what makes rotated-canvas text land upright and in the right
-// place, and a previous fork's attempt to fix garbled labels by zeroing the
-// rotation instead is how the display drifted from the frame in the first
-// place. Keeping them means setting DISPLAY_ROT non-zero stays safe.
-const DISPLAY_ROT = 0;
+// what makes text land upright and in the right place on a rotated canvas.
+// Zeroing the rotation to "fix" garbled labels is how the display once drifted
+// from the frame; leave them alone.
+const DISPLAY_ROT = -Math.PI / 2;
 
 // ── THE ROBOT'S YAW CONVENTION, IN ONE PLACE ────────────────────────────
-// base_link yaw is measured from +Y (the NOSE), not from +X. Every standard
-// 2-D helper -- Math.atan2, cos/sin -- measures from +X, so any conversion
-// between "a direction on the map" and "a robot yaw" carries a 90 deg term.
-//
-// THIS PAIR EXISTS BECAUSE THE TWO DIRECTIONS ONCE DISAGREED (§17.49).
-// drawRobot() drew the nose from +Y while drawGoalMarker() drew the goal
-// arrow from +X -- same canvas, same frame, 90 deg apart -- and the drag
-// handler wrote a raw atan2 angle into the very variable that
-// robotPose.yaw initialises. Every goal dragged more than 5 cm went out
-// with its heading 90 deg wrong, and the marker drawn on screen agreed
-// with the wrong value, so it looked right.
+// Yaw is the standard REP-103 angle: measured from +X (the NOSE), counter-
+// clockwise positive. So the direction <-> yaw conversion is plain atan2 and
+// cos/sin, with no 90 deg term anywhere. (Until 5 Oct 2026 yaw was measured
+// from +Y and this pair carried a 90 deg offset; that was how §17.49 happened,
+// the nose drawn one way and the goal arrow another.)
 //
 // Route EVERY vector<->yaw conversion through these two. They are exact
-// inverses, so the renderers and the command path cannot drift apart
-// again. Do NOT add a compensating offset anywhere else -- least of all in
-// goal_pose_adapter, whose yaw_offset_deg is 0.0 and must stay 0.0
-// (§17.38). A display-side offset is what hid the last frame fault for
-// two weeks.
-function vecToYaw(dx, dy) { return Math.atan2(dy, dx) - Math.PI / 2; }
-function yawToVec(yaw)    { return { x: -Math.sin(yaw), y: Math.cos(yaw) }; }
+// inverses, so the renderers and the command path cannot drift apart. Do NOT
+// add a compensating offset anywhere else -- least of all in goal_pose_adapter,
+// whose yaw_offset_deg is 0.0 and must stay 0.0.
+function vecToYaw(dx, dy) { return Math.atan2(dy, dx); }
+function yawToVec(yaw)    { return { x: Math.cos(yaw), y: Math.sin(yaw) }; }
 
 // Draws text upright in real screen space at the real-screen point that
 // local point (localX, localY) maps to under DISPLAY_ROT -- use this for
@@ -1638,9 +1631,10 @@ function labelYGridline(text, worldY) {
 function drawAxes() {
   const o = w2s(0, 0);
   if (o.x < -40 || o.x > cssW + 40 || o.y < -40 || o.y > cssH + 40) return;
-  // X+ is map +X (right), Y+ is map +Y (forward). Since §17.38 those are
+  // X+ is map +X (forward), Y+ is map +Y (left). With DISPLAY_ROT = -PI/2
+  // the X arrow points up the screen and the Y arrow points left. They are
   // the real map axes, so the arrows point at the world coordinates they
-  // are named after -- no swap, which is what they used to need.
+  // are named after.
   const ax = w2s(0.65, 0);
   const ay = w2s(0, 0.65);
   mctx.lineWidth = 2;
@@ -1732,20 +1726,20 @@ function drawPastTrails() {
 //
 // THE TRANSFORM IS DELIBERATELY THE SAME ONE drawRobot() USES. Body coords
 // go (bx*c - by*s, bx*s + by*c) about robotPose, with base_link's
-// non-REP-103 convention: +X is the robot's RIGHT, +Y is its NOSE
-// (§17.10). Bearing 0 in the corrected /scan_reliable frame points along
-// +X and +90 deg along +Y (§17.15's convention), so a beam lands at
-// (r*cos, r*sin) in base_link before the laser's own offset is added.
+// standard REP-103 convention: +X is the NOSE, +Y is LEFT. Bearing 0 in
+// the corrected /scan_reliable frame points along the nose (+X) and +90 deg
+// along the left (+Y), so a beam lands at (r*cos, r*sin) in base_link before
+// the laser's own offset is added.
 // Anything that changes drawRobot()'s rotation must change this too, and
 // the shared convention is why they cannot silently disagree.
 let liveScan = null;
 let scanStamp = 0;
 
 // laser_frame origin in base_link, tape-measured (§17.12): 0.27 m forward
-// along the NOSE axis, on the centreline to within ~0.5 cm. Matches
-// aislebot.urdf's laser_joint xyz="0 0.27 0.275". If the mount ever moves,
+// along the NOSE axis (+X), on the centreline to within ~0.5 cm. Matches
+// aislebot.urdf's laser_joint xyz="0.27 0 0.275". If the mount ever moves,
 // this and the URDF change together or the dots sit off the walls.
-const LASER_BX = 0.00, LASER_BY = 0.27;
+const LASER_BX = 0.27, LASER_BY = 0.00;
 
 function drawScan() {
   if (!liveScan || !robotPose) return;
@@ -1854,9 +1848,8 @@ function drawRobot(p) {
   mctx.fill(); mctx.stroke();
 
   const ctr = w2s(p.x, p.y);
-  // Same helper the goal marker uses. Numerically identical to the old
-  // inline (-sin, +cos); shared so the two can never diverge again.
-  const nv = yawToVec(p.yaw), nl = FOOT_HALF_Y + 0.22;
+  // Same helper the goal marker uses, so the two can never diverge.
+  const nv = yawToVec(p.yaw), nl = FOOT_HALF_X + 0.22;
   const nose = w2s(p.x + nv.x * nl, p.y + nv.y * nl);
   mctx.beginPath();
   mctx.moveTo(ctr.x, ctr.y); mctx.lineTo(nose.x, nose.y);
@@ -1870,11 +1863,10 @@ function updateHud() {
   if (!mapGrid && !robotPose) { hud.innerHTML = '<strong>WAITING FOR /map</strong>'; return; }
   const status = document.getElementById('mapStatus');
   if (robotPose) {
-    // Raw map frame, verbatim. Since §17.38 map +X is right and map +Y is
-    // forward, so these numbers already read as ordinary graph paper and
-    // agree with the physical +X/+Y marked on the robot. NOSE is raw yaw:
-    // on the ZERO mark that is 0 deg, which is what the old +90 deg offset
-    // used to produce artificially.
+    // Raw map frame, verbatim: standard REP-103, map +X is the way the nose
+    // pointed at the ZERO mark and +Y is its left. NOSE is raw yaw, so on the
+    // ZERO mark it reads 0 deg and turning left (counter-clockwise) increases
+    // it.
     const noseDeg = ((robotPose.yaw * 180 / Math.PI + 180) % 360 + 360) % 360 - 180;
     // DRIFT block (§17.49). The map pose alone cannot tell you the robot is
     // in the wrong place: on 1 Sep it read (-0.011, 0.013) with the robot
@@ -2128,7 +2120,7 @@ mapCanvas.addEventListener('pointermove', (e) => {
     const dx = w.x - goalDrag.wx, dy = w.y - goalDrag.wy;
     // vecToYaw, NOT a bare atan2: this writes into the same field that
     // pointerdown initialises from robotPose.yaw, so both must be in the
-    // robot's convention (0 = nose along +Y). See vecToYaw above (§17.49).
+    // robot's convention (0 = nose along +X, CCW positive). See vecToYaw above.
     if (Math.hypot(dx, dy) > 0.05) goalDrag.yaw = vecToYaw(dx, dy);
     drawMap();
     return;
@@ -2157,11 +2149,9 @@ function endPtr(e) {
   e.stopPropagation();
   if (goalDrag && ptrs.size === 1) {
     // yaw is where the NOSE should end up, already in base_link's
-    // convention (0 = +Y) via vecToYaw. goal_pose_adapter adds NOTHING --
-    // its yaw_offset_deg is 0.0 and the live node logs "yaw +0.0 deg". The
-    // comment that used to sit here claimed the adapter applied a -90,
-    // which stopped being true at §17.38 and is why nobody looked at this
-    // line while every dragged heading came out sideways.
+    // convention (0 = +X, CCW positive) via vecToYaw. goal_pose_adapter
+    // adds NOTHING -- its yaw_offset_deg is 0.0 and the live node logs
+    // "yaw +0.0 deg".
     const sent = !estopped &&
                  send({ type: 'goal', x: goalDrag.wx, y: goalDrag.wy,
                         yaw: goalDrag.yaw });
@@ -2243,6 +2233,17 @@ NAV2_ACTIVE_SERVICE = '/lifecycle_manager_navigation/is_active'
 NAV_GOAL_STATUS = {0: 'UNKNOWN', 1: 'ACCEPTED', 2: 'EXECUTING', 3: 'CANCELING',
                    4: 'SUCCEEDED', 5: 'CANCELED', 6: 'ABORTED'}
 NAV_GOAL_TERMINAL = (4, 5, 6)
+# The frame a locations file was taught in. Files written before the 5 Oct
+# 2026 axis change have no marker and are in the old frame (+X right, +Y
+# forward); a goto from one would send the robot to a point rotated 90 deg
+# from the one that was taught, so they are ignored (and backed up, never
+# deleted) rather than converted by guesswork.
+LOCATIONS_FRAME = 'rep103'
+LOCATIONS_LEGACY_SUFFIX = '.pre_rep103'
+# How long after an operator stop a goal's terminal status still counts as
+# "because of that stop". Nav2 aborts a dropped goal within a couple of
+# seconds, but the launch group takes up to NAV2_STOP_GRACE_S to go down.
+NAV_STOP_WINDOW_S = 30.0
 
 
 def pick_latest_goal(entries):
@@ -2385,9 +2386,20 @@ class PhoneDashboard(Node):
         # at all. tools/tests/dashboard_scan_geometry.py fails when they
         # disagree, so the drift cannot go unnoticed.
         self.declare_parameter('scan_trust_range', 5.0)
+        # ⚠ MUST TRACK scan_relay's mask_min_deg / mask_max_deg. This is how
+        # the HUD tells the STRUCTURAL rear-wedge mask apart from beams the
+        # relay NaN'd for another reason (past range_cap_m, or no return).
+        # Both arrive as NaN, so without the arc they were all counted as
+        # "masked (rear wedge)", which on 5 Oct 2026 read as a mask hundreds
+        # of beams wide. tools/tests/dashboard_scan_geometry.py fails when
+        # the two files disagree.
+        self.declare_parameter('scan_mask_min_deg', 135.0)
+        self.declare_parameter('scan_mask_max_deg', -135.0)
         self.declare_parameter('scan_publish_hz', 5.0)
         self.scan_max_points  = int(self.get_parameter('scan_max_points').value)
         self.scan_trust_range = float(self.get_parameter('scan_trust_range').value)
+        self.scan_mask_min_deg = float(self.get_parameter('scan_mask_min_deg').value)
+        self.scan_mask_max_deg = float(self.get_parameter('scan_mask_max_deg').value)
         # The broadcast loop ticks at 10 Hz, so the scan goes out every Nth
         # tick. Computed here rather than hardcoded in the loop: a declared
         # parameter that nothing reads is worse than no parameter, because it
@@ -2429,6 +2441,11 @@ class PhoneDashboard(Node):
         # RELIABLE + TRANSIENT_LOCAL, depth 1 (rcl_action's default), and a
         # volatile subscriber would miss a goal accepted before it joined.
         self._nav_goal: Optional[dict] = None
+        # Wall-clock time of the last operator stop (Nav2 STOP, MAP stop or
+        # E-STOP). Nav2 reports a goal it was told to drop as ABORTED, and
+        # on 5 Oct 2026 both "failed" goals on the screen were really the
+        # operator pressing stop. nav_status() uses this to say STOPPED.
+        self._nav_stop_at: Optional[float] = None
         self._plan_end: Optional[tuple] = None
         status_qos = QoSProfile(
             depth=1,
@@ -2522,18 +2539,30 @@ class PhoneDashboard(Node):
         #                wedge (§17.15). Structurally blind. ~107 of 430
         #                beams. Can NEVER be valid, so counting them in a
         #                denominator silently deflates every percentage.
-        #   NO RETURN    a real beam that got nothing back — out of range,
-        #                too dark, too oblique. This is sensor performance.
+        #   NO RETURN    a real beam that got nothing back: out of range
+        #                (including past the relay's range_cap_m, which is
+        #                also NaN), too dark, too oblique. This is sensor
+        #                performance, or the cap, and stays in the
+        #                denominator.
         #   VALID        a usable distance.
+        # NaN alone cannot separate the first two, so MASKED is decided by
+        # the beam's bearing falling inside the relay's rear arc. Until
+        # 5 Oct 2026 every NaN counted as masked, and with the 2.5 m cap that
+        # made "N masked (rear wedge)" read as hundreds of beams and shrank
+        # the VALID denominator to whatever was left under the cap.
+        lo, hi = self.scan_mask_min_deg, self.scan_mask_max_deg
+        span = (hi - lo) % 360.0
         valid = [False] * n
         masked = [False] * n
         n_valid = 0
         n_masked = 0
         for i in range(n):
             r = rng[i]
-            if r != r:                      # NaN: masked, not a failure
-                masked[i] = True
-                n_masked += 1
+            if r != r:                      # NaN: masked or no return
+                deg = math.degrees(msg.angle_min + i * msg.angle_increment)
+                if ((deg - lo) % 360.0) <= span:
+                    masked[i] = True
+                    n_masked += 1
             elif rmin <= r <= rmax:
                 valid[i] = True
                 n_valid += 1
@@ -2776,6 +2805,14 @@ class PhoneDashboard(Node):
         if not isinstance(data, dict) or not isinstance(data.get('locations'), list):
             self.get_logger().warn('locations file has an unexpected shape; treating as empty')
             return {'map': self.map_name, 'locations': []}
+        if data.get('frame') != LOCATIONS_FRAME and data['locations']:
+            n_old = len(data['locations'])
+            self.get_logger().warn(
+                f'{n_old} location(s) in {self.locations_path} were taught before the '
+                f'5 Oct 2026 axis change (old frame) and are IGNORED. Re-teach them; '
+                f'the old file is kept as {self.locations_path}{LOCATIONS_LEGACY_SUFFIX} '
+                f'the first time you save.')
+            return {'map': data.get('map', ''), 'locations': [], 'legacy': n_old}
         return data
 
     def _locations_write(self, data: dict) -> str:
@@ -2784,7 +2821,15 @@ class PhoneDashboard(Node):
         power cycle, so this file has to survive one being pulled at any
         instant."""
         tmp = self.locations_path + '.tmp'
+        data['frame'] = LOCATIONS_FRAME
         try:
+            # An old-frame file (no marker) is about to be replaced: keep it.
+            backup = self.locations_path + LOCATIONS_LEGACY_SUFFIX
+            if os.path.exists(self.locations_path) and not os.path.exists(backup):
+                with open(self.locations_path, 'r', encoding='utf-8') as old_fh:
+                    old = json.load(old_fh)
+                if isinstance(old, dict) and old.get('frame') != LOCATIONS_FRAME:
+                    shutil.copy2(self.locations_path, backup)
             with open(tmp, 'w', encoding='utf-8') as fh:
                 json.dump(data, fh, indent=2)
                 fh.flush()
@@ -2860,6 +2905,8 @@ class PhoneDashboard(Node):
             'map': saved_map,
             'current_map': self.map_name,
             'stale': bool(self.map_name and saved_map and saved_map != self.map_name),
+            # Rows taught before the 5 Oct 2026 axis change, ignored (old frame).
+            'legacy': int(data.get('legacy', 0)),
             'locations': [r for r in data['locations'] if isinstance(r, dict)],
         }
 
@@ -3055,10 +3102,26 @@ class PhoneDashboard(Node):
         }
         g = self._nav_goal
         if g is not None:
+            terminal = g['status'] in NAV_GOAL_TERMINAL
             end = g['end'] if g['end'] is not None else time.time()
+            status = NAV_GOAL_STATUS.get(g['status'], str(g['status']))
+            active = not terminal
+            # An operator stop is not a failure. Nav2 reports the dropped
+            # goal as ABORTED (or CANCELED), and a goal still "executing"
+            # when its Nav2 has been stopped never gets a terminal status at
+            # all. Only a stop that came AFTER the goal started, and (for a
+            # terminal status) close to when it ended, counts: an earlier
+            # real abort must keep its ABORTED.
+            op = self._nav_stop_at
+            if op is not None and op >= g['stamp'] - 1.0:
+                if terminal and g['status'] in (5, 6) and g['end'] is not None \
+                        and op - 1.0 <= g['end'] <= op + NAV_STOP_WINDOW_S:
+                    status = 'STOPPED'
+                elif not terminal and self.nav2_state in ('stopping', 'off', 'failed'):
+                    status, active, end = 'STOPPED', False, op
             goal = {
-                'status':  NAV_GOAL_STATUS.get(g['status'], str(g['status'])),
-                'active':  g['status'] not in NAV_GOAL_TERMINAL,
+                'status':  status,
+                'active':  active,
                 'elapsed': round(max(0.0, end - g['stamp']), 1),
                 'dist':    None,
             }
@@ -3404,6 +3467,7 @@ class PhoneDashboard(Node):
         than a service client so this stays non-blocking on the E-STOP
         path — an E-STOP must never wait on a service round-trip.
         """
+        self._nav_stop_at = time.time()
         try:
             subprocess.Popen(
                 ['ros2', 'service', 'call',

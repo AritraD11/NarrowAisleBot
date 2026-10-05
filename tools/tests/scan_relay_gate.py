@@ -52,7 +52,7 @@ if cls is None:
     sys.exit('class ScanRelay not found in scan_relay.py')
 
 WANTED = ('_apply_gate', '_publish_stats', '_gates_anything', 'gate_summary',
-          '_recompute_modes', '_on_set_parameters')
+          '_recompute_modes', '_on_set_parameters', '_build_map', '_build_mask')
 methods = {n.name: n for n in cls.body
            if isinstance(n, ast.FunctionDef) and n.name in WANTED}
 missing = [w for w in WANTED if w not in methods]
@@ -100,15 +100,15 @@ exec(compile(ast.fix_missing_locations(mod), str(SRC), 'exec'), ns)
 Relay = ns['Relay']
 
 
-def relay(cap=0.0, floor=0.0, k=1, n=1, mask=True, mirror=True, yaw=270.0):
+def relay(cap=0.0, floor=0.0, k=1, n=1, mask=True, mirror=True, yaw=180.0):
     r = Relay()
     r.range_cap = cap
     r.range_floor = floor
     r.persist_k = k
     r.persist_n = n
     r.mask_enabled = mask
-    r.mask_min_deg = -135.0
-    r.mask_max_deg = -45.0
+    r.mask_min_deg = 135.0
+    r.mask_max_deg = -135.0
     r.mirror = mirror
     r.yaw_offset = math.radians(yaw)
     r.stats_enabled = True
@@ -254,7 +254,7 @@ print('\n10. a geometry change forces the cached map to rebuild')
 # accepted, logged as applied, and never actually do anything.
 r = relay()
 r._map_key = (430, -3.14, 0.0146)
-res = r._on_set_parameters([Param('mask_min_deg', -120.0)])
+res = r._on_set_parameters([Param('mask_min_deg', 120.0)])
 chk(res.successful is True, 'a mask bound change is accepted')
 chk(r._map_key is None, 'the cached index map is invalidated so it rebuilds')
 
@@ -305,9 +305,54 @@ for node in ast.walk(cls):
             pass
 for name, want in (('range_cap_m', 2.5), ('range_floor_m', 0.0),
                    ('persist_n', 1), ('persist_k', 1), ('mask_enabled', True),
-                   ('mirror', True), ('yaw_offset_deg', 270.0)):
+                   ('mirror', True), ('yaw_offset_deg', 180.0),
+                   ('mask_min_deg', 135.0), ('mask_max_deg', -135.0)):
     chk(declared.get(name) == want,
         f'default {name} == {want!r} (declared {declared.get(name)!r})')
+
+print('\n14. the standard frame: the three measured blocks and the rear mask')
+# The 11 Aug calibration blocks (LiDAR_Orientation_Calibration.md). What the
+# sensor REPORTS for a block truly in front / on the right / on the left. In
+# the standard frame, 0 deg is the nose and +90 is left. Run through the
+# SHIPPED _build_map with the SHIPPED defaults, not a copy of the formula.
+dflt = {k: v for k, v in declared.items()}
+
+
+def shipped_relay():
+    r = relay(mask=True, mirror=dflt['mirror'], yaw=dflt['yaw_offset_deg'])
+    r.mask_min_deg = dflt['mask_min_deg']
+    r.mask_max_deg = dflt['mask_max_deg']
+    return r
+
+
+class Scan:
+    def __init__(self, n=360):
+        self.ranges = [1.0] * n
+        self.angle_min = -math.pi
+        self.angle_increment = 2.0 * math.pi / n
+
+
+def wrap_deg(a):
+    return (a + 180.0) % 360.0 - 180.0
+
+
+sc = Scan()
+r = shipped_relay()
+idx = r._build_map(sc)
+for name, out_deg, reported_deg in (('front', 0, 180), ('right', -90, 270), ('left', 90, 90)):
+    j = round((math.radians(out_deg) - sc.angle_min) / sc.angle_increment) % len(sc.ranges)
+    got = math.degrees(sc.angle_min + idx[j] * sc.angle_increment)
+    chk(abs(wrap_deg(got - reported_deg)) < 0.51,
+        f'output bearing {out_deg:+d} deg ({name}) reads the beam the sensor reports at {reported_deg} deg')
+
+flags = r._build_mask(sc)
+def out_deg_flag(d):
+    return flags[round((math.radians(d) - sc.angle_min) / sc.angle_increment) % len(flags)]
+chk(out_deg_flag(180) and out_deg_flag(-179) and out_deg_flag(135) and out_deg_flag(-135),
+    'the rear mask covers dead astern and both edges of its arc (wraps through 180)')
+chk(not (out_deg_flag(0) or out_deg_flag(90) or out_deg_flag(-90)),
+    'the mask leaves the nose, the left and the right alone')
+chk(sum(flags) == 91, f'the mask is 91 one-degree beams wide ({sum(flags)})')
 
 print()
 if _fails:

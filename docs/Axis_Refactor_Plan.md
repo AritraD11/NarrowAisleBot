@@ -1,9 +1,19 @@
 # Axis refactor: everything back to the standard (REP-103)
 
 2 Oct 2026. The operator asked for it, after the 1 Oct hardware session and
-the first successful 0.6 m goal. Nothing in this file has been executed yet.
-It is the audit (every place the current convention shows up) and the order
-of work, so each stage can be checked before the next one starts.
+the first successful 0.6 m goal. It is the audit (every place the current
+convention shows up) and the order of work, so each stage can be checked
+before the next one starts.
+
+**Status, 5 Oct 2026: stage 1 is done (offline edits, nothing deployed).**
+The code, the tests and the docs are converted and the gate
+(`tools/verify_axis_chain.py` plus every test in `tools/tests/`) is green.
+Stages 2 to 6 need the robot. See `docs/Session_Handoff_2026-10-05.md` for
+the exact next step. Two things turned up that this plan did not list:
+`~/locations.json` holds old-frame coordinates (the dashboard now ignores a
+file without a frame marker and keeps the old one as `.pre_rep103`), and the
+dashboard's "masked" count was counting every NaN beam, not just the rear
+wedge.
 
 Read `Axis_Convention.md` for why the current convention exists (a LiDAR
 labelling choice from 11 Aug, journal §17.9 and §17.10). That file stays

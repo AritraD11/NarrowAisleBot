@@ -28,6 +28,14 @@ only position cannot see any of that. Phase 2 below covers heading,
 renderer agreement, the stale-cssW click offset, and the two failure paths
 where the UI used to claim success it had not achieved.
 
+UPDATED 5 Oct 2026 for the standard frame. The map is REP-103 now (+X nose,
++Y left, yaw CCW from +X) and the canvas is spun -90 deg so the nose still
+points UP the screen: a tap p pixels above the centre is world +X, a tap p
+pixels left of it is world +Y. The expectations below are written out in
+those terms, NOT derived from DISPLAY_ROT, so a wrong DISPLAY_ROT fails here
+instead of agreeing with itself. Yaw expectations did not change (up = 0,
+left = +90, right = -90), which is the point of keeping the picture.
+
 Run after ANY change to the pointer handlers, w2s/s2w/unrotatePtr/
 sizeCanvas, vecToYaw/yawToVec, send(), or the E-STOP path."""
 import re, json, sys
@@ -85,9 +93,11 @@ with sync_playwright() as pw:
             pg.mouse.move(cx, cy); pg.mouse.down(); pg.mouse.up()
             pg.wait_for_timeout(60)
             sent = pg.evaluate("() => window.__sent.filter(m => m && m.type === 'goal').slice(-1)[0]")
-            # analytic expectation from the same camera
-            exp_x =  offx / 100.0
-            exp_y = -offy / 100.0
+            # Analytic expectation, written in the standard frame with the
+            # nose drawn up: screen-up (negative offy) is world +X and
+            # screen-left (negative offx) is world +Y.
+            exp_x = -offy / 100.0
+            exp_y = -offx / 100.0
             got_x, got_y = (sent['x'], sent['y']) if sent else (None, None)
             ok = sent is not None and abs(got_x-exp_x) < 1e-6 and abs(got_y-exp_y) < 1e-6
             if not ok: fail += 1
@@ -138,7 +148,8 @@ with sync_playwright() as pw:
     ccy = box['t'] + box['h']/2
 
     # --- 2a. drag direction -> commanded yaw, in the ROBOT's convention ---
-    # Screen-up is map +Y is the nose, so dragging up must command yaw 0.
+    # Screen-up is map +X is the nose, so dragging up must command yaw 0;
+    # right on screen is -Y (yaw -90), left is +Y (yaw +90).
     for dx_px, dy_px, want, name in [(0, -120, 0.0,   'drag UP    -> nose forward, yaw 0'),
                                      (120, 0,  -90.0, 'drag RIGHT -> yaw -90'),
                                      (-120, 0,  90.0, 'drag LEFT  -> yaw +90')]:
@@ -156,8 +167,8 @@ with sync_playwright() as pw:
         for (const d of [-170,-90,-45,0,45,90,170]) {
             const y = d*Math.PI/180, v = yawToVec(y);
             // drawRobot's nose vector, recomputed from the same helper
-            if (Math.abs(v.x - (-Math.sin(y))) > 1e-12) return false;
-            if (Math.abs(v.y - ( Math.cos(y))) > 1e-12) return false;
+            if (Math.abs(v.x - Math.cos(y)) > 1e-12) return false;
+            if (Math.abs(v.y - Math.sin(y)) > 1e-12) return false;
             // exact inverse
             const back = vecToYaw(v.x, v.y);
             if (Math.abs(((back-y+3*Math.PI)%(2*Math.PI))-Math.PI) > 1e-12) return false;
@@ -173,8 +184,9 @@ with sync_playwright() as pw:
     pg.mouse.move(ccx + offx, ccy); pg.mouse.down(); pg.mouse.up()
     pg.wait_for_timeout(60)
     g = pg.evaluate("() => window.__sent.filter(m=>m&&m.type==='goal').slice(-1)[0]")
-    chk(g is not None and abs(g['x'] - offx/100.0) < 1e-6,
-        f'stale cssW self-repairs: sent x={g["x"]:.4f}, want {offx/100.0:.4f}' if g
+    # 200 px right of centre is world -Y (screen-right = -Y), x stays 0.
+    chk(g is not None and abs(g['y'] + offx/100.0) < 1e-6 and abs(g['x']) < 1e-6,
+        f'stale cssW self-repairs: sent y={g["y"]:.4f}, want {-offx/100.0:.4f}' if g
         else 'stale cssW self-repairs (NOTHING SENT)')
 
     # --- 2d. a command that cannot be delivered must not report success ---

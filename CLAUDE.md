@@ -3,7 +3,7 @@
 APS (Annual Progress Seminar, doubling as the comprehensive exam) was
 **23 Sep 2026** and is done. The project is now in Year 2, and the current
 focus is autonomous navigation in unknown space. Start with
-`docs/Session_Handoff_2026-10-01.md`.
+`docs/Session_Handoff_2026-10-05.md` (then `docs/Session_Handoff_2026-10-01.md`).
 
 This file is read automatically at the start of a session. Its job is to
 carry forward the mistakes that have already cost real time, so they don't
@@ -73,6 +73,18 @@ matter to check — until the one time they aren't.
 
 ---
 
+## Axes: standard REP-103 since 5 Oct 2026
+
+`base_link`, `odom` and `map` are +X nose, +Y left, yaw CCW from +X, the same
+as the wheel kinematics and every velocity command. The dashboard map is spun
+by `DISPLAY_ROT = -π/2` so the nose still points up the screen; that is the
+only display choice. Run `python3 tools/verify_axis_chain.py` before and after
+anything axis-related, and never fix an axis complaint at the display. Maps,
+CSVs, bags and saved locations from before that date are in the old frame
+(`x_new = y_old`, `y_new = -x_old`). Reference: `docs/Axis_Convention.md`.
+
+---
+
 ## Standing operational discipline (carried across all sessions)
 
 - One step at a time, copy-pasteable, wait for the actual pasted output.
@@ -92,8 +104,9 @@ matter to check — until the one time they aren't.
 
 ## Where the current plan lives
 
-`docs/Session_Handoff_2026-10-01.md` is the current state and the next
-steps for Year 2 autonomous navigation; `docs/Year2_Autonomy_Research.md`
+`docs/Session_Handoff_2026-10-05.md` is the current state and the next
+steps (the axis refactor stages, which need the robot);
+`docs/Session_Handoff_2026-10-01.md` is the one before it; `docs/Year2_Autonomy_Research.md`
 is the build order behind it, and `docs/Firmware_Inventory.md` is the
 node-by-node map of what runs on the robot.
 

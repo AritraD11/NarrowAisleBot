@@ -506,14 +506,15 @@ aisle the operator's real question is "does it fit", and a dot cannot answer
 it. The polygon is already in `nav2_params.yaml:521`:
 
 ```
-[[0.24, 0.56], [0.24, -0.56], [-0.24, -0.56], [-0.24, 0.56]]
+[[0.56, 0.24], [0.56, -0.24], [-0.56, -0.24], [-0.56, 0.24]]
 ```
 
-Read as base_link axes — **`+X` is the robot's RIGHT, `+Y` its NOSE** (§17.10).
-So ±0.24 m is half-width and ±0.56 m is half-length: the long axis runs along
-`+Y`. Getting this backwards draws the robot sideways in its own aisle, and it
-is the sixth place this axis convention has bitten the project
-(`nav2_params.yaml` header lists the previous five).
+Read as base_link axes (standard REP-103 since 5 Oct 2026): `+X` is the robot's
+NOSE, `+Y` its LEFT. So ±0.56 m is half-length and ±0.24 m is half-width: the
+long axis runs along `+X`. (The polygon was `[[0.24, 0.56], ...]` with the axes
+the other way round until that date.) Getting this backwards draws the robot
+sideways in its own aisle. The map canvas is spun by `DISPLAY_ROT = -π/2`, so
+the nose still points up the screen.
 
 Layers, back to front: map → LiDAR returns (`/scan_reliable`) → planned path
 (`/plan`) → location pins → robot footprint → heading indicator.

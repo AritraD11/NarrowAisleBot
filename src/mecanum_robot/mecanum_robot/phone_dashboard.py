@@ -86,6 +86,18 @@
 ║      byte-identical against the deployed fork, 27 Aug) -- only    ║
 ║      this HTML/JS presentation layer ever differed.               ║
 ║                                                                    ║
+║  NEW in v2.7 (5 Oct 2026) -- NAV2 button, LIDAR tuner removed:   ║
+║    • NAV2 starts and stops nav2_slam.launch.py as a managed       ║
+║      process group, like MAP does for mapping. It refuses until   ║
+║      MAP has run 30 s (map first, then Nav2). Output goes to      ║
+║      ~/aislebot_logs/nav2_*.log. Stop = cancel goals + SIGINT.    ║
+║      MAP stop and E-STOP stop Nav2 first.                         ║
+║    • The pose box shows Nav2 state and the latest goal (status,   ║
+║      straight-line distance to the plan end, time), and folds     ║
+║      down to two lines with its +/- button.                       ║
+║    • The LIDAR tuner is gone. The LiDAR settings are fixed in     ║
+║      scan_relay.py's defaults (2.5 m cap, no persistence gate).   ║
+║                                                                    ║
 ║  ROS2 Topics:                                                    ║
 ║    Publishes  /cmd_vel_manual   geometry_msgs/Twist  (drive) —   ║
 ║      goes through twist_mux (config/twist_mux.yaml) before       ║
@@ -104,9 +116,9 @@ from rclpy.node import Node
 from rclpy.qos import (QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile,
                        QoSReliabilityPolicy)
 from geometry_msgs.msg import PoseStamped, Twist
-from nav_msgs.msg import OccupancyGrid
-from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
-from rcl_interfaces.srv import SetParameters
+from action_msgs.msg import GoalStatusArray
+from nav_msgs.msg import OccupancyGrid, Path
+from std_srvs.srv import Trigger
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Empty, String, Float64MultiArray
 import tf2_ros
@@ -192,16 +204,8 @@ body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-directi
 .layer-panel{position:absolute;top:50px;right:58px;width:204px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px;display:none;z-index:12}.layer-panel.show{display:block}.layer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.layer-title{font-size:10px;font-weight:900}.layer-close{border:0;background:none;color:#667085;font-size:14px}.layer-row{display:flex;align-items:center;justify-content:space-between;padding:7px 2px;border-top:1px solid #eef2f6;font-size:9px;color:#475467}.layer-row input{accent-color:#1677ff}.layer-note{margin-top:8px;font-size:8px;line-height:1.35;color:#98a2b3}.layer-clear{width:100%;margin-top:9px;padding:7px 6px;border:1px solid var(--line);border-radius:7px;background:#fff;color:#475467;font-size:8px;font-weight:900;letter-spacing:.4px;cursor:pointer}.layer-clear:active{background:#f2f4f7}.research-chip{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:10;background:#17202a;color:#fff;border-radius:999px;padding:5px 10px;font-size:8px;font-weight:900;letter-spacing:.5px;display:none;pointer-events:none}.research-chip.show{display:block}
 .cal-status{position:absolute;top:0;left:0;right:0;z-index:20;display:none;background:rgba(255,255,255,.97);border-bottom:1px solid #f2c27a;padding:7px 9px;font-size:8px;line-height:1.35;color:#9a6700;box-shadow:0 3px 12px rgba(16,24,40,.06);font-family:inherit;max-height:82px;overflow:hidden}.cal-status.show{display:block}.cal-status .cal-hd{font-weight:900;letter-spacing:.7px;color:#a15c00}
 .flash{position:fixed;inset:0;background:rgba(217,45,32,.12);pointer-events:none;opacity:0;transition:opacity .25s;z-index:999}.flash.show{opacity:1}
-.lidar-panel{position:absolute;top:50px;right:58px;width:236px;max-height:calc(100% - 70px);overflow-y:auto;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px;display:none;z-index:13}.lidar-panel.show{display:block}
-.ld-relay{font-size:8px;font-weight:800;letter-spacing:.3px;padding:5px 7px;border-radius:6px;background:#f2f4f7;color:#667085;margin-bottom:8px}.ld-relay.up{background:#e7f5ec;color:#12794a}.ld-relay.down{background:#fdecec;color:#b42318}
-.ld-presets{display:flex;gap:5px;margin-bottom:9px}.ld-preset{flex:1;padding:6px 2px;border:1px solid var(--line);border-radius:6px;background:#fff;color:#475467;font-size:8px;font-weight:900;letter-spacing:.3px;cursor:pointer}.ld-preset:active{background:#eef2f6}
-.ld-row{display:flex;align-items:center;gap:6px;margin-top:7px}.ld-row label{flex:1;font-size:9px;color:#475467;font-weight:700}.ld-row input[type=number]{width:52px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;font-size:10px;font-weight:800;color:#17202a;text-align:right;background:#fff;-moz-appearance:textfield}.ld-row input[type=number]::-webkit-outer-spin-button,.ld-row input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}.ld-unit{font-size:8px;color:#98a2b3;font-weight:800;width:14px}
-.ld-hint{font-size:7.5px;line-height:1.35;color:#98a2b3;margin:3px 0 0 1px}
-.ld-actions{display:flex;gap:5px;margin-top:10px}.ld-btn{flex:1;padding:7px 3px;border:1px solid var(--line);border-radius:7px;background:#fff;color:#475467;font-size:8px;font-weight:900;letter-spacing:.4px;cursor:pointer}.ld-btn.primary{background:#1677ff;border-color:#1677ff;color:#fff}.ld-btn:active{opacity:.75}.ld-btn:disabled{opacity:.4;cursor:default}
-.ld-divider{height:1px;background:#eef2f6;margin:11px 0 8px}
-.ld-stat{display:flex;align-items:baseline;justify-content:space-between;padding:3px 1px;font-size:8.5px;color:#667085}.ld-stat strong{font-size:10px;font-weight:900;color:#17202a;font-variant-numeric:tabular-nums}.ld-stat.good strong{color:#12794a}.ld-stat.cut strong{color:#b54708}
-.ld-note{margin-top:8px;font-size:7.5px;line-height:1.4;color:#98a2b3}.ld-note.warn{color:#b54708;font-weight:700}
-@media (max-width:560px){.hdr-sub{display:none}.status-pills{max-width:150px}.speed-label{display:none}.spd-btn{min-width:48px;padding:6px 5px}.hdr{padding:0 9px}.drive-info{left:7px;top:7px;gap:5px}.motion-card{right:7px;top:7px;min-width:116px}.info-card{min-width:78px;padding:6px 7px}.info-card .v{font-size:12px}.motion-card{padding:7px 8px}.layer-panel{right:55px;width:190px}.lidar-panel{right:55px;width:212px}}
+.hud-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}.hud-head .hud-title{margin-bottom:0}.hud-toggle{pointer-events:auto;cursor:pointer;width:22px;height:20px;padding:0;border:1px solid var(--line);border-radius:5px;background:#fff;color:#475467;font-size:13px;font-weight:900;line-height:16px;touch-action:manipulation}.hud-mini{font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px}.mt-btn.nav-up{background:#e7f5ec;color:#12794a;border-color:#a6dcbc}.mt-btn.nav-bad{background:#fdecec;color:#b42318;border-color:#f5b5ae}
+@media (max-width:560px){.hdr-sub{display:none}.status-pills{max-width:150px}.speed-label{display:none}.spd-btn{min-width:48px;padding:6px 5px}.hdr{padding:0 9px}.drive-info{left:7px;top:7px;gap:5px}.motion-card{right:7px;top:7px;min-width:116px}.info-card{min-width:78px;padding:6px 7px}.info-card .v{font-size:12px}.motion-card{padding:7px 8px}.layer-panel{right:55px;width:190px}}
 </style>
 
 </head>
@@ -249,7 +253,7 @@ body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-directi
         <button class="mt-btn" id="btnGoal">GOAL</button>
         <button class="mt-btn" id="btnZero">ZERO</button>
         <button class="mt-btn" id="btnLayers">LAYERS</button>
-        <button class="mt-btn" id="btnLidar">LIDAR</button>
+        <button class="mt-btn" id="btnNav2">NAV2</button>
         <button class="mt-btn" id="btnResearch">RESEARCH</button>
       </div>
       <div class="layer-panel" id="layerPanel">
@@ -268,69 +272,6 @@ body.map-mode .right-panel{width:70px}.yaw-wrap{flex:2;display:flex;flex-directi
         <div class="layer-note">A new run starts at MAP or re-ZERO; the previous trail moves to &ldquo;past runs&rdquo;. Clearing is display-only &mdash; it discards nothing ROS has recorded, and no option here changes ROS behavior.</div>
       </div>
 
-      <!-- LIDAR TUNER (§17.51).
-           Everything above the divider is a live control on scan_relay.
-           Everything below it is measurement, and the measurement is what
-           makes the controls worth having: LIVE is the sensor's own
-           return rate before any policy, PUBLISHED is what SLAM and the
-           costmaps actually receive, and the two CUT rows attribute the
-           difference to the specific knob that caused it. Tuning without
-           that attribution is guessing which of three things helped. -->
-      <div class="lidar-panel" id="lidarPanel">
-        <div class="layer-head">
-          <div class="layer-title">LIDAR TUNER</div>
-          <button class="layer-close" id="btnLidarClose">×</button>
-        </div>
-
-        <div class="ld-relay" id="ldRelay">scan_relay: waiting…</div>
-
-        <div class="ld-presets">
-          <button class="ld-preset" data-preset="raw">RAW</button>
-          <button class="ld-preset" data-preset="aisle">AISLE</button>
-          <button class="ld-preset" data-preset="strict">STRICT</button>
-        </div>
-
-        <div class="ld-row">
-          <label for="ldCap">Range cap</label>
-          <input id="ldCap" type="number" step="0.5" min="0" max="10">
-          <span class="ld-unit">m</span>
-        </div>
-        <div class="ld-hint">0 = off. 5.0 matches slam_toolbox's max_laser_range.</div>
-
-        <div class="ld-row">
-          <label for="ldFloor">Range floor</label>
-          <input id="ldFloor" type="number" step="0.05" min="0" max="2">
-          <span class="ld-unit">m</span>
-        </div>
-        <div class="ld-hint">0 = off. The driver already refuses below 0.10 m.</div>
-
-        <div class="ld-row">
-          <label for="ldK">Persistence</label>
-          <input id="ldK" type="number" step="1" min="1" max="6">
-          <span class="ld-unit">of</span>
-          <input id="ldN" type="number" step="1" min="1" max="6">
-        </div>
-        <div class="ld-hint" id="ldPersistHint">1 of 1 = gate off.</div>
-
-        <label class="layer-row">Rear-mast mask (&sect;17.15)
-          <input id="ldMask" type="checkbox" checked></label>
-
-        <div class="ld-actions">
-          <button class="ld-btn primary" id="ldApply">APPLY</button>
-          <button class="ld-btn" id="ldReset">RESET</button>
-          <button class="ld-btn" id="ldSave">SAVE</button>
-        </div>
-
-        <div class="ld-divider"></div>
-
-        <div class="ld-stat"><span>Beams / sweep</span><strong id="ldBeams">—</strong></div>
-        <div class="ld-stat"><span>Live (sensor)</span><strong id="ldLive">—</strong></div>
-        <div class="ld-stat good"><span>Published to SLAM</span><strong id="ldPub">—</strong></div>
-        <div class="ld-stat cut"><span>Cut by range</span><strong id="ldCutR">—</strong></div>
-        <div class="ld-stat cut"><span>Cut by persistence</span><strong id="ldCutP">—</strong></div>
-        <div class="ld-stat"><span>Churn since last sweep</span><strong id="ldChurn">—</strong></div>
-        <div class="ld-note" id="ldNote"></div>
-      </div>
       <div class="map-hint" id="mapHint">DRAG TO PAN · PINCH TO ZOOM</div>
     </div>
   </div>
@@ -594,137 +535,108 @@ function syncLayerPanel() {
 function openLayers() {
   const p = document.getElementById('layerPanel');
   if (p) p.classList.toggle('show');
-  // Two 200px panels overlapping on a phone is unreadable, and the one
-  // underneath still takes taps.
-  const l = document.getElementById('lidarPanel');
-  if (l && p && p.classList.contains('show')) l.classList.remove('show');
 }
 
-// ── LIDAR TUNER ───────────────────────────────────────────────────
-// The panel owns NO state. Every number it shows comes from the last
-// 'lidar' payload, which is the relay's own report of what it is running.
-// The input boxes are the one exception, and only while the operator is
-// typing in them -- see ldEditing below. Without that exception the 2 Hz
-// refresh overwrites a half-typed "5." with "5" and the field fights back.
-let ldLast    = null;    // last {requested, live, presets, path}
-let ldEditing = null;    // id of the field being typed into, or null
+// ── NAV2 (nav2_slam.launch.py, managed by the server) ─────────────
+// The button and the pose box only ever show what the server last said
+// (the 'nav' payload, 2 Hz). Tapping sends a request; the state changes
+// when the server reports it, never optimistically here, so a refused
+// start (MAP not running, map too young) cannot leave the button lying.
+let navLast = null;   // {state, note, log, for_s, goal}
+const NAV_BTN = {
+  off:      ['NAV2',   ''],
+  starting: ['NAV2 …', 'armed'],
+  up:       ['NAV2 ●', 'nav-up'],
+  stopping: ['STOP …', 'armed'],
+  failed:   ['NAV2 ✕', 'nav-bad'],
+  external: ['NAV2 ⓘ', 'nav-up'],
+};
+const NAV_WORDS = {
+  starting: 'STARTING', up: 'UP', stopping: 'STOPPING',
+  failed: 'FAILED', external: 'UP (terminal)',
+};
 
-function openLidar() {
-  const p = document.getElementById('lidarPanel');
-  if (!p) return;
-  p.classList.toggle('show');
-  const l = document.getElementById('layerPanel');
-  if (l && p.classList.contains('show')) l.classList.remove('show');
-  if (p.classList.contains('show')) ldSyncInputs(true);
-}
-
-function ldNum(id)  { const e = document.getElementById(id); return e ? parseFloat(e.value) : 0; }
-function ldInt(id)  { const e = document.getElementById(id); return e ? parseInt(e.value, 10) : 1; }
-
-function ldSyncInputs(force) {
-  // Only ever write a field the operator is not currently in.
-  if (!ldLast) return;
-  const src = ldLast.live || ldLast.requested;
-  if (!src) return;
-  const set = (id, v) => {
-    if (!force && ldEditing === id) return;
-    const e = document.getElementById(id);
-    if (e && document.activeElement !== e) e.value = v;
-  };
-  set('ldCap',   Number(src.range_cap_m   ?? 0));
-  set('ldFloor', Number(src.range_floor_m ?? 0));
-  set('ldK',     Number(src.persist_k     ?? 1));
-  set('ldN',     Number(src.persist_n     ?? 1));
-  const m = document.getElementById('ldMask');
-  if (m && document.activeElement !== m) m.checked = !!(src.mask_enabled ?? true);
-  // The latency line has to follow the boxes, or tapping AISLE leaves a
-  // cost estimate on screen for the setting that used to be there.
-  ldPersistHint();
-}
-
-function ldRenderStats(m) {
-  ldLast = m;
-  const relay = document.getElementById('ldRelay');
-  const live  = m.live;
-
-  if (relay) {
-    relay.textContent = live
-      ? 'scan_relay: live — ' + ldGateText(live)
-      : 'scan_relay: no stats (is the sensor chain running?)';
-    relay.className = 'ld-relay ' + (live ? 'up' : 'down');
+function navRender(m) {
+  navLast = m;
+  const b = document.getElementById('btnNav2');
+  if (b) {
+    const st = NAV_BTN[m.state] || NAV_BTN.off;
+    b.textContent = st[0];
+    b.classList.remove('armed', 'nav-up', 'nav-bad');
+    if (st[1]) b.classList.add(st[1]);
   }
-
-  const txt = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
-  if (!live) {
-    ['ldBeams','ldLive','ldPub','ldCutR','ldCutP'].forEach(id => txt(id, '—'));
-  } else {
-    const pct = (a, b) => b > 0 ? ' (' + Math.round(100 * a / b) + '%)' : '';
-    txt('ldBeams', live.beams);
-    txt('ldLive',  live.live + pct(live.live, live.beams));
-    txt('ldPub',   live.published + pct(live.published, live.live));
-    txt('ldCutR',  live.cut_range);
-    txt('ldCutP',  live.cut_persist);
-  }
-
-  // Churn comes from the scan payload, not the stats topic: it is measured
-  // on what was PUBLISHED, which is exactly the question the gate is meant
-  // to move. Watching it fall as persistence tightens is the whole point.
-  const ch = (liveScan && liveScan.churn !== null && liveScan.churn !== undefined)
-    ? (100 * liveScan.churn).toFixed(1) + '%' : '—';
-  txt('ldChurn', ch);
-
-  ldNote(live);
-  ldSyncInputs(false);
+  updateHud();
 }
 
-function ldGateText(s) {
-  const bits = [];
-  if (s.range_floor_m > 0) bits.push('floor ' + s.range_floor_m.toFixed(2) + ' m');
-  if (s.range_cap_m   > 0) bits.push('cap ' + s.range_cap_m.toFixed(2) + ' m');
-  if (s.persist_n > 1 && s.persist_k > 1) bits.push(s.persist_k + '/' + s.persist_n);
-  if (!s.mask_enabled) bits.push('MASK OFF');
-  return bits.length ? bits.join(', ') : 'no filtering';
+function navTap() {
+  if (estopped) { goalHint('E-STOP ACTIVE · CLEAR FIRST', true); return; }
+  const st = navLast ? navLast.state : 'off';
+  if (st === 'off' || st === 'failed') {
+    send({ type: 'nav2_start' });
+    goalHint('NAV2 REQUESTED · WATCH THE POSE BOX', false);
+  } else if (st === 'starting' || st === 'up') {
+    send({ type: 'nav2_stop' });
+    goalHint('NAV2 STOPPING · ANY GOAL IS CANCELLED', false);
+  } else if (st === 'external') {
+    goalHint('NAV2 WAS STARTED IN A TERMINAL · STOP IT THERE', true);
+  }
 }
 
-function ldNote(live) {
-  const e = document.getElementById('ldNote');
-  if (!e) return;
-  // Three states worth warning about, in descending order of how badly
-  // they would mislead someone reading a map built under them.
-  if (live && !live.mask_enabled) {
-    e.className = 'ld-note warn';
-    e.textContent = 'Mask OFF — the rear mast reads as a phantom obstacle '
-      + '0.13 m behind the robot. Diagnostic only; never map like this.';
-    return;
+// Nav rows for the pose box. Empty while Nav2 is off and no goal has run,
+// so the box is no bigger than it was before this existed.
+function navStateText() {
+  if (!navLast || navLast.state === 'off') return '';
+  let st = NAV_WORDS[navLast.state] || String(navLast.state).toUpperCase();
+  if (navLast.state === 'starting' && navLast.for_s != null) st += ' ' + Number(navLast.for_s).toFixed(0) + ' s';
+  return st;
+}
+function navGoalBits(g) {
+  const dist = (g.dist == null) ? '-' : Number(g.dist).toFixed(2) + ' m';
+  const secs = Number(g.elapsed ?? 0).toFixed(0) + ' s';
+  return { status: g.status, dist: dist, secs: secs,
+           cls: g.status === 'SUCCEEDED' ? 'drift-ok' : (g.status === 'ABORTED' ? 'drift-bad' : '') };
+}
+function navHudBlock() {
+  if (!navLast) return '';
+  const st = navStateText();
+  const g = navLast.goal;
+  if (!st && !g) return '';
+  let rows = '';
+  if (st) {
+    const sCls = navLast.state === 'failed' ? 'drift-bad'
+               : (navLast.state === 'up' || navLast.state === 'external') ? 'drift-ok' : '';
+    rows += `<span>NAV2</span><strong class="${sCls}">${st}</strong>`;
   }
-  if (live && live.live > 0 && live.published / live.live < 0.5) {
-    e.className = 'ld-note warn';
-    e.textContent = "Over half of the sensor's returns are being dropped. "
-      + 'Beams that are cut do not CLEAR cells either, so stale obstacles '
-      + 'will stand in the costmap. Loosen the gate.';
-    return;
+  if (g) {
+    const b = navGoalBits(g);
+    rows += `<span>GOAL</span><strong class="${b.cls}">${b.status}</strong>`
+          + `<span>TO GO</span><strong>${b.dist}</strong>`
+          + `<span>TIME</span><strong>${b.secs}</strong>`;
   }
-  e.className = 'ld-note';
-  e.textContent = 'LIVE is the sensor before any policy. PUBLISHED is what '
-    + 'SLAM and the costmaps receive. SAVE writes the configuration the '
-    + 'relay confirms it is running, never the one typed above.';
+  let foot = '';
+  if (g) foot += '<div class="hud-muted">TO GO = straight line to the end of /plan</div>';
+  if (navLast.state === 'failed' && navLast.log) foot += `<div class="hud-muted">log: ${navLast.log}</div>`;
+  return `<div class="hud-sep"></div><div class="hud-grid">${rows}</div>${foot}`;
+}
+function navHudMini() {
+  if (!navLast) return '';
+  const st = navStateText();
+  const g = navLast.goal;
+  if (!st && !g) return '';
+  let line = st ? 'NAV2 ' + st : 'NAV2 OFF';
+  if (g) { const b = navGoalBits(g); line += ` · ${b.status} ${b.dist} · ${b.secs}`; }
+  return `<div class="hud-mini">${line}</div>`;
 }
 
-function ldApply() {
-  const cfg = {
-    range_cap_m:   ldNum('ldCap'),
-    range_floor_m: ldNum('ldFloor'),
-    persist_n:     ldInt('ldN'),
-    persist_k:     ldInt('ldK'),
-    mask_enabled:  !!document.getElementById('ldMask').checked,
-  };
-  for (const [k, v] of Object.entries(cfg)) {
-    if (typeof v === 'number' && !isFinite(v)) {
-      goalHint('LiDAR: ' + k + ' is not a number', true);
-      return;
-    }
-  }
-  send({ type: 'lidar_set', cfg: cfg });
+// Pose box fold. Remembered per browser; storage can be missing or
+// blocked (private window), so every access is guarded and the box simply
+// starts unfolded if it is.
+let hudMin = false;
+try { hudMin = localStorage.getItem('hudMin') === '1'; } catch (e) { hudMin = false; }
+function hudToggle() {
+  hudMin = !hudMin;
+  try { localStorage.setItem('hudMin', hudMin ? '1' : '0'); } catch (e) {}
+  updateHud();
 }
 
 // ── MAP STATE ─────────────────────────────────────────────────────
@@ -786,8 +698,8 @@ function connect() {
       ingestMap(m);
       if (mapView) drawMap();
       updateConnectionUI();
-    } else if (m.type === 'lidar') {
-      ldRenderStats(m);
+    } else if (m.type === 'nav') {
+      navRender(m);
     }
   };
   ws.onclose = () => {
@@ -2022,13 +1934,21 @@ function updateHud() {
       <div class="hud-muted">${liveScan.masked ?? 0} masked (rear wedge) · grey = past ${Number(liveScan.trust ?? 0).toFixed(1)} m</div>
       <div class="hud-muted">CHURN ≠ scan_quality flicker — different metric</div>`;
     }
-    hud.innerHTML = `
-      <div class="hud-title">ROBOT POSE · MAP FRAME</div>
+    const head = `<div class="hud-head"><span class="hud-title">ROBOT POSE · MAP FRAME</span>`
+      + `<button class="hud-toggle" aria-label="${hudMin ? 'Expand' : 'Fold'} pose box">${hudMin ? '+' : '−'}</button></div>`;
+    if (hudMin) {
+      // Folded: the two lines worth glancing at mid-drive, nothing else.
+      hud.innerHTML = head
+        + `<div class="hud-mini">${robotPose.x.toFixed(3)}, ${robotPose.y.toFixed(3)} · ${noseDeg.toFixed(1)}°</div>`
+        + navHudMini();
+    } else {
+      hud.innerHTML = head + `
       <div class="hud-grid">
         <span>X</span><strong>${robotPose.x.toFixed(3)} m</strong>
         <span>Y</span><strong>${robotPose.y.toFixed(3)} m</strong>
         <span>NOSE</span><strong>${noseDeg.toFixed(1)}°</strong>
-      </div>${drift}${scanLine}`;
+      </div>${navHudBlock()}${drift}${scanLine}`;
+    }
     if (status) status.textContent = mapGrid ? `${mapGrid.w} × ${mapGrid.h} · ${mapGrid.res.toFixed(2)} m/cell` : 'MAP GRID WAITING';
   } else {
     hud.innerHTML = '<div class="hud-title">ROBOT POSE</div><div class="hud-muted">NO POSE (map → base_link)</div>';
@@ -2100,56 +2020,14 @@ document.getElementById('btnLayersClose').addEventListener('click', () => {
 });
 
 
-// ── LiDAR tuner bindings ──────────────────────────────────────────
-document.getElementById('btnLidar').addEventListener('click', openLidar);
-document.getElementById('btnLidarClose').addEventListener('click', () => {
-  document.getElementById('lidarPanel').classList.remove('show');
+// ── NAV2 + pose-box fold bindings ──────────────────────────────────
+document.getElementById('btnNav2').addEventListener('click', navTap);
+// The box is rebuilt by innerHTML on every pose update, so the fold button
+// is a new element each time; listen on the box and match the button.
+// The box itself stays pointer-events:none so it never eats a map pan.
+document.getElementById('mapHud').addEventListener('click', e => {
+  if (e.target && e.target.closest && e.target.closest('.hud-toggle')) hudToggle();
 });
-document.getElementById('ldApply').addEventListener('click', ldApply);
-document.getElementById('ldReset').addEventListener('click', () => {
-  send({ type: 'lidar_reset' });
-});
-document.getElementById('ldSave').addEventListener('click', () => {
-  send({ type: 'lidar_save' });
-});
-document.querySelectorAll('.ld-preset').forEach(b => {
-  b.addEventListener('click', () => {
-    send({ type: 'lidar_preset', name: b.dataset.preset });
-  });
-});
-
-// Track which field has focus so the 2 Hz refresh does not overwrite it
-// mid-keystroke. Without this the box is unusable: type "5", the refresh
-// lands, the cursor jumps, and the "." never gets in.
-['ldCap', 'ldFloor', 'ldK', 'ldN'].forEach(id => {
-  const e = document.getElementById(id);
-  if (!e) return;
-  e.addEventListener('focus', () => { ldEditing = id; });
-  e.addEventListener('blur',  () => { ldEditing = null; });
-  e.addEventListener('input', ldPersistHint);
-  // Enter applies, so a phone keyboard's "go" key does the obvious thing
-  // instead of dismissing itself and leaving the value unsent.
-  e.addEventListener('keydown', ev => { if (ev.key === 'Enter') ldApply(); });
-});
-
-function ldPersistHint() {
-  const e = document.getElementById('ldPersistHint');
-  if (!e) return;
-  const k = ldInt('ldK'), n = ldInt('ldN');
-  if (!(k >= 1) || !(n >= 1)) { e.textContent = 'both must be at least 1.'; return; }
-  if (k > n) {
-    e.textContent = k + ' of ' + n + ' can never pass a beam — the relay will refuse this.';
-    return;
-  }
-  if (k === 1 || n === 1) { e.textContent = '1 of 1 = gate off.'; return; }
-  // 11.35 Hz is the MEASURED head rate on this unit (ydlidar_params.yaml),
-  // not the 6.0 Hz the driver is asked for and cannot deliver. Quoting the
-  // requested rate here would understate the latency by nearly half.
-  const ms = Math.round(1000 * (k - 1) / 11.35);
-  const mm = Math.round(0.08 * (k - 1) / 11.35 * 1000);
-  e.textContent = k + ' of ' + n + ': ~' + ms + ' ms admission latency, '
-    + mm + ' mm of travel at the 0.08 m/s Nav2 cap.';
-}
 
 
 // ── Zoom / centre ──────────────────────────────────────────────────
@@ -2343,64 +2221,44 @@ updateLivePoseCard();
 </html>
 """
 # ═══════════════════════════════════════════════════════════════════
-#  LIDAR TUNER CONFIGURATION
+#  NAV2 (nav2_slam.launch.py, managed from the dashboard)
 # ═══════════════════════════════════════════════════════════════════
 #
-# These five names, these types, these defaults. The relay declares the
-# same five with the same defaults, and both sets are the OFF position:
-# tapping RESET in the panel has to put the sensor back exactly where a
-# freshly-launched relay would have it, or the reset button is a trap.
-#
-# ⚠ The types are load-bearing. rcl_interfaces requires the ParameterValue
-# to carry the right type field, and a double sent where the relay declared
-# an integer is rejected by rclpy with a message about type mismatch that
-# says nothing about which parameter. persist_n and persist_k are INTEGERS;
-# everything else here is a DOUBLE, including range caps that happen to be
-# typed as whole numbers in the browser. tools/tests/dashboard_lidar.py
-# fails if this table and the relay's declares drift apart.
-LIDAR_PARAM_TYPES = {
-    'range_cap_m':   'double',
-    'range_floor_m': 'double',
-    'persist_n':     'integer',
-    'persist_k':     'integer',
-    'mask_enabled':  'bool',
-}
+# The clean-start order from Session_Handoff_2026-10-01.md section 6 is
+# map first, wait 30 s, then Nav2. The start button enforces the wait
+# rather than trusting it to memory.
+NAV2_MAP_SETTLE_S = 30.0
+# SIGINT to the launch group, then SIGKILL if it is still alive after this.
+NAV2_STOP_GRACE_S = 20.0
+# After our own Nav2 exits, the ROS graph can still list its nodes for a few
+# seconds (longer after a SIGKILL, until DDS liveliness lapses). For this
+# long, a lingering bt_navigator is read as ours shutting down, not as a
+# terminal launch.
+NAV2_GRAPH_SETTLE_S = 30.0
+# nav2_lifecycle_manager's std_srvs/Trigger: success once every managed
+# node is ACTIVE. The manager's name is set in nav2_slam.launch.py.
+NAV2_ACTIVE_SERVICE = '/lifecycle_manager_navigation/is_active'
 
-DEFAULT_LIDAR_CFG = {
-    'range_cap_m':   0.0,     # 0 = no cap; the driver's own 10 m stands
-    'range_floor_m': 0.0,     # 0 = no floor; the driver's own 0.1 m stands
-    'persist_n':     1,       # 1 = gate off
-    'persist_k':     1,       # 1 = gate off
-    'mask_enabled':  True,    # the rear-mast wedge, §17.15 — ON by default
-}
+# action_msgs/msg/GoalStatus codes, as the pose box words them.
+NAV_GOAL_STATUS = {0: 'UNKNOWN', 1: 'ACCEPTED', 2: 'EXECUTING', 3: 'CANCELING',
+                   4: 'SUCCEEDED', 5: 'CANCELED', 6: 'ABORTED'}
+NAV_GOAL_TERMINAL = (4, 5, 6)
 
-# Named starting points, so tuning begins from an argued position rather
-# than from whatever was left in the boxes last session. Each one is a
-# claim about this robot that can be checked against a map, and each is
-# written next to the number it costs.
-LIDAR_PRESETS = {
-    # Everything the sensor says, unfiltered. The A-side of every A/B.
-    'raw': {'range_cap_m': 0.0, 'range_floor_m': 0.0,
-            'persist_n': 1, 'persist_k': 1, 'mask_enabled': True},
 
-    # The APS configuration. 5 m matches slam_toolbox's max_laser_range, so
-    # nothing is published that SLAM would only throw away; 2-of-3 costs
-    # ~88 ms of admission latency, 7 mm of travel at the 0.08 m/s Nav2 cap.
-    'aisle': {'range_cap_m': 5.0, 'range_floor_m': 0.0,
-              'persist_n': 3, 'persist_k': 2, 'mask_enabled': True},
+def pick_latest_goal(entries):
+    """entries: iterable of (goal_id_bytes, stamp_sec, stamp_nanosec, status).
 
-    # For a commissioning drive where a clean map matters more than
-    # reaction time. 3-of-3 admits only beams the sensor agrees with
-    # itself about; ~176 ms latency, 14 mm at the cap. Drive it slowly.
-    'strict': {'range_cap_m': 4.0, 'range_floor_m': 0.25,
-               'persist_n': 3, 'persist_k': 3, 'mask_enabled': True},
-
-    # Diagnostic ONLY — unmasks the rear wedge so the mast's own return is
-    # visible and §17.15's arc can be re-measured. NEVER map with this: the
-    # mast reads as a phantom obstacle 0.13 m behind the robot.
-    'unmasked': {'range_cap_m': 0.0, 'range_floor_m': 0.0,
-                 'persist_n': 1, 'persist_k': 1, 'mask_enabled': False},
-}
+    Returns (goal_id_bytes, stamp_s, status) for the goal ACCEPTED most
+    recently, or None. The status array carries every goal the server still
+    remembers, so "the last element" is not "the current goal"; the accept
+    stamp is the only ordering it guarantees.
+    """
+    best = None
+    for gid, sec, nsec, status in entries:
+        t = float(sec) + float(nsec) * 1e-9
+        if best is None or t > best[1]:
+            best = (bytes(gid), t, int(status))
+    return best
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -2477,6 +2335,9 @@ class PhoneDashboard(Node):
         # ── Mapping (mapping_full.launch.py, subprocess-managed) ────
         self.mapping_active = False
         self._mapping_proc: Optional[subprocess.Popen] = None
+        # monotonic time MAP was pressed; NAV2 refuses to start until the
+        # map has had NAV2_MAP_SETTLE_S to come up.
+        self._mapping_started: Optional[float] = None
 
         # ── Calibration (zero_point_scan.py, subprocess-managed) ────
         self.calib_active = False
@@ -2541,30 +2402,43 @@ class PhoneDashboard(Node):
         # Previous scan's validity mask, for the live flicker metric below.
         self._prev_valid: Optional[list] = None
 
-        # ── LiDAR tuner (§17.51) ──────────────────────────────────────
-        # The knobs live on scan_relay, not here. This node is the remote
-        # control: it sets that node's parameters over the standard
-        # parameter service and mirrors back what the relay says it is
-        # actually running.
-        #
-        # ⚠ THE RELAY IS THE SOURCE OF TRUTH, NEVER THIS DICT. The panel
-        # displays `lidar_live`, which is parsed from /scan_relay_stats —
-        # the relay's own account of the configuration it is running this
-        # sweep. `lidar_cfg` below is only what was last REQUESTED. They
-        # diverge whenever a set is refused (persist_k > persist_n, say),
-        # and showing the request as though it were the state is precisely
-        # the "knob that is not a knob" failure §17.32 cost a day to.
-        self.declare_parameter('lidar_preset_path', '~/lidar_tune.json')
-        self.lidar_preset_path = os.path.expanduser(
-            self.get_parameter('lidar_preset_path').value)
-        self.lidar_cfg = dict(DEFAULT_LIDAR_CFG)
-        self.lidar_live: Optional[dict] = None
-        self._lidar_cli = self.create_client(
-            SetParameters, '/scan_relay/set_parameters')
-        self._lidar_pending = []      # futures, reaped by _lidar_reap
-        self.create_subscription(Float64MultiArray, '/scan_relay_stats',
-                                 self._lidar_stats_callback, 10)
-        self.create_timer(0.5, self._lidar_reap)
+        # ── Nav2 (nav2_slam.launch.py, subprocess-managed) ────────────
+        # Same pattern as MAP: one process group, SIGINT to stop. State is
+        # what the browser shows, so it is only ever set from evidence:
+        # 'up' needs the lifecycle manager to say every node is ACTIVE, not
+        # just a live process.
+        #   off | starting | up | stopping | failed | external
+        # 'external' = bt_navigator is on the graph but this node did not
+        # start it (a terminal launch). Shown, never killed from here.
+        self.nav2_state = 'off'
+        self.nav2_note = ''
+        self.nav2_log_path = ''
+        self._nav2_proc: Optional[subprocess.Popen] = None
+        self._nav2_log_file = None
+        self._nav2_started = 0.0
+        self._nav2_kill_after: Optional[float] = None
+        self._nav2_quiet_until = 0.0     # see NAV2_GRAPH_SETTLE_S
+        self._nav2_active_fut = None
+        self._nav2_active_cli = self.create_client(Trigger, NAV2_ACTIVE_SERVICE)
+        self.create_timer(1.0, self._nav2_watchdog)
+
+        # Goal status for the pose box, from the action's own status topic
+        # (action_msgs, so no nav2_msgs dependency) and the end of /plan.
+        # This sees goals from ANY sender: the map tap, a named location,
+        # or `ros2 action send_goal` in a terminal. The status topic is
+        # RELIABLE + TRANSIENT_LOCAL, depth 1 (rcl_action's default), and a
+        # volatile subscriber would miss a goal accepted before it joined.
+        self._nav_goal: Optional[dict] = None
+        self._plan_end: Optional[tuple] = None
+        status_qos = QoSProfile(
+            depth=1,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
+        self.create_subscription(GoalStatusArray,
+                                 '/navigate_to_pose/_action/status',
+                                 self._nav_status_cb, status_qos)
+        self.create_subscription(Path, '/plan', self._plan_cb, 1)
 
         # Written by ROS callbacks, read by the FastAPI broadcast task. Whole
         # objects are replaced rather than mutated, so a reader either sees the
@@ -2989,220 +2863,211 @@ class PhoneDashboard(Node):
             'locations': [r for r in data['locations'] if isinstance(r, dict)],
         }
 
-    # ── LiDAR tuner ───────────────────────────────────────────────
+    # ── Nav2: start / stop / watch ──────────────────────────────────
 
-    def _lidar_stats_callback(self, msg: Float64MultiArray):
-        """Parse /scan_relay_stats into what the panel displays.
+    def _nav2_set(self, state: str, note: str = ''):
+        self.nav2_state = state
+        self.nav2_note = note
+        if note:
+            self.notice = f'NAV2: {note}'
+            self.notice_seq += 1
 
-        Twelve floats, positional, defined in scan_relay.py's
-        _publish_stats. Positional rather than a custom .msg on purpose:
-        adding a message type to this project means a colcon build on the
-        Pi, and scan_relay.py is deliberately a plain script that needs no
-        build (see its header). A custom type would have made the relay
-        un-editable on the robot, which is the opposite of the point.
-
-        Short arrays are dropped rather than padded. A relay running an
-        older build publishes fewer fields, and quietly filling the missing
-        ones with zeros would paint 'cap 0.00 m' on the panel — which reads
-        as 'no cap is set' and is indistinguishable from the truth.
-        """
-        d = list(msg.data)
-        if len(d) < 12:
-            return
-        n, live, published, cut_range, cut_persist = d[0:5]
-        self.lidar_live = {
-            'beams':       int(n),
-            'live':        int(live),
-            'published':   int(published),
-            'cut_range':   int(cut_range),
-            'cut_persist': int(cut_persist),
-            # The relay's OWN account of what it is running, which is the
-            # only honest thing to show next to a set of input boxes.
-            'range_floor_m': round(d[5], 3),
-            'range_cap_m':   round(d[6], 3),
-            'persist_k':     int(d[7]),
-            'persist_n':     int(d[8]),
-            'mask_enabled':  bool(d[9]),
-            'mask_min_deg':  round(d[10], 1),
-            'mask_max_deg':  round(d[11], 1),
-            'stamp':         time.time(),
-        }
-
-    def _lidar_reap(self):
-        """Collect finished SetParameters calls and report the outcome.
-
-        Every refusal the relay can issue is a sentence about what is wrong
-        (persist_k above persist_n, floor above cap). Swallowing it would
-        leave the operator staring at a panel showing values the robot is
-        not running, with no reason given — so the reason is pushed to the
-        notice line verbatim, relay's words not mine.
-        """
-        if not self._lidar_pending:
-            return
-        still = []
-        for fut in self._lidar_pending:
-            if not fut.done():
-                still.append(fut)
-                continue
-            try:
-                res = fut.result()
-            except Exception as exc:
-                self.notice = f'LiDAR set failed: {exc}'
-                self.notice_seq += 1
-                continue
-            bad = [r for r in getattr(res, 'results', []) if not r.successful]
-            if bad:
-                why = bad[0].reason or 'refused with no reason given'
-                self.notice = f'LiDAR: {why}'
-                self.notice_seq += 1
-                self.get_logger().warn(f'scan_relay refused a parameter: {why}')
-        self._lidar_pending = still
-
-    def _lidar_param_msg(self, name: str, value):
-        """One rcl_interfaces Parameter, typed from LIDAR_PARAM_TYPES."""
-        kind = LIDAR_PARAM_TYPES[name]
-        p = Parameter()
-        p.name = name
-        v = ParameterValue()
-        if kind == 'double':
-            v.type = ParameterType.PARAMETER_DOUBLE
-            v.double_value = float(value)
-        elif kind == 'integer':
-            v.type = ParameterType.PARAMETER_INTEGER
-            v.integer_value = int(value)
-        else:
-            v.type = ParameterType.PARAMETER_BOOL
-            v.bool_value = bool(value)
-        p.value = v
-        return p
-
-    def lidar_validate(self, cfg: dict) -> str:
-        """Check a requested configuration BEFORE sending it. '' if fine.
-
-        The relay validates too, and its answer is the one that counts.
-        This exists so an obvious mistake gets an instant, local 'no'
-        instead of a round trip — and so a relay that is not running yet
-        still refuses nonsense rather than accepting it into the panel and
-        appearing to have applied it.
-        """
-        try:
-            cap = float(cfg.get('range_cap_m', 0.0))
-            floor = float(cfg.get('range_floor_m', 0.0))
-            n = int(cfg.get('persist_n', 1))
-            k = int(cfg.get('persist_k', 1))
-        except (TypeError, ValueError):
-            return 'values must be numbers'
-        if cap < 0.0 or floor < 0.0:
-            return 'range cap and floor cannot be negative (0 turns one off)'
-        if n < 1 or k < 1:
-            return 'persistence window and threshold must be at least 1'
-        if k > n:
-            return f'persistence {k}/{n} can never pass a beam'
-        if cap > 0.0 and floor > 0.0 and floor >= cap:
-            return f'floor {floor} m is not below cap {cap} m — empty window'
-        if cap > 0.0 and cap < 0.25:
-            # Smaller than the robot's own half-width. Nothing outside the
-            # chassis would ever be mapped, and the robot would drive into
-            # a wall it is structurally unable to see.
-            return f'a {cap} m cap is inside the robot\'s own footprint'
+    def nav2_preflight(self) -> str:
+        """'' if Nav2 may start now, else a reason for the phone."""
+        if self._nav2_proc is not None:
+            return ('Nav2 is still stopping, wait for it'
+                    if self.nav2_state == 'stopping' else 'Nav2 is already running')
+        if 'bt_navigator' in self.get_node_names():
+            left = self._nav2_quiet_until - time.monotonic()
+            if left > 0:
+                return f'Nav2 is still leaving the ROS graph, try again in {left:.0f} s'
+            return 'Nav2 is already running from a terminal, stop it there first'
+        if not self.mapping_active or self._mapping_started is None:
+            return 'press MAP first, Nav2 plans on the live map'
+        waited = time.monotonic() - self._mapping_started
+        if waited < NAV2_MAP_SETTLE_S:
+            return (f'map started {waited:.0f} s ago, wait '
+                    f'{NAV2_MAP_SETTLE_S - waited:.0f} s more')
         return ''
 
-    def lidar_set(self, cfg: dict) -> str:
-        """Push a configuration to scan_relay. Returns '' or a reason."""
-        reason = self.lidar_validate(cfg)
+    def start_nav2(self) -> str:
+        """Launch nav2_slam.launch.py. Returns '' on success, else a reason."""
+        reason = self.nav2_preflight()
         if reason:
             return reason
-        if not self._lidar_cli.service_is_ready():
-            # Deliberately NOT a wait. This runs on the ROS executor thread
-            # that also feeds the WebSocket broadcast; blocking here freezes
-            # the drive joystick, and a frozen joystick on a driving robot
-            # is a safety problem, not a UX one.
-            return 'scan_relay is not running — start the sensor chain first'
-
-        req = SetParameters.Request()
-        req.parameters = [self._lidar_param_msg(k, v)
-                          for k, v in cfg.items() if k in LIDAR_PARAM_TYPES]
-        if not req.parameters:
-            return 'nothing recognised in that request'
-        self._lidar_pending.append(self._lidar_cli.call_async(req))
-        self.lidar_cfg.update({k: v for k, v in cfg.items()
-                               if k in LIDAR_PARAM_TYPES})
-        self.get_logger().info(
-            'LiDAR tune -> '
-            + ', '.join(f'{k}={v}' for k, v in sorted(cfg.items())
-                        if k in LIDAR_PARAM_TYPES))
-        return ''
-
-    def lidar_preset(self, name: str) -> str:
-        """Apply a named preset."""
-        cfg = LIDAR_PRESETS.get((name or '').strip())
-        if cfg is None:
-            return f'no preset named "{name}"'
-        return self.lidar_set(dict(cfg))
-
-    def lidar_save(self) -> str:
-        """Write the CURRENT LIVE configuration to disk, not the requested
-        one. Returns '' or a reason.
-
-        The distinction is the entire value of this button. Saving what was
-        typed would happily persist a configuration the relay refused, and
-        the next boot would apply it from the file with nobody watching.
-        Only a setting the relay confirms it is running gets written.
-
-        tmp + rename + fsync, same as the location library: the test for
-        this file is a power cycle, and a half-written JSON that parses as
-        nothing is worse than no file at all.
-        """
-        if self.lidar_live is None:
-            return 'no stats from scan_relay yet — nothing confirmed to save'
-        cfg = {k: self.lidar_live[k] for k in LIDAR_PARAM_TYPES
-               if k in self.lidar_live}
-        payload = {
-            'saved':   datetime.now().isoformat(timespec='seconds'),
-            'config':  cfg,
-            # Kept alongside so a file can be read back as evidence and not
-            # just as settings: these are the numbers that configuration
-            # was producing at the moment it was saved.
-            'measured': {
-                'beams':       self.lidar_live.get('beams'),
-                'live':        self.lidar_live.get('live'),
-                'published':   self.lidar_live.get('published'),
-                'cut_range':   self.lidar_live.get('cut_range'),
-                'cut_persist': self.lidar_live.get('cut_persist'),
-            },
-        }
-        path = self.lidar_preset_path
-        tmp = path + '.tmp'
+        stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.nav2_log_path = os.path.join(self.log_dir, f'nav2_{stamp}.log')
         try:
-            os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
-            with open(tmp, 'w') as f:
-                json.dump(payload, f, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp, path)
-        except OSError as exc:
-            with contextlib.suppress(OSError):
-                os.remove(tmp)
-            return f'could not write {path}: {exc}'
-        self.get_logger().info(f'LiDAR tune saved to {path}')
+            os.makedirs(self.log_dir, exist_ok=True)
+            # The terminal used to be the only place this output was visible.
+            # `tail -f` on this file gives the same view.
+            self._nav2_log_file = open(self.nav2_log_path, 'w', buffering=1)
+            self._nav2_proc = subprocess.Popen(
+                ['ros2', 'launch', 'mecanum_navigation', 'nav2_slam.launch.py'],
+                stdout=self._nav2_log_file, stderr=subprocess.STDOUT,
+                preexec_fn=os.setsid,
+            )
+        except Exception as e:
+            self.get_logger().error(f'Failed to launch nav2_slam.launch.py: {e}')
+            self._close_nav2_log()
+            self._nav2_proc = None
+            self._nav2_set('failed', f'could not launch: {e}')
+            return str(e)
+        self._nav2_started = time.monotonic()
+        self._nav2_kill_after = None
+        self._nav2_active_fut = None
+        self._nav2_set('starting')
+        self.get_logger().info(
+            f'Nav2 started (pid {self._nav2_proc.pid}) → {self.nav2_log_path}')
         return ''
 
-    def lidar_status(self) -> dict:
-        """What the panel renders."""
-        live = self.lidar_live
-        # Stale stats are worse than none: a relay that died leaves its last
-        # good numbers on screen looking authoritative, which is §17.25's
-        # frozen-scan failure in a different widget.
-        if live is not None and time.time() - live.get('stamp', 0) > 3.0:
-            live = None
-        return {
-            'requested': dict(self.lidar_cfg),
-            'live':      live,
-            'presets':   sorted(LIDAR_PRESETS.keys()),
-            'path':      self.lidar_preset_path,
-        }
+    def stop_nav2(self):
+        """Cancel goals, then SIGINT the launch group. Never blocks.
 
-    # ── Arm ───────────────────────────────────────────────────────
+        SIGINT to the group is a terminal Ctrl+C, so ros2 launch shuts every
+        node down in order and cmd_vel_axis_adapter publishes its one zero
+        Twist on the way out. _nav2_watchdog reaps the group, and SIGKILLs
+        it if it is still alive after NAV2_STOP_GRACE_S.
+        """
+        proc = self._nav2_proc
+        if proc is None:
+            # A terminal launch cannot be stopped from here, but its goal
+            # must not survive an E-STOP or a lost map: it would resume
+            # driving the moment the latch is cleared. Only when Nav2 is
+            # actually on the graph, because `ros2 service call` waits
+            # forever for a server that does not exist.
+            if self.nav2_state == 'external':
+                self.cancel_nav_goals()
+            return
+        self.cancel_nav_goals()
+        if proc.poll() is None:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGINT)
+            except ProcessLookupError:
+                pass
+        self._nav2_kill_after = time.monotonic() + NAV2_STOP_GRACE_S
+        self._nav2_set('stopping')
+        self.get_logger().info('Nav2 stopping (SIGINT sent to the launch group)')
+
+    def _close_nav2_log(self):
+        f, self._nav2_log_file = self._nav2_log_file, None
+        if f is not None:
+            try:
+                f.close()
+            except Exception:
+                pass
+
+    def _nav2_watchdog(self):
+        """1 Hz. Reap, escalate, and promote 'starting' to 'up'."""
+        proc = self._nav2_proc
+        if proc is None:
+            # Nothing of ours is running. Report a terminal launch so the
+            # button cannot read OFF while something else is driving.
+            if time.monotonic() < self._nav2_quiet_until:
+                return
+            ext = 'bt_navigator' in self.get_node_names()
+            if ext and self.nav2_state in ('off', 'failed'):
+                self._nav2_set('external')
+            elif not ext and self.nav2_state == 'external':
+                self._nav2_set('off')
+            return
+
+        code = proc.poll()
+        if code is not None:
+            self._nav2_proc = None
+            self._nav2_active_fut = None
+            self._close_nav2_log()
+            self._nav2_quiet_until = time.monotonic() + NAV2_GRAPH_SETTLE_S
+            if self.nav2_state == 'stopping':
+                self._nav2_set('off')
+                self.get_logger().info('Nav2 stopped')
+            else:
+                self._nav2_set('failed', f'Nav2 exited (code {code}), log {self.nav2_log_path}')
+                self.get_logger().error(f'Nav2 exited unexpectedly (code {code})')
+            return
+
+        now = time.monotonic()
+        if self.nav2_state == 'stopping':
+            if self._nav2_kill_after is not None and now > self._nav2_kill_after:
+                self.get_logger().warn('nav2_slam.launch.py ignored SIGINT, sending SIGKILL')
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                self._nav2_kill_after = None
+            return
+
+        if self.nav2_state == 'starting':
+            fut = self._nav2_active_fut
+            if fut is not None and fut.done():
+                self._nav2_active_fut = None
+                try:
+                    res = fut.result()
+                except Exception:
+                    res = None
+                if res is not None and res.success:
+                    self._nav2_set('up')
+                    self.get_logger().info(
+                        f'Nav2 ACTIVE after {now - self._nav2_started:.0f} s')
+                    return
+            if self._nav2_active_fut is None and self._nav2_active_cli.service_is_ready():
+                self._nav2_active_fut = self._nav2_active_cli.call_async(Trigger.Request())
+
+    def _nav_status_cb(self, msg: GoalStatusArray):
+        latest = pick_latest_goal(
+            (bytes(bytearray(st.goal_info.goal_id.uuid)),
+             st.goal_info.stamp.sec, st.goal_info.stamp.nanosec, st.status)
+            for st in msg.status_list)
+        if latest is None:
+            return
+        gid, stamp_s, status = latest
+        prev = self._nav_goal
+        if prev is None or prev['id'] != gid:
+            goal = {'id': gid, 'stamp': stamp_s, 'status': status, 'end': None}
+        else:
+            goal = dict(prev, status=status)
+        if status in NAV_GOAL_TERMINAL and goal['end'] is None:
+            goal['end'] = time.time()
+        self._nav_goal = goal          # whole-object swap, see latest_* note
+
+    def _plan_cb(self, msg: Path):
+        if not msg.poses:
+            return
+        p = msg.poses[-1].pose.position
+        st = msg.header.stamp
+        self._plan_end = (msg.header.frame_id, p.x, p.y, st.sec + st.nanosec * 1e-9)
+
+    def nav_status(self) -> dict:
+        """The 'nav' payload: Nav2 state plus the latest goal, if any.
+
+        TO GO is the straight line from the robot to the end of /plan, not
+        the path length; the terminal's `--feedback` has the path figure.
+        It is only shown when that plan is newer than the goal, so a stale
+        plan from the previous goal is never read as this goal's distance.
+        """
+        out = {
+            'state': self.nav2_state,
+            'note':  self.nav2_note,
+            'log':   self.nav2_log_path,
+            'for_s': (round(time.monotonic() - self._nav2_started)
+                      if self._nav2_proc is not None else None),
+            'goal':  None,
+        }
+        g = self._nav_goal
+        if g is not None:
+            end = g['end'] if g['end'] is not None else time.time()
+            goal = {
+                'status':  NAV_GOAL_STATUS.get(g['status'], str(g['status'])),
+                'active':  g['status'] not in NAV_GOAL_TERMINAL,
+                'elapsed': round(max(0.0, end - g['stamp']), 1),
+                'dist':    None,
+            }
+            pe, pose = self._plan_end, self.latest_pose
+            if (pe is not None and pose is not None and pe[0] == 'map'
+                    and pe[3] >= g['stamp'] - 1.0):
+                goal['dist'] = round(math.hypot(pe[1] - pose['x'], pe[2] - pose['y']), 3)
+            out['goal'] = goal
+        return out
 
     def publish_arm(self, cmd: str):
         msg = String()
@@ -3274,6 +3139,7 @@ class PhoneDashboard(Node):
             self.get_logger().error(f'Failed to launch mapping_full.launch.py: {e}')
             return ''
         self.mapping_active = True
+        self._mapping_started = time.monotonic()
         path = self.start_recording()
 
         # Pose log, named off the same run so the two CSVs and the saved map
@@ -3391,6 +3257,7 @@ class PhoneDashboard(Node):
         if not self.mapping_active:
             return
         self.mapping_active = False
+        self._mapping_started = None
         proc, self._mapping_proc = self._mapping_proc, None
         run_path = self._run_path
 
@@ -3718,12 +3585,10 @@ async def _broadcast_loop():
             payloads.append({'type': 'map', **_node.latest_map})
             _node.map_dirty = False
 
-        # LiDAR tuner state at 2 Hz. Slower than the scan on purpose: the
-        # numbers on that panel are being read and compared by a human
-        # turning a knob, and a readout that updates faster than it can be
-        # read is a readout nobody can tune against.
+        # Nav2 state + latest goal at 2 Hz: fast enough for a distance that
+        # changes a few cm a second, slow enough to read.
         if tick % 5 == 0:
-            payloads.append({'type': 'lidar', **_node.lidar_status()})
+            payloads.append({'type': 'nav', **_node.nav_status()})
 
         for p in payloads:
             dead = []
@@ -3806,7 +3671,19 @@ def _dispatch(msg: dict):
         # NavigateToPose goal is worse than an abort.
         if _node.calib_active:
             _node.stop_calibration(graceful=False)
+        # Nav2 goes before the map it plans on (clean-start order, reversed).
+        _node.stop_nav2()
         _node.stop_mapping()
+
+    elif t == 'nav2_start':
+        reason = _node.start_nav2()
+        if reason:
+            _node.notice = f'NAV2: {reason}'
+            _node.notice_seq += 1
+            _node.get_logger().info(f'Dashboard: Nav2 start refused — {reason}')
+
+    elif t == 'nav2_stop':
+        _node.stop_nav2()
 
     elif t == 'rezero':
         reason = _node.rezero()
@@ -3831,34 +3708,6 @@ def _dispatch(msg: dict):
             _node.notice_seq += 1
             _node.get_logger().warn(f'Dashboard: recall refused — {reason}')
 
-    elif t == 'lidar_set':
-        reason = _node.lidar_set(msg.get('cfg', {}))
-        if reason:
-            _node.notice = f'LiDAR: {reason}'
-            _node.notice_seq += 1
-            _node.get_logger().warn(f'Dashboard: LiDAR tune refused — {reason}')
-
-    elif t == 'lidar_preset':
-        reason = _node.lidar_preset(msg.get('name', ''))
-        if reason:
-            _node.notice = f'LiDAR: {reason}'
-            _node.notice_seq += 1
-
-    elif t == 'lidar_reset':
-        # RESET means the relay's own defaults, not this session's starting
-        # point and not the saved file. One meaning, and it is the one that
-        # matches what a freshly-launched sensor chain does.
-        reason = _node.lidar_set(dict(DEFAULT_LIDAR_CFG))
-        if reason:
-            _node.notice = f'LiDAR: {reason}'
-            _node.notice_seq += 1
-
-    elif t == 'lidar_save':
-        reason = _node.lidar_save()
-        _node.notice = (f'LiDAR: {reason}' if reason
-                        else f'LiDAR tune saved to {_node.lidar_preset_path}')
-        _node.notice_seq += 1
-
     elif t == 'calib_start':
         reason = _node.start_calibration()
         _node.get_logger().info(
@@ -3875,6 +3724,9 @@ def _dispatch(msg: dict):
         _node.send_esp32_raw('<S>')
         _node.publish_arm('ESTOP')
         _node.stop_calibration(graceful=False)
+        # E-STOP also stops mapping (by design), and Nav2 must not outlive
+        # the map it plans on.
+        _node.stop_nav2()
         _node.stop_mapping()
 
     elif t == 'estop_clear':
@@ -3909,6 +3761,7 @@ def _shutdown_cleanly(reason):
     try:
         _node.get_logger().info(f'Shutting down ({reason}) — saving map if one is open')
         _node.stop_calibration(graceful=False)
+        _node.stop_nav2()
         _node.stop_mapping()
     except Exception as exc:                      # never block exit on this
         try:

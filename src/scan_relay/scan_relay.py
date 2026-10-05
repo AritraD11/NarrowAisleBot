@@ -100,9 +100,27 @@ FOUR JOBS
    simply never come back. The arc contained no room data to discard.
 
 4. QUALITY GATE (added 14 Sep 2026, section 17.51). Three filters that
-   decide whether a beam is published at all. All three default to OFF, so
-   a freshly-deployed copy of this file behaves EXACTLY like the version
-   before them.
+   decide whether a beam is published at all. Until 5 Oct 2026 all three
+   defaulted to OFF.
+
+   FIXED CONFIGURATION, 5 Oct 2026: range cap 2.5 m, floor off, persistence
+   off (1 of 1), mask on. Chosen for accuracy over range. Stationary scatter
+   on this unit is 12-14 mm below 1.5 m and 22-32 mm at 1.5-2.0 m, but
+   55-200 mm past 2.5 m, and two captures past 2.5 m did not agree with each
+   other (Year2_Autonomy_Research.md section 2). 2.0-2.5 m was never
+   measured. Persistence stays OFF on evidence: on 15 Sep both persistence
+   presets tore the map into two disconnected regions while RAW did not
+   (Session_Handoff_2026-09-15_evening.md section 1). The dashboard's tuner
+   panel was removed in the same change, so these defaults ARE the
+   configuration; `ros2 param set` still works for a deliberate experiment.
+
+   What the cap costs, stated so it is not rediscovered: a beam cut here is
+   NaN, so it neither marks nor clears. Anything 2.5 m or further away is
+   invisible to SLAM and both costmaps until the robot comes within 2.5 m of
+   it, and a cell marked earlier is only cleared by a beam that ends within
+   the cap. The 3 x 3 m rolling local costmap (corner at 2.12 m) stays fully
+   covered. slam_toolbox's own max_laser_range (5.0) is left as it is; with
+   nothing past 2.5 m reaching it, it no longer cuts anything.
 
    WHY THIS EXISTS. §17.45 measured the sensor, not the algorithm, as this
    project's binding constraint: with the robot STATIONARY, 47.4% of beams
@@ -153,7 +171,7 @@ PARAMETERS
    mask_enabled   (bool,   default True)   blank the self-occluded arc
    mask_min_deg   (double, default -135.0) arc start, OUTPUT frame
    mask_max_deg   (double, default  -45.0) arc end, OUTPUT frame
-   range_cap_m    (double, default 0.0)    blank returns beyond; 0 = off
+   range_cap_m    (double, default 2.5)    blank returns beyond; 0 = off
    range_floor_m  (double, default 0.0)    blank returns below;  0 = off
    persist_n      (int,    default 1)      sweeps in the window; 1 = off
    persist_k      (int,    default 1)      valid sweeps required to publish
@@ -175,9 +193,9 @@ PARAMETERS
    The arc runs counter-clockwise from mask_min_deg to mask_max_deg and may
    wrap through +/-180.
 
-   Set `mirror:=false yaw_offset_deg:=0.0 mask_enabled:=false` for a
-   pass-through relay, which reproduces this file's original behaviour
-   exactly.
+   Set `mirror:=false yaw_offset_deg:=0.0 mask_enabled:=false
+   range_cap_m:=0.0` for a pass-through relay, which reproduces this file's
+   original behaviour exactly.
 
    These are parameters rather than hard-coded constants because the values
    describe THIS mounting of THIS sensor on THIS chassis. Re-mount the
@@ -211,7 +229,7 @@ class ScanRelay(Node):
         self.declare_parameter('mask_enabled', True)
         self.declare_parameter('mask_min_deg', -135.0)
         self.declare_parameter('mask_max_deg', -45.0)
-        self.declare_parameter('range_cap_m', 0.0)
+        self.declare_parameter('range_cap_m', 2.5)       # fixed 5 Oct 2026, see job 4
         self.declare_parameter('range_floor_m', 0.0)
         self.declare_parameter('persist_n', 1)
         self.declare_parameter('persist_k', 1)

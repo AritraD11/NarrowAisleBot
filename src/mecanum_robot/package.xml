@@ -11,6 +11,8 @@
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>nav_msgs</depend>
+  <depend>action_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>tf2_ros</depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>joint_state_publisher</exec_depend>

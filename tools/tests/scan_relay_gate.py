@@ -291,6 +291,24 @@ chk(len(sent) == 1 and len(sent[0].data) == 12,
     'the stats message carries all 12 fields the dashboard reads')
 chk(sent[0].data[6] == 5.0, 'the cap the gate is actually running is echoed')
 
+print('\n13. the fixed configuration (5 Oct 2026) is what a fresh relay runs')
+# Since the dashboard tuner was removed, these declare_parameter defaults
+# ARE the LiDAR configuration. A change here changes every map and costmap,
+# so it has to be a deliberate edit to this test too, never a drift.
+declared = {}
+for node in ast.walk(cls):
+    if (isinstance(node, ast.Call) and getattr(node.func, 'attr', '') == 'declare_parameter'
+            and len(node.args) >= 2 and isinstance(node.args[0], ast.Constant)):
+        try:
+            declared[node.args[0].value] = ast.literal_eval(node.args[1])
+        except ValueError:
+            pass
+for name, want in (('range_cap_m', 2.5), ('range_floor_m', 0.0),
+                   ('persist_n', 1), ('persist_k', 1), ('mask_enabled', True),
+                   ('mirror', True), ('yaw_offset_deg', 270.0)):
+    chk(declared.get(name) == want,
+        f'default {name} == {want!r} (declared {declared.get(name)!r})')
+
 print()
 if _fails:
     print(f'{len(_fails)} FAILED:')

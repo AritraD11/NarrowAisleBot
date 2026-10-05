@@ -84,7 +84,7 @@ Frame and axis convention first, because it explains half the nodes. `base_link`
 |---|---|---|---|---|---|
 | joy_node | `joy` package | | `/joy` | device_id 0, deadzone 0.05, autorepeat 25 Hz | USB gamepad (none fitted on this deployment) |
 | joy_to_aislebot | `joy_to_aislebot.py` (190 lines) | `/joy` | `/cmd_vel_manual` (Twist), `/arm/cmd_vel` (Twist), `/arm/command` (String) | max_linear 0.15, max_angular 0.30, deadzone 0.10, Xbox axis map, Y=HOME, B=ESTOP, START=CLEAR | |
-| phone_dashboard | `phone_dashboard.py` (3998 lines: the first ~2400 are the docstring and the HTML/JS page held in one Python string, the rest is Python) | `/motor_telemetry`, `/map` (transient_local), `/scan_reliable`, `/scan_relay_stats`, TF lookups at 10 Hz | `/cmd_vel_manual`, `/arm/command`, `/esp32/command`, `/goal_pose_click`, `/odom/reset`; client of `/scan_relay/set_parameters` | port 8080, log_dir `~/aislebot_logs`, locations `~/locations.json`, map_name, scan_trust_range 5.0, scan_publish_hz 5 | Serves HTTP + WebSocket. Spawns subprocesses (section 11). |
+| phone_dashboard | `phone_dashboard.py` (3998 lines: the first ~2400 are the docstring and the HTML/JS page held in one Python string, the rest is Python) | `/motor_telemetry`, `/map` (transient_local), `/scan_reliable`, `/navigate_to_pose/_action/status` (transient_local), `/plan`, TF lookups at 10 Hz | `/cmd_vel_manual`, `/arm/command`, `/esp32/command`, `/goal_pose_click`, `/odom/reset`; client of `/lifecycle_manager_navigation/is_active` | port 8080, log_dir `~/aislebot_logs`, locations `~/locations.json`, map_name, scan_trust_range 5.0, scan_publish_hz 5 | Serves HTTP + WebSocket. Spawns subprocesses (section 11). |
 | twist_mux | `twist_mux` 4.5.0 | `/cmd_vel_manual` (priority 100, timeout 0.5 s), `/cmd_vel_nav_out` (priority 10, timeout 0.5 s) | `/cmd_vel` | `use_stamped: false` | |
 | mecanum_teleop_asymmetric | `mecanum_teleop_asymmetric.py` (147) | `/cmd_vel`, `/joy` | `/wheel_speeds` (Float64MultiArray [FR, FL, RR, RL] rad/s) | r 0.0762, l1 0.403, l2 0.333, d 0.15769, max_linear 0.15, max_angular 0.30 (launch overrides the file defaults of 0.48 and 1.0), wheel clamp 6.28 | |
 | esp32_bridge | `esp32_bridge.py` v3.1 (351) | `/wheel_speeds`, `/esp32/command` | `/motor_telemetry_raw` (String), `/motor_telemetry` (12 floats), `/wheel_velocities_actual` (4 floats), `/imu/data_raw` only if enable_imu | port `/dev/esp32`, 921600, max_wheel_speed 5.20, watchdog 0.5 s, telemetry_enabled true, `<L1>` resent every 5 s | ESP32 serial. Sends `<E1>` then `<L1>` on connect, `<S>` then `<E0>` on shutdown. |
@@ -99,7 +99,7 @@ Frame and axis convention first, because it explains half the nodes. `base_link`
 | Node | Source | Subscribes | Publishes | Parameters that matter |
 |---|---|---|---|---|
 | ydlidar_ros2_driver_node (lifecycle) | vendor, params from `system/ydlidar_params.yaml` | | `/scan` (BEST_EFFORT) | port `/dev/ydlidar`, baud 128000, single channel, angle -180..180, range 0.1..10 m, frame `laser_frame`, auto_reconnect, `invalid_range_is_inf: false`. The file says `frequency: 6.0`; the scan rate measured on the Pi was 11.35 to 11.45 Hz (live). |
-| scan_relay | `src/scan_relay/scan_relay.py` (643, plain script, not a colcon package, run through `ExecuteProcess`) | `/scan` | `/scan_reliable` (RELIABLE), `/scan_relay_stats` (Float64MultiArray, every 3rd sweep) | mirror true, yaw_offset 270 deg, mask -135..-45 deg to NaN (107 beams), range_cap/floor 0 (off), persist_n/k 1/1 (off). All ten parameters are live-settable and validated by a two-pass callback. |
+| scan_relay | `src/scan_relay/scan_relay.py` (643, plain script, not a colcon package, run through `ExecuteProcess`) | `/scan` | `/scan_reliable` (RELIABLE), `/scan_relay_stats` (Float64MultiArray, every 3rd sweep) | mirror true, yaw_offset 270 deg, mask -135..-45 deg to NaN (107 beams), range_cap 2.5 m (fixed 5 Oct 2026, accuracy over range), floor 0 (off), persist_n/k 1/1 (off). All ten parameters are live-settable and validated by a two-pass callback, but nothing sets them any more: the defaults are the configuration (pinned by `scan_relay_gate.py` section 13). |
 | zero_point_tf | `tf2_ros static_transform_publisher` | | TF `map->zero_point` (identity, yaw 0) | |
 
 What scan_relay does, in order: re-index the sweep to undo the sensor's mirrored bearing (reported = 270 deg - true), blank the rear mast arc to NaN (not 0, not inf, so it neither marks nor clears), apply the optional range window, apply the optional K-of-N persistence gate. It republishes as RELIABLE because slam_toolbox and the costmaps subscribe RELIABLE and the driver publishes BEST_EFFORT.
@@ -156,7 +156,7 @@ Topic table for edges. QoS only where it matters.
 | `/odom/reset` | Empty | phone_dashboard | odometry_publisher |
 | `/scan` | LaserScan, BEST_EFFORT | ydlidar driver | scan_relay, and AMCL in saved-map mode (its default topic, see section 14 item 2) |
 | `/scan_reliable` | LaserScan, RELIABLE | scan_relay | slam_toolbox, AMCL, both costmaps, collision_monitor, phone_dashboard |
-| `/scan_relay_stats` | Float64MultiArray | scan_relay | phone_dashboard |
+| `/scan_relay_stats` | Float64MultiArray | scan_relay | nothing since 5 Oct 2026 (the dashboard tuner was removed) |
 | `/map` | OccupancyGrid, transient_local | slam_toolbox or map_server | global costmap static layer, phone_dashboard |
 | `/goal_pose_click` | PoseStamped | phone_dashboard, tools/nav_goal.py | goal_pose_adapter |
 | `/goal_pose` | PoseStamped | goal_pose_adapter, Foxglove panel | bt_navigator |
@@ -171,7 +171,7 @@ Services and actions in use:
 
 | Name | Kind | Server | Client |
 |---|---|---|---|
-| `/scan_relay/set_parameters` | service | scan_relay | phone_dashboard (LiDAR tuner) |
+| `/scan_relay/set_parameters` | service | scan_relay | none since 5 Oct 2026 (`ros2 param set` for a deliberate experiment) |
 | `/navigate_to_pose` | action | bt_navigator | Foxglove, `tools/nav_goal.py`, `tools/zero_point_scan.py`, dashboard (cancel-all on E-STOP) |
 | `/compute_path_to_pose`, `/follow_path`, `/smooth_path`, `/spin`, `/backup`, `/wait` | actions | planner, controller, smoother, behavior_server | bt_navigator |
 | `/slam_toolbox/*` (save_map, serialize, and so on) | services | slam_toolbox | not used by the dashboard, which saves through `nav2_map_server map_saver_cli` |
@@ -373,7 +373,8 @@ Browser to server, dispatched in `_dispatch`:
 | `rezero` | Publishes `/odom/reset`, refused while mapping or calibrating |
 | `goal` | PoseStamped to `/goal_pose_click` (nose yaw) |
 | `save_location`, `goto_location` | Named locations in `~/locations.json`, guarded by `map_name` |
-| `lidar_set`, `lidar_preset`, `lidar_reset`, `lidar_save` | Sets scan_relay parameters over the parameter service, presets in `~/lidar_tune.json` |
+| `nav2_start` | Spawns `ros2 launch mecanum_navigation nav2_slam.launch.py` (own process group, output to `~/aislebot_logs/nav2_*.log`). Refuses unless MAP has run 30 s and no Nav2 is already on the graph. STARTING becomes UP only when `lifecycle_manager_navigation` reports every node active |
+| `nav2_stop` | Cancels all goals, SIGINTs the launch group, SIGKILL after 20 s. `map_stop`, `estop` and shutdown all call it before stopping the map |
 | `calib_start`, `calib_stop` | Runs `tools/zero_point_scan.py`, refuses unless mapping is live and `bt_navigator` is on the graph |
 | `estop`, `estop_clear` | See section 5 |
 
@@ -397,7 +398,7 @@ All in `tools/`, all run on the Pi or on the laptop against pulled files. Not pa
 | Odometry and wheels | `wheel_forensics.py`, `verify_axis_chain.py`, `nab_pid_logger.py`, `analyze_bench_log.py` |
 | LiDAR | `scan_quality.py`, `scan_bearing.py`, `scan_range_envelope.py`, `scan_window_sweep.py` |
 | Geometry (Year 2) | `sensor_coverage.py` |
-| Tests (`tools/tests/`) | `dashboard_html_syntax.py`, `dashboard_goal_roundtrip.py`, `dashboard_lidar.py`, `dashboard_locations.py`, `dashboard_scan_geometry.py`, `scan_relay_gate.py`, `nab_pid_logger_autodetect.py`, `nab_pid_logger_settling.py` |
+| Tests (`tools/tests/`) | `dashboard_html_syntax.py`, `dashboard_goal_roundtrip.py`, `dashboard_nav2.py`, `dashboard_locations.py`, `dashboard_scan_geometry.py`, `scan_relay_gate.py`, `nab_pid_logger_autodetect.py`, `nab_pid_logger_settling.py` |
 
 Also in the repo: `docs/` (research journal, phase plans, handoffs, APS report and study material), `cad/` (SolidWorks chassis, wheels, motor, dimension render), `data/` (bench logs, field runs), `research_articles/`, `past_iterations/`, `ros2/mini_robot.yaml` (parameter file for the small robot), `install.sh` (one-click fresh install), `.claude/skills/` (three project skills).
 

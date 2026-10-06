@@ -3,7 +3,9 @@
 APS (Annual Progress Seminar, doubling as the comprehensive exam) was
 **23 Sep 2026** and is done. The project is now in Year 2, and the current
 focus is autonomous navigation in unknown space. Start with
-`docs/Session_Handoff_2026-10-05.md` (then `docs/Session_Handoff_2026-10-01.md`).
+`docs/Session_Handoff_2026-10-06.md` (the Pi is half switched to the new axes, read the
+hazard section first), then `docs/Session_Handoff_2026-10-05.md` and
+`docs/Session_Handoff_2026-10-01.md`.
 
 This file is read automatically at the start of a session. Its job is to
 carry forward the mistakes that have already cost real time, so they don't

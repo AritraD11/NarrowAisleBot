@@ -1438,13 +1438,18 @@ function ingestMap(m) {
 function drawMap() {
   if (!cssW || !cssH) { sizeCanvas(); if (!cssW) return; }
 
+  // Paint the WHOLE canvas in real screen space first, THEN rotate. The
+  // background used to be filled in the rotated frame, where the canvas
+  // rectangle covers only a central square of a non-square screen: the rest
+  // was never painted at all (transparent), so dark stripes showed down both
+  // sides of a wide desktop (6 Oct 2026, first look on one).
+  // tools/tests/dashboard_wide_render.py measures this.
   mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  mctx.fillStyle = '#f4f6f8';
+  mctx.fillRect(0, 0, cssW, cssH);
   mctx.translate(cssW / 2, cssH / 2);
   mctx.rotate(DISPLAY_ROT);
   mctx.translate(-cssW / 2, -cssH / 2);
-
-  mctx.fillStyle = '#f4f6f8';
-  mctx.fillRect(0, 0, cssW, cssH);
 
   if (mapBitmap && mapGrid) {
     const tl = w2s(mapGrid.ox, mapGrid.oy + mapGrid.h * mapGrid.res);
@@ -1515,6 +1520,10 @@ function drawGrid() {
   const b = worldBounds();
   const step = niceGridStep();
   const minor = step / 5;
+  // Gridlines are drawn in the rotated frame, where the canvas rectangle is
+  // only part of the screen on a non-square canvas. Run each line past both
+  // ends by E so it crosses the whole screen; the canvas clips the excess.
+  const E = Math.max(cssW, cssH);
 
   mctx.lineWidth = 1;
   mctx.font = '10px Inter, Arial, sans-serif';
@@ -1526,11 +1535,11 @@ function drawGrid() {
     mctx.strokeStyle = 'rgba(52, 73, 94, 0.10)';
     for (let x = Math.floor(b.minX / minor) * minor; x <= b.maxX + minor; x += minor) {
       const p = w2s(x, 0);
-      mctx.moveTo(p.x, 0); mctx.lineTo(p.x, cssH);
+      mctx.moveTo(p.x, -E); mctx.lineTo(p.x, cssH + E);
     }
     for (let y = Math.floor(b.minY / minor) * minor; y <= b.maxY + minor; y += minor) {
       const p = w2s(0, y);
-      mctx.moveTo(0, p.y); mctx.lineTo(cssW, p.y);
+      mctx.moveTo(-E, p.y); mctx.lineTo(cssW + E, p.y);
     }
     mctx.stroke();
   }
@@ -1540,11 +1549,11 @@ function drawGrid() {
   mctx.strokeStyle = 'rgba(22, 119, 255, 0.20)';
   for (let x = Math.floor(b.minX / step) * step; x <= b.maxX + step; x += step) {
     const p = w2s(x, 0);
-    mctx.moveTo(p.x, 0); mctx.lineTo(p.x, cssH);
+    mctx.moveTo(p.x, -E); mctx.lineTo(p.x, cssH + E);
   }
   for (let y = Math.floor(b.minY / step) * step; y <= b.maxY + step; y += step) {
     const p = w2s(0, y);
-    mctx.moveTo(0, p.y); mctx.lineTo(cssW, p.y);
+    mctx.moveTo(-E, p.y); mctx.lineTo(cssW + E, p.y);
   }
   mctx.stroke();
 

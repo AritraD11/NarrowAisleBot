@@ -6,9 +6,10 @@
 #
 # ⚠ FOOTPRINT NEEDS A TAPE MEASURE BEFORE FIRST AUTONOMOUS RUN.
 #   See the footprint comment in local_costmap below. The value here is
-#   derived from aislebot.urdf's chassis box (1.0 x 0.50 m) plus a 6 cm
-#   margin. It has NOT been verified against the physical robot, and the
-#   URDF and the user's own measurement currently disagree about width.
+#   the tape-measured chassis (1.0 x 0.36 m, 8 Aug 2026, §17.7) plus a 6 cm
+#   margin, and it matches aislebot.urdf. It has NOT been checked against
+#   the live /local_costmap/published_footprint since the 5 Oct 2026 axis
+#   change; do that before the first autonomous run.
 #   A footprint smaller than the real robot means confident collisions.
 #
 # ⚠ AMCL vs SLAM: do NOT run amcl and slam_toolbox at the same time.
@@ -17,27 +18,22 @@
 #   FUTURE "navigate on a previously-saved map" mode only. While
 #   slam_toolbox is mapping, amcl must stay unlaunched.
 #
-# ⚠ AXES: base_link is NOT standard REP-103 on this robot. +X = right,
-#   +Y = forward (odometry_publisher.py publishes a constant -90 deg
-#   rotation to match the LiDAR's validated calibration rather than the
-#   textbook convention — Research_Journal.md §17.10). Every x/y-labelled
-#   parameter below (footprint, MPPI's vx/vy limits and std-devs, the
-#   velocity_smoother arrays) is swapped from what a stock Nav2 config
-#   would have, on purpose. If this axis convention is ever changed back,
-#   every one of these needs re-swapping too, not just the odometry node.
+# AXES: standard REP-103 since 5 Oct 2026. base_link +X = nose (forward),
+#   +Y = left, yaw counter-clockwise from +X. Before that date this robot
+#   ran a private convention (+X right, +Y forward, §17.10, §17.38) and
+#   every x/y-labelled number in this file was swapped to match: the
+#   footprint, MPPI's vx/vy, the velocity_smoother arrays. They are in the
+#   stock order now, so vx is forward/reverse and vy is strafe (left
+#   positive). Every speed limit here is symmetric between the two axes,
+#   so only the footprint and the comments actually changed.
 #
-#   THIS IS THE STACK'S DEEPEST OPEN ISSUE, not a quirk. Nav2 has no
-#   parameter anywhere for "which axis is the nose", so every component
-#   carrying a notion of "forward" is wrong here by default and must be
-#   caught by reading its source. That has now happened five times
-#   (§17.14, §17.17, §17.19's GoalAlign/PathAlign, and §17.23's
-#   PathAngleCritic and PreferForwardCritic). The permanent fix is to
-#   make base_link REP-103 and move the -90 deg rotation into the URDF's
-#   laser_joint instead — a large, cross-cutting refactor touching
-#   odometry_publisher, the URDF, this file, cmd_vel_axis_adapter,
-#   goal_pose_adapter and the zero_point marker. Deliberately NOT done
-#   today; recorded here so the next surprise is recognised as the same
-#   root cause rather than diagnosed from scratch a sixth time.
+#   Why it was changed: Nav2 has no parameter anywhere for "which axis is
+#   the nose", so every component carrying a notion of "forward" was wrong
+#   by default and had to be caught by reading its source. That happened
+#   five times (§17.14, §17.17, §17.19's GoalAlign/PathAlign, §17.23's
+#   PathAngleCritic and PreferForwardCritic). The refactor is in
+#   docs/Axis_Refactor_Plan.md. The old convention's maps, saved goals and
+#   bags cannot be reused as they are: x_new = y_old, y_new = -x_old.
 # ==============================================================
 
 amcl:
@@ -74,11 +70,10 @@ amcl:
     #   been run, so treat the corrected values as derived rather than
     #   confirmed on hardware.
     #
-    #   yaw: this robot's base_link +X is its RIGHT, not its front
-    #   (see the AXES note at the top of this file). A robot whose front
-    #   points along map +X therefore has yaw -90°, not 0. yaw: 0.0 meant
-    #   "the robot is standing sideways" and would have made AMCL's first
-    #   scan match fail against a map built the other way round.
+    #   yaw: (history, 5 Oct 2026: base_link +X is the nose again, so yaw
+    #   0 is simply "facing along map +X". The paragraph this replaced
+    #   argued for -90 under the old convention and is kept in the
+    #   journal, §17.18.)
     #
     #   x/y: the old 0,0 assumed a saved map's origin sits at the physical
     #   zero mark. It does not. slam_toolbox plants the map frame on the
@@ -318,17 +313,14 @@ controller_server:
     FollowPath:
       plugin: "nav2_mppi_controller::MPPIController"
 
-      # ⚠ AXES, same swap as everywhere else in this file. base_link is
-      #   +X = RIGHT, +Y = FORWARD (§17.10). MPPI names its axes vx/vy in
-      #   the robot body frame, so on THIS robot:
-      #       vx = STRAFE   (positive = right)
-      #       vy = FORWARD / REVERSE (positive = forward)
-      #   Note MPPI provides vx_min but NO vy_min: it assumes vx is the
-      #   forward axis and gives it asymmetric forward/reverse limits,
-      #   while the lateral axis is symmetric +/-vy_max. On this robot that
-      #   lands backwards — our strafe axis gets the asymmetric pair and
-      #   our forward axis gets the symmetric one. Harmless, because we
-      #   want strafe symmetric anyway: vx_min is set to -vx_max below.
+      # AXES: standard (5 Oct 2026). MPPI names its axes vx/vy in the robot
+      # body frame, so on this robot:
+      #       vx = FORWARD / REVERSE (positive = forward)
+      #       vy = STRAFE            (positive = left)
+      # MPPI provides vx_min but NO vy_min: the forward axis gets an
+      # asymmetric forward/reverse pair and the lateral axis is symmetric
+      # +/-vy_max. That suits a diff-drive; here forward and reverse are
+      # mechanically identical, so vx_min is set to -vx_max below.
       motion_model: "Omni"
 
       # SPEEDS: raised from DWB's 0.08 m/s, which was itself halved from
@@ -339,10 +331,10 @@ controller_server:
       # the Phase 1 tape-measure validation of the corrected odometry has
       # NOT been completed on hardware yet. Revert with one command if the
       # first runs look wrong:
-      #     ros2 param set /controller_server FollowPath.vy_max 0.08
-      vx_max: 0.12          # strafe right
-      vx_min: -0.12         # strafe left — symmetric, see AXES note above
-      vy_max: 0.12          # forward AND reverse (symmetric in MPPI)
+      #     ros2 param set /controller_server FollowPath.vx_max 0.08
+      vx_max: 0.12          # forward
+      vx_min: -0.12         # reverse, symmetric on a mecanum base
+      vy_max: 0.12          # strafe, left AND right (symmetric in MPPI)
       # ROTATION raised 0.20 -> 0.30 rad/s. At 0.20 a 90 deg turn needs
       # 7.9 s at the cap alone, against progress_checker's 10 s allowance —
       # margin so thin that §17.21's stalls were partly a timeout problem
@@ -358,15 +350,27 @@ controller_server:
       # in one 50 ms step (3.0 x 0.05 = 0.15 m/s, more than the whole
       # 0.12 m/s range), and the smoother then flattened them, so the
       # robot never did what was planned. Same axes rule as everywhere:
-      # ax is the strafe axis and ay the forward/reverse axis on this
-      # robot, and both are symmetric here. Values are the smoother's,
+      # ax is the forward/reverse axis and ay the strafe axis (standard
+      # since 5 Oct 2026; they were the other way round before), and both
+      # are symmetric here. Values are the smoother's,
       # not a measured envelope; Diagnostic Phase 2 (measure the real
       # acceleration on a straight run) may move them.
-      ax_max: 0.3
-      ax_min: -0.5
-      ay_max: 0.3
-      ay_min: -0.5
-      az_max: 0.6
+      #
+      # 2 Oct 2026: REVERSED. With the values above (0.3 / -0.5 / 0.6) the
+      # 0.6 m goal crept at 4.4 mm/s and aborted after 194 s (error 105).
+      # Set LIVE to MPPI's stock values (3.0 / -3.0 / 3.5), the same goal
+      # then SUCCEEDED in 35 s, 0 recoveries, ended 5 cm from the goal in
+      # odometry. Same start, same Nav2, one variable changed, one run each.
+      # The mechanism is NOT established. velocity_smoother below still caps
+      # the real acceleration at 0.3 m/s^2, so MPPI now plans harder than
+      # the robot can follow. Treat these as the last values proven to
+      # drive, not as a tuned envelope; measure the real acceleration on a
+      # straight run before changing them again.
+      ax_max: 3.0
+      ax_min: -3.0
+      ay_max: 3.0
+      ay_min: -3.0
+      az_max: 3.5
 
       # Sampling spread. These are std-devs of the Gaussian noise added
       # around the current control sequence, i.e. how widely MPPI explores.
@@ -429,25 +433,27 @@ controller_server:
       #   PathAngleCritic — DROPPED. Computes
       #       atan2(goal_y - traj_y, goal_x - traj_x)
       #   and penalises the difference against the trajectory's yaw, i.e.
-      #   it assumes +X is the nose. On this robot +X is the RIGHT SIDE,
-      #   so it would score the robot as well-aligned when travelling
-      #   SIDEWAYS and actively rotate a 1.12 x 0.48 m chassis ~90 deg
-      #   mid-aisle to achieve it. Exactly what GoalAlign/PathAlign would
-      #   have done under DWB. There is no parameter to tell it which axis
-      #   is forward. (mode: 1 / NO_DIRECTIONAL_PREFERENCE only relaxes
-      #   front-vs-back, not which AXIS is front — it does not save this.)
+      #   it wants the nose pointing along the direction of travel. It was
+      #   dropped when +X was the robot's right side (it would have turned
+      #   a 1.12 x 0.48 m chassis ~90 deg mid-aisle). With the standard
+      #   frame it would now point the right way, but it is STILL left out:
+      #   this robot's research contribution is holonomic motion, and a
+      #   critic that rewards nose-first travel works against strafing and
+      #   reversing. Re-add only as a deliberate, measured experiment.
       #
       #   PreferForwardCritic — DROPPED, for two independent reasons.
-      #   Its cost is `max(-vx, 0)`, penalising negative vx: on this robot
-      #   that penalises strafing LEFT, which is meaningless. And even with
-      #   correct axes the critic exists to stop a differential-drive base
-      #   reversing when it should turn around — a constraint a mecanum
-      #   base does not have. Wrong twice over.
+      #   Its cost is `max(-vx, 0)`, penalising negative vx. Under the old
+      #   frame that penalised strafing left, which is meaningless; in the
+      #   standard frame it penalises REVERSING, which is exactly the
+      #   motion this project studies. The critic exists to stop a
+      #   differential-drive base reversing when it should turn around, a
+      #   constraint a mecanum base does not have. Still wrong for this
+      #   robot, for a different reason.
       #
       # Every critic kept below is axis-agnostic, verified individually:
       #   ConstraintCritic  — penalises exceeding the configured limits.
       #   CostCritic        — scores the costmap under the FOOTPRINT
-      #                       polygon (already swapped, see local_costmap).
+      #                       polygon (see local_costmap).
       #   GoalCritic        — Euclidean distance to goal position.
       #   GoalAngleCritic   — |shortest_angular_distance(yaw, goal_yaw)|.
       #   PathAlignCritic   — trajectory POSITIONS vs path positions, with
@@ -605,25 +611,20 @@ local_costmap:
       resolution: 0.05
       # ── FOOTPRINT ────────────────────────────────────────────────────
       # Rectangle in base_link, [x, y] corners, metres. base_link sits at the
-      # chassis centre. On this robot x = width axis, y = length/forward
-      # axis (see the AXES note at the top of this file) — so a robot of
-      # length l and width w spans x = ±w/2, y = ±l/2 (swapped from what a
-      # stock REP-103 config would write here).
+      # chassis centre. Standard REP-103 (x forward, y left), so a robot of
+      # length l and width w spans x = ±l/2, y = ±w/2. (Before 5 Oct 2026
+      # this was swapped; see the AXES note at the top of this file.)
       #
       # TAPE-MEASURED 8 Aug 2026 (§17.7):
       #   width  = 36 cm wheel-outer to wheel-outer (the widest part)
       #   length = 100 cm
       #   + 6 cm clearance margin all round -> 0.48 m wide x 1.12 m long
-      #   -> x (width) = ±0.24, y (length) = ±0.56
+      #   -> x (length) = ±0.56, y (width) = ±0.24
       #
-      # NOTE: aislebot.urdf models the chassis box as 0.50 m wide, which the
-      # measurement contradicts — the real robot is 36 cm across. The URDF's
-      # WHEEL joint origins (±0.15769 ± 0.03 half-width = 0.375 m outer) do
-      # agree with the tape to within a centimetre, so it is specifically the
-      # chassis <box> that is wrong, not the kinematic parameters (which are
-      # what the PID/odometry actually depend on — those are unaffected).
-      # URDF box corrected to match; see the comment there.
-      footprint: "[[0.24, 0.56], [0.24, -0.56], [-0.24, -0.56], [-0.24, 0.56]]"
+      # aislebot.urdf's chassis box (1.0 x 0.36 m) and its safety_cushion
+      # (1.12 x 0.48 m) are the same rectangle. tools/verify_axis_chain.py
+      # checks that both footprints here, the box and the cushion agree.
+      footprint: "[[0.56, 0.24], [0.56, -0.24], [-0.56, -0.24], [-0.56, 0.24]]"
       plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -658,7 +659,7 @@ local_costmap:
         #     potential field to speed up collision checking ... This may
         #     significantly slow down planning times!
         # 0.622415 is this robot's own padded footprint: the corner
-        # (0.24, 0.56) plus the default footprint_padding of 0.01 gives
+        # (0.56, 0.24) plus the default footprint_padding of 0.01 gives
         # hypot(0.25, 0.57) = 0.6224 m. When inflation_radius is below that,
         # a footprint-aware checker can never rule a pose out cheaply and
         # must test the FULL polygon every time. MPPI does roughly 500
@@ -692,7 +693,7 @@ global_costmap:
       resolution: 0.05
       track_unknown_space: true
       # Keep identical to local_costmap's footprint — see the full note there.
-      footprint: "[[0.24, 0.56], [0.24, -0.56], [-0.24, -0.56], [-0.24, 0.56]]"
+      footprint: "[[0.56, 0.24], [0.56, -0.24], [-0.56, -0.24], [-0.56, 0.24]]"
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
@@ -779,13 +780,13 @@ collision_monitor:
     # Topic names, not remappings — nav2_bringup's navigation_launch.py
     # expects collision_monitor to be wired through parameters.
     cmd_vel_in_topic: "cmd_vel_smoothed"
-    # NOT "cmd_vel" -- output goes to cmd_vel_axis_adapter, which rotates it
-    # from base_link's TF axes (+X=right, +Y=forward) into the wheel
-    # kinematics' REP-103 axes (+X=forward, +Y=left) and publishes the real
-    # /cmd_vel. Everything upstream of the adapter, this node included,
-    # works in TF axes -- which is what makes the FootprintApproach polygon
-    # below correct, since it forward-simulates that same footprint along
-    # this same velocity. See cmd_vel_axis_adapter.py and §17.19.
+    # NOT "cmd_vel" -- output goes to cmd_vel_axis_adapter, which publishes
+    # the real /cmd_vel. Since 5 Oct 2026 the adapter is an identity (the
+    # TF axes and the wheel kinematics are both REP-103), kept only so the
+    # topic wiring does not change in the same step as the axes; it is
+    # deleted in stage 6 of docs/Axis_Refactor_Plan.md. The
+    # FootprintApproach polygon below forward-simulates the footprint along
+    # this same velocity, which is why both live in one frame.
     cmd_vel_out_topic: "cmd_vel_baselink"
     state_topic: "collision_monitor_state"
     transform_tolerance: 0.2
@@ -849,15 +850,13 @@ collision_monitor:
 #
 # ⚠ THIS BLOCK IS NOT OPTIONAL ON THIS ROBOT. Nav2's stock defaults are
 #   written for a differential-drive base and set the y limits to 0.0 —
-#   "this robot cannot move sideways." On a standard robot that is
-#   correct and harmless. Here, +Y IS FORWARD (see the AXES note at the
-#   top of this file), so inheriting those defaults would clamp all
-#   forward and reverse motion to zero and the robot would refuse to
-#   drive anywhere, while the planner happily produced paths and the
-#   controller happily published velocities into a silent wall.
+#   "this robot cannot move sideways." Here that would clamp every strafe
+#   to zero, which is half of what the robot is for, while the planner
+#   happily produced paths and the controller published velocities into a
+#   silent wall.
 #
-# Arrays are [x, y, theta] = [strafe, forward/reverse, yaw] on this
-# robot. Values match the DWB limits in controller_server above; keep
+# Arrays are [x, y, theta] = [forward/reverse, strafe, yaw] on this
+# robot (standard REP-103 since 5 Oct 2026). Values match the DWB limits in controller_server above; keep
 # the two in step if either is retuned.
 # ==============================================================
 velocity_smoother:
@@ -876,15 +875,14 @@ velocity_smoother:
     # Raised alongside the MPPI switch (§17.23): 0.08 -> 0.12 m/s
     # translation, 0.20 -> 0.30 rad/s rotation.
     #
-    # ⚠ AXES, as everywhere: these arrays are [x, y, theta] in base_link,
-    #   so on this robot element 0 is STRAFE and element 1 is
-    #   FORWARD/REVERSE (§17.10), not the other way round.
+    # AXES: these arrays are [x, y, theta] in base_link, standard order:
+    # element 0 is forward/reverse and element 1 is strafe.
     #
     # min_velocity is now symmetric with max_velocity. Previously it was
     # -0.06 against a +0.08 max, an asymmetry inherited from DWB's
     # min_vel_x/min_vel_y that had no justification on a mecanum base —
     # this robot's reverse and left-strafe are mechanically identical to
-    # its forward and right-strafe.
+    # its forward and right-strafe (reverse is the one the research needs).
     #
     # max_decel is NOT raised, for the same reason it was never lowered:
     # it caps braking effort, so it is the one limit where a larger

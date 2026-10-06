@@ -1,5 +1,7 @@
 # Session handoff, 30 Sep to 1 Oct 2026
 
+> **Superseded 5 Oct 2026:** the axis convention described here (`+X` right, `+Y` forward) was replaced by standard REP-103 (`+X` nose, `+Y` left). See `docs/Axis_Convention.md`. Kept as it was written, because it records what was true on the date.
+
 APS is behind us (23 Sep, passed). This session was the first Year 2 working
 session: pose and navigation on the real robot, a full inventory of what runs
 on it, and a first end-to-end test of "does it remember what it left behind".

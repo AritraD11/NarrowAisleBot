@@ -22,6 +22,12 @@ THE PROBLEM
     chassis rotating to the wrong heading at the goal can put a corner into
     a wall the planner never intended to approach.
 
+STATUS 5 Oct 2026 -- STANDARD REP-103, THE OFFSET STAYS ZERO
+    base_link, odom and map are all standard REP-103 now (+X nose, +Y left,
+    yaw CCW from +X), so a dragged yaw means "point the nose this way" with
+    no conversion of any kind. Everything below describes how the offset got
+    to zero and is kept as history.
+
 STATUS AFTER sec 17.38 -- THE OFFSET IS NOW ZERO
     odometry_publisher.py was publishing a rotated orientation with an
     UNrotated translation, which gave odom (and so map) REP-103's axes while

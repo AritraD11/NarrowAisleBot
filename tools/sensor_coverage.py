@@ -5,7 +5,7 @@ sensor_coverage.py -- planar geometry behind docs/Year2_Autonomy_Research.md.
 Three questions, all pure 2-D geometry, no ROS, no hardware:
 
   1. blind   Where is the X4 Pro actually blind once the rear mast wedge
-             ([-135, -45] deg, scan_relay.py's mask) is applied? Not just
+             ([135, -135] deg through 180, scan_relay.py's mask) is applied? Not just
              "behind": the LiDAR sits 0.27 m forward of base_link, so the
              wedge also swallows the rear half of both flanks at aisle
              clearances.
@@ -14,8 +14,11 @@ Three questions, all pure 2-D geometry, no ROS, no hardware:
   3. ring    What fraction of the robot's surroundings, at a stand-off d,
              does a given ToF-ring or rear-LiDAR layout actually see?
 
-Frame: this robot's base_link, +X = RIGHT, +Y = FORWARD (docs/Axis_Convention.md).
-Bearings are degrees CCW from +X, so 0 = right, +90 = forward, -90 = behind.
+Frame: this robot's base_link, standard REP-103, +X = FORWARD, +Y = LEFT
+(docs/Axis_Convention.md). Bearings are degrees CCW from +X, so 0 = forward,
++90 = left, -90 = right, 180 = behind. (Converted from the old +X right,
++Y forward frame on 5 Oct 2026; the geometry is a pure rotation, and the
+printed coverage numbers are identical before and after.)
 
 Every sensor is modelled as a 2-D cone (horizontal FoV only) and the chassis
 as an opaque box at scan height. That is an upper bound on what a real sensor
@@ -38,8 +41,8 @@ import sys
 HALF_W = 0.18          # 36 cm wheel-outer to wheel-outer
 HALF_L = 0.50          # 100 cm long
 PAD = 0.06             # nav2 footprint margin -> 0.48 x 1.12 m
-LIDAR = (0.0, 0.27)    # aislebot.urdf laser_joint, tape-measured 12 Aug 2026
-MASK = (-135.0, -45.0) # scan_relay.py mask_min_deg / mask_max_deg
+LIDAR = (0.27, 0.0)    # aislebot.urdf laser_joint, tape-measured 12 Aug 2026
+MASK = (135.0, -135.0) # scan_relay.py mask_min_deg / mask_max_deg (wraps through 180)
 
 
 def wrap(deg):
@@ -60,7 +63,7 @@ def in_arc(b, lo, hi):
     return b >= lo or b <= hi
 
 
-def seg_hits_box(p, q, hx=HALF_W, hy=HALF_L, eps=1e-9):
+def seg_hits_box(p, q, hx=HALF_L, hy=HALF_W, eps=1e-9):
     """Liang-Barsky: does segment p->q pass through the open chassis box?"""
     x0, y0 = p
     dx, dy = q[0] - x0, q[1] - y0
@@ -85,23 +88,23 @@ def contour(d, step=0.01):
     """Points on the rounded rectangle at stand-off d from the chassis box,
     tagged by region: front, rear, left, right, or a corner."""
     pts = []
-    # straight faces
+    # straight faces (x runs along the 1.00 m length, y across the 0.36 m width)
     n = int(round(2 * HALF_W / step))
     for i in range(n + 1):
-        x = -HALF_W + i * step
-        pts.append(((x, HALF_L + d), 'front'))
-        pts.append(((x, -HALF_L - d), 'rear'))
+        y = -HALF_W + i * step
+        pts.append(((HALF_L + d, y), 'front'))
+        pts.append(((-HALF_L - d, y), 'rear'))
     n = int(round(2 * HALF_L / step))
     for i in range(n + 1):
-        y = -HALF_L + i * step
-        pts.append(((HALF_W + d, y), 'right'))
-        pts.append(((-HALF_W - d, y), 'left'))
+        x = -HALF_L + i * step
+        pts.append(((x, -HALF_W - d), 'right'))
+        pts.append(((x, HALF_W + d), 'left'))
     # quarter-circle corners
     arc_n = max(4, int(math.pi / 2 * d / step))
-    for cx, cy, a0, tag in ((HALF_W, HALF_L, 0, 'corner'),
-                            (-HALF_W, HALF_L, 90, 'corner'),
-                            (-HALF_W, -HALF_L, 180, 'corner'),
-                            (HALF_W, -HALF_L, 270, 'corner')):
+    for cx, cy, a0, tag in ((HALF_L, HALF_W, 0, 'corner'),
+                            (-HALF_L, HALF_W, 90, 'corner'),
+                            (-HALF_L, -HALF_W, 180, 'corner'),
+                            (HALF_L, -HALF_W, 270, 'corner')):
         for k in range(arc_n + 1):
             a = math.radians(a0 + 90.0 * k / arc_n)
             pts.append(((cx + d * math.cos(a), cy + d * math.sin(a)), tag))
@@ -160,36 +163,42 @@ def coverage(sensors, d, by_region=True):
 # ---- layouts ---------------------------------------------------------------
 
 def ring_layout(kind, fov):
-    """Candidate ToF layouts. Modules sit 1 cm proud of the chassis faces."""
+    """Candidate ToF layouts. Modules sit 1 cm proud of the chassis faces.
+
+    F is the half-length plus clearance (modules on the nose and tail),
+    Lw the half-width plus clearance (modules on the flanks). Positions are
+    (x forward, y left); bearings are CCW from +X, so a module on the left
+    flank looks along +90 and one on the right flank along -90."""
     e = 0.01
-    hx, hy = HALF_W + e, HALF_L + e
-    corners = [Cone((hx, hy), 45, fov), Cone((-hx, hy), 135, fov),
-               Cone((-hx, -hy), -135, fov), Cone((hx, -hy), -45, fov)]
-    ends = [Cone((0, hy), 90, fov), Cone((0, -hy), -90, fov)]
+    F, Lw = HALF_L + e, HALF_W + e
+    corners = [Cone((F, Lw), 45, fov), Cone((F, -Lw), -45, fov),
+               Cone((-F, -Lw), -135, fov), Cone((-F, Lw), 135, fov)]
+    ends = [Cone((F, 0), 0, fov), Cone((-F, 0), 180, fov)]
     if kind == 'ring8':     # Hardware_Roadmap.md 1.3's estimate: ends, corners, mid-sides
-        sides = [Cone((hx, 0), 0, fov), Cone((-hx, 0), 180, fov)]
+        sides = [Cone((0, -Lw), -90, fov), Cone((0, Lw), 90, fov)]
         return ends + corners + sides
     if kind == 'ring12':    # three per long side
-        sides = [Cone((sx * hx, y), 0 if sx > 0 else 180, fov)
-                 for sx in (1, -1) for y in (-0.33, 0.0, 0.33)]
+        sides = [Cone((x, sy * Lw), 90 if sy > 0 else -90, fov)
+                 for sy in (1, -1) for x in (-0.33, 0.0, 0.33)]
         return ends + corners + sides
     if kind == 'ring16':    # five per long side
-        sides = [Cone((sx * hx, y), 0 if sx > 0 else 180, fov)
-                 for sx in (1, -1) for y in (-0.40, -0.20, 0.0, 0.20, 0.40)]
+        sides = [Cone((x, sy * Lw), 90 if sy > 0 else -90, fov)
+                 for sy in (1, -1) for x in (-0.40, -0.20, 0.0, 0.20, 0.40)]
         return ends + corners + sides
     if kind == 'rear5':     # patch only the X4 Pro's blind region
-        return [Cone((0, -hy), -90, fov),
-                Cone((hx, -hy), -45, fov), Cone((-hx, -hy), -135, fov),
-                Cone((hx, -0.25), 0, fov), Cone((-hx, -0.25), 180, fov)]
+        return [Cone((-F, 0), 180, fov),
+                Cone((-F, -Lw), -135, fov), Cone((-F, Lw), 135, fov),
+                Cone((-0.25, -Lw), -90, fov), Cone((-0.25, Lw), 90, fov)]
     h = fov / 2.0
     # Flank "grazers": mounted at a corner, aimed ALONG the long side and
     # toed out by half the FoV, so the cone's inner edge runs down the flank
     # instead of half the cone being wasted inside the chassis.
-    grazers = [Cone((hx, hy), -90 + h, fov), Cone((-hx, hy), -90 - h, fov),
-               Cone((hx, -hy), 90 - h, fov), Cone((-hx, -hy), 90 + h, fov)]
+    # Order: front-right, front-left, rear-right, rear-left.
+    grazers = [Cone((F, -Lw), -180 + h, fov), Cone((F, Lw), 180 - h, fov),
+               Cone((-F, -Lw), -h, fov), Cone((-F, Lw), h, fov)]
     # End grazers: same trick across the short faces (front and rear).
-    end_grazers = [Cone((hx, hy), 180 - h, fov), Cone((-hx, hy), h, fov),
-                   Cone((hx, -hy), -180 + h, fov), Cone((-hx, -hy), -h, fov)]
+    end_grazers = [Cone((F, -Lw), 90 - h, fov), Cone((F, Lw), -90 + h, fov),
+                   Cone((-F, -Lw), 90 + h, fov), Cone((-F, Lw), -90 - h, fov)]
     if kind == 'corner8':   # two modules per corner: one down the flank, one across the end
         return grazers + end_grazers
     if kind == 'corner9':   # corner8 plus a rear-centre module for the far rear field
@@ -199,8 +208,8 @@ def ring_layout(kind, fov):
     if kind == 'graze8':    # ends + grazers + two rear diagonals (reversing matters more)
         return ends + grazers + corners[2:]
     if kind == 'rear_graze4':  # blind-region patch: rear, two rear grazers, rear diagonal pair collapsed
-        return [Cone((0, -hy), -90, fov), grazers[2], grazers[3],
-                Cone((hx, -hy), -45, fov)]
+        return [Cone((-F, 0), 180, fov), grazers[2], grazers[3],
+                Cone((-F, -Lw), -135, fov)]
     raise ValueError(kind)
 
 
@@ -219,10 +228,10 @@ def report_blind():
     print(f'   LiDAR at base_link {LIDAR}, mask {MASK} deg, chassis '
           f'{2 * HALF_W:.2f} x {2 * HALF_L:.2f} m\n')
     for d in (0.05, 0.10, 0.20, 0.30, 0.50):
-        # the -45 deg ray reaches x = HALF_W + d at this y
-        y_edge = LIDAR[1] - (HALF_W + d) * math.tan(math.radians(45))
-        blind_len = max(0.0, min(HALF_L, y_edge) + HALF_L)
-        print(f'   stand-off {d:.2f} m: each flank blind from y = {y_edge:+.2f} m '
+        # the -135 deg ray (right flank) reaches y = -(HALF_W + d) at this x
+        x_edge = LIDAR[0] - (HALF_W + d) * math.tan(math.radians(45))
+        blind_len = max(0.0, min(HALF_L, x_edge) + HALF_L)
+        print(f'   stand-off {d:.2f} m: each flank blind from x = {x_edge:+.2f} m '
               f'back to the rear edge, {blind_len:.2f} m of the 1.00 m side')
     print()
     for d in (0.10, 0.30):
@@ -278,14 +287,14 @@ def report_ring():
                 print(f'     X4+{kind:<11} d={d:.2f} {fmt(c)}')
         print()
     print('   Rear 360 deg DTOF LiDAR added to the masked X4 Pro')
-    for label, pos in (('rear centre', (0.0, -0.52)),
-                       ('rear-right corner', (0.20, -0.52)),
-                       ('rear-left corner', (-0.20, -0.52))):
+    for label, pos in (('rear centre', (-0.52, 0.0)),
+                       ('rear-right corner', (-0.52, -0.20)),
+                       ('rear-left corner', (-0.52, 0.20))):
         rear = Lidar(pos, mask=None, occluded_by_body=True, rmax=12.0, rmin=0.05)
         for d in (0.10, 0.30):
             print(f'     {label:<18} d={d:.2f}  {fmt(coverage([X4, rear], d))}')
-    both = [Lidar((-0.20, 0.52), occluded_by_body=True),
-            Lidar((0.20, -0.52), occluded_by_body=True)]
+    both = [Lidar((0.52, 0.20), occluded_by_body=True),
+            Lidar((-0.52, -0.20), occluded_by_body=True)]
     for d in (0.10, 0.30):
         print(f'     diagonal pair, no X4 d={d:.2f}  {fmt(coverage(both, d))}')
     print()
@@ -303,10 +312,10 @@ def selftest():
 
     check('wrap(-180) == 180', wrap(-180) == 180)
     check('in_arc handles wrap-around', in_arc(179, 170, -170) and not in_arc(0, 170, -170))
-    check('ray through box centre hits box', seg_hits_box((0, -1), (0, 1)))
-    check('ray beside box misses box', not seg_hits_box((0.5, -1), (0.5, 1)))
+    check('ray through box centre hits box', seg_hits_box((-1, 0), (1, 0)))
+    check('ray beside box misses box', not seg_hits_box((-1, 0.5), (1, 0.5)))
     check('ray grazing from a face-mounted sensor outward misses box',
-          not seg_hits_box((0.19, 0.0), (1.0, 0.0)))
+          not seg_hits_box((0.0, 0.19), (0.0, 1.0)))
     check('heading budget is 0 when aisle == robot width',
           abs(max_heading(1.0, 0.36, 0.36)) < 1e-6)
     check('heading budget is 90 deg once aisle >= diagonal',
@@ -319,10 +328,10 @@ def selftest():
           coverage([Lidar(LIDAR, mask=None, occluded_by_body=False)], 0.2)['ALL'] == 1.0)
     check('masked X4 misses part of the rear',
           coverage([X4], 0.2)['rear'] < 0.5)
-    check('a cone facing +Y sees a point dead ahead',
-          Cone((0, 0.51), 90, 45).sees((0, 1.0)))
-    check('a cone facing +Y does not see a point behind it',
-          not Cone((0, 0.51), 90, 45).sees((0, -1.0)))
+    check('a cone facing +X (the nose) sees a point dead ahead',
+          Cone((0.51, 0), 0, 45).sees((1.0, 0)))
+    check('a cone facing +X does not see a point behind it',
+          not Cone((0.51, 0), 0, 45).sees((-1.0, 0)))
     print('selftest', 'PASSED' if ok else 'FAILED')
     return ok
 

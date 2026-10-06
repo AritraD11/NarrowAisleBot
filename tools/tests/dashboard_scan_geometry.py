@@ -6,10 +6,11 @@ WHY THIS EXISTS. §17.49 is the precedent and it is the whole argument: the
 click-to-goal POSITION maths was exact to 1e-6 for weeks while every dragged
 HEADING went out 90 degrees wrong, because two renderers on the same canvas
 measured yaw from different axes and the picture agreed with the wrong one.
-A scan overlay is the same hazard with more dots: base_link is not REP-103
-here (+X is the robot's RIGHT, +Y is its NOSE, §17.10), the corrected
-/scan_reliable frame measures bearing 0 along +X and +90 deg along +Y
-(§17.15), and the laser sits 0.27 m forward of base_link (§17.12). Get any
+A scan overlay is the same hazard with more dots: base_link is standard
+REP-103 since 5 Oct 2026 (+X is the NOSE, +Y is LEFT), the corrected
+/scan_reliable frame measures bearing 0 along the nose and +90 deg to the
+left, and the laser sits 0.27 m ahead of base_link on X (§17.12). (Before
+5 Oct 2026 this was +X right, +Y nose, bearing 0 to the right.) Get any
 one of those wrong and the dots still form a plausible room outline, just
 rotated or offset, and nobody can tell by eye.
 
@@ -74,10 +75,10 @@ with sync_playwright() as pw:
     # ── Phase 1: the constants are the measured ones ───────────────────
     print('\nPhase 1 — mount geometry matches the tape measure (§17.12)')
     lb = page.evaluate('({x: LASER_BX, y: LASER_BY})')
-    chk(abs(lb['x'] - 0.00) < 1e-9,
-        f"LASER_BX is on the centreline (got {lb['x']})")
-    chk(abs(lb['y'] - 0.27) < 1e-9,
-        f"LASER_BY is 0.27 m forward of base_link (got {lb['y']})")
+    chk(abs(lb['x'] - 0.27) < 1e-9,
+        f"LASER_BX is 0.27 m forward of base_link (got {lb['x']})")
+    chk(abs(lb['y'] - 0.00) < 1e-9,
+        f"LASER_BY is on the centreline (got {lb['y']})")
 
     urdf = Path('src/mecanum_robot/urdf/aislebot.urdf').read_text(encoding='utf-8')
     # Anchor on the <joint> ELEMENT, not the first mention of the name: a
@@ -97,8 +98,8 @@ with sync_playwright() as pw:
             '— one mount, one number')
 
     # ── Phase 2: the transform agrees with drawRobot's own helpers ─────
-    # For a beam of range R at bearing +90 deg (the NOSE axis in the
-    # corrected scan frame), the hit must lie exactly (LASER_BY + R) along
+    # For a beam of range R at bearing 0 (the NOSE axis in the
+    # corrected scan frame), the hit must lie exactly (LASER_BX + R) along
     # yawToVec(yaw) from the robot centre. yawToVec is the helper drawRobot
     # uses for the nose line, so agreement here is agreement with the
     # renderer that has been checked against hardware.
@@ -117,7 +118,7 @@ with sync_playwright() as pw:
 
     for yaw in (0.0, 0.7853981634, 1.5707963268, -2.0, 3.0):
         R = 2.5
-        got = scan_point(0.4, -0.9, yaw, math.pi / 2, R)
+        got = scan_point(0.4, -0.9, yaw, 0.0, R)
         nv = page.evaluate('(y) => yawToVec(y)', yaw)
         exp_x = 0.4 + nv['x'] * (0.27 + R)
         exp_y = -0.9 + nv['y'] * (0.27 + R)
@@ -126,28 +127,28 @@ with sync_playwright() as pw:
             f'nose beam at yaw {yaw:+.4f} rad lands on the nose axis '
             f'(error {err:.2e} m)')
 
-    # A beam at bearing 0 must land on the robot's RIGHT, which is
-    # yawToVec(yaw) rotated -90 deg, plus the laser's forward offset.
+    # A beam at bearing +90 deg must land on the robot's LEFT, which is
+    # yawToVec(yaw) rotated +90 deg, plus the laser's forward offset.
     for yaw in (0.0, 1.1, -0.6):
         R = 1.8
-        got = scan_point(0.0, 0.0, yaw, 0.0, R)
+        got = scan_point(0.0, 0.0, yaw, math.pi / 2, R)
         nv = page.evaluate('(y) => yawToVec(y)', yaw)
-        rx, ry = nv['y'], -nv['x']          # nose rotated -90 deg = right
-        exp_x = rx * R + nv['x'] * 0.27
-        exp_y = ry * R + nv['y'] * 0.27
+        lx, ly = -nv['y'], nv['x']          # nose rotated +90 deg = left
+        exp_x = lx * R + nv['x'] * 0.27
+        exp_y = ly * R + nv['y'] * 0.27
         err = math.hypot(got['x'] - exp_x, got['y'] - exp_y)
         chk(err < 1e-9,
-            f'bearing 0 beam at yaw {yaw:+.2f} lands on the RIGHT axis '
+            f'bearing +90 beam at yaw {yaw:+.2f} lands on the LEFT axis '
             f'(error {err:.2e} m)')
 
     # ── Phase 3: a beam pointing at a wall the robot is facing ─────────
-    # Parked on the mark (yaw 0, nose = map +Y per §17.38), a nose-bearing
-    # beam of 3.0 m must read y = 3.27 and x = 0. This is the case an
+    # Parked on the mark (yaw 0, nose = map +X, standard REP-103), a
+    # nose-bearing beam of 3.0 m must read x = 3.27 and y = 0. This is the case an
     # operator can check against a tape measure, so it is worth naming.
     print('\nPhase 3 — the hand-checkable case')
-    got = scan_point(0.0, 0.0, 0.0, math.pi / 2, 3.0)
-    chk(abs(got['x']) < 1e-9 and abs(got['y'] - 3.27) < 1e-9,
-        f'on the mark, a 3.0 m nose beam reads (0.000, 3.270) '
+    got = scan_point(0.0, 0.0, 0.0, 0.0, 3.0)
+    chk(abs(got['y']) < 1e-9 and abs(got['x'] - 3.27) < 1e-9,
+        f'on the mark, a 3.0 m nose beam reads (3.270, 0.000) '
         f'(got {got["x"]:.3f}, {got["y"]:.3f})')
 
     # ── Phase 4: the render path survives real message shapes ──────────
@@ -285,6 +286,18 @@ chk(dash_trust is not None and slam_trust is not None
     and abs(dash_trust - slam_trust) < 1e-9,
     f'dashboard scan_trust_range ({dash_trust}) == slam max_laser_range '
     f'({slam_trust}) — the grey dots mark what SLAM actually discards')
+
+# The HUD's "masked (rear wedge)" count is decided by the beam's bearing
+# falling inside the relay's rear arc, so the dashboard carries a copy of
+# that arc. Two files, one pair of numbers: pinned the same way.
+relay = Path('src/scan_relay/scan_relay.py').read_text(encoding='utf-8')
+for _name in ('mask_min_deg', 'mask_max_deg'):
+    mr = _re.search(r"declare_parameter\('%s',\s*(-?[0-9.]+)\)" % _name, relay)
+    md = _re.search(r"declare_parameter\('scan_%s',\s*(-?[0-9.]+)\)" % _name, src)
+    chk(mr is not None and md is not None
+        and abs(float(mr.group(1)) - float(md.group(1))) < 1e-9,
+        f"dashboard scan_{_name} ({md.group(1) if md else None}) == "
+        f"scan_relay {_name} ({mr.group(1) if mr else None})")
 
 # updateHud() runs inside drawMap(). A throw there blanks the whole canvas,
 # not one line, so no field of liveScan may be dereferenced unguarded.

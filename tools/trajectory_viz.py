@@ -90,14 +90,15 @@ def yaw_from_quat(q):
 
 
 def body_to_map(x, y, yaw, right, forward):
-    """Body +X = right, +Y = forward on this robot (sec 17.10) -- identical
-    convention to nav_goal.py, zero_point_scan.py and repeatability_test.py.
-    Kept consistent deliberately: four tools disagreeing about which way is
-    forward is exactly the class of bug this project keeps finding."""
+    """Standard REP-103 (body +X forward, +Y left; right is -left) --
+    identical convention to nav_goal.py, zero_point_scan.py and
+    repeatability_test.py. Kept consistent deliberately: four tools
+    disagreeing about which way is forward is exactly the class of bug this
+    project keeps finding."""
     cos_y, sin_y = math.cos(yaw), math.sin(yaw)
     return (
-        x + right * cos_y - forward * sin_y,
-        y + right * sin_y + forward * cos_y,
+        x + forward * cos_y + right * sin_y,
+        y + forward * sin_y - right * cos_y,
     )
 
 

@@ -361,7 +361,7 @@ The same default tree has a problem that isn't about replanning at all. Its
 general recovery round-robin includes `Spin` by 1.57 rad and `BackUp` by
 0.30 m. A quarter turn needs 1.2 m of clear width for the padded footprint,
 so in an aisle it can only fail. `BackUp` needs a correction, made on
-30 Sep 2026 after reading Nav2's `DriveOnHeading` source: it commands
+30 Sep 2026 after reading Nav2's `DriveOnHeading` source (and made obsolete by the 5 Oct 2026 axis change: in the standard frame BackUp is a real reverse into the rear blind sector): it commands
 `linear.x` (negative for a back-up) and checks for collisions along the base
 frame's x axis. On this robot base_link +X is the robot's right, so `BackUp`
 is a 30 cm strafe to the LEFT, and its collision check looks left, not

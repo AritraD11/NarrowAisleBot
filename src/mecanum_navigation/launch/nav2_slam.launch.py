@@ -60,18 +60,18 @@ Usage:
 Then send a goal from Foxglove (or `ros2 action send_goal /navigate_to_pose
 ...`) and the robot drives there on its own.
 
-AXES: base_link on this robot is NOT REP-103 (+X=right, +Y=forward,
-Research_Journal.md §17.10). Every x/y-labelled velocity and footprint
-parameter lives in nav2_params.yaml and is already swapped to match — see
-the AXES note at the top of that file before touching any of them.
+AXES: base_link, odom and map are standard REP-103 since 5 Oct 2026 (+X nose,
++Y left, yaw CCW from +X). Nav2 needs no axis special-casing here; the one
+node that used to rotate velocity, cmd_vel_axis_adapter, is an identity now.
+See docs/Axis_Convention.md.
 
 cmd_vel CHAIN, wired by the remappings below:
     controller_server -> /cmd_vel_nav ─┐
     behavior_server   -> /cmd_vel_nav ─┤   (Spin / BackUp / Wait recoveries)
                                        ↓
       -> velocity_smoother -> /cmd_vel_smoothed
-        -> collision_monitor -> /cmd_vel_baselink      (base_link TF axes)
-          -> cmd_vel_axis_adapter -> /cmd_vel_nav_out  (wheel-kinematics axes)
+        -> collision_monitor -> /cmd_vel_baselink
+          -> cmd_vel_axis_adapter (identity) -> /cmd_vel_nav_out
             -> twist_mux -> /cmd_vel                   (arbitrated against manual)
 /cmd_vel_nav_out, not /cmd_vel, is where the axis adapter's output lands —
 twist_mux (aislebot_full.launch.py, config/twist_mux.yaml) picks between
@@ -82,12 +82,11 @@ grabbing manual control mid-drive. Note that collision_monitor is wired by
 PARAMETERS (cmd_vel_in_topic / cmd_vel_out_topic in nav2_params.yaml), not
 by remapping, which is how that node expects to be configured.
 
-The adapter on the end is not decoration. Nav2 reads the robot's pose in
-base_link's TF axes and writes velocity in those same axes, but the wheel
-kinematics read /cmd_vel as standard REP-103 — a 90° disagreement that
-sent the first-ever autonomous goal 0.956 m sideways (§17.19). See
-cmd_vel_axis_adapter.py for the derivation and why it sits last in the
-chain rather than earlier.
+The adapter on the end is an IDENTITY since 5 Oct 2026 (it rotated base_link
+velocity into the wheel kinematics' axes while the two disagreed, which sent
+the first-ever autonomous goal 0.956 m sideways, §17.19). It stays in the
+chain so the first drive after the frame change moves one thing, not two;
+docs/Axis_Refactor_Plan.md stage 6 deletes it.
 """
 
 import os
@@ -181,8 +180,8 @@ def generate_launch_description():
             # Closes the open item flagged in §17.20. Without this remap
             # behavior_server publishes STRAIGHT to /cmd_vel, skipping both
             # collision_monitor and cmd_vel_axis_adapter — so Spin/BackUp
-            # would reach the wheels unmonitored AND in the wrong axis
-            # convention, reproducing §17.19's 88° miss.
+            # would reach the wheels unmonitored (and, until 5 Oct 2026, in
+            # the wrong axis convention, reproducing §17.19's 88° miss).
             #
             # It was left unfixed on the theory that nothing calls those
             # behaviours. That theory is wrong: bt_navigator's default tree
@@ -192,11 +191,14 @@ def generate_launch_description():
             # 0.30 m reverse is aimed squarely into this robot's measured 90°
             # rear blind sector (§17.15), which is the one direction the
             # LiDAR cannot see — so bypassing collision_monitor there is the
-            # worst possible place to bypass it.
+            # worst possible place to bypass it. (Between the 30 Sep source
+            # read and 5 Oct 2026 BackUp was a 30 cm strafe LEFT, because
+            # base_link +X was the robot's right. In the standard frame it is
+            # a real reverse again, so this paragraph is true as written.)
             #
             # cmd_vel_nav is velocity_smoother's input, so behaviours now
-            # take the same smoother -> collision_monitor -> axis-adapter
-            # path the controller does. This is also exactly what upstream
+            # take the same smoother -> collision_monitor -> adapter path
+            # the controller does. This is also exactly what upstream
             # nav2_bringup's navigation_launch.py does; the explicit-nodes
             # rewrite in §17.17 dropped it by omission, not by decision.
             remappings=[('cmd_vel', 'cmd_vel_nav')],
@@ -230,10 +232,9 @@ def generate_launch_description():
             name='waypoint_follower', output='screen', parameters=common,
         ),
         # NOT a lifecycle node, and deliberately outside LIFECYCLE_NODES: a
-        # plain rclpy node that is up the moment the process starts. It must
-        # already be translating before collision_monitor is ever activated,
-        # or the first commands out of the stack reach the wheels rotated
-        # 90°. Nothing to configure or activate, so there is nothing for
+        # plain rclpy node that is up the moment the process starts, so the
+        # chain is complete before collision_monitor is ever activated.
+        # Nothing to configure or activate, so there is nothing for
         # lifecycle_manager to manage.
         Node(
             package='mecanum_navigation', executable='cmd_vel_axis_adapter',
@@ -250,7 +251,7 @@ def generate_launch_description():
         # /goal_pose_click, which nothing publishes until Foxglove's 3D
         # panel is deliberately pointed at it. Leave the panel on
         # /goal_pose and this node simply never fires, preserving the
-        # existing "drag 90° clockwise" behaviour (§17.20).
+        # existing behaviour (the dragged yaw is the nose heading, offset 0.0).
         Node(
             package='mecanum_navigation', executable='goal_pose_adapter',
             name='goal_pose_adapter', output='screen',

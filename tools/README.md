@@ -18,13 +18,13 @@ analysis tools.)
 | `scan_quality.py` | Pi (needs ROS) | **Measures what the LiDAR actually gives the scan matcher** — return quality, geometric conditioning (can this scan pin a pose down at all), and stationary stability. The test that separates "the space/sensor" from "the SLAM tuning" as the cause of a correction. |
 | `graph_residuals.py` | Pi (needs ROS) | Differences successive publications of `slam_toolbox`'s pose graph and names the closure that moved it. The one Tier 1 MATLAB item worth building (`MATLAB_Navigation_Reference.md`). |
 | `tests/dashboard_goal_roundtrip.py` | PC (needs playwright) | Drives the real dashboard page in headless Chromium. Proves a tap becomes the goal you meant — **position AND heading** — that the goal-marker and robot-nose renderers agree, that a stale canvas cache self-repairs, and that a command which cannot be delivered is never reported as sent. Guards the §17.49 fixes. |
-| `verify_axis_chain.py` | anywhere (stdlib only) | Proves `W→+Y, S→−Y, D→+X, A→−X` by running the real drive arithmetic end to end, and **fails if the §17.38 frame fix is edited back out**. Run it before and after touching anything axis-related. |
+| `verify_axis_chain.py` | anywhere (stdlib only) | Proves `W→+X, S→−X, D→−Y, A→+Y` (standard REP-103) by running the real drive arithmetic end to end, parses the URDF, both footprints, the relay, the dashboard and the four `body_to_map()` tools, and **fails if the 5 Oct 2026 standard-frame change is edited back out**. Run it before and after touching anything axis-related. |
 | `sensor_coverage.py` | anywhere (stdlib only) | Planar geometry behind `docs/Year2_Autonomy_Research.md`: where the masked X4 Pro is blind (not just behind: the rear half of both flanks at aisle clearances), the heading budget of a 1.00 × 0.36 m body in an aisle of width A, and what fraction of the robot's outline a candidate ToF-ring or rear-LiDAR layout sees at a given stand-off. `--selftest` first. A layout screen, not a CAD check. |
 | `bag_cmd_chain.py` | anywhere (needs `pip install mcap mcap-ros2-support`) | Reads a rosbag2 `.mcap` and prints the speed at each stage of the Nav2 command chain (`/cmd_vel_nav`, `/cmd_vel_smoothed`, `/cmd_vel_baselink`, `/cmd_vel`) per time bin, plus every `collision_monitor` state change. The stage that first shows tiny numbers is where the speed was lost. First used 1 Oct 2026: all four read 4.4 mm/s, which put the fault inside MPPI. |
 | `pi_audit.sh` | Pi | Read-only inventory — disk, network, services, deployed code, run data, cleanup candidates. Deletes nothing. With `--online`, diffs every deployed source file against GitHub. |
 | `pi_clean.sh` | Pi | Removes accumulated waste (journald, rotated `/var/log`, `~/.vscode-server`, `~/.ros/log`, stale snaps, old kernels, dead workspace code). **Dry run by default**; `--apply` to execute. |
 | `tests/scan_relay_gate.py` | anywhere (stdlib only) | Drives `scan_relay.py`'s LiDAR quality gate — range floor/cap, the K-of-N persistence gate, live parameter validation. 47 checks against the real methods, `ast`-extracted from the shipped source. Proves the gate is off by default, never alters a range value, and refuses a configuration that could never pass a beam. |
-| `tests/dashboard_lidar.py` | anywhere (stdlib only) | **Cross-file.** The LIDAR panel lives in `phone_dashboard.py` and its knobs live in `scan_relay.py`, and those two deploy separately — every way they can disagree is silent. 60 checks that the parameter names, ROS types and defaults match on both sides, that every preset validates, that every button maps to a real preset, that every element the JS reaches for exists, and that every message it sends has a dispatch case. |
+| `tests/dashboard_nav2.py` | anywhere; part C needs Playwright and Chromium | The NAV2 button and the pose box. Static checks on the page Python actually serves (button present, no tuner remnant, every `getElementById` id exists, Nav2 stopped before the map on MAP-stop, E-STOP and shutdown); the shipped Nav2 state machine driven against stubs (preflight refusals, STARTING to UP only on the lifecycle manager's word, cancel + SIGINT + SIGKILL, crash, terminal launch, goal status and distance); and a headless browser pass (labels, goal rows, fold, taps, nothing sent behind an E-STOP). Replaced `dashboard_lidar.py` on 5 Oct 2026 when the LIDAR tuner was removed. |
 | `tests/dashboard_html_syntax.py` | anywhere (needs `node`) | **Run this before every commit that touches `DASHBOARD_HTML`.** 15 Sep 2026: a `\'` inside the Python string was valid Python-escape syntax but broke the JS it produced, and it took the ENTIRE dashboard offline (`node --check` on the raw file text passed cleanly, because the raw file text still has the escape intact — the bug only exists in what Python actually *evaluates* the string to). This test `ast.literal_eval`s the real `DASHBOARD_HTML` assignment — the same thing `python3` does on import — and runs `node --check` against THAT, plus a direct sweep for any backslash surviving into the served page at all. See `CLAUDE.md` for the full account. |
 
 ---
@@ -449,9 +449,10 @@ python3 tools/tests/dashboard_scan_geometry.py     # repo root, needs playwright
 two renderers on one canvas measured yaw from different axes and the
 picture agreed with the wrong one.
 
-A scan overlay is that hazard with more dots. `base_link` is not REP-103
-here (+X right, +Y nose), the corrected scan frame measures bearing 0 along
-+X, and the laser sits 0.27 m forward of `base_link`. Get any one wrong and
+A scan overlay is that hazard with more dots. `base_link` is standard
+REP-103 (+X nose, +Y left, since 5 Oct 2026), the corrected scan frame
+measures bearing 0 along the nose, and the laser sits 0.27 m ahead of
+`base_link` on X. Get any one wrong and
 the dots still form a plausible room outline, just rotated or offset, and
 nobody can tell by eye.
 

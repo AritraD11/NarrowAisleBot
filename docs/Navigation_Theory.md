@@ -224,11 +224,14 @@ turn out to be the binding constraint on this platform after all.
 
 Two stock MPPI critics — `PathAngleCritic` and `PreferForwardCritic` — are
 deliberately **not** enabled here. Both assume the robot's `+X` axis is its
-forward direction (REP-103). This robot's `base_link` is not REP-103 by design
-(see the AXES note in `nav2_params.yaml`), so either critic would silently
-penalize the robot's actual forward motion as if it were sideways travel — the
-same axis-convention bug class that has recurred five times on this project
-(§17.14, §17.17, §17.19, §17.23).
+forward direction (REP-103). Until 5 Oct 2026 this robot's `base_link` was
+not REP-103 by design (see the AXES note in `nav2_params.yaml`), so either
+critic would silently have penalized the robot's actual forward motion as if it
+were sideways travel, the same axis-convention bug class that recurred five
+times on this project (§17.14, §17.17, §17.19, §17.23). The frame is standard
+now, so they would point the right way, but they stay off for a different
+reason: both reward nose-first travel, which works against strafing and
+reversing.
 
 ---
 
@@ -475,7 +478,7 @@ mecanum, where lateral motion carries its own noise character distinct from
 forward motion), and `initial_pose`'s `yaw: -1.5708` already accounts for
 this robot's non-REP-103 `base_link` convention (a robot facing forward along
 map `+X` has base_link yaw `-90°` here, not `0°` — get this wrong and the
-first scan match starts from a hypothesis rotated 90° from reality). It was
+first scan match starts from a hypothesis rotated 90° from reality). [Both statements are historical: `initial_pose` yaw is `0.0` in the repo since §17.49, and base_link is standard REP-103 since 5 Oct 2026, where yaw 0 is simply facing along map +X.] It was
 exercised for the first time this session, in the sense that
 `navigation.launch.py` was rewritten to actually launch it correctly
 (§17.26) — but no map has been saved yet for it to load, so the block remains

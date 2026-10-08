@@ -23,3 +23,9 @@ node docs/flowcharts/render_png.js 2 mono                     # mono/png, render
 MONO=1 python3 docs/hardware/esp32_pin_circuit.py && node docs/hardware/render_svg_png.js docs/hardware/esp32_pin_circuit_mono.svg 2
 NODE_PATH=<dir containing docx> node docs/presentation/build_doc.js
 ```
+
+## Final version
+
+`NarrowAisleBot_ROS2_Notes_final.docx` is the author's edited copy (academic register, plus a new section 1 on the Ubuntu and ROS 2 installation), added 8 Oct 2026. It is the version to use. The generated `NarrowAisleBot_ROS2_Notes.docx` is kept as the source it started from; rebuilding it will not reproduce the edits.
+
+Checked against `install.sh` when it was added: section 1 says the `ros-base` variant was installed, while `install.sh` installs `ros-jazzy-desktop`. Confirm on the Pi with `dpkg -l ros-jazzy-desktop ros-jazzy-ros-base`. Section 1 also lists `ros-jazzy-twist-mux`, which the robot runs but `install.sh` does not install.

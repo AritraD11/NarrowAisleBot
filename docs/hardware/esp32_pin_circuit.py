@@ -15,12 +15,14 @@ Run from anywhere:  python3 docs/hardware/esp32_pin_circuit.py
 Then:               node docs/hardware/render_svg_png.js docs/hardware/esp32_pin_circuit.svg 2
 """
 import html
+import os
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = Path(__file__).resolve().parent / "esp32_pin_circuit.svg"
+MONO = bool(os.environ.get("MONO"))      # MONO=1 writes a black-and-white copy
+OUT = Path(__file__).resolve().parent / ("esp32_pin_circuit_mono.svg" if MONO else "esp32_pin_circuit.svg")
 
 # ----------------------------------------------------------------- read the code
 ino = (ROOT / "aislebot_esp32.ino").read_text(encoding="utf-8")
@@ -78,6 +80,9 @@ def gp(n):
 # ----------------------------------------------------------------- drawing kit
 C = dict(ink="#172126", mute="#52606A", rule="#9AA7AE", p5="#E65100", p24="#C62828", p33="#1565C0",
          enc="#6A1B9A", gnd="#212121", box="#FFFFFF", fill="#F3F6F4", hw="#E3E8E2")
+if MONO:
+    C.update(mute="#444444", rule="#8C8C8C", p5="#1A1A1A", p24="#1A1A1A", p33="#1A1A1A",
+             enc="#1A1A1A", fill="#FFFFFF", hw="#EEEEEE")
 W, H = 1820, 1020
 out = []
 add = out.append
@@ -136,9 +141,9 @@ text(100, 52, "ESP32 pin-level circuit", 28, 600)
 text(100, 76, f"Pin numbers are read from aislebot_esp32.ino {fw_version} when this file is generated. "
      "Shifter wiring from Bench_Test_Map.md, power from Master_Reference.md.", 14, 400, C["mute"])
 
-# legend
+# legend (colour key, meaningless in the mono copy)
 lx, ly = 1180, 38
-for i, (col, lab) in enumerate([(C["enc"], "5 V encoder signal"), (C["p33"], "3.3 V logic"),
+for i, (col, lab) in enumerate([] if MONO else [(C["enc"], "5 V encoder signal"), (C["p33"], "3.3 V logic"),
                                 (C["p24"], "24 V motor lead"), (C["p5"], "+5V net"), (C["gnd"], "GND net")]):
     xx = lx + (i % 3) * 200
     yy = ly + (i // 3) * 24
@@ -154,13 +159,13 @@ for i, m in enumerate(MOTORS):
     text(EX + 12, base + 12, ("GTK08, 1000 PPR" if gtk else "RMCS-2086, 500 line"), 12, 400, C["mute"])
     text(EX + 12, base + 28, f"{int(cpr[i])} counts/rev", 12, 400, C["mute"])
     # power stubs: red wire +5V, black wire GND
-    line([(EX, base), (EX - 34, base)], "#C62828", 2.6)
+    line([(EX, base), (EX - 34, base)], C["p24"], 2.6)
     flag(EX - 34, base, "+5V", up=True)
     line([(EX, base + 40), (EX - 34, base + 40)], C["gnd"], 2.6)
     flag(EX - 34, base + 40, "GND", up=False)
     for sig, yy in (("A", base), ("B", base + 40)):
         colour = WIRE[(m, sig)][0].lower()
-        sw = {"green": "#2E9E4F", "white": "#FFFFFF", "yellow": "#E6B800"}[colour]
+        sw = "#FFFFFF" if MONO else {"green": "#2E9E4F", "white": "#FFFFFF", "yellow": "#E6B800"}[colour]
         add(f'<circle cx="{EX + EW - 74}" cy="{yy - 4}" r="5" fill="{sw}" stroke="{C["ink"]}" stroke-width="1"/>')
         text(EX + EW - 12, yy, f"{sig}  {colour}", 13, 500, C["ink"], "end")
         line([(EX + EW, yy), (SX, yy)], C["enc"], 2.4)

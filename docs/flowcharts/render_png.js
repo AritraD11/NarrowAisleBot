@@ -1,5 +1,5 @@
 // Renders every svg/*.svg to png/*.png (light theme, white background) and runs the layout check.
-//   node docs/flowcharts/render_png.js [scale]      scale defaults to 3
+//   node docs/flowcharts/render_png.js [scale] [mono]   scale defaults to 3; 'mono' renders the black-and-white set
 // Needs Playwright with a Chromium. Set CHROMIUM=/path/to/chrome if the default is not found.
 // Fonts: if ./fonts/ holds the IBM Plex woff files (see README) they are used, otherwise the
 // SVG's own fallback stack (Segoe UI, Arial) is used.
@@ -10,8 +10,9 @@ try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = requ
 
 const here = __dirname;
 const scale = Number(process.argv[2] || 3);
-const svgDir = path.join(here, 'svg');
-const pngDir = path.join(here, 'png');
+const sub = process.argv[3] || '';            // e.g. 'mono'
+const svgDir = path.join(here, sub, 'svg');
+const pngDir = path.join(here, sub, 'png');
 fs.mkdirSync(pngDir, { recursive: true });
 
 function fontCss() {
@@ -40,7 +41,7 @@ function fontCss() {
     const W = +m[1], H = +m[2];
     const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: scale });
     const page = await ctx.newPage();
-    await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>${css}html,body{margin:0;background:#fff}svg{display:block}</style></head><body>${svg}</body></html>`);
+    await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>${css}html,body{margin:0;background:#fff}svg{display:block}${sub === 'mono' ? 'svg{filter:grayscale(1)}' : ''}</style></head><body>${svg}</body></html>`);
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(150);
 

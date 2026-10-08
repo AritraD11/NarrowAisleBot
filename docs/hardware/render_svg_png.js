@@ -22,7 +22,7 @@ for (const [fam, w, f] of map) {
   const browser = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: scale });
   const page = await ctx.newPage();
-  await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>${css}html,body{margin:0;background:#fff}svg{display:block}</style></head><body>${svg}</body></html>`);
+  await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>${css}html,body{margin:0;background:#fff}svg{display:block}${/_mono\.svg$/.test(file) ? 'svg{filter:grayscale(1)}' : ''}</style></head><body>${svg}</body></html>`);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(150);
   // overflow check: every in-box label must stay inside the canvas, and text must not collide

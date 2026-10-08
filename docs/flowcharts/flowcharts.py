@@ -109,8 +109,8 @@ class Fig:
             d = " dash" if dash else ""
             mk = f"a-{self.sid}-{cls}"
             self.edges.append(
-                f'<path class="e e-{cls}{d}" data-c="{cls}" d="M{x},{yy} L{x + 70},{yy}" marker-end="url(#{mk})"/>')
-            self.labels.append(f'<text class="legtxt" x="{x + 88}" y="{yy + 7}">{esc(text)}</text>')
+                f'<path class="e e-{cls}{d} leg" data-c="{cls}" d="M{x},{yy} L{x + 70},{yy}" marker-end="url(#{mk})"/>')
+            self.labels.append(f'<text class="legtxt leg" x="{x + 88}" y="{yy + 7}">{esc(text)}</text>')
 
     # ------------------------------------------------------------- output
     def markers(self):
@@ -132,12 +132,13 @@ class Fig:
         return (f'<svg id="{self.sid}" class="{cls}" viewBox="0 0 {self.w} {self.h}" role="img" '
                 f'aria-label="{esc(self.claim)}">{self.inner()}</svg>')
 
-    def svg_standalone(self):
+    def svg_standalone(self, css=None):
+        css = css or STANDALONE_CSS
         cls = "fig " + ("big" if self.profile == "slide" else "small")
         return (f'<svg xmlns="http://www.w3.org/2000/svg" id="{self.sid}" class="{cls}" '
                 f'viewBox="0 0 {self.w} {self.h}" width="{self.w}" height="{self.h}" role="img" '
                 f'aria-label="{esc(self.claim)}"><title>{esc(self.claim)}</title>'
-                f'<style>{STANDALONE_CSS}</style>'
+                f'<style>{css}</style>'
                 f'<rect width="{self.w}" height="{self.h}" fill="#FFFFFF"/>{self.inner()}</svg>')
 
     # ------------------------------------------------------------- checks
@@ -217,6 +218,21 @@ svg text{font-family:"IBM Plex Sans","Segoe UI",Arial,Helvetica,sans-serif;fill:
 .big .legtxt{font-size:21px}
 .legtxt{font-size:12px}
 """
+
+
+# Black-and-white variant for print and plain documents: every colour goes to a grey,
+# the colour legend is hidden (it would mean nothing), labels carry the topic names.
+_MONO_MAP = {
+    "#0072B2": "#1A1A1A", "#C2410C": "#1A1A1A", "#00896A": "#1A1A1A", "#7C4DA8": "#1A1A1A",
+    "#C62828": "#1A1A1A", "#172126": "#111111", "#66737C": "#4D4D4D", "#8A949B": "#6E6E6E",
+    "#6A747B": "#555555", "#52606A": "#444444", "#9AA7AE": "#8C8C8C",
+    "#E9EEF1": "#F2F2F2", "#F3F6F4": "#FFFFFF", "#FBFBF7": "#FFFFFF", "#EDEFE9": "#FFFFFF",
+    "#F7F9F8": "#FFFFFF", "#E3E8E2": "#E6E6E6",
+}
+MONO_CSS = STANDALONE_CSS
+for _a, _b in _MONO_MAP.items():
+    MONO_CSS = MONO_CSS.replace(_a, _b)
+MONO_CSS += ".leg{display:none}"
 
 
 # =============================================================================
@@ -687,12 +703,15 @@ def main():
     figs = build_all()
     bad = []
     os.makedirs(os.path.join(HERE, "svg"), exist_ok=True)
+    os.makedirs(os.path.join(HERE, "mono", "svg"), exist_ok=True)
     for f in figs:
         bad += f.check_edges()
         path = os.path.join(HERE, "svg", NAMES[f.sid] + ".svg")
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(f.svg_standalone())
-        print("wrote", os.path.relpath(path, os.path.dirname(HERE)))
+        with open(os.path.join(HERE, "mono", "svg", NAMES[f.sid] + ".svg"), "w", encoding="utf-8") as fh:
+            fh.write(f.svg_standalone(MONO_CSS))
+        print("wrote", os.path.relpath(path, os.path.dirname(HERE)), "and its mono copy")
     if bad:
         print("\nEDGE CHECK FAILED:")
         print("\n".join(bad))

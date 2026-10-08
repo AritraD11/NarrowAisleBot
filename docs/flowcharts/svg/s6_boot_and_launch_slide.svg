@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="s6" class="fig big" viewBox="0 0 1760 990" width="1760" height="990" role="img" aria-label="Boot chain: systemd runs the start script, which launches the eleven always-on processes; mapping and Nav2 start on demand"><title>Boot chain: systemd runs the start script, which launches the eleven always-on processes; mapping and Nav2 start on demand</title><style>
+svg text{font-family:"IBM Plex Sans","Segoe UI",Arial,Helvetica,sans-serif;fill:#172126}
+.band{stroke-width:1.4}
+.band-op{fill:#E9EEF1;stroke:#9AA7AE}
+.band-pi{fill:#F3F6F4;stroke:#52606A}
+.band-od{fill:#FBFBF7;stroke:#52606A;stroke-dasharray:8 6}
+.band-hw{fill:#EDEFE9;stroke:#52606A}
+.band-pl{fill:#F7F9F8;stroke:#52606A}
+.bandlbl{font-weight:600;font-size:10.5px;fill:#52606A;letter-spacing:.08em}
+.bandsub{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-weight:500;font-size:11px;letter-spacing:0;fill:#52606A}
+.node rect{fill:#FFFFFF;stroke:#172126;stroke-width:1.2}
+.node-ext rect{fill:#E9EEF1;stroke:#52606A}
+.node.dashed rect{stroke-dasharray:4 3}
+.node-hwn rect{fill:#E3E8E2;stroke:#172126;stroke-width:1.6}
+.node-warnbox rect{fill:#FFFFFF;stroke:#C62828;stroke-width:1.4}
+.node-callout rect{fill:#F7F9F8;stroke:#9AA7AE;stroke-dasharray:6 4}
+.nt{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-weight:600;font-size:11px}
+.node-grp .nt,.node-callout .nt{font-family:"IBM Plex Sans","Segoe UI",Arial,sans-serif}
+.ns{font-weight:400;font-size:10.5px;fill:#52606A}
+.node-grp .ns{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-size:10px}
+.note,.note-s{font-size:12px;fill:#52606A}.note-s{font-size:10.5px}
+.e{fill:none;stroke-width:1.6;stroke-linejoin:round}
+.e.thick{stroke-width:2.8}
+.e.dash,.e-tf{stroke-dasharray:5 4}
+.e-manual{stroke:#0072B2}.mk-manual{fill:#0072B2}
+.e-auto{stroke:#C2410C}.mk-auto{fill:#C2410C}
+.e-merge{stroke:#172126}.mk-merge{fill:#172126}
+.e-fb{stroke:#00896A}.mk-fb{fill:#00896A}
+.e-scan{stroke:#7C4DA8}.mk-scan{fill:#7C4DA8}
+.e-ctl{stroke:#66737C}.mk-ctl{fill:#66737C}
+.e-tf{stroke:#8A949B}.mk-tf{fill:#8A949B}
+.e-warn{stroke:#C62828}.mk-warn{fill:#C62828}
+.lb{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-weight:500;font-size:10px;paint-order:stroke;stroke:#FFFFFF;stroke-width:4px;stroke-linejoin:round}
+.lb-manual{fill:#0072B2}.lb-auto{fill:#C2410C}.lb-merge{fill:#172126}.lb-fb{fill:#00896A}
+.lb-scan{fill:#7C4DA8}.lb-ctl{fill:#66737C}.lb-tf{fill:#6A747B}.lb-warn{fill:#C62828}
+/* slide scale */
+.big .band{stroke-width:2}
+.big .bandlbl{font-size:21px;letter-spacing:.05em}
+.big .bandsub{font-size:21px}
+.big .node rect{stroke-width:2.2}
+.big .node-hwn rect{stroke-width:2.8}
+.big .nt{font-size:24px}
+.big .node-grp .nt,.big .node-callout .nt{font-size:26px}
+.big .ns{font-size:21px}
+.big .node-grp .ns{font-size:21px}
+.big .note{font-size:21px}
+.big .e{stroke-width:3.2}
+.big .e.thick{stroke-width:5.5}
+.big .lb{font-size:21px;stroke-width:6px}
+.big .legtxt{font-size:21px}
+.legtxt{font-size:12px}
+</style><rect width="1760" height="990" fill="#FFFFFF"/><defs><marker id="a-s6-manual" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-manual"/></marker><marker id="a-s6-auto" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-auto"/></marker><marker id="a-s6-merge" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-merge"/></marker><marker id="a-s6-fb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-fb"/></marker><marker id="a-s6-scan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-scan"/></marker><marker id="a-s6-ctl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-ctl"/></marker><marker id="a-s6-tf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-tf"/></marker><marker id="a-s6-warn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-warn"/></marker></defs><rect class="band band-od" x="1295" y="20" width="450" height="940" rx="6"/><text class="bandlbl" x="1309" y="47">ON DEMAND</text><path class="e e-merge thick" data-c="merge" d="M115,139 L115,235" marker-end="url(#a-s6-merge)"/><path class="e e-merge thick" data-c="merge" d="M115,365 L115,485" marker-end="url(#a-s6-merge)"/><path class="e e-merge" data-c="merge" d="M455,523 L540,523 L540,87.0 L600,87.0" marker-end="url(#a-s6-merge)"/><path class="e e-merge" data-c="merge" d="M455,523 L540,523 L540,571.0 L600,571.0" marker-end="url(#a-s6-merge)"/><path class="e e-merge" data-c="merge" d="M540,221.0 L600,221.0" marker-end="url(#a-s6-merge)"/><path class="e e-merge" data-c="merge" d="M540,342.0 L600,342.0" marker-end="url(#a-s6-merge)"/><path class="e e-merge" data-c="merge" d="M540,450.0 L600,450.0" marker-end="url(#a-s6-merge)"/><path class="e e-ctl dash" data-c="ctl" d="M1120,112.0 L1340,112.0" marker-end="url(#a-s6-ctl)"/><path class="e e-ctl" data-c="ctl" d="M1420,164 L1420,290" marker-end="url(#a-s6-ctl)"/><path class="e e-ctl" data-c="ctl" d="M1340,142 L1316,142 L1316,519 L1340,519" marker-end="url(#a-s6-ctl)"/><g class="node node-ros"><rect x="35" y="35" width="420" height="104" rx="4"/><text class="nt" x="51" y="69">aislebot.service</text><text class="ns" x="51" y="99">systemd, restarts on failure,</text><text class="ns" x="51" y="125">10 s delay</text></g><g class="node node-ros"><rect x="35" y="235" width="420" height="130" rx="4"/><text class="nt" x="51" y="269">start_aislebot.sh</text><text class="ns" x="51" y="299">domain 42, Cyclone on loopback</text><text class="ns" x="51" y="325">waits 30 s for /dev/esp32, aborts</text><text class="ns" x="51" y="351">waits 15 s for /dev/mega, warns</text></g><g class="node node-ros"><rect x="35" y="485" width="420" height="78" rx="4"/><text class="nt" x="51" y="519">aislebot_full.launch.py</text><text class="ns" x="51" y="549">11 processes, all always on</text></g><g class="node node-grp"><rect x="600" y="35" width="520" height="104" rx="4"/><text class="nt" x="616" y="69">Operator interface</text><text class="ns" x="616" y="99">joy_node, joy_to_aislebot</text><text class="ns" x="616" y="125">phone_dashboard</text></g><g class="node node-grp"><rect x="600" y="169" width="520" height="104" rx="4"/><text class="nt" x="616" y="203">Drive</text><text class="ns" x="616" y="233">twist_mux, teleop_asym</text><text class="ns" x="616" y="259">esp32_bridge</text></g><g class="node node-grp"><rect x="600" y="303" width="520" height="78" rx="4"/><text class="nt" x="616" y="337">Pose</text><text class="ns" x="616" y="367">odometry_publisher</text></g><g class="node node-grp"><rect x="600" y="411" width="520" height="78" rx="4"/><text class="nt" x="616" y="445">Arm and status</text><text class="ns" x="616" y="475">arm_bridge, lcd_display</text></g><g class="node node-grp"><rect x="600" y="519" width="520" height="104" rx="4"/><text class="nt" x="616" y="553">Viewer and model</text><text class="ns" x="616" y="583">foxglove_bridge</text><text class="ns" x="616" y="609">robot_state_publisher</text></g><g class="node node-ros"><rect x="1340" y="60" width="380" height="104" rx="4"/><text class="nt" x="1356" y="94">mapping_full.launch.py</text><text class="ns" x="1356" y="124">started by the MAP button</text><text class="ns" x="1356" y="150">runs sensors.launch.py</text></g><g class="node node-ros"><rect x="1340" y="290" width="380" height="104" rx="4"/><text class="nt" x="1356" y="324">sensors.launch.py</text><text class="ns" x="1356" y="354">ydlidar driver, scan_relay,</text><text class="ns" x="1356" y="380">zero_point_tf</text></g><g class="node node-ros"><rect x="1340" y="480" width="380" height="78" rx="4"/><text class="nt" x="1356" y="514">slam_toolbox</text><text class="ns" x="1356" y="544">online_async</text></g><g class="node node-ros"><rect x="1340" y="640" width="380" height="104" rx="4"/><text class="nt" x="1356" y="674">nav2_slam.launch.py</text><text class="ns" x="1356" y="704">by hand, after mapping</text><text class="ns" x="1356" y="730">Nav2 servers and adapters</text></g><text class="lb lb-ctl" data-c="ctl" x="1138" y="98.0" text-anchor="start">MAP button</text><text class="note" x="1334" y="850" text-anchor="start">Run exactly one of mapping_full</text><text class="note" x="1334" y="878" text-anchor="start">and navigation. Two LiDAR drivers on</text><text class="note" x="1334" y="906" text-anchor="start">one serial port is a hard failure.</text></svg>

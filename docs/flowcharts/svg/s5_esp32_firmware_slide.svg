@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="s5" class="fig big" viewBox="0 0 1760 990" width="1760" height="990" role="img" aria-label="ESP32 drive firmware: a comms task on core 0 parses commands into shared targets, a 100 Hz PID task on core 1 drives the motors and latches an E-STOP on any safety trip"><title>ESP32 drive firmware: a comms task on core 0 parses commands into shared targets, a 100 Hz PID task on core 1 drives the motors and latches an E-STOP on any safety trip</title><style>
+svg text{font-family:"IBM Plex Sans","Segoe UI",Arial,Helvetica,sans-serif;fill:#172126}
+.band{stroke-width:1.4}
+.band-op{fill:#E9EEF1;stroke:#9AA7AE}
+.band-pi{fill:#F3F6F4;stroke:#52606A}
+.band-od{fill:#FBFBF7;stroke:#52606A;stroke-dasharray:8 6}
+.band-hw{fill:#EDEFE9;stroke:#52606A}
+.band-pl{fill:#F7F9F8;stroke:#52606A}
+.bandlbl{font-weight:600;font-size:10.5px;fill:#52606A;letter-spacing:.08em}
+.bandsub{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-weight:500;font-size:11px;letter-spacing:0;fill:#52606A}
+.node rect{fill:#FFFFFF;stroke:#172126;stroke-width:1.2}
+.node-ext rect{fill:#E9EEF1;stroke:#52606A}
+.node.dashed rect{stroke-dasharray:4 3}
+.node-hwn rect{fill:#E3E8E2;stroke:#172126;stroke-width:1.6}
+.node-warnbox rect{fill:#FFFFFF;stroke:#C62828;stroke-width:1.4}
+.node-callout rect{fill:#F7F9F8;stroke:#9AA7AE;stroke-dasharray:6 4}
+.nt{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-weight:600;font-size:11px}
+.node-grp .nt,.node-callout .nt{font-family:"IBM Plex Sans","Segoe UI",Arial,sans-serif}
+.ns{font-weight:400;font-size:10.5px;fill:#52606A}
+.node-grp .ns{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-size:10px}
+.note,.note-s{font-size:12px;fill:#52606A}.note-s{font-size:10.5px}
+.e{fill:none;stroke-width:1.6;stroke-linejoin:round}
+.e.thick{stroke-width:2.8}
+.e.dash,.e-tf{stroke-dasharray:5 4}
+.e-manual{stroke:#0072B2}.mk-manual{fill:#0072B2}
+.e-auto{stroke:#C2410C}.mk-auto{fill:#C2410C}
+.e-merge{stroke:#172126}.mk-merge{fill:#172126}
+.e-fb{stroke:#00896A}.mk-fb{fill:#00896A}
+.e-scan{stroke:#7C4DA8}.mk-scan{fill:#7C4DA8}
+.e-ctl{stroke:#66737C}.mk-ctl{fill:#66737C}
+.e-tf{stroke:#8A949B}.mk-tf{fill:#8A949B}
+.e-warn{stroke:#C62828}.mk-warn{fill:#C62828}
+.lb{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-weight:500;font-size:10px;paint-order:stroke;stroke:#FFFFFF;stroke-width:4px;stroke-linejoin:round}
+.lb-manual{fill:#0072B2}.lb-auto{fill:#C2410C}.lb-merge{fill:#172126}.lb-fb{fill:#00896A}
+.lb-scan{fill:#7C4DA8}.lb-ctl{fill:#66737C}.lb-tf{fill:#6A747B}.lb-warn{fill:#C62828}
+/* slide scale */
+.big .band{stroke-width:2}
+.big .bandlbl{font-size:21px;letter-spacing:.05em}
+.big .bandsub{font-size:21px}
+.big .node rect{stroke-width:2.2}
+.big .node-hwn rect{stroke-width:2.8}
+.big .nt{font-size:24px}
+.big .node-grp .nt,.big .node-callout .nt{font-size:26px}
+.big .ns{font-size:21px}
+.big .node-grp .ns{font-size:21px}
+.big .note{font-size:21px}
+.big .e{stroke-width:3.2}
+.big .e.thick{stroke-width:5.5}
+.big .lb{font-size:21px;stroke-width:6px}
+.big .legtxt{font-size:21px}
+.legtxt{font-size:12px}
+</style><rect width="1760" height="990" fill="#FFFFFF"/><defs><marker id="a-s5-manual" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-manual"/></marker><marker id="a-s5-auto" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-auto"/></marker><marker id="a-s5-merge" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-merge"/></marker><marker id="a-s5-fb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-fb"/></marker><marker id="a-s5-scan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-scan"/></marker><marker id="a-s5-ctl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-ctl"/></marker><marker id="a-s5-tf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-tf"/></marker><marker id="a-s5-warn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-warn"/></marker></defs><rect class="band band-od" x="20" y="20" width="370" height="560" rx="6"/><text class="bandlbl" x="34" y="47">COMMS TASK<tspan class="bandsub" dx="10">core 0, prio 1</tspan></text><rect class="band band-pi" x="545" y="20" width="450" height="880" rx="6"/><text class="bandlbl" x="559" y="47">PID TASK<tspan class="bandsub" dx="10">core 1, prio 3, 100 Hz</tspan></text><path class="e e-ctl" data-c="ctl" d="M125,184 L125,280" marker-end="url(#a-s5-ctl)" marker-start="url(#a-s5-ctl)"/><path class="e e-merge thick" data-c="merge" d="M125,384 L125,460" marker-end="url(#a-s5-merge)"/><path class="e e-merge thick" data-c="merge" d="M375,500 L500,500 L500,340 L560,340" marker-end="url(#a-s5-merge)"/><path class="e e-fb" data-c="fb" d="M560,120 L375,120" marker-end="url(#a-s5-fb)"/><path class="e e-fb" data-c="fb" d="M680,184 L680,280" marker-end="url(#a-s5-fb)"/><path class="e e-merge thick" data-c="merge" d="M680,384 L680,480" marker-end="url(#a-s5-merge)"/><path class="e e-merge thick" data-c="merge" d="M680,558 L680,660" marker-end="url(#a-s5-merge)"/><path class="e e-warn" data-c="warn" d="M940,340 L1130,340" marker-end="url(#a-s5-warn)"/><path class="e e-warn" data-c="warn" d="M1250,410 L1250,480" marker-end="url(#a-s5-warn)"/><path class="e e-warn" data-c="warn" d="M1130,525 L940,525" marker-end="url(#a-s5-warn)"/><g class="node node-hwn"><rect x="35" y="80" width="340" height="104" rx="4"/><text class="nt" x="51" y="114">USB serial</text><text class="ns" x="51" y="144">921600 baud, &lt; &gt; framed</text><text class="ns" x="51" y="170">1 ms poll</text></g><g class="node node-ros"><rect x="35" y="280" width="340" height="104" rx="4"/><text class="nt" x="51" y="314">Command parser</text><text class="ns" x="51" y="344">V B M T S E W Y</text><text class="ns" x="51" y="370">G F K A X L</text></g><g class="node node-ros"><rect x="35" y="460" width="340" height="104" rx="4"/><text class="nt" x="51" y="494">Targets (shared)</text><text class="ns" x="51" y="524">V: closed loop rad/s</text><text class="ns" x="51" y="550">B: body twist, ESP32 does IK</text></g><g class="node node-ros"><rect x="560" y="80" width="380" height="104" rx="4"/><text class="nt" x="576" y="114">Read encoders</text><text class="ns" x="576" y="144">4 PCNT units, front CPR</text><text class="ns" x="576" y="170">186264, rear 93132, EMA 0.4</text></g><g class="node node-ros"><rect x="560" y="280" width="380" height="104" rx="4"/><text class="nt" x="576" y="314">Slew, feedforward, PID</text><text class="ns" x="576" y="344">slew 12 rad/s^2</text><text class="ns" x="576" y="370">Kp 45, Ki 250, Kd 0.5</text></g><g class="node node-ros"><rect x="560" y="480" width="380" height="78" rx="4"/><text class="nt" x="576" y="514">PWM and DIR</text><text class="ns" x="576" y="544">8 bit, 5 kHz</text></g><g class="node node-hwn"><rect x="560" y="660" width="380" height="78" rx="4"/><text class="nt" x="576" y="694">Motor drivers</text><text class="ns" x="576" y="724">4 wheels, Cytron-style</text></g><g class="node node-warnbox"><rect x="1130" y="280" width="590" height="130" rx="4"/><text class="nt" x="1146" y="314">Safety checks, every cycle</text><text class="ns" x="1146" y="344">watchdog 750 ms</text><text class="ns" x="1146" y="370">overspeed 1.3x for 300 ms</text><text class="ns" x="1146" y="396">runaway 500 ms, stall 2 s</text></g><g class="node node-warnbox"><rect x="1130" y="480" width="590" height="104" rx="4"/><text class="nt" x="1146" y="514">Latching E-STOP</text><text class="ns" x="1146" y="544">prints [TRIP,...], motors to zero</text><text class="ns" x="1146" y="570">cleared only by &lt;E1&gt;</text></g><g class="node node-callout"><rect x="35" y="620" width="480" height="156" rx="4"/><text class="nt" x="51" y="654">Control law, per wheel</text><text class="ns" x="51" y="684">pwm = Kff·ω + Kstat·sgn(ω) + PID(e)</text><text class="ns" x="51" y="710">Kff 37.3 to 38.4 by wheel, Kstat 8</text><text class="ns" x="51" y="736">D term on measurement, anti-windup</text><text class="ns" x="51" y="762">against the real PWM headroom</text></g><g class="node node-callout"><rect x="1130" y="80" width="590" height="104" rx="4"/><text class="nt" x="1146" y="114">Command source</text><text class="ns" x="1146" y="144">The Pi is the only command source.</text><text class="ns" x="1146" y="170">WiFi and the web joystick left in v3.0.</text></g><g class="node node-callout"><rect x="1130" y="700" width="590" height="130" rx="4"/><text class="nt" x="1146" y="734">Wheel order everywhere</text><text class="ns" x="1146" y="764">[FR, FL, RR, RL]</text><text class="ns" x="1146" y="790">motor and encoder signs both {-1, +1, -1, +1}</text><text class="ns" x="1146" y="816">front CPR is twice the rear</text></g><text class="lb lb-merge" data-c="merge" x="139" y="440" text-anchor="start">writes</text><text class="lb lb-merge" data-c="merge" x="380" y="488" text-anchor="start">setpoints</text><text class="lb lb-fb" data-c="fb" x="457.5" y="104" text-anchor="middle">&lt;L1&gt; 20 Hz</text><text class="lb lb-fb" data-c="fb" x="694" y="260" text-anchor="start">velocity</text><text class="lb lb-merge" data-c="merge" x="694" y="460" text-anchor="start">pwm</text><text class="lb lb-merge" data-c="merge" x="694" y="640" text-anchor="start">PWM, DIR</text><text class="lb lb-warn" data-c="warn" x="1006" y="324" text-anchor="start">10 ms</text><text class="lb lb-warn" data-c="warn" x="1264" y="450" text-anchor="start">trip</text><text class="lb lb-warn" data-c="warn" x="1006" y="509" text-anchor="start">zero PWM</text></svg>

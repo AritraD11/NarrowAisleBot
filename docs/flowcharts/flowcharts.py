@@ -609,6 +609,9 @@ def build_s5():
     f.edge("warn", [(c2 + 380, 340), (c3, 340)]); f.lbl("10 ms", 1006, 324, "warn", "start")
     f.edge("warn", [(c3 + 120, 280 + H("sf")), (c3 + 120, 480)]); f.lbl("trip", c3 + 134, 450, "warn", "start")
     f.edge("warn", [(c3, 525), (c2 + 380, 525)]); f.lbl("zero PWM", 1006, 509, "warn", "start")
+    f.node(c1, 620, 480, None, "Control law, per wheel", [
+        "pwm = Kff·ω + Kstat·sgn(ω) + PID(e)", "Kff 37.3 to 38.4 by wheel, Kstat 8",
+        "D term on measurement, anti-windup", "against the real PWM headroom"], "callout", "law")
     f.node(c3, 80, 590, None, "Command source", [
         "The Pi is the only command source.", "WiFi and the web joystick left in v3.0."], "callout", "c1")
     f.node(c3, 700, 590, None, "Wheel order everywhere", [

@@ -11,6 +11,8 @@ PROTOCOL (matches aislebot_esp32.ino v3.0):
   Pi → ESP32:  <P>               ping (expects [PONG])
   Pi → ESP32:  <E1> / <E0>       enable (+ clear E-STOP) / disable motors
   ESP32 → Pi:  CSV telemetry lines (when <L1> enabled)
+  ESP32 → Pi:  [IMU]qw,qx,qy,qz,gx,gy,gz,ax,ay,az   (rad/s, m/s^2; only
+               used when the enable_imu parameter is true)
 
 v3.0 keeps <V> and the 13-column telemetry line byte-identical to v2.0,
 so nothing in this bridge needed changing for it. <L2> appends further
@@ -267,6 +269,18 @@ class ESP32Bridge(Node):
         tel_msg.data = line
         self.pub_telemetry_raw.publish(tel_msg)
 
+        # IMU lines are comma separated too, and the wheel-speed fallback
+        # below accepts any line with a comma, nine or more fields and a
+        # non-digit first field. An IMU line used to fall into it and went
+        # out on /wheel_velocities_actual as four "wheel speeds" (gyro and
+        # quaternion values), which odometry_publisher integrates. Handle
+        # the line here and return so it can never reach that branch,
+        # whether or not enable_imu is set.
+        if line.startswith('[IMU]'):
+            if self.enable_imu:
+                self._publish_imu(line)
+            return
+
         # Detect CSV telemetry line (starts with digit and has commas)
         if line and line[0].isdigit() and ',' in line:
             self._publish_telemetry(line)
@@ -303,27 +317,33 @@ class ESP32Bridge(Node):
             except (ValueError, IndexError):
                 pass
 
-        # Parse IMU data: [IMU]qw,qx,qy,qz,gx,gy,gz,ax,ay,az
-        if self.enable_imu and line.startswith('[IMU]'):
-            try:
-                parts = line[5:].split(',')
-                if len(parts) >= 10:
-                    imu_msg = Imu()
-                    imu_msg.header.stamp = self.get_clock().now().to_msg()
-                    imu_msg.header.frame_id = 'imu_link'
-                    imu_msg.orientation.w = float(parts[0])
-                    imu_msg.orientation.x = float(parts[1])
-                    imu_msg.orientation.y = float(parts[2])
-                    imu_msg.orientation.z = float(parts[3])
-                    imu_msg.angular_velocity.x = float(parts[4])
-                    imu_msg.angular_velocity.y = float(parts[5])
-                    imu_msg.angular_velocity.z = float(parts[6])
-                    imu_msg.linear_acceleration.x = float(parts[7])
-                    imu_msg.linear_acceleration.y = float(parts[8])
-                    imu_msg.linear_acceleration.z = float(parts[9])
-                    self.pub_imu.publish(imu_msg)
-            except (ValueError, IndexError):
-                pass
+    def _publish_imu(self, line: str):
+        """
+        Parse '[IMU]qw,qx,qy,qz,gx,gy,gz,ax,ay,az' and publish /imu/data_raw.
+
+        Units are sensor_msgs/Imu's: gyro in rad/s, acceleration in m/s^2,
+        quaternion unitless. The firmware must print them in these units.
+        The stamp is the Pi's arrival time, not the ESP32's.
+        """
+        try:
+            parts = line[5:].split(',')
+            if len(parts) >= 10:
+                imu_msg = Imu()
+                imu_msg.header.stamp = self.get_clock().now().to_msg()
+                imu_msg.header.frame_id = 'imu_link'
+                imu_msg.orientation.w = float(parts[0])
+                imu_msg.orientation.x = float(parts[1])
+                imu_msg.orientation.y = float(parts[2])
+                imu_msg.orientation.z = float(parts[3])
+                imu_msg.angular_velocity.x = float(parts[4])
+                imu_msg.angular_velocity.y = float(parts[5])
+                imu_msg.angular_velocity.z = float(parts[6])
+                imu_msg.linear_acceleration.x = float(parts[7])
+                imu_msg.linear_acceleration.y = float(parts[8])
+                imu_msg.linear_acceleration.z = float(parts[9])
+                self.pub_imu.publish(imu_msg)
+        except (ValueError, IndexError):
+            pass
 
     # ─── Cleanup ─────────────────────────────────────────────────
 

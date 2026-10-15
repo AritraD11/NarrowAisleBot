@@ -23,6 +23,7 @@ using std::abs;
 #define INPUT             0x01
 #define OUTPUT            0x03
 #define INPUT_PULLUP      0x05
+#define INPUT_PULLDOWN    0x09
 #define OUTPUT_OPEN_DRAIN 0x13
 #define constrain(amt, low, high) ((amt) < (low) ? (low) : ((amt) > (high) ? (high) : (amt)))
 

@@ -73,6 +73,7 @@ public:
         }
         return 0;
     }
+    uint8_t endTransmission() { return endTransmission(true); }   // the core has both overloads
     uint8_t requestFrom(int addr, int len) {
         rx_.clear();
         addr_ = addr;

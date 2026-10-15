@@ -87,7 +87,7 @@ Frame and axis convention first, because it explains half the nodes. `base_link`
 | phone_dashboard | `phone_dashboard.py` (3998 lines: the first ~2400 are the docstring and the HTML/JS page held in one Python string, the rest is Python) | `/motor_telemetry`, `/map` (transient_local), `/scan_reliable`, `/scan_relay_stats`, TF lookups at 10 Hz | `/cmd_vel_manual`, `/arm/command`, `/esp32/command`, `/goal_pose_click`, `/odom/reset`; client of `/scan_relay/set_parameters` | port 8080, log_dir `~/aislebot_logs`, locations `~/locations.json`, map_name, scan_trust_range 5.0, scan_publish_hz 5 | Serves HTTP + WebSocket. Spawns subprocesses (section 11). |
 | twist_mux | `twist_mux` 4.5.0 | `/cmd_vel_manual` (priority 100, timeout 0.5 s), `/cmd_vel_nav_out` (priority 10, timeout 0.5 s) | `/cmd_vel` | `use_stamped: false` | |
 | mecanum_teleop_asymmetric | `mecanum_teleop_asymmetric.py` (147) | `/cmd_vel`, `/joy` | `/wheel_speeds` (Float64MultiArray [FR, FL, RR, RL] rad/s) | r 0.0762, l1 0.403, l2 0.333, d 0.15769, max_linear 0.15, max_angular 0.30 (launch overrides the file defaults of 0.48 and 1.0), wheel clamp 6.28 | |
-| esp32_bridge | `esp32_bridge.py` v3.1 (351) | `/wheel_speeds`, `/esp32/command` | `/motor_telemetry_raw` (String), `/motor_telemetry` (12 floats), `/wheel_velocities_actual` (4 floats), `/imu/data_raw` only if enable_imu | port `/dev/esp32`, 921600, max_wheel_speed 5.20, watchdog 0.5 s, telemetry_enabled true, `<L1>` resent every 5 s | ESP32 serial. Sends `<E1>` then `<L1>` on connect, `<S>` then `<E0>` on shutdown. |
+| esp32_bridge | `esp32_bridge.py` v3.2 | `/wheel_speeds`, `/esp32/command` | `/motor_telemetry_raw` (String), `/motor_telemetry` (12 floats), `/wheel_velocities_actual` (4 floats), `/imu/data` (Imu) if enable_imu | port `/dev/esp32`, 921600, max_wheel_speed 5.20, watchdog 0.5 s, telemetry_enabled true, enable_imu true (launch arg), imu_rate_hz 50, `<L1>` and `<N1,50>` resent every 5 s | ESP32 serial. Sends `<E1>`, `<L1>`, then `<N1,50>` (or `<N0>`) on connect, `<S>` then `<E0>` on shutdown. Changed 15 Oct 2026, not yet deployed to the Pi at the time of writing. |
 | odometry_publisher | `odometry_publisher.py` (321) | `/wheel_velocities_actual`, `/odom/reset` (Empty) | `/wheel_odom` (Odometry), TF `odom->base_link` | r, l1, l2, d as above, publish_tf true, lateral_scale 0.92 (live-settable) | |
 | arm_bridge | `arm_bridge.py` (270) | `/arm/cmd_vel`, `/arm/command` | `/arm/status` (String) | `/dev/mega`, 115200, command_timeout 300 ms, auto_enable_on_connect true, disable_joystick_on_connect true | Mega serial. 50 Hz transmit timer, reconnect timer 3 s. |
 | lcd_display | `lcd_display.py` (133) | none | none | | I2C LCD via RPLCD. Line 1 is the wlan0 IP, line 2 is `AP :8080`, `NET :22` or `NO NETWORK`. Refresh 2 s. |
@@ -291,6 +291,8 @@ Live file is `~/ros2_ws/slam_nodom.yaml` = `system/slam_nodom_stageB.yaml` (hash
 ## 10. Microcontroller firmware
 
 ### 10.1 ESP32 drive controller: `aislebot_esp32.ino` v3.0 (1154 lines, deployed)
+
+> **15 Oct 2026:** the repo now holds v3.1, which adds the BNO055 IMU task and the `<N>` commands and fixes four v3.0 defects (watchdog fed by any command, telemetry split across writes, no TX buffer, `<R>` race). The control law below is unchanged. v3.1 is not flashed until the boot banner says so; the header of `aislebot_esp32.ino` lists every change.
 
 Pi is the only command source. WiFi and the web joystick were removed in v3.0.
 

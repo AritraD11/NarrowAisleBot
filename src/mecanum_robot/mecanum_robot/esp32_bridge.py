@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """
-AisleBot ESP32 Bridge v3.1
+AisleBot ESP32 Bridge v3.2
 ==========================
 Bidirectional serial bridge between ROS2 (Raspberry Pi 5) and ESP32.
 
-PROTOCOL (matches aislebot_esp32.ino v3.0):
+PROTOCOL (matches aislebot_esp32.ino v3.1; v3.0 still works, it just
+answers <N...> with [ERR,UNKNOWN:N] and never sends [IMU] lines):
   Pi → ESP32:  <V,fr,fl,rr,rl>   velocity setpoints in rad/s
   Pi → ESP32:  <M,fr,fl,rr,rl>   direct PWM (-255 to 255)
   Pi → ESP32:  <S>               emergency stop (LATCHES — clear with <E1>)
   Pi → ESP32:  <P>               ping (expects [PONG])
   Pi → ESP32:  <E1> / <E0>       enable (+ clear E-STOP) / disable motors
+  Pi → ESP32:  <N1,hz> / <N0>    IMU stream on at hz / off (v3.1)
   ESP32 → Pi:  CSV telemetry lines (when <L1> enabled)
-  ESP32 → Pi:  [IMU]qw,qx,qy,qz,gx,gy,gz,ax,ay,az   (rad/s, m/s^2; only
-               used when the enable_imu parameter is true)
+  ESP32 → Pi:  [IMU]qw,qx,qy,qz,gx,gy,gz,ax,ay,az,t_us   (rad/s, m/s^2;
+               only published when the enable_imu parameter is true.
+               t_us is the ESP32's micros(), not used yet)
+  ESP32 → Pi:  [IMUS,...] / [IMUC,...] IMU status, 8 fields or fewer
 
 v3.0 keeps <V> and the 13-column telemetry line byte-identical to v2.0,
 so nothing in this bridge needed changing for it. <L2> appends further
@@ -26,7 +30,9 @@ TOPICS:
   Publishes:  /motor_telemetry_raw (String) raw string from ESP32
   Publishes:  /motor_telemetry (Float64MultiArray) structured CSV data
   Publishes:  /wheel_velocities_actual (Float64MultiArray) measured speeds
-  Publishes:  /imu/data_raw (Imu) if IMU attached to ESP32
+  Publishes:  /imu/data (Imu, frame imu_link) if enable_imu. REP-145 calls
+              a message with orientation imu/data; imu/data_raw is for
+              messages without it. ekf_params.yaml already reads imu/data.
 
 IIT Bombay — Aritra Das (25D0074) — Prof. Ambarish Kunwar
 """
@@ -61,6 +67,22 @@ class ESP32Bridge(Node):
         self.declare_parameter('watchdog_timeout', 0.5)       # seconds
         self.declare_parameter('enable_imu', False)
         self.declare_parameter('telemetry_enabled', False)
+        self.declare_parameter('imu_topic', 'imu/data')
+        # 50 Hz is plenty for yaw-rate fusion at 0.30 rad/s and costs the Pi
+        # half the parsing of 100 Hz. The firmware caps it at 100.
+        self.declare_parameter('imu_rate_hz', 50.0)
+        # Variances on the diagonal of each sensor_msgs/Imu covariance.
+        # All-zero covariances read as "unknown" to some consumers and as
+        # "perfect" to robot_localization (it floors them near 1e-9).
+        # gyro: 3e-5 (rad/s)^2 is the top of the range implied by the
+        #   BNO055's ~0.1-0.3 deg/s rms output noise (datasheet value seen
+        #   second-hand; replace with the 15-minute static log's figure).
+        # accel and orientation: placeholders until measured. IMUPLUS yaw
+        #   is relative to power-on, so the orientation is not an absolute
+        #   heading whatever this says.
+        self.declare_parameter('imu_gyro_variance', 3e-5)
+        self.declare_parameter('imu_accel_variance', 1e-2)
+        self.declare_parameter('imu_orientation_variance', 1e-3)
 
         self.port = self.get_parameter('serial_port').value
         self.baud = self.get_parameter('baud_rate').value
@@ -69,6 +91,11 @@ class ESP32Bridge(Node):
         self.watchdog_timeout = self.get_parameter('watchdog_timeout').value
         self.enable_imu = self.get_parameter('enable_imu').value
         self.telemetry_enabled = self.get_parameter('telemetry_enabled').value
+        self.imu_topic = self.get_parameter('imu_topic').value
+        self.imu_rate_hz = float(self.get_parameter('imu_rate_hz').value)
+        self.imu_gyro_var = float(self.get_parameter('imu_gyro_variance').value)
+        self.imu_accel_var = float(self.get_parameter('imu_accel_variance').value)
+        self.imu_orient_var = float(self.get_parameter('imu_orientation_variance').value)
 
         # === State ===
         self.serial_conn = None
@@ -99,18 +126,19 @@ class ESP32Bridge(Node):
         self.pub_actual = self.create_publisher(
             Float64MultiArray, 'wheel_velocities_actual', 10)
         if self.enable_imu:
-            self.pub_imu = self.create_publisher(Imu, 'imu/data_raw', 10)
+            self.pub_imu = self.create_publisher(Imu, self.imu_topic, 10)
 
         # === Timers ===
         self.create_timer(self.reconnect_sec, self.check_connection)
         self.create_timer(1.0 / 20.0, self.watchdog_check)  # 20Hz watchdog
-        if self.telemetry_enabled:
-            # <L1> is otherwise only sent once, in connect_serial(). If the
-            # ESP32 resets on its own (e.g. brownout) fast enough that this
-            # bridge's serial layer never sees a disconnect, telemetry goes
-            # silent with no error anywhere while drive commands keep working
-            # (Research_Journal.md §16.10). Re-sending periodically means it
-            # self-heals instead of needing a manual <L1> every time.
+        if self.telemetry_enabled or self.enable_imu:
+            # <L1> and <N1> are otherwise only sent once, in connect_serial().
+            # If the ESP32 resets on its own (e.g. brownout) fast enough that
+            # this bridge's serial layer never sees a disconnect, both streams
+            # go silent with no error anywhere while drive commands keep
+            # working (Research_Journal.md §16.10). Re-sending periodically
+            # means they self-heal. Neither feeds the ESP32's command watchdog
+            # from v3.1 on, so this can't keep a stale <V> alive.
             self.create_timer(5.0, self.resend_telemetry_enable)
 
         # === Serial reader thread ===
@@ -144,6 +172,10 @@ class ESP32Bridge(Node):
             if self.telemetry_enabled:
                 time.sleep(0.05)
                 self.send_raw('<L1>')
+            # Ask for the IMU stream, or make sure it's off. A firmware
+            # session that turned it on survives a bridge restart.
+            time.sleep(0.05)
+            self.send_raw(self._imu_stream_cmd())
 
             self.get_logger().info(f'Connected to ESP32 on {self.port}')
             return True
@@ -164,9 +196,17 @@ class ESP32Bridge(Node):
                     break
             self.connect_serial()
 
+    def _imu_stream_cmd(self):
+        if self.enable_imu:
+            return f'<N1,{self.imu_rate_hz:g}>'
+        return '<N0>'
+
     def resend_telemetry_enable(self):
         if self.connected:
-            self.send_raw('<L1>')
+            if self.telemetry_enabled:
+                self.send_raw('<L1>')
+            if self.enable_imu:
+                self.send_raw(self._imu_stream_cmd())
 
     def send_raw(self, cmd):
         with self.serial_lock:
@@ -264,22 +304,24 @@ class ESP32Bridge(Node):
 
     def parse_esp32_line(self, line):
         """Parse telemetry/encoder lines from ESP32."""
-        # Publish raw telemetry
-        tel_msg = String()
-        tel_msg.data = line
-        self.pub_telemetry_raw.publish(tel_msg)
-
         # IMU lines are comma separated too, and the wheel-speed fallback
         # below accepts any line with a comma, nine or more fields and a
         # non-digit first field. An IMU line used to fall into it and went
         # out on /wheel_velocities_actual as four "wheel speeds" (gyro and
         # quaternion values), which odometry_publisher integrates. Handle
         # the line here and return so it can never reach that branch,
-        # whether or not enable_imu is set.
+        # whether or not enable_imu is set. It's also handled before the
+        # raw republish, which would otherwise add 50-100 String messages
+        # a second to a topic nothing subscribes to.
         if line.startswith('[IMU]'):
             if self.enable_imu:
                 self._publish_imu(line)
             return
+
+        # Publish raw telemetry
+        tel_msg = String()
+        tel_msg.data = line
+        self.pub_telemetry_raw.publish(tel_msg)
 
         # Detect CSV telemetry line (starts with digit and has commas)
         if line and line[0].isdigit() and ',' in line:
@@ -319,11 +361,13 @@ class ESP32Bridge(Node):
 
     def _publish_imu(self, line: str):
         """
-        Parse '[IMU]qw,qx,qy,qz,gx,gy,gz,ax,ay,az' and publish /imu/data_raw.
+        Parse '[IMU]qw,qx,qy,qz,gx,gy,gz,ax,ay,az[,t_us]' and publish it
+        on imu_topic (imu/data by default).
 
         Units are sensor_msgs/Imu's: gyro in rad/s, acceleration in m/s^2,
         quaternion unitless. The firmware must print them in these units.
-        The stamp is the Pi's arrival time, not the ESP32's.
+        The stamp is the Pi's arrival time, not the ESP32's; an 11th field
+        (the ESP32's micros()) is accepted and ignored for now.
         """
         try:
             parts = line[5:].split(',')
@@ -331,6 +375,10 @@ class ESP32Bridge(Node):
                 imu_msg = Imu()
                 imu_msg.header.stamp = self.get_clock().now().to_msg()
                 imu_msg.header.frame_id = 'imu_link'
+                for i in (0, 4, 8):
+                    imu_msg.orientation_covariance[i] = self.imu_orient_var
+                    imu_msg.angular_velocity_covariance[i] = self.imu_gyro_var
+                    imu_msg.linear_acceleration_covariance[i] = self.imu_accel_var
                 imu_msg.orientation.w = float(parts[0])
                 imu_msg.orientation.x = float(parts[1])
                 imu_msg.orientation.y = float(parts[2])

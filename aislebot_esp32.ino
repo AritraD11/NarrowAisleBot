@@ -1,12 +1,56 @@
 /*
  * ╔══════════════════════════════════════════════════════════════════╗
- * ║            NarrowAisleBot — ESP32 Motor Controller  v3.0          ║
+ * ║            NarrowAisleBot — ESP32 Motor Controller  v3.1          ║
  * ║                                                                  ║
  * ║  Pi-commanded  |  PID + 2-term Feedforward  |  Hardware PCNT     ║
  * ║  Per-motor CPR |  100 Hz control loop       |  Dual-core FreeRTOS║
+ * ║  BNO055 IMU on its own core-0 task (IMUPLUS, 100 Hz)             ║
  * ║                                                                  ║
  * ║  Aritra Das (25D0074) — IIT Bombay — Prof. Ambarish Kunwar       ║
  * ╚══════════════════════════════════════════════════════════════════╝
+ *
+ * WHAT CHANGED FROM v3.0  (and why)
+ *
+ *   The PID, feedforward, filters, limits and trips are untouched. Every
+ *   tuned number below is the v3.0 number.
+ *
+ *   1. BNO055 IMU added (§6b, §14b). It runs in its own task on core 0,
+ *      so an I2C stall can never delay the PID task on core 1 or the
+ *      serial parser. IMUPLUS mode only (accel + gyro, no magnetometer:
+ *      a 30 A motor bus sits next to it). Reads one checked 32-byte burst
+ *      every 10 ms, recovers a hung bus by itself (bus clear, then reset
+ *      on GPIO27, then a full re-init), and streams
+ *          [IMU]qw,qx,qy,qz,gx,gy,gz,ax,ay,az,t_us
+ *      only when asked with <N1[,hz]>. Status lines start [IMUS, and are
+ *      kept to 8 comma fields or fewer, because esp32_bridge.py treats
+ *      any 9-or-more-field line it doesn't recognise as wheel speeds.
+ *      docs/BNO055_Integration_Research.md has the reasoning.
+ *
+ *   2. Only motion commands (<V> <B> <M> <T>) feed the command watchdog.
+ *      In v3.0 any command did, including <?>, <P> and the bridge's
+ *      periodic <L1>. A link that kept sending housekeeping commands but
+ *      no motion would have held the last <V> past the 750 ms stop.
+ *
+ *   3. Every line now goes out in ONE Serial.write. The 13-column
+ *      telemetry line was six separate writes (ten with <L2>), so a
+ *      [TRIP] or [WARN] line printed from the PID task on core 1 could
+ *      land in the middle of it. Byte format is unchanged.
+ *
+ *   4. A 1 KB serial TX buffer. v3.0 had none, so any print from the PID
+ *      task could block the 100 Hz loop until the 128-byte UART FIFO
+ *      drained. That matters more now that IMU lines share the link.
+ *
+ *   5. <R> is applied by the PID task. In v3.0 core 0 wrote position_rad
+ *      while core 1 was doing += on it, so a reset could be lost.
+ *
+ *   6. The IK comment said vy is a right strafe. The math, and
+ *      mecanum_teleop_asymmetric.py, use REP-103: vy is LEFT-positive.
+ *      Comment only.
+ *
+ *   Known and left alone: readEncoderDelta() reads then clears the
+ *   PCNT counter, so edges landing between the two calls are dropped.
+ *   That window is about a microsecond, roughly 0.02 % of counts at top
+ *   speed, and fixing it needs PCNT overflow handling.
  *
  * WHAT CHANGED FROM v2.0  (and why)
  *
@@ -71,13 +115,16 @@
  * BOARD SETTINGS:
  *   Board: ESP32 Dev Module | CPU: 240 MHz | Flash: 4 MB
  *   Partition: Default 4 MB with spiffs | PSRAM: Disabled
- *   Upload Speed: 921600 | Arduino-ESP32 core 3.x
+ *   Upload Speed: 921600 | Arduino-ESP32 core 3.2 or newer
+ *   (3.2 is the first core whose I2C driver waits long enough for the
+ *   BNO055's clock stretching. Pin the exact version you flash with.)
  *
- * LIBRARIES: none beyond the ESP32 core. (ArduinoJson / WebSockets are
- *            no longer required — the web joystick is gone.)
+ * LIBRARIES: none beyond the ESP32 core. Wire is part of the core. The
+ *            BNO055 is driven by direct register access, not a library.
  */
 
 #include "driver/pcnt.h"
+#include <Wire.h>
 
 // ═══════════════════════════════════════════════════════════════════
 // 1. PIN DEFINITIONS  — unchanged from v2.0, bench-confirmed 4 Aug 2026
@@ -106,6 +153,13 @@
 #define ENC3_B_PIN  33  // G33 → RR-B   (RMCS-2086, green)
 #define ENC4_A_PIN  25  // G25 → RL-A   (RMCS-2086, yellow)
 #define ENC4_B_PIN  26  // G26 → RL-B   (RMCS-2086, green)
+
+// BNO055 IMU — I2C on the pair reserved for it since Master_Reference v4.0.
+// Never call Wire.begin() without pins: its defaults are 21/22, which are
+// RR DIR and RL PWM on this robot.
+#define IMU_SDA_PIN 14  // G14 → BNO055 SDA
+#define IMU_SCL_PIN 13  // G13 → BNO055 SCL
+#define IMU_RST_PIN 27  // G27 → BNO055 RST, open-drain. -1 if not wired.
 
 // ═══════════════════════════════════════════════════════════════════
 // 2. MOTOR & ROBOT CONSTANTS
@@ -350,6 +404,142 @@ volatile bool          watchdog_tripped = false;
 
 // Set by the serial parser (Core 0), consumed by the PID task (Core 1).
 portMUX_TYPE cmd_mux = portMUX_INITIALIZER_UNLOCKED;
+
+// <R> only raises this flag. The PID task, which is the one doing
+// position_rad += ..., does the zeroing, so the reset can't be lost to a
+// read-modify-write racing on the other core.
+volatile bool odom_reset_req = false;
+
+// ═══════════════════════════════════════════════════════════════════
+// 6b. BNO055 IMU — configuration, registers, shared state
+//
+//  Everything here is declared before the first function on purpose: the
+//  Arduino builder generates prototypes above the first function, and a
+//  prototype that names ImuSample before ImuSample exists won't compile.
+//
+//  Register map and scale factors are from Bosch's BNO055_driver
+//  (bno055.h). The datasheet PDF itself couldn't be opened when this was
+//  written; see docs/BNO055_Integration_Research.md for what is checked.
+// ═══════════════════════════════════════════════════════════════════
+
+#define IMU_ENABLED 1        // 0 compiles the IMU out entirely
+
+const uint8_t       IMU_I2C_ADDR       = 0x28;     // ADR/COM3 low. 0x29 if high.
+const uint32_t      IMU_I2C_HZ         = 100000;   // 100 kHz: the board's 10 k pull-ups
+                                                   // are out of spec at 400 kHz
+const uint16_t      IMU_I2C_TIMEOUT_MS = 10;       // one failed read costs one period
+const unsigned long IMU_PERIOD_MS      = 10;       // 100 Hz, the chip's fusion rate
+const uint8_t       IMU_FAILS_BEFORE_RECOVERY = 5; // consecutive bad reads → bus clear + re-init
+const unsigned long IMU_RETRY_MS       = 5000;     // retry interval while not found
+const uint16_t      IMU_HOUSEKEEP_EVERY = 100;     // status registers once a second
+
+// Axis remap. 0x24 / 0x00 is the chip's default placement (P1). Mount the
+// board flat, component side up, silkscreen X to the robot's right and Y
+// to the nose, and the sensor frame equals base_link (+X right, +Y
+// forward, +Z up) with no remap and rpy 0 0 0 on imu_joint. Prove it with
+// the sign checks before trusting it: spin CCW seen from above → gz > 0.
+const uint8_t IMU_AXIS_MAP_CONFIG = 0x24;
+const uint8_t IMU_AXIS_MAP_SIGN   = 0x00;
+
+// 1 only if the breakout has the 32.768 kHz crystal (Adafruit boards do,
+// many clones don't). Gyro rates don't depend on it; the fused quaternion's
+// timebase does.
+#define IMU_USE_EXT_CRYSTAL 0
+
+// Fusion mode. IMUPLUS (0x08): accel + gyro, heading relative to power-on.
+// NDOF (0x0C) would add the magnetometer, which this chassis can't support.
+const uint8_t IMU_OPR_MODE = 0x08;
+
+// Page-0 registers (bno055.h)
+const uint8_t BNO_CHIP_ID         = 0x00;   // reads 0xA0
+const uint8_t BNO_SW_REV_LSB      = 0x04;
+const uint8_t BNO_PAGE_ID         = 0x07;
+const uint8_t BNO_ACC_DATA        = 0x08;   // start of the 32-byte burst
+const uint8_t BNO_TEMP            = 0x34;   // start of the 7-byte housekeeping read
+const uint8_t BNO_UNIT_SEL        = 0x3B;
+const uint8_t BNO_OPR_MODE        = 0x3D;
+const uint8_t BNO_PWR_MODE        = 0x3E;
+const uint8_t BNO_SYS_TRIGGER     = 0x3F;
+const uint8_t BNO_AXIS_MAP_CONFIG = 0x41;
+const uint8_t BNO_AXIS_MAP_SIGN   = 0x42;
+
+const uint8_t BNO_CHIP_ID_VALUE   = 0xA0;
+const uint8_t BNO_MODE_CONFIG     = 0x00;
+const uint8_t BNO_SYS_STATUS_ERROR = 0x01;
+
+// UNIT_SEL = 0x06: accel m/s², gyro rad/s, Euler rad, temp °C. Written
+// explicitly at init rather than trusting the power-on default.
+const uint8_t BNO_UNIT_SEL_VALUE  = 0x06;
+
+// Scale factors for those units (bno055.h)
+const float IMU_ACC_LSB_PER_MS2   = 100.0f;
+const float IMU_GYR_LSB_PER_RADS  = 900.0f;
+const float IMU_QUA_LSB           = 16384.0f;   // 2^14
+
+// One burst, 0x08..0x27: accel(6) mag(6, zero in IMUPLUS) gyro(6)
+// Euler(6, unused) quaternion(8). One transaction gives one coherent
+// sample, one clock-stretch window and one return code to check.
+const uint8_t IMU_BURST_LEN       = 32;
+const uint8_t IMU_OFF_ACC         = 0;
+const uint8_t IMU_OFF_GYR         = 12;
+const uint8_t IMU_OFF_QUA         = 24;
+
+// A quaternion from a working fusion engine has |q|² = 1. Anything far off
+// (including all zeros from a chip that isn't fusing) is never published.
+const float IMU_QNORM2_MIN        = 0.81f;
+const float IMU_QNORM2_MAX        = 1.21f;
+
+enum ImuState : uint8_t { IMU_OFF = 0, IMU_INIT, IMU_RUN, IMU_DEAD };
+
+struct ImuSample {
+    uint32_t seq;        // bumps on every published sample; 0 = none yet
+    uint32_t t_us;       // ESP32 micros() right after the burst
+    float    q[4];       // w, x, y, z
+    float    g[3];       // rad/s
+    float    a[3];       // m/s², gravity included (what REP-145 expects)
+};
+
+// Written only by the IMU task, read by the comms task for printing. The
+// fields are aligned 8/32-bit words, so reads are never torn. They aren't
+// volatile because C++20 deprecates ++ on volatile and the core builds
+// sketches as C++23; state is the only field another task polls in a loop.
+struct ImuHealth {
+    volatile ImuState state;
+    uint8_t  calib;        // CALIB_STAT: sys 7-6, gyr 5-4, acc 3-2, mag 1-0
+    uint8_t  sys_status;   // 5 = fusion running
+    uint8_t  sys_err;
+    int8_t   temp_c;
+    uint8_t  sw_rev_msb;
+    uint8_t  sw_rev_lsb;
+    uint32_t samples;
+    uint32_t i2c_errors;
+    uint32_t bad_samples;  // failed the quaternion check
+    uint32_t dup_samples;  // chip hadn't updated since the last read
+    uint32_t reinits;
+};
+
+// Loop state of the IMU task, kept in a struct so one iteration can be
+// called on its own (the host checks in tools/tests/ do exactly that).
+struct ImuLoop {
+    uint8_t    prev[IMU_BURST_LEN];
+    bool       have_prev;
+    uint8_t    fails;
+    uint32_t   tick;
+    bool       reported_dead;
+    TickType_t last_wake;
+};
+
+ImuHealth    imu_health = {};
+ImuSample    imu_latest = {};                    // guarded by imu_mux
+portMUX_TYPE imu_mux    = portMUX_INITIALIZER_UNLOCKED;
+
+volatile bool          imu_stream_on          = false;  // <N1> / <N0>
+volatile unsigned long imu_stream_interval_ms = 20;     // 50 Hz unless <N1,hz> says otherwise
+volatile bool          imu_reinit_req         = false;  // <NR>
+
+// Defined in §14b, called from the parser in §13. Declared here so the
+// file also builds outside the Arduino IDE's prototype generator.
+void imuPrintStatus();
 
 // ═══════════════════════════════════════════════════════════════════
 // 7. PCNT ENCODER SETUP — full quadrature, both channels, all edges
@@ -640,7 +830,10 @@ void checkTrips() {
 // ═══════════════════════════════════════════════════════════════════
 // 11. ASYMMETRIC MECANUM INVERSE KINEMATICS
 //
-//     vx = forward (+)    vy = right strafe (+)    wz = CCW (+)
+//     vx = forward (+)    vy = LEFT strafe (+)    wz = CCW (+)
+//     (REP-103, the same convention and the same four equations as
+//      mecanum_teleop_asymmetric.py. v3.0's comment said "right"; the
+//      math never did.)
 //
 //     ωFR = (vx + vy + wz·K_OUTER) / R    outer pair: FR, RL
 //     ωFL = (vx − vy − wz·K_INNER) / R    inner pair: FL, RR
@@ -679,6 +872,12 @@ void pidControlTask(void* /*param*/) {
     const TickType_t xPeriod   = pdMS_TO_TICKS((int)PID_LOOP_INTERVAL_MS);
 
     while (true) {
+        // ── 0. <R> requested on core 0, applied here where += happens ──
+        if (odom_reset_req) {
+            for (int i = 0; i < NUM_MOTORS; i++) motors[i].position_rad = 0.0;
+            odom_reset_req = false;
+        }
+
         // ── 1. Read encoders, update velocity + accumulated position ──
         for (int i = 0; i < NUM_MOTORS; i++) {
             int32_t delta   = readEncoderDelta(i);
@@ -782,8 +981,16 @@ void setTargets(const float* v) {
     taskEXIT_CRITICAL(&cmd_mux);
 }
 
+// Only a well-formed motion command proves the link is alive for driving.
+// Housekeeping (<?>, <P>, <L1>, <N1> ...) deliberately does not count, so
+// the 750 ms stop still fires if the Pi keeps talking but stops steering.
+static inline void feedWatchdog() {
+    last_cmd_ms      = millis();
+    watchdog_tripped = false;
+}
+
 void printHelp() {
-    Serial.println("=== NarrowAisleBot ESP32 v3.0 — command set ===");
+    Serial.println("=== NarrowAisleBot ESP32 v3.1 — command set ===");
     Serial.println("MOTION");
     Serial.println("  <V,fr,fl,rr,rl>   wheel velocities rad/s (closed loop)  [primary]");
     Serial.println("  <B,vx,vy,wz>      body twist m/s,m/s,rad/s (ESP32 runs IK)");
@@ -807,17 +1014,20 @@ void printHelp() {
     Serial.println("  <O>               accumulated wheel angle (rad), for odometry");
     Serial.println("  <R>               zero the accumulated wheel angles");
     Serial.println("  <P> <I> <?> <H>   ping / config / live state / this help");
+    Serial.println("IMU (BNO055)");
+    Serial.println("  <N1[,hz]> <N0>    [IMU] stream on (default 50 Hz) / off");
+    Serial.println("  <N?>              IMU status: state  calibration  errors");
+    Serial.println("  <NR>              force an IMU reset and re-init");
+    Serial.println("  Only <V> <B> <M> <T> feed the 750 ms command watchdog.");
 }
 
 void processSerialCommand(const char* cmd) {
-    last_cmd_ms      = millis();
-    watchdog_tripped = false;
-
     switch (cmd[0]) {
 
         case 'V': { // <V,fr,fl,rr,rl>  wheel velocities rad/s
             float v[4];
             if (sscanf(cmd, "V,%f,%f,%f,%f", &v[0],&v[1],&v[2],&v[3]) == 4) {
+                feedWatchdog();
                 setTargets(v);
             } else Serial.println("[ERR,BAD_V]");
             break;
@@ -826,6 +1036,7 @@ void processSerialCommand(const char* cmd) {
         case 'B': { // <B,vx,vy,wz>  body twist — ESP32 runs the IK
             float vx, vy, wz, ws[NUM_MOTORS];
             if (sscanf(cmd, "B,%f,%f,%f", &vx,&vy,&wz) == 3) {
+                feedWatchdog();
                 mecanumIK(vx, vy, wz, ws);
                 setTargets(ws);
             } else Serial.println("[ERR,BAD_B]");
@@ -835,6 +1046,7 @@ void processSerialCommand(const char* cmd) {
         case 'M': { // <M,fr,fl,rr,rl>  direct PWM, open loop
             int p[4];
             if (sscanf(cmd, "M,%d,%d,%d,%d", &p[0],&p[1],&p[2],&p[3]) == 4) {
+                feedWatchdog();
                 taskENTER_CRITICAL(&cmd_mux);
                 manual_pwm_mode = true;
                 for (int i = 0; i < NUM_MOTORS; i++) {
@@ -853,6 +1065,7 @@ void processSerialCommand(const char* cmd) {
             int idx; float vel;
             if (sscanf(cmd, "T,%d,%f", &idx, &vel) == 2 &&
                 idx >= 0 && idx < NUM_MOTORS) {
+                feedWatchdog();
                 float v[NUM_MOTORS] = {0, 0, 0, 0};
                 for (int i = 0; i < NUM_MOTORS; i++) v[i] = motors[i].target_velocity;
                 v[idx] = vel;
@@ -965,9 +1178,38 @@ void processSerialCommand(const char* cmd) {
                           motors[RR].position_rad, motors[RL].position_rad);
             break;
 
-        case 'R': // <R>  zero accumulated angles
-            for (int i = 0; i < NUM_MOTORS; i++) motors[i].position_rad = 0.0;
+        case 'R': // <R>  zero accumulated angles (applied by the PID task)
+            odom_reset_req = true;
             Serial.println("[OK,ODOM_ZEROED]");
+            break;
+
+        case 'N': // <N1[,hz]> / <N0> / <N?> / <NR>  IMU stream and status
+#if IMU_ENABLED
+            if (cmd[1] == '1') {
+                float hz;
+                if (sscanf(cmd + 1, "%*d,%f", &hz) == 1 && hz > 0.0f) {
+                    unsigned long iv = (unsigned long)(1000.0f / hz + 0.5f);
+                    if (iv < IMU_PERIOD_MS) iv = IMU_PERIOD_MS;   // no faster than the chip
+                    if (iv > 1000)          iv = 1000;
+                    imu_stream_interval_ms = iv;
+                }
+                imu_stream_on = true;
+                Serial.printf("[OK,IMU_STREAM=1,HZ=%.1f]\n",
+                              1000.0f / (float)imu_stream_interval_ms);
+            } else if (cmd[1] == '0') {
+                imu_stream_on = false;
+                Serial.println("[OK,IMU_STREAM=0]");
+            } else if (cmd[1] == '?') {
+                imuPrintStatus();
+            } else if (cmd[1] == 'R') {
+                imu_reinit_req = true;
+                Serial.println("[OK,IMU_REINIT]");
+            } else {
+                Serial.println("[ERR,BAD_N]");
+            }
+#else
+            Serial.println("[ERR,IMU_DISABLED]");
+#endif
             break;
 
         case 'P': // <P>  ping
@@ -975,7 +1217,7 @@ void processSerialCommand(const char* cmd) {
             break;
 
         case 'I': // <I>  configuration dump
-            Serial.println("[INFO,NarrowAisleBot_ESP32_v3.0]");
+            Serial.println("[INFO,NarrowAisleBot_ESP32_v3.1]");
             Serial.printf("[GAINS,Kp=%.2f,Ki=%.2f,Kd=%.2f,Hz=%.0f]\n",
                           Kp, Ki, Kd, PID_LOOP_HZ);
             Serial.printf("[FF,FR=%.2f,FL=%.2f,RR=%.2f,RL=%.2f]\n",
@@ -990,6 +1232,12 @@ void processSerialCommand(const char* cmd) {
             Serial.printf("[LIMITS,Vmax=%.2f,Accel=%.2f,Vlin=%.2f]\n",
                           max_wheel_speed, max_wheel_accel,
                           max_wheel_speed * WHEEL_RADIUS);
+#if IMU_ENABLED
+            Serial.printf("[IMUCFG,addr=0x%02X,mode=0x%02X,axis=0x%02X/0x%02X,xtal=%d,rst=%d]\n",
+                          (unsigned)IMU_I2C_ADDR, (unsigned)IMU_OPR_MODE,
+                          (unsigned)IMU_AXIS_MAP_CONFIG, (unsigned)IMU_AXIS_MAP_SIGN,
+                          (int)IMU_USE_EXT_CRYSTAL, (int)IMU_RST_PIN);
+#endif
             break;
 
         case '?': { // <?>  live state
@@ -1008,6 +1256,9 @@ void processSerialCommand(const char* cmd) {
                     motors[i].actual_velocity, motors[i].pwm_output,
                     motors[i].error, motors[i].integral);
             }
+#if IMU_ENABLED
+            imuPrintStatus();
+#endif
             break;
         }
 
@@ -1057,27 +1308,369 @@ void handleSerialInput() {
 //     plotted. tools/nab_pid_logger.py writes them with a header.
 // ═══════════════════════════════════════════════════════════════════
 
+// Append to a line buffer without ever running past its end. Returns the
+// new length; on overflow the line is left as it was, and the caller's
+// length check drops it rather than sending a truncated line.
+static size_t lineAppend(char* buf, size_t cap, size_t len, const char* fmt, ...) {
+    if (len >= cap) return cap;
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf + len, cap - len, fmt, ap);
+    va_end(ap);
+    if (n < 0 || (size_t)n >= cap - len) return cap;
+    return len + (size_t)n;
+}
+
+// Same bytes as v3.0 (including the "\r\n" Serial.println used to add),
+// but built in one buffer and sent with one write, so a [TRIP] or [WARN]
+// printed from core 1 can no longer land in the middle of the line.
 void outputSerialTelemetry() {
     if (telemetry_mode == 0) return;
 
-    Serial.printf("%lu", millis());
+    char   line[320];
+    size_t n = lineAppend(line, sizeof(line), 0, "%lu", millis());
     for (int i = 0; i < NUM_MOTORS; i++) {
-        Serial.printf(",%.3f,%.3f,%d",
-                      motors[i].slewed_target,
-                      motors[i].actual_velocity,
-                      motors[i].pwm_output);
+        n = lineAppend(line, sizeof(line), n, ",%.3f,%.3f,%d",
+                       motors[i].slewed_target,
+                       motors[i].actual_velocity,
+                       motors[i].pwm_output);
     }
     if (telemetry_mode >= 2) {
         for (int i = 0; i < NUM_MOTORS; i++) {
-            Serial.printf(",%.3f,%.1f,%.1f,%.3f",
-                          motors[i].error,
-                          motors[i].ff_output,
-                          Ki * motors[i].integral,
-                          (float)motors[i].position_rad);
+            n = lineAppend(line, sizeof(line), n, ",%.3f,%.1f,%.1f,%.3f",
+                           motors[i].error,
+                           motors[i].ff_output,
+                           Ki * motors[i].integral,
+                           (float)motors[i].position_rad);
         }
     }
-    Serial.println();
+    n = lineAppend(line, sizeof(line), n, "\r\n");
+    if (n < sizeof(line)) Serial.write((const uint8_t*)line, n);
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// 14b. BNO055 IMU — driver and task (core 0, priority 2, 100 Hz)
+//
+//  Direct register access, no library. The Adafruit library returns
+//  silent zeros on a failed read and can loop forever in begin() if the
+//  chip stops answering; neither is acceptable in the drive firmware.
+//  Every transaction here has a bound and a checked return.
+//
+//  Recovery ladder, all on core 0 so the wheel loop never waits on it:
+//    one bad read         → counted, skipped
+//    5 in a row           → bus clear (9 clocks + STOP), reset, re-init
+//    re-init fails        → [IMUS,NOT_FOUND], retry every 5 s
+//    SYS_STATUS = error   → re-init
+//  A re-init re-zeroes the IMUPLUS heading. The Pi fuses yaw RATE, which
+//  rides through that without a step.
+// ═══════════════════════════════════════════════════════════════════
+
+#if IMU_ENABLED
+
+static inline int16_t le16(const uint8_t* p) {
+    return (int16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+
+bool imuWriteReg(uint8_t reg, uint8_t val) {
+    Wire.beginTransmission(IMU_I2C_ADDR);
+    Wire.write(reg);
+    Wire.write(val);
+    return Wire.endTransmission(true) == 0;
+}
+
+bool imuReadRegs(uint8_t reg, uint8_t* buf, uint8_t len) {
+    Wire.beginTransmission(IMU_I2C_ADDR);
+    Wire.write(reg);
+    if (Wire.endTransmission(false) != 0) return false;      // repeated start
+    if (Wire.requestFrom((int)IMU_I2C_ADDR, (int)len) != (int)len) {
+        while (Wire.available()) Wire.read();
+        return false;
+    }
+    for (uint8_t i = 0; i < len; i++) buf[i] = (uint8_t)Wire.read();
+    return true;
+}
+
+// Write, read back, compare the bits that register actually implements.
+// The chip silently ignores most writes outside CONFIG mode, so a write
+// that "succeeded" on the bus proves nothing on its own.
+bool imuWriteVerify(uint8_t reg, uint8_t val, uint8_t mask) {
+    if (!imuWriteReg(reg, val)) return false;
+    vTaskDelay(pdMS_TO_TICKS(2));
+    uint8_t rb = 0;
+    if (!imuReadRegs(reg, &rb, 1)) return false;
+    return (rb & mask) == (val & mask);
+}
+
+bool imuWaitChipId(unsigned long timeout_ms) {
+    unsigned long t0 = millis();
+    while (millis() - t0 < timeout_ms) {
+        uint8_t id = 0;
+        if (imuReadRegs(BNO_CHIP_ID, &id, 1) && id == BNO_CHIP_ID_VALUE) return true;
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+    return false;
+}
+
+// A slave that lost sync mid-byte can hold SDA low forever. Clock it out
+// (up to 9 pulses), then put a STOP on the bus, then hand the pins back.
+void imuBusClear() {
+    Wire.end();
+    pinMode(IMU_SDA_PIN, INPUT_PULLUP);
+    pinMode(IMU_SCL_PIN, OUTPUT_OPEN_DRAIN);
+    digitalWrite(IMU_SCL_PIN, HIGH);
+    delayMicroseconds(10);
+    for (int i = 0; i < 9 && digitalRead(IMU_SDA_PIN) == LOW; i++) {
+        digitalWrite(IMU_SCL_PIN, LOW);  delayMicroseconds(10);
+        digitalWrite(IMU_SCL_PIN, HIGH); delayMicroseconds(10);
+    }
+    pinMode(IMU_SDA_PIN, OUTPUT_OPEN_DRAIN);
+    digitalWrite(IMU_SDA_PIN, LOW);  delayMicroseconds(10);   // STOP:
+    digitalWrite(IMU_SCL_PIN, HIGH); delayMicroseconds(10);   // SDA rises
+    digitalWrite(IMU_SDA_PIN, HIGH); delayMicroseconds(10);   // while SCL high
+    Wire.begin(IMU_SDA_PIN, IMU_SCL_PIN, IMU_I2C_HZ);
+    Wire.setTimeOut(IMU_I2C_TIMEOUT_MS);
+}
+
+// Bounded init, roughly 2 s end to end. Returns false rather than waiting
+// forever if the chip doesn't answer.
+bool imuInit() {
+    // Hardware reset if RST is wired. Then a software reset as well, which
+    // also covers a board whose RST isn't connected and an ESP32-only reset
+    // (a brownout can reboot the ESP32 and leave the BNO055 running).
+    if (IMU_RST_PIN >= 0) {
+        digitalWrite(IMU_RST_PIN, LOW);
+        vTaskDelay(pdMS_TO_TICKS(10));
+        digitalWrite(IMU_RST_PIN, HIGH);                     // released
+        vTaskDelay(pdMS_TO_TICKS(650));                      // POR to CONFIG
+    }
+    if (!imuWaitChipId(1000)) return false;
+
+    imuWriteReg(BNO_OPR_MODE, BNO_MODE_CONFIG);
+    vTaskDelay(pdMS_TO_TICKS(25));
+    imuWriteReg(BNO_SYS_TRIGGER, 0x20);         // RST_SYS. The ACK may be lost
+    vTaskDelay(pdMS_TO_TICKS(650));             // to the reset itself, so the
+    if (!imuWaitChipId(1000)) return false;     // chip ID is the real check.
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    if (!imuWriteReg(BNO_PWR_MODE, 0x00)) return false;      // normal power
+    vTaskDelay(pdMS_TO_TICKS(10));
+    if (!imuWriteReg(BNO_PAGE_ID, 0x00)) return false;
+    if (!imuWriteVerify(BNO_UNIT_SEL, BNO_UNIT_SEL_VALUE, 0x97)) return false;
+    if (!imuWriteVerify(BNO_AXIS_MAP_CONFIG, IMU_AXIS_MAP_CONFIG, 0x3F)) return false;
+    if (!imuWriteVerify(BNO_AXIS_MAP_SIGN, IMU_AXIS_MAP_SIGN, 0x07)) return false;
+    imuWriteReg(BNO_SYS_TRIGGER, IMU_USE_EXT_CRYSTAL ? 0x80 : 0x00);
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    if (!imuWriteVerify(BNO_OPR_MODE, IMU_OPR_MODE, 0x0F)) return false;
+    // Bosch's own driver waits 600 ms after entering a fusion mode; the
+    // datasheet's 7 ms covers only the chip's MCU. Output inside this
+    // window isn't trusted, so the task doesn't read it.
+    vTaskDelay(pdMS_TO_TICKS(600));
+
+    uint8_t rev[2] = {0, 0};
+    if (imuReadRegs(BNO_SW_REV_LSB, rev, 2)) {
+        imu_health.sw_rev_lsb = rev[0];
+        imu_health.sw_rev_msb = rev[1];
+    }
+    uint8_t hk[7];
+    if (imuReadRegs(BNO_TEMP, hk, 7)) {
+        imu_health.temp_c     = (int8_t)hk[0];
+        imu_health.calib      = hk[1];
+        imu_health.sys_status = hk[5];
+        imu_health.sys_err    = hk[6];
+    }
+    return true;
+}
+
+// Decode one 32-byte burst, reject it if the quaternion isn't a unit
+// quaternion, otherwise publish it for the comms task. Returns true if
+// the sample was published.
+bool imuProcessBurst(const uint8_t* b, uint32_t t_us) {
+    ImuSample s;
+    for (int k = 0; k < 3; k++) {
+        s.a[k] = (float)le16(b + IMU_OFF_ACC + 2 * k) / IMU_ACC_LSB_PER_MS2;
+        s.g[k] = (float)le16(b + IMU_OFF_GYR + 2 * k) / IMU_GYR_LSB_PER_RADS;
+    }
+    for (int k = 0; k < 4; k++) {
+        s.q[k] = (float)le16(b + IMU_OFF_QUA + 2 * k) / IMU_QUA_LSB;
+    }
+    float n2 = s.q[0]*s.q[0] + s.q[1]*s.q[1] + s.q[2]*s.q[2] + s.q[3]*s.q[3];
+    if (n2 < IMU_QNORM2_MIN || n2 > IMU_QNORM2_MAX) {
+        imu_health.bad_samples++;
+        return false;
+    }
+    s.t_us = t_us;
+
+    taskENTER_CRITICAL(&imu_mux);
+    s.seq = imu_latest.seq + 1;
+    if (s.seq == 0) s.seq = 1;                  // 0 means "no sample yet"
+    imu_latest = s;
+    taskEXIT_CRITICAL(&imu_mux);
+    imu_health.samples++;
+    return true;
+}
+
+// [IMU]qw,qx,qy,qz,gx,gy,gz,ax,ay,az,t_us — rad/s and m/s². The bridge
+// reads fields 0-9; t_us is there so the Pi can later stamp by device
+// time. Returns the length, or 0 if it didn't fit.
+int formatImuLine(char* out, size_t cap, const ImuSample& s) {
+    int n = snprintf(out, cap,
+                     "[IMU]%.5f,%.5f,%.5f,%.5f,%.4f,%.4f,%.4f,%.2f,%.2f,%.2f,%lu\r\n",
+                     s.q[0], s.q[1], s.q[2], s.q[3],
+                     s.g[0], s.g[1], s.g[2],
+                     s.a[0], s.a[1], s.a[2],
+                     (unsigned long)s.t_us);
+    if (n < 0 || (size_t)n >= cap) return 0;
+    return n;
+}
+
+const char* imuStateName(ImuState st) {
+    switch (st) {
+        case IMU_INIT: return "INIT";
+        case IMU_RUN:  return "RUN";
+        case IMU_DEAD: return "DEAD";
+        default:       return "OFF";
+    }
+}
+
+// Two lines, eight comma fields or fewer each (see the bridge note in the
+// header). Calibration reads s/g/a/m 0-3; in IMUPLUS the magnetometer is
+// off, so m stays 0 and s isn't expected to reach 3.
+void imuPrintStatus() {
+    unsigned c = imu_health.calib;
+    Serial.printf("[IMUS,%s,cal=s%ug%ua%um%u,sys=%u,err=%u,T=%dC,sw=0x%02X%02X]\n",
+                  imuStateName(imu_health.state),
+                  (c >> 6) & 3u, (c >> 4) & 3u, (c >> 2) & 3u, c & 3u,
+                  (unsigned)imu_health.sys_status, (unsigned)imu_health.sys_err,
+                  (int)imu_health.temp_c,
+                  (unsigned)imu_health.sw_rev_msb, (unsigned)imu_health.sw_rev_lsb);
+    Serial.printf("[IMUC,n=%lu,i2c=%lu,bad=%lu,dup=%lu,reinit=%lu]\n",
+                  (unsigned long)imu_health.samples,
+                  (unsigned long)imu_health.i2c_errors,
+                  (unsigned long)imu_health.bad_samples,
+                  (unsigned long)imu_health.dup_samples,
+                  (unsigned long)imu_health.reinits);
+}
+
+// One iteration of the IMU task. Split out so it can be stepped on its own.
+void imuServiceOnce(ImuLoop& L) {
+    if (imu_reinit_req) {
+        imu_reinit_req = false;
+        imu_health.reinits++;
+        imu_health.state = IMU_INIT;
+    }
+
+    if (imu_health.state != IMU_RUN) {
+        imu_health.state = IMU_INIT;
+        if (imuInit()) {
+            imu_health.state = IMU_RUN;
+            L.fails = 0;
+            L.have_prev = false;
+            L.reported_dead = false;
+            Serial.printf("[IMUS,UP,chip=0x%02X,sw=0x%02X%02X,sys=%u]\n",
+                          (unsigned)BNO_CHIP_ID_VALUE, (unsigned)imu_health.sw_rev_msb,
+                          (unsigned)imu_health.sw_rev_lsb, (unsigned)imu_health.sys_status);
+            L.last_wake = xTaskGetTickCount();
+        } else {
+            imu_health.state = IMU_DEAD;
+            if (!L.reported_dead) {
+                Serial.println("[IMUS,NOT_FOUND,retry_s=5]");
+                L.reported_dead = true;
+            }
+            vTaskDelay(pdMS_TO_TICKS(IMU_RETRY_MS));
+        }
+        return;
+    }
+
+    uint8_t buf[IMU_BURST_LEN];
+    if (imuReadRegs(BNO_ACC_DATA, buf, IMU_BURST_LEN)) {
+        uint32_t t_us = (uint32_t)micros();
+        L.fails = 0;
+        // The chip fuses at 100 Hz on its own clock, so now and then a
+        // read lands before it has updated. A repeat carries nothing new.
+        if (L.have_prev && memcmp(buf, L.prev, IMU_BURST_LEN) == 0) {
+            imu_health.dup_samples++;
+        } else {
+            imuProcessBurst(buf, t_us);
+            memcpy(L.prev, buf, IMU_BURST_LEN);
+            L.have_prev = true;
+        }
+    } else {
+        imu_health.i2c_errors++;
+        if (++L.fails >= IMU_FAILS_BEFORE_RECOVERY) {
+            Serial.printf("[IMUS,DOWN,i2c_fails=%u]\n", (unsigned)L.fails);
+            imuBusClear();
+            imu_health.reinits++;
+            imu_health.state = IMU_INIT;
+            return;
+        }
+    }
+
+    if (++L.tick % IMU_HOUSEKEEP_EVERY == 0) {
+        uint8_t hk[7];   // TEMP, CALIB_STAT, ST_RESULT, INT_STA, SYS_CLK, SYS_STATUS, SYS_ERR
+        if (imuReadRegs(BNO_TEMP, hk, 7)) {
+            imu_health.temp_c     = (int8_t)hk[0];
+            imu_health.calib      = hk[1];
+            imu_health.sys_status = hk[5];
+            imu_health.sys_err    = hk[6];
+            if (hk[5] == BNO_SYS_STATUS_ERROR) {
+                Serial.printf("[IMUS,DOWN,sys_err=%u]\n", (unsigned)hk[6]);
+                imu_health.reinits++;
+                imu_health.state = IMU_INIT;
+                return;
+            }
+        }
+    }
+
+    vTaskDelayUntil(&L.last_wake, pdMS_TO_TICKS(IMU_PERIOD_MS));
+}
+
+// Pins and bus, once, from inside the IMU task. Called from the task rather
+// than setup(): ESP-IDF allocates the I2C interrupt on the core that calls
+// begin(), and this task is pinned to core 0.
+void imuTaskBegin(ImuLoop& L) {
+    if (IMU_RST_PIN >= 0) {
+        pinMode(IMU_RST_PIN, OUTPUT_OPEN_DRAIN);
+        digitalWrite(IMU_RST_PIN, HIGH);   // released: the board's pull-up holds nRESET high
+    }
+    Wire.begin(IMU_SDA_PIN, IMU_SCL_PIN, IMU_I2C_HZ);
+    Wire.setTimeOut(IMU_I2C_TIMEOUT_MS);
+    L = ImuLoop{};
+    L.last_wake = xTaskGetTickCount();
+    imu_health.state = IMU_INIT;
+}
+
+void imuTask(void* /*param*/) {
+    ImuLoop L;
+    imuTaskBegin(L);
+    while (true) imuServiceOnce(L);
+}
+
+// Called from the comms task. Sends the newest sample at most once, and
+// no faster than <N1,hz> asked. A sample the IMU task never published
+// (stale, failed, rejected) is simply never sent, so silence on the Pi
+// means "no data", never "the same data again".
+void outputImuStream() {
+    static uint32_t      last_seq = 0;
+    static unsigned long last_ms  = 0;
+    if (!imu_stream_on || imu_health.state != IMU_RUN) return;
+    unsigned long now = millis();
+    if (now - last_ms < imu_stream_interval_ms) return;
+
+    ImuSample s;
+    taskENTER_CRITICAL(&imu_mux);
+    s = imu_latest;
+    taskEXIT_CRITICAL(&imu_mux);
+    if (s.seq == 0 || s.seq == last_seq) return;
+
+    char line[128];
+    int  n = formatImuLine(line, sizeof(line), s);
+    if (n > 0) Serial.write((const uint8_t*)line, (size_t)n);
+    last_seq = s.seq;
+    last_ms  = now;
+}
+
+#endif  // IMU_ENABLED
 
 // ═══════════════════════════════════════════════════════════════════
 // 15. CORE 0 — COMMUNICATION TASK
@@ -1092,6 +1685,9 @@ void communicationTask(void* /*param*/) {
             lastTelMs = millis();
             outputSerialTelemetry();
         }
+#if IMU_ENABLED
+        outputImuStream();
+#endif
         vTaskDelay(pdMS_TO_TICKS(1));
     }
 }
@@ -1101,12 +1697,16 @@ void communicationTask(void* /*param*/) {
 // ═══════════════════════════════════════════════════════════════════
 
 void setup() {
+    // Must come before begin(). Without a TX ring buffer every write blocks
+    // until it fits in the 128-byte UART FIFO, which a print from the PID
+    // task would do inside the 100 Hz loop.
+    Serial.setTxBufferSize(1024);
     Serial.begin(SERIAL_BAUD);
     delay(300);
 
     Serial.println();
     Serial.println("╔════════════════════════════════════════════╗");
-    Serial.println("║  NarrowAisleBot ESP32 v3.0  —  Starting... ║");
+    Serial.println("║  NarrowAisleBot ESP32 v3.1  —  Starting... ║");
     Serial.println("╚════════════════════════════════════════════╝");
 
     memset(motors, 0, sizeof(motors));
@@ -1120,8 +1720,19 @@ void setup() {
     Serial.println("OK  (front 186264 CPR, rear 93132 CPR)");
 
     Serial.print("  Core 0 task   ... ");
-    xTaskCreatePinnedToCore(communicationTask, "Comms", 4096, NULL, 1, NULL, 0);
+    // 6 KB rather than 4: the telemetry and IMU lines are now formatted
+    // into stack buffers with float vsnprintf.
+    xTaskCreatePinnedToCore(communicationTask, "Comms", 6144, NULL, 1, NULL, 0);
     Serial.println("OK  (serial + telemetry)");
+
+#if IMU_ENABLED
+    Serial.print("  IMU task      ... ");
+    // Core 0, priority 2: above Comms so a read is never late, and the I2C
+    // driver blocks on a semaphore during a transfer so Comms keeps running.
+    xTaskCreatePinnedToCore(imuTask, "IMU", 4096, NULL, 2, NULL, 0);
+    Serial.printf("OK  (BNO055 0x%02X on SDA %d / SCL %d / RST %d  IMUPLUS)\n",
+                  (unsigned)IMU_I2C_ADDR, IMU_SDA_PIN, IMU_SCL_PIN, IMU_RST_PIN);
+#endif
 
     Serial.print("  Core 1 task   ... ");
     xTaskCreatePinnedToCore(pidControlTask, "PID", 4096, NULL, 3, NULL, 1);
@@ -1140,9 +1751,10 @@ void setup() {
                   max_wheel_speed, max_wheel_accel,
                   max_wheel_speed * WHEEL_RADIUS);
     Serial.println();
-    Serial.println("  Command source : USB serial from the Pi. No WiFi in v3.0.");
+    Serial.println("  Command source : USB serial from the Pi. No WiFi since v3.0.");
     Serial.println("  E-STOP         : <S> latches. Clear with <E1>.");
     Serial.println("  Telemetry      : <L1> compat 13-col, <L2> extended.");
+    Serial.println("  IMU            : <N1[,hz]> streams [IMU] lines  <N?> status.");
     Serial.println("  Calibration    : gains are AIR values — see docs/PID_Calibration.md");
     Serial.println();
     Serial.println("[READY]");

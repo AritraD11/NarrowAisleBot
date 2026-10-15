@@ -66,6 +66,9 @@ class Imu:
         self.orientation = types.SimpleNamespace()
         self.angular_velocity = types.SimpleNamespace()
         self.linear_acceleration = types.SimpleNamespace()
+        self.orientation_covariance = [0.0] * 9
+        self.angular_velocity_covariance = [0.0] * 9
+        self.linear_acceleration_covariance = [0.0] * 9
 
 
 ns = {'Float64MultiArray': Msg, 'String': Msg, 'Imu': Imu, 'math': math,
@@ -87,11 +90,13 @@ def make_bridge(enable_imu):
         setattr(b, f.name, types.MethodType(ns[f.name], b))
     log = []
     b.enable_imu = enable_imu
+    b.imu_rate_hz = 50.0
+    b.imu_gyro_var, b.imu_accel_var, b.imu_orient_var = 3e-5, 1e-2, 1e-3
     b.actual_speeds = [0.0] * 4
     b.pub_telemetry_raw = Pub('raw', log)
     b.telemetry_pub = Pub('/motor_telemetry', log)
     b.pub_actual = Pub('/wheel_velocities_actual', log)
-    b.pub_imu = Pub('/imu/data_raw', log)
+    b.pub_imu = Pub('/imu/data', log)
     b.get_clock = lambda: types.SimpleNamespace(
         now=lambda: types.SimpleNamespace(to_msg=lambda: 'T'))
     return b, log
@@ -119,8 +124,8 @@ chk(len(on(log, '/wheel_velocities_actual')) == 1
 print('IMU line, enable_imu True')
 b, log = make_bridge(True)
 b.parse_esp32_line(IMU)
-msgs = on(log, '/imu/data_raw')
-chk(len(msgs) == 1, 'one /imu/data_raw message')
+msgs = on(log, '/imu/data')
+chk(len(msgs) == 1, 'one /imu/data message')
 chk(not on(log, '/wheel_velocities_actual'),
     'nothing reaches /wheel_velocities_actual')
 chk(not on(log, '/motor_telemetry'), 'nothing reaches /motor_telemetry')
@@ -141,7 +146,7 @@ b.parse_esp32_line(IMU)
 chk(not on(log, '/wheel_velocities_actual'),
     'nothing reaches /wheel_velocities_actual')
 chk(not on(log, '/motor_telemetry'), 'nothing reaches /motor_telemetry')
-chk(not on(log, '/imu/data_raw'), 'nothing published on /imu/data_raw')
+chk(not on(log, '/imu/data'), 'nothing published on /imu/data')
 
 print('interleaved, as on the real wire (wheels 20 Hz, IMU 100 Hz)')
 b, log = make_bridge(True)
@@ -150,7 +155,7 @@ for line in (TEL, IMU, IMU, IMU, IMU, IMU, TEL):
 chk(len(on(log, '/wheel_velocities_actual')) == 2
     and all(m.data == TEL_ACTUAL for m in on(log, '/wheel_velocities_actual')),
     'two wheel-speed messages, both the real wheel values')
-chk(len(on(log, '/imu/data_raw')) == 5, 'five IMU messages')
+chk(len(on(log, '/imu/data')) == 5, 'five IMU messages')
 
 print('malformed IMU lines')
 for bad in ('[IMU]', '[IMU]0.9,0.1,0.2', '[IMU]a,b,c,d,e,f,g,h,i,j'):
@@ -161,15 +166,46 @@ for bad in ('[IMU]', '[IMU]0.9,0.1,0.2', '[IMU]a,b,c,d,e,f,g,h,i,j'):
     except Exception:
         raised = True
     chk(not raised, f'{bad!r} does not raise')
-    chk(not on(log, '/wheel_velocities_actual') and not on(log, '/imu/data_raw'),
+    chk(not on(log, '/wheel_velocities_actual') and not on(log, '/imu/data'),
         f'{bad!r} publishes nothing structured')
 
 print('other bracketed lines from the firmware')
 for line in ('[READY]', '[PONG]', '[TRIP,STALL,FR,pwm=255,vel=0.000]'):
     b, log = make_bridge(True)
     b.parse_esp32_line(line)
-    chk(not on(log, '/wheel_velocities_actual') and not on(log, '/imu/data_raw'),
+    chk(not on(log, '/wheel_velocities_actual') and not on(log, '/imu/data'),
         f'{line!r} publishes nothing structured')
+
+print('firmware v3.1 additions')
+IMU11 = IMU + ',3313000'
+b, log = make_bridge(True)
+b.parse_esp32_line(IMU11)
+msgs = on(log, '/imu/data')
+chk(len(msgs) == 1, '11-field [IMU] line (with t_us) is accepted')
+chk(not on(log, 'raw'), '[IMU] lines are not republished on motor_telemetry_raw')
+if msgs:
+    m = msgs[0]
+    chk([m.angular_velocity_covariance[i] for i in (0, 4, 8)] == [3e-5] * 3
+        and m.angular_velocity_covariance[1] == 0.0,
+        'gyro covariance diagonal set, off-diagonal zero')
+    chk([m.linear_acceleration_covariance[i] for i in (0, 4, 8)] == [1e-2] * 3,
+        'accel covariance diagonal set')
+    chk([m.orientation_covariance[i] for i in (0, 4, 8)] == [1e-3] * 3,
+        'orientation covariance diagonal set')
+for line in ('[IMUS,RUN,cal=s0g3a1m0,sys=5,err=0,T=25C,sw=0x0311]',
+             '[IMUC,n=1200,i2c=0,bad=0,dup=3,reinit=0]',
+             '[IMUS,UP,chip=0xA0,sw=0x0311,sys=5]',
+             '[IMUS,DOWN,i2c_fails=5]',
+             '[IMUCFG,addr=0x28,mode=0x08,axis=0x24/0x00,xtal=0,rst=27]',
+             '[OK,IMU_STREAM=1,HZ=50.0]'):
+    b, log = make_bridge(True)
+    b.parse_esp32_line(line)
+    chk(not on(log, '/wheel_velocities_actual') and not on(log, '/imu/data'),
+        f'{line[:28]!r}... publishes nothing structured')
+b, _ = make_bridge(True)
+chk(b._imu_stream_cmd() == '<N1,50>', 'enable_imu True asks for <N1,50>')
+b, _ = make_bridge(False)
+chk(b._imu_stream_cmd() == '<N0>', 'enable_imu False sends <N0>')
 
 print()
 if _fails:

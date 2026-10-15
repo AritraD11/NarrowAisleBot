@@ -19,6 +19,9 @@ closes both gaps as far as a PC can:
      to the shipped esp32_bridge.parse_esp32_line(), the way
      dashboard_html_syntax.py tests the string Python actually produces
      rather than the source text
+  4. compiles firmware/nab_imu_i2c_scan_esp32.ino and runs it through every
+     wiring fault it should recognise (open SDA or SCL, crossed wires, ADR
+     high, a wire on the wrong pin, no power), asserting the verdict text
 
 What it can't do: catch an API that differs on the real arduino-esp32
 core, or anything about the real chip or timing. After flashing, read the
@@ -67,6 +70,20 @@ with tempfile.TemporaryDirectory() as tmp:
 out = r.stdout
 print(out, end='')
 chk(r.returncode == 0, 'host_check: every firmware check passed')
+
+print('IMU I2C scan sketch (firmware/nab_imu_i2c_scan_esp32.ino)')
+with tempfile.TemporaryDirectory() as tmp:
+    exe = Path(tmp) / 'scan_check'
+    cmd = [gxx, '-std=gnu++2b', '-Wall', '-Wextra', '-Werror',
+           '-I', str(HOST / 'stubs'), str(HOST / 'scan_check.cpp'), '-o', str(exe)]
+    r2 = subprocess.run(cmd, capture_output=True, text=True)
+    chk(r2.returncode == 0, 'scan sketch compiles as C++23 with -Wall -Wextra -Werror')
+    if r2.returncode != 0:
+        print(r2.stderr[-3000:])
+        sys.exit(1)
+    r2 = subprocess.run([str(exe)], capture_output=True, text=True, timeout=60)
+print(r2.stdout, end='')
+chk(r2.returncode == 0, 'scan_check: every wiring-fault verdict is right')
 
 print('firmware [IMU] lines through the shipped bridge parser')
 imu_lines = [ln[len('IMU_LINE:'):].strip() for ln in out.splitlines()

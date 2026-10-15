@@ -350,7 +350,7 @@ Telemetry `<L1>` line: `ms, then per motor target, actual, pwm` for FR, FL, RR, 
 | `nab_encoder_handturn_diagnostic_esp32.ino` (413) | ESP32 | Hand-turn each wheel, check counts and direction |
 | `nab_encoder_isolation_test_esp32.ino` (137) | ESP32 | Encoder inputs with no motor drive |
 | `nab_front_encoder_speed_direction_esp32.ino` (223) | ESP32 | Front encoder speed and direction, event gated |
-| `nab_imu_i2c_scan_esp32.ino` (~130) | ESP32 | BNO055 bring-up diagnostic: line levels, every I2C address that answers (chip ID read by repeated start and by stop-then-start), the same scan with SDA and SCL swapped, core and IDF version, and a verdict. Independent of the drive firmware's IMU driver. Replaces the drive firmware while flashed. |
+| `nab_imu_i2c_scan_esp32.ino` (~190) | ESP32 | BNO055 bring-up diagnostic for when the hardware can't be opened. Release-test pull-up check on the planned SDA/SCL and on the free GPIOs (0 2 5 12 13 14 15 27), a full I2C scan on the planned pins with the chip ID read by repeated start and by stop-then-start, a BNO055 probe on every other pair of pulled-up pins, core and IDF version, and a verdict covering open SDA or SCL, crossed wires, ADR high, a wire on the wrong pin, straps, and no power. Never touches a motor or encoder pin. Replaces the drive firmware while flashed. Tested by `tools/tests/esp32_firmware_hostcheck.py`. |
 | `nab_mega_4encoder_levelshifter_test.ino` (282) | Mega | All four encoders through the shifter |
 | `nab_mega_front_encoder_levelshifter_test.ino` (114) | Mega | Front encoders through the shifter |
 | `nab_mega_front_encoder_pins4567.ino` (108) | Mega | Same test on relocated pins D4 to D7 |

@@ -28,7 +28,7 @@ using std::abs;
 #define constrain(amt, low, high) ((amt) < (low) ? (low) : ((amt) > (high) ? (high) : (amt)))
 
 namespace hostsim {
-struct Pin { int mode = 0; int level = HIGH; };
+struct Pin { int mode = 0; int level = HIGH; bool ext_pullup = false; };
 inline uint64_t now_us = 1000000;      // start at t = 1 s so 0 stays a sentinel
 inline Pin      pins[64];
 }
@@ -39,7 +39,15 @@ inline void delay(uint32_t ms) { hostsim::now_us += (uint64_t)ms * 1000; }
 inline void delayMicroseconds(uint32_t us) { hostsim::now_us += us; }
 inline void pinMode(uint8_t pin, uint8_t mode) { hostsim::pins[pin].mode = mode; }
 inline void digitalWrite(uint8_t pin, uint8_t val) { hostsim::pins[pin].level = val; }
-inline int  digitalRead(uint8_t pin) { return hostsim::pins[pin].level; }
+inline int  digitalRead(uint8_t pin) {
+    auto& p = hostsim::pins[pin];
+    switch (p.mode) {
+        case INPUT_PULLUP:   return HIGH;
+        case INPUT_PULLDOWN: return p.ext_pullup ? HIGH : LOW;
+        case INPUT:          return p.ext_pullup ? HIGH : p.level;   // a floating pin keeps its last level
+        default:             return p.level;
+    }
+}
 inline bool ledcAttach(uint8_t, uint32_t, uint8_t) { return true; }
 inline bool ledcWrite(uint8_t, uint32_t) { return true; }
 

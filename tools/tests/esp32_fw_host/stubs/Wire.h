@@ -17,6 +17,8 @@ namespace hostsim {
 struct FakeBno {
     bool    present  = true;
     bool    fail_all = false;
+    bool    addr29   = false;              // ADR high: answers at 0x29 instead
+    int     sda_pin  = 14, scl_pin = 13;   // the pins the chip is wired to
     uint8_t regs[128] = {};
     uint8_t ptr = 0;
     int     soft_resets = 0;
@@ -94,7 +96,9 @@ private:
     int addr_ = 0;
     std::vector<uint8_t> tx_, rx_;
     bool ok() const {
-        return running && addr_ == 0x28 && hostsim::bno.present && !hostsim::bno.fail_all;
+        return running && sda == hostsim::bno.sda_pin && scl == hostsim::bno.scl_pin &&
+               addr_ == (hostsim::bno.addr29 ? 0x29 : 0x28) &&
+               hostsim::bno.present && !hostsim::bno.fail_all;
     }
 };
 inline TwoWire Wire;

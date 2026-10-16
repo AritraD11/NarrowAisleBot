@@ -103,3 +103,30 @@ navigation, G5/G6/G7). Read it before proposing a different plan.
 `docs/Session_Handoff_2026-09-14.md` and any later-dated handoff file
 record what was actually verified on hardware, session by session — read
 the most recent one first.
+
+---
+
+## Reaching the Pi from a local Claude Code session
+
+Only once `docs/Claude_Pi_SSH_Access.md` has been carried out on the Pi (it is
+a plan until the operator says the acceptance test passed). The cloud session
+that wrote it cannot reach the Pi at all.
+
+- Use `ssh nab-pi-ro "<verb>"` to look. Send `help` first to see the verbs.
+  Use `ssh nab-pi-rw "install-src <path under ros2_ws/src or ros2_ws/tools>" < file`
+  to change a file, only for a change the operator has agreed to. It prints
+  before/after sha256 and the backup path; compare `after` with the local file
+  and paste both into the chat.
+- A refusal (`[GATE,DENIED,...]`) is the answer. Do not look for another route:
+  no raw `ssh`, `scp`, `sftp`, no other keys, no reading `~/.ssh`, no
+  rewording a refused command to slip past the filter. Ask the operator.
+- There is no verb for `sudo`, restarting a service, publishing, calling a
+  service, setting a parameter or touching a serial port, on purpose. The
+  operator restarts `aislebot.service` by hand after reading the diff, and
+  drives the robot with the E-stop in reach.
+- `install-src` refuses `phone_dashboard.py`. The dashboard rule above still
+  holds: run `tools/tests/dashboard_html_syntax.py` locally, and the operator
+  checks the browser console on the Pi.
+- Changing `system/claude_ssh_gate.sh` means extending
+  `tools/tests/claude_ssh_gate_check.py` in the same commit, with a case for what
+  the new verb allows and one for the nearest thing it must still refuse.

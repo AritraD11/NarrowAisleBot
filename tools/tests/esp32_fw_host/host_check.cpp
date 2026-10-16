@@ -69,7 +69,9 @@ int main() {
     all_output += take_output();
     chk(Serial.tx_set_before_begin && Serial.tx_buffer == 1024,
         "TX buffer set to 1024 before Serial.begin()");
-    chk(all_output.find("v3.1") != std::string::npos, "banner says v3.1");
+    chk(all_output.find("v3.2") != std::string::npos, "banner says v3.2");
+    chk(all_output.find("IMU profile   ... none") != std::string::npos && !imu_cal.valid,
+        "first boot: no stored IMU profile, and it says so");
 
     std::printf("command watchdog: only motion feeds it\n");
     const char* housekeeping[] = {"P", "?", "L1", "N1", "N0", "N?", "I", "W1", "Y1", "V,1"};
@@ -160,8 +162,9 @@ int main() {
     chk(hostsim::bno.regs[0x41] == 0x24 && hostsim::bno.regs[0x42] == 0x00,
         "axis map 0x24 / 0x00 written");
     chk(hostsim::bno.soft_resets == 1, "one software reset during init");
-    chk(out.find("[IMUS,UP,chip=0xA0,sw=0x0311,sys=5]") != std::string::npos,
-        "prints [IMUS,UP,chip=0xA0,sw=0x0311,sys=5]");
+    chk(out.find("[IMUS,UP,chip=0xA0,sw=0x0311,sys=5,st=0x0F,prof=none]") != std::string::npos,
+        "prints [IMUS,UP,chip=0xA0,sw=0x0311,sys=5,st=0x0F,prof=none]");
+    chk(out.find("[IMUS,WARN") == std::string::npos, "no self-test warning when ST_RESULT is 0x0F");
     double init_s = (double)(hostsim::now_us - t0) / 1e6;
     std::printf("    init took %.2f s of simulated time\n", init_s);
     chk(init_s < 3.0, "init bounded under 3 s");
@@ -258,6 +261,174 @@ int main() {
     imuServiceOnce(L);
     chk(imu_health.reinits == r0 + 1 && imu_health.state == IMU_RUN, "<NR> re-inits and returns to RUN");
     all_output += take_output();
+
+    std::printf("calibration profile: <NS> refuses with the drive on, wheels turning, or uncalibrated\n");
+    {
+        int w0 = hostsim::nvs.writes;
+        hostsim::bno.regs[0x35] = 0xFF;                  // fully calibrated, so only the drive state matters
+        processSerialCommand("NS");
+        imuServiceOnce(L);
+        out = take_output();
+        all_output += out;
+        chk(out.find("[OK,IMU_CAL_SAVE]") != std::string::npos &&
+            out.find("[IMUCAL,REFUSED,why=drive_enabled,send_E0_first]") != std::string::npos,
+            "<NS> refused while the drive is enabled");
+        chk(hostsim::nvs.writes == w0, "no flash write with the drive enabled");
+
+        // Drive off, but the telemetry test above left wheel speeds set.
+        processSerialCommand("E0");
+        processSerialCommand("NS");
+        imuServiceOnce(L);
+        out = take_output();
+        all_output += out;
+        chk(out.find("[IMUCAL,REFUSED,why=wheels_moving]") != std::string::npos, "<NS> refused while a wheel still turns");
+        chk(hostsim::nvs.writes == w0, "no flash write while a wheel turns");
+
+        for (int i = 0; i < NUM_MOTORS; i++) motors[i].actual_velocity = 0;
+        const uint8_t partial[2] = {0x0C, 0x30};          // s0 g0 a3 m0, then s0 g3 a0 m0
+        const char*   seen[2]    = {"cal=s0g0a3m0,need=g3a3]", "cal=s0g3a0m0,need=g3a3]"};
+        for (int k = 0; k < 2; k++) {
+            hostsim::bno.regs[0x35] = partial[k];
+            processSerialCommand("NS");
+            imuServiceOnce(L);
+            out = take_output();
+            all_output += out;
+            char label[96];
+            std::snprintf(label, sizeof(label), "<NS> refused at %s", k == 0 ? "gyro 0 / accel 3" : "gyro 3 / accel 0");
+            chk(out.find("[IMUCAL,REFUSED,why=not_calibrated,") != std::string::npos &&
+                out.find(seen[k]) != std::string::npos, label);
+        }
+        chk(hostsim::nvs.writes == w0, "no flash write while not fully calibrated");
+        chk(imu_health.state == IMU_RUN, "a refusal leaves the IMU running");
+    }
+
+    std::printf("calibration profile: <NS> saves, every init restores\n");
+    uint8_t prof[22];
+    for (int i = 0; i < 22; i++) {
+        prof[i] = (uint8_t)(0x10 + 7 * i);
+        hostsim::bno.regs[0x55 + i] = prof[i];           // what the chip learned
+    }
+    {
+        hostsim::bno.regs[0x35] = 0x3C;                  // s0 g3 a3 m0
+        int w0 = hostsim::nvs.writes;
+        uint64_t ts = hostsim::now_us;
+        processSerialCommand("NS");
+        imuServiceOnce(L);
+        double save_s = (double)(hostsim::now_us - ts) / 1e6;
+        out = take_output();
+        all_output += out;
+        chk(out.find("[IMUCAL,SAVED,cal=s0g3a3m0,bytes=22]") != std::string::npos, "<NS> saves and reports what it saved");
+        chk(hostsim::nvs.writes == w0 + 1, "exactly one flash write");
+        const auto& blob = hostsim::nvs.kv["nab_imu/cal"];
+        chk(blob.size() == 25 && blob[0] == 1 && blob[1] == 0x3C &&
+            std::memcmp(blob.data() + 2, prof, 22) == 0, "stored blob: format 1, CALIB_STAT, the 22 profile bytes");
+        chk(imu_cal.valid && std::memcmp(imu_cal.data, prof, 22) == 0, "RAM copy updated");
+        chk((hostsim::bno.regs[0x3D] & 0x0F) == 0x08 && imu_health.state == IMU_RUN, "back in IMUPLUS and running");
+        chk(save_s < 1.0, "save pauses the IMU for under 1 s");
+        std::printf("    save took %.2f s of simulated time\n", save_s);
+    }
+    {
+        // A reset wipes the chip's offsets; the re-init must put them back.
+        int resets0 = hostsim::bno.soft_resets;
+        processSerialCommand("NR");
+        imuServiceOnce(L);
+        out = take_output();
+        all_output += out;
+        chk(hostsim::bno.soft_resets == resets0 + 1, "<NR> reset the chip (offsets wiped)");
+        chk(std::memcmp(hostsim::bno.regs + 0x55, prof, 22) == 0, "re-init wrote the stored profile back");
+        chk(out.find("prof=ok]") != std::string::npos && imu_health.profile == PROF_OK, "[IMUS,UP,...,prof=ok]");
+        processSerialCommand("N?");
+        processSerialCommand("I");
+        out = take_output();
+        all_output += out;
+        chk(out.find(",prof=ok]") != std::string::npos && out.find("stored_cal=yes") != std::string::npos,
+            "<N?> and <I> show the stored profile");
+    }
+    {
+        // Reboot: setup() reads NVS once into RAM.
+        imu_cal = ImuCalStore{};
+        imuCalLoad();
+        chk(imu_cal.valid && imu_cal.calib == 0x3C && std::memcmp(imu_cal.data, prof, 22) == 0,
+            "after a reboot the profile loads from NVS");
+        auto saved = hostsim::nvs.kv["nab_imu/cal"];
+        hostsim::nvs.kv["nab_imu/cal"][7] ^= 0x01;       // one flipped bit
+        imu_cal = ImuCalStore{};
+        imuCalLoad();
+        chk(!imu_cal.valid && imu_cal.bad_blob, "a corrupted blob is rejected, not applied");
+        hostsim::nvs.kv["nab_imu/cal"].resize(10);
+        imu_cal = ImuCalStore{};
+        imuCalLoad();
+        chk(!imu_cal.valid && imu_cal.bad_blob, "a blob of the wrong length is rejected");
+        hostsim::nvs.kv["nab_imu/cal"] = saved;
+        imuCalLoad();
+        chk(imu_cal.valid, "the good blob loads again");
+    }
+    {
+        hostsim::bno.drop_profile_writes = true;         // restore doesn't stick
+        processSerialCommand("NR");
+        imuServiceOnce(L);
+        out = take_output();
+        all_output += out;
+        chk(out.find("prof=fail]") != std::string::npos && imu_health.state == IMU_RUN,
+            "a failed restore is reported and the IMU runs anyway");
+        hostsim::bno.drop_profile_writes = false;
+        processSerialCommand("NR");
+        imuServiceOnce(L);
+        all_output += take_output();
+    }
+    {
+        hostsim::nvs.fail_writes = true;
+        hostsim::bno.regs[0x35] = 0x3C;
+        processSerialCommand("NS");
+        imuServiceOnce(L);
+        out = take_output();
+        all_output += out;
+        chk(out.find("[IMUCAL,FAILED,why=nvs]") != std::string::npos && imu_health.state == IMU_RUN,
+            "an NVS failure is reported and the IMU keeps running");
+        hostsim::nvs.fail_writes = false;
+    }
+
+    std::printf("calibration profile: <NX> forgets it\n");
+    {
+        processSerialCommand("E1");                      // drive back on
+        int w0 = hostsim::nvs.writes;
+        processSerialCommand("NX");
+        imuServiceOnce(L);
+        out = take_output();
+        all_output += out;
+        chk(out.find("[IMUCAL,REFUSED,why=drive_enabled,send_E0_first]") != std::string::npos &&
+            hostsim::nvs.writes == w0, "<NX> refused while the drive is enabled");
+        processSerialCommand("S");                       // a latched E-STOP counts as drive off
+        processSerialCommand("NX");
+        imuServiceOnce(L);
+        out = take_output();
+        all_output += out;
+        chk(out.find("[IMUCAL,CLEARED,takes_effect=next_init]") != std::string::npos, "<NX> clears under a latched E-STOP");
+        chk(hostsim::nvs.kv.count("nab_imu/cal") == 0 && !imu_cal.valid, "key gone from NVS and from RAM");
+        processSerialCommand("NR");
+        imuServiceOnce(L);
+        out = take_output();
+        all_output += out;
+        chk(out.find("prof=none]") != std::string::npos, "next init runs without a profile");
+        processSerialCommand("E1");                      // clear the E-STOP for what follows
+        all_output += take_output();
+    }
+
+    std::printf("self-test result is reported\n");
+    {
+        hostsim::bno.self_test_result = 0x0B;            // gyro bit clear
+        processSerialCommand("NR");
+        imuServiceOnce(L);
+        out = take_output();
+        all_output += out;
+        chk(out.find("st=0x0B") != std::string::npos &&
+            out.find("[IMUS,WARN,selftest=0x0B,want=0x0F]") != std::string::npos, "ST_RESULT 0x0B is shown and warned");
+        chk(imu_health.state == IMU_RUN, "the IMU still runs");
+        hostsim::bno.self_test_result = 0x0F;
+        processSerialCommand("NR");
+        imuServiceOnce(L);
+        all_output += take_output();
+    }
 
     std::printf("every non-data line stays under the bridge's 9-field fallback\n");
     processSerialCommand("H");

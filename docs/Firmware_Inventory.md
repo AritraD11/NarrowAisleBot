@@ -293,6 +293,8 @@ Live file is `~/ros2_ws/slam_nodom.yaml` = `system/slam_nodom_stageB.yaml` (hash
 ### 10.1 ESP32 drive controller: `aislebot_esp32.ino` v3.0 (1154 lines, deployed)
 
 > **15 Oct 2026:** the repo now holds v3.1, which adds the BNO055 IMU task and the `<N>` commands and fixes four v3.0 defects (watchdog fed by any command, telemetry split across writes, no TX buffer, `<R>` race). The control law below is unchanged. v3.1 is not flashed until the boot banner says so; the header of `aislebot_esp32.ino` lists every change.
+>
+> **16 Oct 2026:** v3.1 was never flashed and is superseded by **v3.2**, which keeps the control law, telemetry and every v3.1 command and adds two IMU items, both driven by the bench run of `firmware/nab_imu_function_test_esp32.ino` (sensor at 0x28 on G14/G13, self test 0x0F, 0 of 150 reads failed on core 3.3.12, accelerometer uncalibrated at every boot, magnetometer 17 to 119 µT). First, the BNO055 calibration profile (22 bytes, 0x55..0x6A) is saved to NVS with `<NS>` and written back at every IMU init. `<NS>` needs accel and gyro at calibration 3 and the drive off (`<E0>` or a latched E-STOP) with the wheels stopped, because a flash write pauses both cores; `<NX>` forgets it. Second, the power-on self-test result is reported (`st=` in `[IMUS,UP]` and `[IMUC]`). New lines `[IMUCAL,...]` stay within 8 fields. v3.0 is still the rollback.
 
 Pi is the only command source. WiFi and the web joystick were removed in v3.0.
 

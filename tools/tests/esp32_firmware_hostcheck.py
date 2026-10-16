@@ -13,8 +13,10 @@ closes both gaps as far as a PC can:
      -Werror (arduino-esp32 3.x builds sketches as gnu++2b, and its
      "More"/"All" warning settings turn -Wall into errors)
   2. runs host_check.cpp: the IMU init/decode/recovery logic against a
-     BNO055 register model, the telemetry bytes against v3.0's, the
-     watchdog rule, and every status line's comma-field count
+     BNO055 register model, the v3.2 calibration-profile save/restore
+     against an in-memory NVS (stubs/Preferences.h), the telemetry bytes
+     against v3.0's, the watchdog rule, and every status line's
+     comma-field count
   3. takes the [IMU] lines the firmware actually printed and feeds them
      to the shipped esp32_bridge.parse_esp32_line(), the way
      dashboard_html_syntax.py tests the string Python actually produces

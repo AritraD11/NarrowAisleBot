@@ -24,6 +24,7 @@ struct FakeBno {
     int     soft_resets = 0;
     uint8_t self_test_result = 0x0F;       // what ST_RESULT shows after a reset or a self-test trigger
     int     self_tests = 0;                // SYS_TRIGGER bit 0 writes seen
+    bool    drop_profile_writes = false;   // calibration-profile writes are lost (failed restore)
     // Called before every read is served, so a test can make the data
     // registers follow the (fake) clock. Null for the plain register model.
     void  (*on_read)(FakeBno&) = nullptr;
@@ -45,10 +46,16 @@ struct FakeBno {
         regs[0x42] = 0x00;   // AXIS_MAP_SIGN default
     }
     bool config_mode() const { return (regs[0x3D] & 0x0F) == 0; }
+    static bool is_profile(int r) { return r >= 0x55 && r <= 0x6A; }
+    // Outside CONFIG the profile registers don't read back meaningfully;
+    // model that as zeros so a read in the wrong mode is caught.
+    uint8_t read_reg(int r) const { return (is_profile(r) && !config_mode()) ? 0 : regs[r & 0x7F]; }
     void write_reg(uint8_t r, uint8_t v) {
         if (r == 0x3F && (v & 0x20)) { soft_resets++; power_on(); return; }
         if (r == 0x3F && (v & 0x01)) { self_tests++; regs[0x36] = self_test_result; }
         if ((r == 0x3B || r == 0x41 || r == 0x42) && !config_mode()) return;
+        // Calibration profile 0x55..0x6A: CONFIG mode only, like the chip.
+        if (is_profile(r) && (!config_mode() || drop_profile_writes)) return;
         if (r == 0x00 || r == 0x04 || r == 0x05) return;      // read-only IDs
         regs[r & 0x7F] = v;
         if (r == 0x3D) regs[0x39] = (v & 0x0F) >= 0x08 ? 5 : 0;
@@ -90,7 +97,7 @@ public:
         if (!ok()) return 0;
         if (hostsim::bno.on_read) hostsim::bno.on_read(hostsim::bno);
         for (int i = 0; i < len; i++)
-            rx_.push_back(hostsim::bno.regs[(hostsim::bno.ptr + i) & 0x7F]);
+            rx_.push_back(hostsim::bno.read_reg((hostsim::bno.ptr + i) & 0x7F));
         return (uint8_t)len;
     }
     int available() { return (int)rx_.size(); }

@@ -1,6 +1,6 @@
 /*
  * ╔══════════════════════════════════════════════════════════════════╗
- * ║            NarrowAisleBot — ESP32 Motor Controller  v3.1          ║
+ * ║            NarrowAisleBot — ESP32 Motor Controller  v3.2          ║
  * ║                                                                  ║
  * ║  Pi-commanded  |  PID + 2-term Feedforward  |  Hardware PCNT     ║
  * ║  Per-motor CPR |  100 Hz control loop       |  Dual-core FreeRTOS║
@@ -8,6 +8,44 @@
  * ║                                                                  ║
  * ║  Aritra Das (25D0074) — IIT Bombay — Prof. Ambarish Kunwar       ║
  * ╚══════════════════════════════════════════════════════════════════╝
+ *
+ * WHAT CHANGED FROM v3.1  (and why)
+ *
+ *   The PID, feedforward, filters, limits, trips, telemetry and every
+ *   v3.1 command are untouched. v3.1 was never flashed; v3.0 is still the
+ *   rollback (past_iterations/firmware/aislebot_esp32_v3.0.ino).
+ *
+ *   Bench result behind this version (16 Oct 2026, arduino-esp32 3.3.12,
+ *   firmware/nab_imu_function_test_esp32.ino, on a spare ESP32 and then on
+ *   the robot's ESP32 PCB): the BNO055 answers at 0x28 on SDA 14 / SCL 13,
+ *   all four chip IDs and the self test pass, and 0 of 150 reads failed
+ *   using the same calls and the same 32-byte burst as the driver below.
+ *   Gravity read 9.3-9.8 m/s^2, and the quaternion's tilt matched the
+ *   accelerometer's to within 0.2 degrees at 8, 9 and 39 degrees, which
+ *   checks UNIT_SEL, the scale factors and the burst offsets used here.
+ *   The magnetometer read 17 to 119 uT from run to run against Earth's
+ *   25-65, which is why this stays in IMUPLUS. The accelerometer came up
+ *   uncalibrated (status 0 or 1) on every boot.
+ *
+ *   1. Calibration profile kept across reboots. The chip forgets its
+ *      offsets on every reset, and its accelerometer only calibrates when
+ *      held in several orientations, which the robot can't do once the
+ *      sensor is mounted. So calibrate once with the sensor in hand,
+ *      wired to this ESP32: <E0>, turn it through six poses until <N?>
+ *      shows g3 and a3, then <NS>, then <E1>. <NS> reads the live profile
+ *      (22 bytes) and stores it in NVS; every init after that, including
+ *      the recovery ladder's, writes it back before fusion starts. <NX>
+ *      forgets it. <NS> refuses below accel 3 / gyro 3, so a later save
+ *      can't overwrite good accel offsets with half-learned ones. Both
+ *      need the drive off (<E0> or a latched E-STOP) with the wheels
+ *      stopped, because an NVS write pauses both cores while flash is
+ *      busy, PID task included. The one flash read happens in setup(),
+ *      before any task runs; re-inits use the RAM copy. This follows
+ *      docs/BNO055_Integration_Research.md (calibration paragraph).
+ *   2. The power-on self-test result (ST_RESULT, 0x0F = all four pass) is
+ *      kept and shown in [IMUS,UP] and <N?>. Anything else also prints
+ *      [IMUS,WARN,...]. The IMU still runs.
+ *   3. Version strings say v3.2. No other line changed format.
  *
  * WHAT CHANGED FROM v3.0  (and why)
  *
@@ -119,12 +157,14 @@
  *   (3.2 is the first core whose I2C driver waits long enough for the
  *   BNO055's clock stretching. Pin the exact version you flash with.)
  *
- * LIBRARIES: none beyond the ESP32 core. Wire is part of the core. The
- *            BNO055 is driven by direct register access, not a library.
+ * LIBRARIES: none beyond the ESP32 core. Wire and Preferences are part of
+ *            the core. The BNO055 is driven by direct register access,
+ *            not a library.
  */
 
 #include "driver/pcnt.h"
 #include <Wire.h>
+#include <Preferences.h>
 
 // ═══════════════════════════════════════════════════════════════════
 // 1. PIN DEFINITIONS  — unchanged from v2.0, bench-confirmed 4 Aug 2026
@@ -489,7 +529,36 @@ const uint8_t IMU_OFF_QUA         = 24;
 const float IMU_QNORM2_MIN        = 0.81f;
 const float IMU_QNORM2_MAX        = 1.21f;
 
+// Calibration profile (§14b, <NS>/<NX>). 22 bytes at 0x55..0x6A: accel,
+// mag and gyro offsets, then accel and mag radius (bno055.h order). The
+// chip reads and writes them only in CONFIG mode and clears them on every
+// reset, so a stored profile is written back on every init. Stored in NVS
+// as format byte, CALIB_STAT at save, the 22 bytes, then a checksum.
+#define IMU_CAL_PERSIST 1    // 0 compiles <NS>/<NX> and the restore out
+
+const uint8_t BNO_CALIB_STAT      = 0x35;
+const uint8_t BNO_CAL_PROFILE     = 0x55;
+const uint8_t IMU_CAL_LEN         = 22;
+const uint8_t IMU_CAL_FORMAT      = 1;      // bump if the stored layout changes
+const uint8_t IMU_CAL_BLOB_LEN    = IMU_CAL_LEN + 3;
+const uint8_t BNO_ST_ALL_PASS     = 0x0F;   // ST_RESULT: accel, mag, gyro, MCU
+static const char IMU_NVS_NS[]    = "nab_imu";
+static const char IMU_NVS_KEY[]   = "cal";
+// A wheel slower than this counts as stopped for the <NS>/<NX> flash check.
+const float IMU_IDLE_WHEEL_RADS   = 0.05f;
+
 enum ImuState : uint8_t { IMU_OFF = 0, IMU_INIT, IMU_RUN, IMU_DEAD };
+
+// What happened to the stored profile at the last init.
+enum ImuProfile : uint8_t { PROF_NONE = 0, PROF_OK, PROF_FAIL };
+
+// RAM copy of the stored profile, read from NVS once in setup().
+struct ImuCalStore {
+    bool    valid;
+    bool    bad_blob;          // something was stored but failed the checks
+    uint8_t calib;             // CALIB_STAT when it was saved
+    uint8_t data[IMU_CAL_LEN];
+};
 
 struct ImuSample {
     uint32_t seq;        // bumps on every published sample; 0 = none yet
@@ -511,6 +580,8 @@ struct ImuHealth {
     int8_t   temp_c;
     uint8_t  sw_rev_msb;
     uint8_t  sw_rev_lsb;
+    uint8_t  st_result;    // power-on self test, 0x0F = all four pass
+    uint8_t  profile;      // ImuProfile: stored calibration applied at last init?
     uint32_t samples;
     uint32_t i2c_errors;
     uint32_t bad_samples;  // failed the quaternion check
@@ -536,6 +607,9 @@ portMUX_TYPE imu_mux    = portMUX_INITIALIZER_UNLOCKED;
 volatile bool          imu_stream_on          = false;  // <N1> / <N0>
 volatile unsigned long imu_stream_interval_ms = 20;     // 50 Hz unless <N1,hz> says otherwise
 volatile bool          imu_reinit_req         = false;  // <NR>
+volatile bool          imu_cal_save_req       = false;  // <NS>, served by the IMU task
+volatile bool          imu_cal_clear_req      = false;  // <NX>, served by the IMU task
+ImuCalStore            imu_cal                = {};
 
 // Defined in §14b, called from the parser in §13. Declared here so the
 // file also builds outside the Arduino IDE's prototype generator.
@@ -990,7 +1064,7 @@ static inline void feedWatchdog() {
 }
 
 void printHelp() {
-    Serial.println("=== NarrowAisleBot ESP32 v3.1 — command set ===");
+    Serial.println("=== NarrowAisleBot ESP32 v3.2 — command set ===");
     Serial.println("MOTION");
     Serial.println("  <V,fr,fl,rr,rl>   wheel velocities rad/s (closed loop)  [primary]");
     Serial.println("  <B,vx,vy,wz>      body twist m/s,m/s,rad/s (ESP32 runs IK)");
@@ -1018,6 +1092,10 @@ void printHelp() {
     Serial.println("  <N1[,hz]> <N0>    [IMU] stream on (default 50 Hz) / off");
     Serial.println("  <N?>              IMU status: state  calibration  errors");
     Serial.println("  <NR>              force an IMU reset and re-init");
+    Serial.println("  <NS>              save the IMU calibration to flash. Needs <E0> first");
+    Serial.println("                    and accel + gyro at calibration 3 (see <N?>).");
+    Serial.println("                    Restored at every IMU start. <E1> afterwards.");
+    Serial.println("  <NX>              forget the saved IMU calibration (needs <E0>)");
     Serial.println("  Only <V> <B> <M> <T> feed the 750 ms command watchdog.");
 }
 
@@ -1204,6 +1282,16 @@ void processSerialCommand(const char* cmd) {
             } else if (cmd[1] == 'R') {
                 imu_reinit_req = true;
                 Serial.println("[OK,IMU_REINIT]");
+            } else if (cmd[1] == 'S' || cmd[1] == 'X') {
+#if IMU_CAL_PERSIST
+                // The IMU task owns the bus, so it does the work and prints
+                // [IMUCAL,SAVED|CLEARED|REFUSED|FAILED,...] when it's done.
+                if (cmd[1] == 'S') imu_cal_save_req = true;
+                else               imu_cal_clear_req = true;
+                Serial.println(cmd[1] == 'S' ? "[OK,IMU_CAL_SAVE]" : "[OK,IMU_CAL_CLEAR]");
+#else
+                Serial.println("[ERR,IMU_CAL_DISABLED]");
+#endif
             } else {
                 Serial.println("[ERR,BAD_N]");
             }
@@ -1217,7 +1305,7 @@ void processSerialCommand(const char* cmd) {
             break;
 
         case 'I': // <I>  configuration dump
-            Serial.println("[INFO,NarrowAisleBot_ESP32_v3.1]");
+            Serial.println("[INFO,NarrowAisleBot_ESP32_v3.2]");
             Serial.printf("[GAINS,Kp=%.2f,Ki=%.2f,Kd=%.2f,Hz=%.0f]\n",
                           Kp, Ki, Kd, PID_LOOP_HZ);
             Serial.printf("[FF,FR=%.2f,FL=%.2f,RR=%.2f,RL=%.2f]\n",
@@ -1233,10 +1321,11 @@ void processSerialCommand(const char* cmd) {
                           max_wheel_speed, max_wheel_accel,
                           max_wheel_speed * WHEEL_RADIUS);
 #if IMU_ENABLED
-            Serial.printf("[IMUCFG,addr=0x%02X,mode=0x%02X,axis=0x%02X/0x%02X,xtal=%d,rst=%d]\n",
+            Serial.printf("[IMUCFG,addr=0x%02X,mode=0x%02X,axis=0x%02X/0x%02X,xtal=%d,rst=%d,stored_cal=%s]\n",
                           (unsigned)IMU_I2C_ADDR, (unsigned)IMU_OPR_MODE,
                           (unsigned)IMU_AXIS_MAP_CONFIG, (unsigned)IMU_AXIS_MAP_SIGN,
-                          (int)IMU_USE_EXT_CRYSTAL, (int)IMU_RST_PIN);
+                          (int)IMU_USE_EXT_CRYSTAL, (int)IMU_RST_PIN,
+                          imu_cal.valid ? "yes" : "no");
 #endif
             break;
 
@@ -1431,6 +1520,19 @@ void imuBusClear() {
     Wire.setTimeOut(IMU_I2C_TIMEOUT_MS);
 }
 
+// Write a calibration profile, then read it back. CONFIG mode only: the
+// chip ignores these writes in a fusion mode. One register per write, the
+// way Bosch's and Adafruit's drivers do it.
+bool imuApplyProfile(const uint8_t* d) {
+    for (uint8_t i = 0; i < IMU_CAL_LEN; i++) {
+        if (!imuWriteReg((uint8_t)(BNO_CAL_PROFILE + i), d[i])) return false;
+    }
+    vTaskDelay(pdMS_TO_TICKS(2));
+    uint8_t rb[IMU_CAL_LEN];
+    if (!imuReadRegs(BNO_CAL_PROFILE, rb, IMU_CAL_LEN)) return false;
+    return memcmp(rb, d, IMU_CAL_LEN) == 0;
+}
+
 // Bounded init, roughly 2 s end to end. Returns false rather than waiting
 // forever if the chip doesn't answer.
 bool imuInit() {
@@ -1458,6 +1560,13 @@ bool imuInit() {
     if (!imuWriteVerify(BNO_UNIT_SEL, BNO_UNIT_SEL_VALUE, 0x97)) return false;
     if (!imuWriteVerify(BNO_AXIS_MAP_CONFIG, IMU_AXIS_MAP_CONFIG, 0x3F)) return false;
     if (!imuWriteVerify(BNO_AXIS_MAP_SIGN, IMU_AXIS_MAP_SIGN, 0x07)) return false;
+#if IMU_CAL_PERSIST
+    // The reset above wiped the chip's offsets; put the stored ones back
+    // while still in CONFIG. A failed restore isn't fatal: the chip just
+    // starts uncalibrated, as it would without a stored profile.
+    imu_health.profile = PROF_NONE;
+    if (imu_cal.valid) imu_health.profile = imuApplyProfile(imu_cal.data) ? PROF_OK : PROF_FAIL;
+#endif
     imuWriteReg(BNO_SYS_TRIGGER, IMU_USE_EXT_CRYSTAL ? 0x80 : 0x00);
     vTaskDelay(pdMS_TO_TICKS(10));
 
@@ -1472,14 +1581,147 @@ bool imuInit() {
         imu_health.sw_rev_lsb = rev[0];
         imu_health.sw_rev_msb = rev[1];
     }
-    uint8_t hk[7];
+    uint8_t hk[7];   // TEMP, CALIB_STAT, ST_RESULT, INT_STA, SYS_CLK, SYS_STATUS, SYS_ERR
     if (imuReadRegs(BNO_TEMP, hk, 7)) {
         imu_health.temp_c     = (int8_t)hk[0];
         imu_health.calib      = hk[1];
+        imu_health.st_result  = hk[2];   // from the self test the reset just ran
         imu_health.sys_status = hk[5];
         imu_health.sys_err    = hk[6];
     }
     return true;
+}
+
+// ── Calibration profile in NVS (<NS>, <NX>, restore) ──────────────────
+
+#if IMU_CAL_PERSIST
+static uint8_t imuCalChecksum(const uint8_t* blob) {
+    uint8_t x = 0x5A;
+    for (uint8_t i = 0; i < IMU_CAL_BLOB_LEN - 1; i++) x = (uint8_t)((x ^ blob[i]) * 31u + 7u);
+    return x;
+}
+#endif
+
+// Once, from setup(), before any task exists, so this flash read can't
+// stall the PID task. Re-inits use the RAM copy it leaves in imu_cal.
+void imuCalLoad() {
+    imu_cal = ImuCalStore{};
+#if IMU_CAL_PERSIST
+    Preferences p;
+    if (!p.begin(IMU_NVS_NS, true)) return;          // first boot: nothing stored yet
+    size_t n = p.getBytesLength(IMU_NVS_KEY);
+    if (n != 0) {
+        uint8_t blob[IMU_CAL_BLOB_LEN];
+        if (n == sizeof(blob) && p.getBytes(IMU_NVS_KEY, blob, sizeof(blob)) == sizeof(blob) &&
+            blob[0] == IMU_CAL_FORMAT && blob[IMU_CAL_BLOB_LEN - 1] == imuCalChecksum(blob)) {
+            imu_cal.calib = blob[1];
+            memcpy(imu_cal.data, blob + 2, IMU_CAL_LEN);
+            imu_cal.valid = true;
+        } else {
+            imu_cal.bad_blob = true;                 // ignored; <NS> overwrites it
+        }
+    }
+    p.end();
+#endif
+}
+
+// An NVS write pauses both cores while flash is busy, PID task included.
+// So <NS> and <NX> only touch flash with the drive switched off (<E0> or a
+// latched E-STOP) and every wheel stopped: with the drive disabled, a <V>
+// arriving in the middle of the write can't start anything. Prints the
+// refusal itself and returns false if it isn't safe.
+bool imuFlashSafe() {
+    if (motors_enabled && !estop_active) {
+        Serial.println("[IMUCAL,REFUSED,why=drive_enabled,send_E0_first]");
+        return false;
+    }
+    for (int i = 0; i < NUM_MOTORS; i++) {
+        if (fabsf(motors[i].actual_velocity) > IMU_IDLE_WHEEL_RADS) {
+            Serial.println("[IMUCAL,REFUSED,why=wheels_moving]");
+            return false;
+        }
+    }
+    return true;
+}
+
+#if IMU_CAL_PERSIST
+// <NS>. Reads the chip's live profile in CONFIG mode, goes back to fusion,
+// then stores it. Refuses unless accel AND gyro are at calibration 3: the
+// profile is only meaningful after full calibration, and saving early
+// would overwrite good accel offsets with half-learned ones. (In IMUPLUS
+// the system field isn't expected to reach 3, so it isn't required; the
+// same rule as Adafruit's isFullyCalibrated() for this mode.) The IMU
+// stream pauses for about 0.65 s while the fusion restarts, and the
+// IMUPLUS heading restarts from zero, as on any re-init. The Pi fuses yaw
+// rate, which rides through it.
+void imuSaveProfile(ImuLoop& L) {
+    if (imu_health.state != IMU_RUN) { Serial.println("[IMUCAL,REFUSED,why=imu_not_running]"); return; }
+    if (!imuFlashSafe()) return;
+    uint8_t cs = 0;
+    if (!imuReadRegs(BNO_CALIB_STAT, &cs, 1)) { Serial.println("[IMUCAL,REFUSED,why=i2c]"); return; }
+    if (((cs >> 4) & 3u) != 3u || ((cs >> 2) & 3u) != 3u) {
+        Serial.printf("[IMUCAL,REFUSED,why=not_calibrated,cal=s%ug%ua%um%u,need=g3a3]\n",
+                      (cs >> 6) & 3u, (cs >> 4) & 3u, (cs >> 2) & 3u, cs & 3u);
+        return;
+    }
+
+    uint8_t d[IMU_CAL_LEN];
+    bool ok = imuWriteReg(BNO_OPR_MODE, BNO_MODE_CONFIG);
+    vTaskDelay(pdMS_TO_TICKS(25));
+    ok = ok && imuReadRegs(BNO_CAL_PROFILE, d, IMU_CAL_LEN);
+    if (!imuWriteVerify(BNO_OPR_MODE, IMU_OPR_MODE, 0x0F)) {
+        Serial.println("[IMUCAL,FAILED,why=mode_restore,reinit]");
+        imu_health.reinits++;
+        imu_health.state = IMU_INIT;
+        return;
+    }
+    vTaskDelay(pdMS_TO_TICKS(600));                  // fusion restart, as in imuInit()
+    L.have_prev = false;
+    L.last_wake = xTaskGetTickCount();
+    if (!ok) { Serial.println("[IMUCAL,FAILED,why=i2c]"); return; }
+
+    // Checked again: 0.65 s have passed, and this is the flash write.
+    if (!imuFlashSafe()) return;
+    uint8_t blob[IMU_CAL_BLOB_LEN];
+    blob[0] = IMU_CAL_FORMAT;
+    blob[1] = cs;
+    memcpy(blob + 2, d, IMU_CAL_LEN);
+    blob[IMU_CAL_BLOB_LEN - 1] = imuCalChecksum(blob);
+    Preferences p;
+    bool stored = p.begin(IMU_NVS_NS, false) && p.putBytes(IMU_NVS_KEY, blob, sizeof(blob)) == sizeof(blob);
+    p.end();
+    if (!stored) { Serial.println("[IMUCAL,FAILED,why=nvs]"); return; }
+
+    memcpy(imu_cal.data, d, IMU_CAL_LEN);
+    imu_cal.calib    = cs;
+    imu_cal.valid    = true;
+    imu_cal.bad_blob = false;
+    imu_health.profile = PROF_OK;                    // the chip already holds these offsets
+    Serial.printf("[IMUCAL,SAVED,cal=s%ug%ua%um%u,bytes=%u]\n",
+                  (cs >> 6) & 3u, (cs >> 4) & 3u, (cs >> 2) & 3u, cs & 3u, (unsigned)IMU_CAL_LEN);
+}
+
+// <NX>. Forgets the stored profile. The chip keeps the offsets it has
+// until its next reset.
+void imuClearProfile() {
+    if (!imuFlashSafe()) return;
+    Preferences p;
+    bool ok = p.begin(IMU_NVS_NS, false);
+    if (ok) {
+        p.remove(IMU_NVS_KEY);                       // false if there was nothing; fine
+        p.end();
+    }
+    if (!ok) { Serial.println("[IMUCAL,FAILED,why=nvs]"); return; }
+    imu_cal = ImuCalStore{};
+    imu_health.profile = PROF_NONE;
+    Serial.println("[IMUCAL,CLEARED,takes_effect=next_init]");
+}
+#endif
+
+const char* imuProfileName(uint8_t p) {
+    if (p == PROF_OK)   return "ok";
+    if (p == PROF_FAIL) return "fail";
+    return "none";
 }
 
 // Decode one 32-byte burst, reject it if the quaternion isn't a unit
@@ -1538,18 +1780,20 @@ const char* imuStateName(ImuState st) {
 // off, so m stays 0 and s isn't expected to reach 3.
 void imuPrintStatus() {
     unsigned c = imu_health.calib;
-    Serial.printf("[IMUS,%s,cal=s%ug%ua%um%u,sys=%u,err=%u,T=%dC,sw=0x%02X%02X]\n",
+    Serial.printf("[IMUS,%s,cal=s%ug%ua%um%u,sys=%u,err=%u,T=%dC,sw=0x%02X%02X,prof=%s]\n",
                   imuStateName(imu_health.state),
                   (c >> 6) & 3u, (c >> 4) & 3u, (c >> 2) & 3u, c & 3u,
                   (unsigned)imu_health.sys_status, (unsigned)imu_health.sys_err,
                   (int)imu_health.temp_c,
-                  (unsigned)imu_health.sw_rev_msb, (unsigned)imu_health.sw_rev_lsb);
-    Serial.printf("[IMUC,n=%lu,i2c=%lu,bad=%lu,dup=%lu,reinit=%lu]\n",
+                  (unsigned)imu_health.sw_rev_msb, (unsigned)imu_health.sw_rev_lsb,
+                  imuProfileName(imu_health.profile));
+    Serial.printf("[IMUC,n=%lu,i2c=%lu,bad=%lu,dup=%lu,reinit=%lu,st=0x%02X]\n",
                   (unsigned long)imu_health.samples,
                   (unsigned long)imu_health.i2c_errors,
                   (unsigned long)imu_health.bad_samples,
                   (unsigned long)imu_health.dup_samples,
-                  (unsigned long)imu_health.reinits);
+                  (unsigned long)imu_health.reinits,
+                  (unsigned)imu_health.st_result);
 }
 
 // One iteration of the IMU task. Split out so it can be stepped on its own.
@@ -1559,6 +1803,10 @@ void imuServiceOnce(ImuLoop& L) {
         imu_health.reinits++;
         imu_health.state = IMU_INIT;
     }
+#if IMU_CAL_PERSIST
+    if (imu_cal_save_req)  { imu_cal_save_req  = false; imuSaveProfile(L); }
+    if (imu_cal_clear_req) { imu_cal_clear_req = false; imuClearProfile(); }
+#endif
 
     if (imu_health.state != IMU_RUN) {
         imu_health.state = IMU_INIT;
@@ -1567,9 +1815,12 @@ void imuServiceOnce(ImuLoop& L) {
             L.fails = 0;
             L.have_prev = false;
             L.reported_dead = false;
-            Serial.printf("[IMUS,UP,chip=0x%02X,sw=0x%02X%02X,sys=%u]\n",
+            Serial.printf("[IMUS,UP,chip=0x%02X,sw=0x%02X%02X,sys=%u,st=0x%02X,prof=%s]\n",
                           (unsigned)BNO_CHIP_ID_VALUE, (unsigned)imu_health.sw_rev_msb,
-                          (unsigned)imu_health.sw_rev_lsb, (unsigned)imu_health.sys_status);
+                          (unsigned)imu_health.sw_rev_lsb, (unsigned)imu_health.sys_status,
+                          (unsigned)imu_health.st_result, imuProfileName(imu_health.profile));
+            if (imu_health.st_result != BNO_ST_ALL_PASS)
+                Serial.printf("[IMUS,WARN,selftest=0x%02X,want=0x0F]\n", (unsigned)imu_health.st_result);
             L.last_wake = xTaskGetTickCount();
         } else {
             imu_health.state = IMU_DEAD;
@@ -1706,7 +1957,7 @@ void setup() {
 
     Serial.println();
     Serial.println("╔════════════════════════════════════════════╗");
-    Serial.println("║  NarrowAisleBot ESP32 v3.1  —  Starting... ║");
+    Serial.println("║  NarrowAisleBot ESP32 v3.2  —  Starting... ║");
     Serial.println("╚════════════════════════════════════════════╝");
 
     memset(motors, 0, sizeof(motors));
@@ -1726,6 +1977,19 @@ void setup() {
     Serial.println("OK  (serial + telemetry)");
 
 #if IMU_ENABLED
+    // Before any task exists: the only flash read of the profile.
+    imuCalLoad();
+    Serial.print("  IMU profile   ... ");
+    if (imu_cal.valid) {
+        unsigned c = imu_cal.calib;
+        Serial.printf("stored  (saved at s%u g%u a%u m%u)  restored at every IMU init\n",
+                      (c >> 6) & 3u, (c >> 4) & 3u, (c >> 2) & 3u, c & 3u);
+    } else if (imu_cal.bad_blob) {
+        Serial.println("stored copy failed its checks  ignored  (<NS> rewrites it)");
+    } else {
+        Serial.println("none  (<E0> then <NS> saves one once accel and gyro read 3)");
+    }
+
     Serial.print("  IMU task      ... ");
     // Core 0, priority 2: above Comms so a read is never late, and the I2C
     // driver blocks on a semaphore during a transfer so Comms keeps running.
@@ -1754,7 +2018,7 @@ void setup() {
     Serial.println("  Command source : USB serial from the Pi. No WiFi since v3.0.");
     Serial.println("  E-STOP         : <S> latches. Clear with <E1>.");
     Serial.println("  Telemetry      : <L1> compat 13-col, <L2> extended.");
-    Serial.println("  IMU            : <N1[,hz]> streams [IMU] lines  <N?> status.");
+    Serial.println("  IMU            : <N1[,hz]> streams [IMU] lines  <N?> status  <NS> save cal.");
     Serial.println("  Calibration    : gains are AIR values — see docs/PID_Calibration.md");
     Serial.println();
     Serial.println("[READY]");

@@ -22,6 +22,11 @@ struct FakeBno {
     uint8_t regs[128] = {};
     uint8_t ptr = 0;
     int     soft_resets = 0;
+    uint8_t self_test_result = 0x0F;       // what ST_RESULT shows after a reset or a self-test trigger
+    int     self_tests = 0;                // SYS_TRIGGER bit 0 writes seen
+    // Called before every read is served, so a test can make the data
+    // registers follow the (fake) clock. Null for the plain register model.
+    void  (*on_read)(FakeBno&) = nullptr;
 
     FakeBno() { power_on(); }
     void power_on() {
@@ -32,6 +37,8 @@ struct FakeBno {
         regs[0x03] = 0x0F;   // GYR_ID
         regs[0x04] = 0x11;   // SW_REV_ID_LSB
         regs[0x05] = 0x03;   // SW_REV_ID_MSB
+        regs[0x06] = 0x15;   // BL_REV_ID
+        regs[0x36] = self_test_result;   // ST_RESULT
         regs[0x34] = 25;     // TEMP
         regs[0x3B] = 0x80;   // UNIT_SEL default
         regs[0x41] = 0x24;   // AXIS_MAP_CONFIG default (P1)
@@ -40,6 +47,7 @@ struct FakeBno {
     bool config_mode() const { return (regs[0x3D] & 0x0F) == 0; }
     void write_reg(uint8_t r, uint8_t v) {
         if (r == 0x3F && (v & 0x20)) { soft_resets++; power_on(); return; }
+        if (r == 0x3F && (v & 0x01)) { self_tests++; regs[0x36] = self_test_result; }
         if ((r == 0x3B || r == 0x41 || r == 0x42) && !config_mode()) return;
         if (r == 0x00 || r == 0x04 || r == 0x05) return;      // read-only IDs
         regs[r & 0x7F] = v;
@@ -80,6 +88,7 @@ public:
         rx_.clear();
         addr_ = addr;
         if (!ok()) return 0;
+        if (hostsim::bno.on_read) hostsim::bno.on_read(hostsim::bno);
         for (int i = 0; i < len; i++)
             rx_.push_back(hostsim::bno.regs[(hostsim::bno.ptr + i) & 0x7F]);
         return (uint8_t)len;

@@ -22,6 +22,11 @@ closes both gaps as far as a PC can:
   4. compiles firmware/nab_imu_i2c_scan_esp32.ino and runs it through every
      wiring fault it should recognise (open SDA or SCL, crossed wires, ADR
      high, a wire on the wrong pin, no power), asserting the verdict text
+  5. compiles firmware/nab_imu_function_test_esp32.ino and runs every command
+     against a BNO055 model whose data registers follow the fake clock:
+     healthy board, then each fault it should catch (wrong chip ID, failed
+     self test, gyro offset, wrong gyro scale, flipped gyro sign, dead or
+     flipped accelerometer axis, a chip that stops answering)
 
 What it can't do: catch an API that differs on the real arduino-esp32
 core, or anything about the real chip or timing. After flashing, read the
@@ -84,6 +89,20 @@ with tempfile.TemporaryDirectory() as tmp:
     r2 = subprocess.run([str(exe)], capture_output=True, text=True, timeout=60)
 print(r2.stdout, end='')
 chk(r2.returncode == 0, 'scan_check: every wiring-fault verdict is right')
+
+print('IMU function test sketch (firmware/nab_imu_function_test_esp32.ino)')
+with tempfile.TemporaryDirectory() as tmp:
+    exe = Path(tmp) / 'imu_test_check'
+    cmd = [gxx, '-std=gnu++2b', '-Wall', '-Wextra', '-Werror',
+           '-I', str(HOST / 'stubs'), str(HOST / 'imu_test_check.cpp'), '-o', str(exe)]
+    r3 = subprocess.run(cmd, capture_output=True, text=True)
+    chk(r3.returncode == 0, 'function-test sketch compiles as C++23 with -Wall -Wextra -Werror')
+    if r3.returncode != 0:
+        print(r3.stderr[-3000:])
+        sys.exit(1)
+    r3 = subprocess.run([str(exe)], capture_output=True, text=True, timeout=120)
+print(r3.stdout, end='')
+chk(r3.returncode == 0, 'imu_test_check: every function-test verdict is right')
 
 print('firmware [IMU] lines through the shipped bridge parser')
 imu_lines = [ln[len('IMU_LINE:'):].strip() for ln in out.splitlines()

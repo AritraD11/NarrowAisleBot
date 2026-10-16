@@ -127,9 +127,46 @@ static std::string cmd(char c, void (*hook)(FakeBno&)) {
     return Serial.out;
 }
 
+// Noise: every read alternates -d / +d around a fixed mean, so the standard
+// deviation over any whole number of reads is exactly d. Accel d = 0.01, 0.02,
+// 0.03 m/s2 on x, y, z (1, 2, 3 LSB); gyro d = 2 LSB around a 2 LSB offset.
+static float noise_gyro_lsb = 2.0f;
+static void hook_noise(FakeBno& b) {
+    static unsigned calls = 0;
+    float sg = (calls++ % 2) ? 1.0f : -1.0f;
+    Scn s = g_scn;
+    s.acc[0] = 0.10f + sg * 0.01f;
+    s.acc[1] = -0.20f + sg * 0.02f;
+    s.acc[2] = 9.80f + sg * 0.03f;
+    for (int k = 0; k < 3; k++) s.gyr[k] = (2.0f + sg * noise_gyro_lsb) / 900.0f;
+    fill(b, s);
+}
+
+// Motion: a 2 s shake of amplitude shake_amp along x with a 6 rad/s wobble
+// about z (both start 4 s after the command), then a 50 degree tilt about x
+// from 8 s on.
+static float shake_amp = 30.0f;
+static void hook_motion(FakeBno& b) {
+    Scn s = g_scn;
+    double t = (double)(hostsim::now_us - t_cmd) * 1e-6;
+    const double pi = 3.14159265358979;
+    if (t >= 4.0 && t < 6.0) {
+        double ph = 2.0 * pi * (t - 4.0);
+        s.acc[0] = (float)(shake_amp * sin(ph));
+        s.gyr[2] = (float)(6.0 * sin(ph));
+    }
+    if (t >= 8.0) {
+        s.q[0] = (float)cos(25.0 * pi / 180.0);
+        s.q[1] = (float)sin(25.0 * pi / 180.0);
+    }
+    fill(b, s);
+}
+
 static void reset_world() {
     hostsim::bno = FakeBno();
     g_scn = Scn();
+    noise_gyro_lsb = 2.0f;
+    shake_amp = 30.0f;
     rot_axis[0] = 0; rot_axis[1] = 0; rot_axis[2] = 1;
     rot_rate = 0.5f; gyro_scale = 1.0f;
     face_gain[0] = 1.01f; face_gain[1] = 0.99f; face_gain[2] = 1.0f;
@@ -298,6 +335,75 @@ int main() {
         reset_world(); face_gain[2] = 1.10f;
         std::string o = cmd('f', hook_faces);
         chk(has(o, "FAIL  accelerometer Z"), "a 10 percent gain error fails");
+    }
+
+    std::printf("n: noise floor and resolution\n");
+    {
+        reset_world();
+        std::string o = cmd('n', hook_noise);
+        float am[3], asd[3], app[3], gm[3], gsd[3], gpp[3];
+        bool oka = std::sscanf(line_with(o, "accelerometer at rest").c_str(),
+                               "  info  accelerometer at rest mean %f %f %f | sd %f %f %f | p-p %f %f %f",
+                               &am[0], &am[1], &am[2], &asd[0], &asd[1], &asd[2], &app[0], &app[1], &app[2]) == 9;
+        bool okg = std::sscanf(line_with(o, "gyroscope at rest").c_str(),
+                               "  info  gyroscope at rest mean %f %f %f | sd %f %f %f | p-p %f %f %f",
+                               &gm[0], &gm[1], &gm[2], &gsd[0], &gsd[1], &gsd[2], &gpp[0], &gpp[1], &gpp[2]) == 9;
+        chk(oka && std::fabs(am[2] - 9.80f) < 0.002f && std::fabs(am[1] + 0.20f) < 0.002f, "accelerometer means recovered");
+        chk(oka && std::fabs(asd[0] - 0.010f) < 0.001f && std::fabs(asd[1] - 0.020f) < 0.001f &&
+            std::fabs(asd[2] - 0.030f) < 0.001f, "accelerometer sd is the injected 0.01, 0.02, 0.03 m/s2");
+        chk(oka && std::fabs(app[2] - 0.060f) < 0.002f, "peak-to-peak is twice the sd for a two-level signal");
+        const float d_dps = 2.0f / 900.0f * 57.2957795f;                 // 2 LSB in deg/s
+        chk(okg && std::fabs(gsd[0] - d_dps) < 0.002f && std::fabs(gm[0] - d_dps) < 0.002f,
+            "gyro sd and offset are the injected 2 LSB (0.127 deg/s)");
+        float tilt = 0, rate = 0, off = 0, per_min = 0;
+        bool okt = std::sscanf(line_with(o, "smallest tilt seen").c_str(), "  info  smallest tilt seen %f deg", &tilt) == 1;
+        bool okr = std::sscanf(line_with(o, "smallest turn rate seen").c_str(), "  info  smallest turn rate seen %f deg/s", &rate) == 1;
+        bool oko = std::sscanf(line_with(o, "gyro offset").c_str(),
+                               "  info  gyro offset %f deg/s, which would add up to %f deg", &off, &per_min) == 2;
+        chk(okt && std::fabs(tilt - 0.53f) < 0.011f, "smallest tilt = asin(3 x 0.03 / 9.81) = 0.53 deg");
+        chk(okr && std::fabs(rate - 0.38f) < 0.011f, "smallest turn rate = 3 x 0.127 = 0.38 deg/s");
+        chk(oko && std::fabs(off - d_dps) < 0.002f && std::fabs(per_min - 60.0f * d_dps) < 0.1f,
+            "gyro offset and its heading drift per minute (0.127 deg/s -> 7.6 deg/min)");
+        chk(has(o, "(1 LSB = 0.010)") && has(o, "(1 LSB = 0.0637)"), "one-step resolution printed (0.010 m/s2, 0.0637 deg/s)");
+        chk(has(o, "magnetometer at rest"), "NDOF prints the magnetometer noise");
+        chk(has(o, "PASS  board was still"), "a still board is reported as still");
+    }
+    {
+        reset_world(); noise_gyro_lsb = 45.0f;                          // 0.05 rad/s of wobble: hand-held
+        std::string o = cmd('n', hook_noise);
+        chk(has(o, "WARN  board was still") && has(o, "put it on a table"), "a shaking board is a WARN with the fix named");
+    }
+    {
+        reset_world();
+        cmd('m', hook_static);
+        std::string o = cmd('n', hook_noise);
+        chk(!has(o, "magnetometer at rest"), "IMUPLUS has no magnetometer line");
+        cmd('m', hook_static);                                          // back to NDOF for the tests below
+        chk(g_mode == MODE_NDOF, "mode restored to NDOF");
+    }
+
+    std::printf("p: peak hold\n");
+    {
+        reset_world(); shake_amp = 30.0f;
+        std::string o = cmd('p', hook_motion);
+        float pa = 0, pg = 0, tl = 0, g_ = 0, lo = 0, hi = 0, d1 = 0, d2 = 0, d3 = 0, d4 = 0;
+        bool oka = std::sscanf(line_with(o, "peak acceleration").c_str(), "  info  peak acceleration %f m/s2 = %f g", &pa, &g_) == 2;
+        bool okg = std::sscanf(line_with(o, "peak rotation rate").c_str(), "  info  peak rotation rate %f deg/s", &pg) == 1;
+        bool okt = std::sscanf(line_with(o, "max tilt of Z axis").c_str(), "  info  max tilt of Z axis %f deg", &tl) == 1;
+        bool oks = std::sscanf(line_with(o, "accelerometer swing").c_str(),
+                               "  info  accelerometer swing x %f..%f y %f..%f", &lo, &hi, &d1, &d2) == 4;
+        (void)d3; (void)d4;
+        chk(oka && std::fabs(pa - 31.56f) < 0.3f && std::fabs(g_ - 3.22f) < 0.05f, "peak acceleration 31.6 m/s2 = 3.2 g (30 shake plus gravity)");
+        chk(okg && std::fabs(pg - 344.0f) < 2.0f, "peak rotation rate 344 deg/s (6 rad/s)");
+        chk(okt && std::fabs(tl - 50.0f) < 1.0f, "max tilt 50 deg");
+        chk(oks && std::fabs(lo + 30.0f) < 0.3f && std::fabs(hi - 30.0f) < 0.3f, "accelerometer x swing -30..+30");
+        chk(!has(o, "WARN  accelerometer range"), "no clipping warning at 3.2 g");
+        chk(has(o, "PASS  I2C reads"), "reads clean during the motion");
+    }
+    {
+        reset_world(); shake_amp = 39.2f;                               // right at 4 g
+        std::string o = cmd('p', hook_motion);
+        chk(has(o, "WARN  accelerometer range") && has(o, "clipping"), "a peak near 4 g is flagged as probable clipping");
     }
 
     std::printf("failure and recovery of the chip\n");

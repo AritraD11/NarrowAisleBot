@@ -1,5 +1,5 @@
 /*
- * nab_imu_function_test_esp32.ino  (v1)
+ * nab_imu_function_test_esp32.ino  (v2)
  *
  * Bench test for the BNO055: does each function of the sensor work?
  * Needs only an ESP32 and the sensor. Independent of the drive firmware, so
@@ -24,6 +24,13 @@
  *      and their handedness are all consistent.
  *   f  six-face gravity test. Point each axis up, then down. Shows the
  *      accelerometer sign, gain and offset per axis.
+ *   n  noise floor and resolution. Board STILL on a table for 10 s. Gives
+ *      the spread of every sensor, the size of one step in the output, and
+ *      what that means: the smallest tilt and the smallest turn rate the
+ *      sensor can show, and how much heading a gyro offset would add.
+ *   p  peak hold. Move the board any way you like for 10 s (tilt, shake,
+ *      spin). Reports how far each sensor swung, the peak acceleration and
+ *      rotation rate, and the largest tilt. Flags a reading stuck near 4 g.
  *   m  switch mode: NDOF (bench, has the magnetometer) or IMUPLUS (accel +
  *      gyro only, what aislebot_esp32.ino runs on the robot).
  *   i  full re-init (soft reset).   h  help.
@@ -121,9 +128,18 @@ struct Sample {
 struct Stat {
     double   sum  = 0;
     double   sum2 = 0;
+    double   lo   = 1e30;
+    double   hi   = -1e30;
     uint32_t n    = 0;
-    void  add(float v) { sum += v; sum2 += (double)v * v; n++; }
+    void  add(float v) {
+        sum += v; sum2 += (double)v * v; n++;
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+    }
     float mean() const { return n ? (float)(sum / n) : 0.0f; }
+    float pp()   const { return n ? (float)(hi - lo) : 0.0f; }
+    float lowest()  const { return n ? (float)lo : 0.0f; }
+    float highest() const { return n ? (float)hi : 0.0f; }
     float sd() const {
         if (n < 2) return 0.0f;
         double m = sum / n, v = sum2 / n - m * m;
@@ -627,11 +643,121 @@ void sixFaceTest() {
     summary();
 }
 
+// ── n: noise floor and resolution ──────────────────────────────────
+// How small a change can the sensor show? Lie it still for 10 s; the spread
+// of the readings is the noise, and a change has to beat about three times
+// that to be believed.
+void noiseFloor() {
+    resetCounts();
+    Serial.printf("--- noise floor and resolution, mode %s ---\n", modeName(g_mode));
+    Serial.println("Lie the board on a table and leave it alone for 10 s. Do not touch the table or the cable.");
+    countdown(3);
+    Stat acc[3], gyr[3], mag[3];
+    Sample s = {};
+    int ok = 0, fails = 0;
+    unsigned long t0 = millis();
+    while (millis() - t0 < 10000) {
+        if (readSample(s, false)) {
+            ok++;
+            for (int k = 0; k < 3; k++) { acc[k].add(s.acc[k]); gyr[k].add(s.gyr[k]); mag[k].add(s.mag[k]); }
+        } else {
+            fails++;
+        }
+        delay(8);
+    }
+    if (ok < 50) {
+        check(L_FAIL, "I2C reads", "only %d good reads in 10 s", ok);
+        summary();
+        return;
+    }
+    float asd = fmaxf(acc[0].sd(), fmaxf(acc[1].sd(), acc[2].sd()));
+    float gsd = fmaxf(gyr[0].sd(), fmaxf(gyr[1].sd(), gyr[2].sd()));
+    check(L_INFO, "samples", "%d reads in 10 s (%d failed), about %d per second", ok, fails, ok / 10);
+    check(L_INFO, "accelerometer at rest",
+          "mean %+.3f %+.3f %+.3f | sd %.3f %.3f %.3f | p-p %.3f %.3f %.3f m/s2   (1 LSB = %.3f)",
+          acc[0].mean(), acc[1].mean(), acc[2].mean(), acc[0].sd(), acc[1].sd(), acc[2].sd(),
+          acc[0].pp(), acc[1].pp(), acc[2].pp(), 1.0f / ACC_LSB);
+    check(L_INFO, "gyroscope at rest",
+          "mean %+.3f %+.3f %+.3f | sd %.3f %.3f %.3f | p-p %.3f %.3f %.3f deg/s   (1 LSB = %.4f)",
+          gyr[0].mean() * RAD2DEG, gyr[1].mean() * RAD2DEG, gyr[2].mean() * RAD2DEG,
+          gyr[0].sd() * RAD2DEG, gyr[1].sd() * RAD2DEG, gyr[2].sd() * RAD2DEG,
+          gyr[0].pp() * RAD2DEG, gyr[1].pp() * RAD2DEG, gyr[2].pp() * RAD2DEG, RAD2DEG / GYR_LSB);
+    if (g_mode == MODE_NDOF)
+        check(L_INFO, "magnetometer at rest", "sd %.3f %.3f %.3f | p-p %.3f %.3f %.3f uT   (1 LSB = %.4f)",
+              mag[0].sd(), mag[1].sd(), mag[2].sd(), mag[0].pp(), mag[1].pp(), mag[2].pp(), 1.0f / MAG_LSB);
+    float ratio = 3.0f * asd / G0;
+    if (ratio > 1.0f) { ratio = 1.0f; }
+    check(L_INFO, "smallest tilt seen", "%.2f deg   (3 x the worst accelerometer noise, as a tilt from level)",
+          asinf(ratio) * RAD2DEG);
+    check(L_INFO, "smallest turn rate seen", "%.2f deg/s   (3 x the worst gyro noise)", 3.0f * gsd * RAD2DEG);
+    float off = 0;
+    for (int k = 0; k < 3; k++) if (fabsf(gyr[k].mean()) > off) off = fabsf(gyr[k].mean());
+    check(L_INFO, "gyro offset", "%.3f deg/s, which would add up to %.2f deg of heading per minute if nothing corrected it",
+          off * RAD2DEG, off * RAD2DEG * 60.0f);
+    check((asd <= 0.1f && gsd <= LIM_GYR_SD) ? L_PASS : L_WARN, "board was still",
+          "accel noise %.3f m/s2, gyro noise %.3f rad/s. If WARN, it moved: put it on a table and run n again.", asd, gsd);
+    summary();
+}
+
+// ── p: peak hold ───────────────────────────────────────────────────
+// Move it any way you like for 10 s. Records how far each sensor swings.
+void peakHold() {
+    resetCounts();
+    Serial.printf("--- peak hold, mode %s ---\n", modeName(g_mode));
+    Serial.println("After the count you have 10 s to move the board any way you like: tilt it, shake it,");
+    Serial.println("spin it. It records how far each sensor swings.");
+    countdown(3);
+    Stat acc[3], gyr[3], mag[3];
+    float peak_a = 0, peak_w = 0, max_tilt = 0;
+    Sample s = {};
+    int ok = 0, fails = 0;
+    unsigned long t0 = millis();
+    while (millis() - t0 < 10000) {
+        if (readSample(s, false)) {
+            ok++;
+            for (int k = 0; k < 3; k++) { acc[k].add(s.acc[k]); gyr[k].add(s.gyr[k]); mag[k].add(s.mag[k]); }
+            float an = vnorm3(s.acc), wn = vnorm3(s.gyr);
+            if (an > peak_a) { peak_a = an; }
+            if (wn > peak_w) { peak_w = wn; }
+            float zc = 1.0f - 2.0f * (s.q[1] * s.q[1] + s.q[2] * s.q[2]);   // world-up component of the body Z axis
+            if (zc > 1.0f)  { zc = 1.0f; }
+            if (zc < -1.0f) { zc = -1.0f; }
+            float tilt = acosf(zc) * RAD2DEG;
+            if (tilt > max_tilt) { max_tilt = tilt; }
+        } else {
+            fails++;
+        }
+        delay(8);
+    }
+    if (ok < 50) {
+        check(L_FAIL, "I2C reads", "only %d good reads in 10 s", ok);
+        summary();
+        return;
+    }
+    check(L_INFO, "accelerometer swing", "x %+7.2f..%+7.2f  y %+7.2f..%+7.2f  z %+7.2f..%+7.2f m/s2",
+          acc[0].lowest(), acc[0].highest(), acc[1].lowest(), acc[1].highest(), acc[2].lowest(), acc[2].highest());
+    check(L_INFO, "peak acceleration", "%.1f m/s2 = %.2f g (gravity included)", peak_a, peak_a / G0);
+    check(L_INFO, "gyroscope swing", "x %+8.1f..%+8.1f  y %+8.1f..%+8.1f  z %+8.1f..%+8.1f deg/s",
+          gyr[0].lowest() * RAD2DEG, gyr[0].highest() * RAD2DEG, gyr[1].lowest() * RAD2DEG, gyr[1].highest() * RAD2DEG,
+          gyr[2].lowest() * RAD2DEG, gyr[2].highest() * RAD2DEG);
+    check(L_INFO, "peak rotation rate", "%.0f deg/s = %.1f rad/s", peak_w * RAD2DEG, peak_w);
+    check(L_INFO, "max tilt of Z axis", "%.0f deg from vertical (fused quaternion)", max_tilt);
+    if (g_mode == MODE_NDOF)
+        check(L_INFO, "magnetometer swing", "x %+7.1f..%+7.1f  y %+7.1f..%+7.1f  z %+7.1f..%+7.1f uT",
+              mag[0].lowest(), mag[0].highest(), mag[1].lowest(), mag[1].highest(), mag[2].lowest(), mag[2].highest());
+    if (peak_a >= 38.0f)
+        check(L_WARN, "accelerometer range", "peak %.1f m/s2 is close to 4 g (39.2). If it sits flat there, the sensor is clipping. (The 4 g figure is second-hand.)",
+              peak_a);
+    check(fails * 10 <= ok ? L_PASS : L_WARN, "I2C reads", "%d of %d failed", fails, ok + fails);
+    summary();
+}
+
 // ── Menu ───────────────────────────────────────────────────────────
 void printMenu() {
     Serial.println("Commands (a letter, then Enter):");
     Serial.println("  a  auto checks (flat, face up, still)     s  live stream, any key stops");
     Serial.println("  r  rotation test, turn it by hand         f  six-face gravity test");
+    Serial.println("  n  noise floor and resolution (still)     p  peak hold, move it any way you like");
     Serial.println("  m  switch NDOF <-> IMUPLUS                i  full re-init     h  help");
     Serial.println();
 }
@@ -646,7 +772,7 @@ void setup() {
     Serial.begin(921600);
     delay(2000);                       // the monitor needs to open; the BNO055 needs about 650 ms
     Serial.println();
-    Serial.println("=== NAB BNO055 function test v1 ===");
+    Serial.println("=== NAB BNO055 function test v2 ===");
 #ifdef ESP_ARDUINO_VERSION_MAJOR
     Serial.printf("arduino-esp32 core %d.%d.%d\n", ESP_ARDUINO_VERSION_MAJOR,
                   ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
@@ -700,6 +826,8 @@ void loop() {
         case 's': case 'S': streamHeader(); g_stream = true; g_stream_fail = 0; g_stream_last = 0; break;
         case 'r': case 'R': rotationTest(); break;
         case 'f': case 'F': sixFaceTest(); break;
+        case 'n': case 'N': noiseFloor(); break;
+        case 'p': case 'P': peakHold(); break;
         case 'm': case 'M': {
             uint8_t next = (g_mode == MODE_NDOF) ? MODE_IMUPLUS : MODE_NDOF;
             if (setMode(next)) Serial.printf("Mode is now %s. Run a for the checks in this mode.\n\n", modeName(g_mode));

@@ -77,8 +77,14 @@ for name in ('ros2', 'systemctl', 'journalctl', 'vcgencmd', 'lsusb'):
     f = stubs / name
     f.write_text(f'#!/bin/bash\necho "STUB {name} $* DOMAIN=${{ROS_DOMAIN_ID:-unset}}"\n')
     f.chmod(0o755)
+sudo_fail = root / 'SUDO_FAILS'   # while this file exists the sudo stub behaves like "no sudoers line"
 f = stubs / 'sudo'
-f.write_text(f'#!/bin/bash\ntouch {marker}\necho "STUB sudo $*"\n')
+f.write_text(f'#!/bin/bash\ntouch {marker}\n'
+             f'if [ -e {sudo_fail} ]; then echo "sudo: a password is required" >&2; exit 1; fi\n'
+             f'echo "STUB sudo $*"\n')
+f.chmod(0o755)
+f = stubs / 'colcon'
+f.write_text('#!/bin/bash\necho "STUB colcon $* CWD=$(pwd)"\n')
 f.chmod(0o755)
 
 # The script keeps its PATH, but tests need stubs first; GATE_PATH is the hook.
@@ -88,7 +94,8 @@ BASEPATH = f'{stubs}:/usr/local/bin:/usr/bin:/bin'
 def run(mode, cmd, stdin=b'', counted=True):
     """Run the gate the way sshd would: HOME set, command in SSH_ORIGINAL_COMMAND."""
     global _calls
-    env = {'HOME': str(home), 'GATE_PATH': BASEPATH, 'PATH': '/usr/bin:/bin'}
+    env = {'HOME': str(home), 'GATE_PATH': BASEPATH, 'PATH': '/usr/bin:/bin',
+           'GATE_RESTART_WAIT': '0'}
     if cmd is not None:
         env['SSH_ORIGINAL_COMMAND'] = cmd
     r = subprocess.run(['bash', str(GATE), mode], env=env, input=stdin,
@@ -347,6 +354,55 @@ for cmd in ('sudo ls', 'bash', 'rm notes.txt', 'systemctl restart aislebot.servi
 allowed('rw', 'cat notes.txt', 'line one', 'rw: read verbs still work')
 out = allowed('rw', 'help', 'install-src')
 chk('install-src' not in run('ro', 'help')[1], 'ro help does not advertise install-src')
+chk(not marker.exists(), 'sudo still never reached after all the rw refusals above')
+
+print('rw only: build and restart-aislebot (and nothing next to them)')
+help_rw, help_ro = run('rw', 'help')[1], run('ro', 'help')[1]
+chk('build PKG' in help_rw and 'restart-aislebot' in help_rw, 'rw help lists build and restart-aislebot')
+chk('build PKG' not in help_ro and 'restart-aislebot' not in help_ro, 'ro help lists neither')
+denied('ro', 'build mecanum_robot', 'rw_only', 'ro key cannot build')
+denied('ro', 'restart-aislebot', 'rw_only', 'ro key cannot restart')
+chk(not marker.exists(), 'ro: sudo was not reached')
+
+out = allowed('rw', 'build mecanum_robot', 'STUB colcon build --symlink-install --packages-select mecanum_robot')
+chk(f'CWD={home / "ros2_ws"}' in out, 'build runs inside ~/ros2_ws')
+for cmd, why in (('build', 'usage'),
+                 ('build other_pkg', 'package'),
+                 ('build ../mecanum_robot', 'package'),
+                 ('build mecanum_robot extra', 'usage'),
+                 ('build mecanum_robot --cmake-args', 'usage'),
+                 ('build mecanum_robot;id', 'characters'),
+                 ('build $(id)', 'characters'),
+                 ('build scan_relay', 'no_such_package'),   # on the allowlist but absent in this fake home
+                 ('colcon build', 'command'),
+                 ('colcon build --packages-select mecanum_robot', 'command')):
+    denied('rw', cmd, why)
+
+allowed('rw', 'restart-aislebot', 'STUB sudo -n systemctl restart aislebot.service')
+chk(marker.exists(), 'restart-aislebot is the one verb that reaches sudo')
+out = allowed('rw', 'restart-aislebot', 'GATE,RESTARTED,state=STUB systemctl')
+marker.unlink()
+for cmd, why in (('restart-aislebot now', 'usage'),
+                 ('restart-aislebot aislebot.service', 'usage'),
+                 ('restart-aislebot other.service', 'usage'),
+                 ('restart-aislebot;id', 'characters'),
+                 ('systemctl restart aislebot.service', 'verb'),
+                 ('systemctl stop aislebot.service', 'verb'),
+                 ('systemctl start aislebot.service', 'verb'),
+                 ('sudo systemctl restart aislebot.service', 'command'),
+                 ('sudo -n systemctl restart ssh.service', 'command'),
+                 ('sudo ls', 'command'),
+                 ('ros2 topic pub /cmd_vel geometry_msgs/msg/Twist', None),
+                 ('ros2 launch mecanum_robot aislebot_full.launch.py', 'ros2_verb')):
+    denied('rw', cmd, why)
+chk(not marker.exists(), 'after the near-misses, sudo was still not reached')
+
+sudo_fail.write_text('x')                       # simulate: sudoers line not installed
+rc, out, err = run('rw', 'restart-aislebot')
+chk(rc == 1 and 'RESTART_FAILED' in err and 'GATE,RESTARTED' not in out,
+    'restart-aislebot fails cleanly (no hang, no success message) when sudo -n is refused')
+sudo_fail.unlink()
+marker.unlink(missing_ok=True)
 
 print('audit log')
 logf = home / 'aislebot_logs/claude_ssh.log'

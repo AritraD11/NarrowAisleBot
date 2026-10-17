@@ -1,7 +1,11 @@
 # Letting Claude work on the Pi over SSH
 
-Written 16 Oct 2026. Nothing in here is installed yet. It is a plan plus the
-files to carry it out, one step at a time.
+Written 16 Oct 2026. **Status, same day:** steps 1 to 6 were carried out for the
+`ro` key only and the acceptance test passed (4 allowed, 7 refused). The `rw`
+key exists on the PC but is not trusted on the Pi, and both keys have empty
+passphrases, by the operator's choice. The gate on the Pi is the first version
+(sha256 `66ca4890...22bd`); the version with `build` and `restart-aislebot`
+(see "Build and restart verbs" below) is in the repo and not installed yet.
 
 The idea is simple. Claude Code runs on the work PC (VS Code extension or the
 CLI), with this repo cloned there. When it needs to look at the Pi, it runs
@@ -24,7 +28,9 @@ Two keys, because looking and changing are different risks.
 | `ros2 topic/node/param/service` introspection (list, echo, hz, get, info) | yes | yes |
 | `journalctl -u X.service`, `systemctl status X.service`, `vcgencmd`, `lsusb`, `df`, `free` | yes | yes |
 | replace a source file under `ros2_ws/src` or `ros2_ws/tools` | no | yes, with backup and hashes |
-| shell, `sudo`, restart/stop a service, publish, service call, param set, launch, bag play, serial ports | never | never |
+| `build PKG` (colcon build of `mecanum_robot`, `mecanum_navigation` or `scan_relay`) | no | yes |
+| `restart-aislebot` (restart `aislebot.service`, nothing else; needs one sudoers line) | no | yes |
+| shell, general `sudo`, stop/start a service, publish, service call, param set, launch, bag play, serial ports | never | never |
 | `.ssh`, `.config`, shell history, anything named like a key, token or password | refused | refused |
 
 Day to day you want the `ro` key only. Load the `rw` key when you have agreed a
@@ -176,6 +182,62 @@ with `sudo`.
 
 Because the install is a symlink install, no rebuild is needed for Python
 files under `ros2_ws/src`; the restart picks them up.
+
+## Build and restart verbs (added 16 Oct 2026)
+
+Added because the operator wants Claude to carry a Python-node fix from edit to
+running without a hand-off at each step. This **removes the safeguard described
+under "What this does not protect against"**: that section relied on the
+restart needing your password. With these verbs and the `rw` key, a file
+Claude pushes can be running on the robot a minute later with nobody reading the
+diff in between. What still holds: no verb publishes a velocity or sends a goal,
+so a restart starts the stack but does not drive it (the E-stop is still
+the answer to anything else), and the `rw` line in `authorized_keys` is the
+on/off switch. Add it for a working session, delete it afterwards.
+
+Both verbs are fixed in the script. The client chooses only the package name,
+from a list of three. `restart-aislebot` takes no argument and runs
+`sudo -n systemctl restart aislebot.service`; `-n` means it can never prompt, so
+without the sudoers line below it just fails.
+
+To turn them on, in order, one step at a time, pasting each output:
+
+1. PC: send the new gate to `/tmp` on the Pi and compare `sha256sum` with the
+   repo's (`7320cd89...e695` when this was written; trust the repo's).
+2. Pi: install it as root exactly as in step 3 above.
+3. Pi: allow that one command without a password. `visudo -cf` checks the file
+   before it goes live; a broken sudoers file can lock you out of `sudo`.
+
+   First check where `systemctl` really is; the rule below must name that
+   exact path (Ubuntu 24.04 normally prints `/usr/bin/systemctl`):
+
+   ```
+   readlink -f "$(command -v systemctl)"
+   ```
+
+   ```
+   echo 'aritra ALL=(root) NOPASSWD: /usr/bin/systemctl restart aislebot.service' | sudo tee /tmp/claude-restart >/dev/null
+   sudo visudo -cf /tmp/claude-restart
+   sudo install -o root -g root -m 440 /tmp/claude-restart /etc/sudoers.d/claude-restart
+   sudo -l | grep aislebot
+   ```
+
+   The last line should show the one `NOPASSWD` rule and nothing wider.
+
+4. Pi: add the `rw` key line to `authorized_keys` (step 4's format with `rw`).
+   Put a passphrase on `nab_claude_rw` first if you want one.
+5. PC: add the `nab-pi-rw` host to `~/.ssh/config` (step 5).
+6. Acceptance for the `rw` key: everything in step 6 with `nab-pi-rw`, and in
+   addition these must all print `[GATE,DENIED,...]`: `build other_pkg`,
+   `restart-aislebot now`, `systemctl restart aislebot.service`,
+   `sudo systemctl restart aislebot.service`.
+
+To take it back: delete the `rw` line from `authorized_keys`, and
+`sudo rm /etc/sudoers.d/claude-restart`.
+
+`.claude/settings.json` still has `ask` for every `ssh nab-pi-rw` call, so Claude
+Code prompts you before each one. That is the PC-side seatbelt; relaxing it is
+your edit to make, not Claude's.
 
 ## The record
 

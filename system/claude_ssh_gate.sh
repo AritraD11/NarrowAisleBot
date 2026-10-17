@@ -17,13 +17,18 @@
 #      introspection (topic/node/param/service list, echo, hz, get).
 #  rw  everything in ro, plus  install-src REL_PATH  (new file contents
 #      on stdin) into ~/ros2_ws/src or ~/ros2_ws/tools, with a backup,
-#      before/after hashes and a syntax check for .py.
+#      before/after hashes and a syntax check for .py;
+#      build PKG       colcon build of one of three named packages;
+#      restart-aislebot   restart of aislebot.service, nothing else. It
+#      calls  sudo -n  (never prompts), so it only works once the
+#      operator has added the single sudoers line in
+#      docs/Claude_Pi_SSH_Access.md. Without that line it fails.
 #
-#  Never allowed, in either mode: a shell, sudo, anything that
-#  publishes, calls a service, sets a parameter, launches or plays a
-#  bag, writes to a serial port, restarts a service, or reads keys.
-#  A human restarts services with sudo (it needs a password, which a
-#  non-interactive SSH command cannot supply).
+#  Never allowed, in either mode: a shell, sudo as a general verb,
+#  anything that publishes, calls a service, sets a parameter, launches or
+#  plays a bag, writes to a serial port, stops or starts a service by any
+#  other route, or reads keys. Nothing here can move the robot: there is
+#  no verb that publishes a velocity or sends a goal.
 #
 #  Every decision is appended to ~/aislebot_logs/claude_ssh.log.
 # ================================================================
@@ -173,6 +178,8 @@ HELP
                          ros2_ws/src or ros2_ws/tools. Backup + before/after sha256 are printed.
                          .py .yaml .yml .md .txt .cfg .xml .json .launch.py only; <= 1 MB;
                          .py is syntax-checked; phone_dashboard.py is refused (browser check needed).
+  build PKG              (rw key) colcon build --symlink-install of mecanum_robot | mecanum_navigation | scan_relay
+  restart-aislebot       (rw key) restart aislebot.service; needs the one sudoers line, else it fails
 HELP
     fi
     exit 0
@@ -237,6 +244,43 @@ install_src() {
     exit 0
 }
 
+BUILD_PKGS=(mecanum_robot mecanum_navigation scan_relay)
+
+build_pkg() {
+    [ "$MODE" = rw ] || deny rw_only
+    [ "${#A[@]}" -eq 2 ] || deny usage
+    local pkg="${A[1]}" ok=0 p
+    for p in "${BUILD_PKGS[@]}"; do [ "$pkg" = "$p" ] && ok=1; done
+    [ "$ok" = 1 ] || deny package
+    [ -d "$HOME_DIR/ros2_ws/src/$pkg" ] || deny no_such_package
+    ros_env
+    log "ALLOW(build $pkg)"
+    cd "$HOME_DIR/ros2_ws" || exit 1
+    # tail, not head: with a build log the end is the part that says whether it worked.
+    timeout -k 5 900 colcon build --symlink-install --packages-select "$pkg" 2>&1 </dev/null | tail -c 30000
+    exit "${PIPESTATUS[0]}"
+}
+
+restart_aislebot() {
+    [ "$MODE" = rw ] || deny rw_only
+    [ "${#A[@]}" -eq 1 ] || deny usage
+    log "ALLOW(restart-aislebot)"
+    cd "$HOME_DIR" || exit 1
+    local rc
+    # sudo -n: never asks for a password, so without the sudoers line this fails
+    # instead of hanging. The unit name is fixed here, not taken from the client.
+    timeout -k 2 60 sudo -n systemctl restart aislebot.service 2>&1 </dev/null | head -c 2000
+    rc="${PIPESTATUS[0]}"
+    if [ "$rc" -ne 0 ]; then
+        printf '[GATE,RESTART_FAILED,rc=%s]  (is the sudoers line installed?)\n' "$rc" >&2
+        exit 1
+    fi
+    # GATE_RESTART_WAIT exists only so the test does not sleep; sshd does not pass it.
+    sleep "${GATE_RESTART_WAIT:-3}"
+    printf '[GATE,RESTARTED,state=%s]\n' "$(systemctl is-active aislebot.service 2>&1 | head -c 40)"
+    exit 0
+}
+
 # ── 4. Dispatch. Anything not listed falls through to a refusal.
 cmd="${A[0]}"
 case "$cmd" in
@@ -244,6 +288,10 @@ case "$cmd" in
 help) run_help ;;
 
 install-src) install_src ;;
+
+build) build_pkg ;;
+
+restart-aislebot) restart_aislebot ;;
 
 cat)
     [ "${#A[@]}" -ge 2 ] && [ "${#A[@]}" -le 6 ] || deny usage

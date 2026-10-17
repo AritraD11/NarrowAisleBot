@@ -32,8 +32,9 @@ state of the robot (level, wiring, battery), and CPU or temperature under load.
 3. **The IMU hardware is healthy at rest, but nothing uses it and its state is
    invisible.** Timing, quaternion validity, gyro bias and accelerometer gain all pass
    (section 5). Two findings need action before configuring anything: the sensor reads
-   a **10 degree roll at rest** (accelerometer and fusion agree, so it is mounting or the
-   floor, not an algorithm fault), and the calibration and self-test state **never reach
+   a **10 degree roll at rest** (accelerometer and fusion agree, so it is not an algorithm
+   fault; the operator says the robot is level, which leaves a tilted mounting or an
+   uncalibrated accelerometer offset), and the calibration and self-test state **never reach
    ROS**. `/imu/data` has no subscriber. [live, source]
 4. **Mode 1, navigating a saved map, is mostly present as parts and not as a workflow.**
    AMCL, the map server and the Nav2 chain are installed and configured. None of it has
@@ -209,12 +210,25 @@ Notes.
    only if the robot has not been moved in that time. I do not know that. 18.6 s says
    nothing about drift under motion.
 3. **The accelerometer alone gives roll 9.96 and pitch 2.19 degrees. The fused quaternion
-   gives 9.98 and 2.17.** They agree, so the filter is not at fault. Either the sensor is
-   mounted tilted in the chassis, or the robot is on a slope or on its stand. The URDF puts
-   `imu_link` at (0, 0, 0.05) with rpy 0, which is a placeholder. A sensor tilted 10 degrees
-   about x measures yaw rate as cos(10 deg) = 0.985 of the true value, a 1.5 % scale error
-   in the one quantity the EKF would use most. Fixable in the URDF once the real mounting
-   rotation is measured, or by levelling the sensor. First, find out which one it is.
+   gives 9.98 and 2.17.** They agree, so the filter is not at fault. There are three
+   candidate causes: the board is mounted tilted on its plate, the robot is on a slope or a
+   stand, or the **accelerometer has a zero-g offset** because it has never been calibrated
+   (the firmware notes say it is uncalibrated at every boot, and nothing so far has saved a
+   calibration profile). On 17 Oct the operator reported the robot standing level, which
+   removes the second. The first and third cannot be told apart from gravity alone, because
+   both look like a constant vector in the sensor frame. The measured vector is
+   (-0.374, +1.689, +9.616) m/s^2, so the offset the third cause would need is about
+   0.17 g on y and 0.04 g on x. I have not looked up the BNO055's quoted offset this session.
+   If the first cause holds, the mounting rotation is rpy = (+0.174, +0.038, 0) rad
+   (9.96 and 2.19 degrees), from ax = -g sin(pitch) and ay = g cos(pitch) sin(roll)
+   on the stationary means. The URDF puts `imu_link` at (0, 0, 0.05) with rpy 0, which is a
+   placeholder. A sensor tilted 10 degrees about x measures yaw rate as cos(10 deg) = 0.985
+   of the true value, a 1.5 % scale error in the one quantity the EKF would use most.
+   **The discriminating measurement is cheap:** lay a phone level app on the sensor's
+   mounting plate, then on the chassis lid beside it. If the plate reads flat, the tilt is
+   an accelerometer offset and calibration (I6, then `<NS>`) fixes it. If the plate reads
+   about 10 degrees, the mounting is tilted and either the bracket or the URDF fixes it.
+   Do not edit the URDF before this is known.
 4. The configured covariances are far looser than what was measured: gyro 3e-5 against
    0.35 to 1.5e-6 measured, accelerometer 1e-2 against 1.4e-4. A filter that is told to
    trust the IMU 20 to 70 times less than it deserves will under-use it. Tune after the
@@ -235,7 +249,7 @@ the motors running, and calibration state.
 
 | # | Test | Pass looks like | Written prediction |
 |---|---|---|---|
-| I1 | Robot on a known-level floor, repeat the 20 s capture | roll and pitch both under 1 deg | If the floor is level and the roll stays near 10 deg, the sensor is mounted tilted. 65 % |
+| I1 | Phone level on the sensor plate and on the chassis lid, then repeat the 20 s capture on a level floor | plate reads flat and roll and pitch under 1 deg after calibration | The operator says the robot is level, so I expect the capture to stay near 10 deg. Plate flat (accelerometer offset) 55 %, plate tilted (mounting) 45 % |
 | I2 | Rotate the robot by hand one full turn counter-clockwise seen from above, capturing | fused yaw increases by 360 +/- 3 deg, gyro z positive | sign right, scale within 1 % |
 | I3 | Tilt the nose up, then the left side up | pitch and roll signs as REP-103 | signs right |
 | I4 | Stationary, wheels idle, 10 minutes, read fused yaw | under 0.5 deg of change | 0.1 to 0.5 deg |
@@ -372,12 +386,23 @@ gate (edit, test, push, build, restart, verify).
 
 ## 8. Questions only you can answer
 
-1. Is the robot standing level on the floor right now, or on a stand? (Settles I1.)
-2. Where is the BNO055 mounted, and in what orientation relative to the nose?
-3. Which ESP32 firmware version is flashed? (Boot banner, or `<I>` from your terminal.)
-4. What happened in the 6 Oct drives after the refactor? The Pi holds the CSVs, but no
-   write-up exists, and it would tell us whether stage 6 was run.
-5. Do you want the explorer in this phase, or teach-and-repeat first?
+Answered by the operator on 17 Oct 2026 (stated, not independently measured):
+
+1. The robot is level on the floor.
+2. The X marked on the BNO055 is in line with the body X (the nose). The dashboard map
+   shows the nose along +X as well.
+3. The latest ESP32 firmware in the repo (v3.2) is flashed. The live acknowledgements are
+   consistent with v3.1 or later; the version string itself has not been read.
+4. The operator does not remember the 5 to 6 Oct refactor or what the 6 Oct drives showed. It
+   was done in earlier sessions and is recorded only in the Pi's file headers and
+   `docs/Axis_Refactor_Plan.md` (not in the repo). Whether stage 6 ran is still unknown.
+
+Still open:
+
+5. Explorer in this phase, or teach-and-repeat first? (Explained in the chat on 17 Oct;
+   section 6.4 has the technical detail.)
+6. Which of the two remaining causes explains the 10 degree tilt (the phone level test in
+   note 3 of section 5)?
 
 ---
 

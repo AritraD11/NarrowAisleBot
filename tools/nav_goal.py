@@ -11,9 +11,10 @@ WHY THIS EXISTS
     takes the robot's current ODOM pose as the first scan's pose, which
     makes map->odom identity and plants the map frame on the odom frame,
     not on the robot. map->base_link at session start is therefore whatever
-    odometry had accumulated since odometry_publisher last started. (Before
-    section 17.38 there was also a constant -90 deg on top of that; it is
-    gone, and map now shares base_link's +X=right/+Y=forward convention.)
+    odometry had accumulated since odometry_publisher last started. (Map,
+    odom and base_link all share one frame: standard REP-103 since 5 Oct
+    2026, +X nose, +Y left. Before that they shared a private +X right,
+    +Y forward frame.)
 
     Goals do not need that mystery solved. A goal only needs to be correct
     in the map frame, and the robot's real pose in the map frame is
@@ -22,18 +23,19 @@ WHY THIS EXISTS
     as it is standing right now, whatever the map origin happens to be.
 
 AXES -- READ THIS BEFORE CHANGING ANY ARITHMETIC BELOW
-    base_link on this robot is NOT REP-103. +X is the robot's RIGHT and +Y
-    is the robot's FORWARD (section 17.10, and the AXES note at the top of
-    nav2_params.yaml). So "forward" is the body +Y axis, which is why
-    --forward feeds the y component of the body-frame offset and --right
-    feeds x. This is the single place in this script where the convention
-    matters; everything else is frame-agnostic vector algebra.
+    Standard REP-103 since 5 Oct 2026: base_link +X is the robot's FORWARD
+    (the nose) and +Y is its LEFT. "Forward" is the body +X axis, "right" is
+    body -Y, so body_to_map() puts --forward on the nose direction
+    (cos yaw, sin yaw) and --right on its negative left. This is the single
+    place in this script where the convention matters; everything else is
+    frame-agnostic vector algebra.
 
-    Since section 17.38 the MAP frame uses that same convention, so the
-    two agree and a robot standing on a freshly-zeroed mark reads a yaw of
-    0 deg, not -90. If you see -90 deg there, you are running against a
-    pre-17.38 odometry_publisher.py or a map recorded by one -- check with
-    `ros2 run tf2_ros tf2_echo odom base_link` before trusting the output.
+    The MAP frame is the same frame, so a robot standing on a freshly-zeroed
+    mark reads a yaw of 0 deg, and a left turn increases yaw. If you see
+    -90 deg there you are running a pre-5-Oct odometry_publisher.py or a map
+    recorded by one (old x,y -> new: x_new = y_old, y_new = -x_old) -- check
+    with `ros2 run tf2_ros tf2_echo odom base_link` before trusting the
+    output.
 
 WHAT IT PRINTS
     Two ready-to-paste commands:
@@ -87,13 +89,15 @@ def quat_from_yaw(yaw):
 def body_to_map(x, y, yaw, right, forward):
     """Rotate a body-frame offset into the map frame and add it to the pose.
 
-    The body-frame offset is (right, forward) = (+X, +Y) on this robot --
-    see the AXES note in the module docstring.
+    The body-frame offset is (forward, left) = (+X, +Y), standard REP-103;
+    the arguments are (right, forward) because that is how the operator
+    thinks about it, and right is just -left. See the AXES note in the
+    module docstring.
     """
     cos_y, sin_y = math.cos(yaw), math.sin(yaw)
     return (
-        x + right * cos_y - forward * sin_y,
-        y + right * sin_y + forward * cos_y,
+        x + forward * cos_y + right * sin_y,
+        y + forward * sin_y - right * cos_y,
     )
 
 
@@ -137,10 +141,10 @@ def main():
     )
     parser.add_argument('--forward', type=float, default=1.5,
                         help="metres forward in the robot's own frame "
-                             "(body +Y on this robot). Negative = reverse. "
+                             "(body +X). Negative = reverse. "
                              "Default 1.5.")
     parser.add_argument('--right', type=float, default=0.0,
-                        help="metres to the robot's right (body +X). "
+                        help="metres to the robot's right (body -Y). "
                              "Negative = left. Default 0 (no strafe).")
     parser.add_argument('--goal-yaw-deg', type=float, default=None,
                         help="map-frame yaw to arrive facing, degrees. "
@@ -176,8 +180,7 @@ def main():
     print('  position   x = {:+.4f}   y = {:+.4f}'.format(t.x, t.y))
     print('  yaw        {:+.2f} deg   ({:+.4f} rad)'
           .format(math.degrees(cur_yaw), cur_yaw))
-    print('  reminder   yaw near -90 deg is EXPECTED on this robot: base_link')
-    print('             +X is the robot\'s RIGHT, not its front (sec 17.10).')
+    print('  reminder   yaw 0 = nose along map +X; a left turn is positive.')
     print()
     print('REQUESTED OFFSET, in the robot\'s own frame')
     print('  forward {:+.3f} m   right {:+.3f} m'

@@ -29,11 +29,12 @@ would have hit that exact failure the first time someone tried it.
 
 It ALSO would have been missing the cmd_vel_axis_adapter / twist_mux /
 collision_monitor rewiring nav2_slam.launch.py already has — a stock
-bringup publishes velocity straight to /cmd_vel in base_link's TF axes
-(+X=right, +Y=forward on this robot), which is exactly the 90°
-misdirection that sent the first-ever autonomous goal 0.956 m sideways
-(§17.19). Both gaps are closed below by reusing nav2_slam.launch.py's
-node list verbatim, just swapping the localization source.
+bringup publishes velocity straight to /cmd_vel, bypassing twist_mux, so
+a human on the joystick could not take over mid-drive. (Until 5 Oct 2026 it
+would also have been 90° misdirected, which sent the first-ever autonomous
+goal 0.956 m sideways, §17.19; the frame is standard now.) Both gaps are
+closed below by reusing nav2_slam.launch.py's node list verbatim, just
+swapping the localization source.
 
 WHAT THIS STARTS
     map_server           loads the saved map, publishes /map (latched)
@@ -66,18 +67,16 @@ Usage:
 
 Then send a goal from Foxglove, same as nav2_slam.launch.py.
 
-AXES: base_link on this robot is NOT REP-103 (+X=right, +Y=forward,
-Research_Journal.md §17.10). Every x/y-labelled velocity and footprint
-parameter lives in nav2_params.yaml and is already swapped to match — see
-the AXES note at the top of that file before touching any of them.
+AXES: base_link, odom and map are standard REP-103 since 5 Oct 2026. See
+nav2_slam.launch.py and docs/Axis_Convention.md.
 
 cmd_vel CHAIN, wired by the remappings below (identical to nav2_slam.launch.py):
     controller_server -> /cmd_vel_nav ─┐
     behavior_server   -> /cmd_vel_nav ─┤   (Spin / BackUp / Wait recoveries)
                                        ↓
       -> velocity_smoother -> /cmd_vel_smoothed
-        -> collision_monitor -> /cmd_vel_baselink      (base_link TF axes)
-          -> cmd_vel_axis_adapter -> /cmd_vel_nav_out  (wheel-kinematics axes)
+        -> collision_monitor -> /cmd_vel_baselink
+          -> cmd_vel_axis_adapter (identity) -> /cmd_vel_nav_out
             -> twist_mux -> /cmd_vel                   (arbitrated against manual,
                                                           aislebot.service)
 twist_mux (always running as part of aislebot.service) is what actually
@@ -87,8 +86,7 @@ the same safety property nav2_slam.launch.py has.
 
 robot_localization EKF: deliberately not started, same two reasons as the
 old navigation.launch.py and nav2_slam.launch.py — it would duplicate
-odometry_publisher's odom->base_link TF (and its validated -90° axis
-rotation), and it fuses an IMU (BNO055) that is still unpurchased Phase 2
+odometry_publisher's odom->base_link TF (and its frame, now standard), and it fuses an IMU (BNO055) that is still unpurchased Phase 2
 work. Restore only when both are addressed together.
 """
 

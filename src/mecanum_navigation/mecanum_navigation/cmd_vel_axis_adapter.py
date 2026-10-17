@@ -1,91 +1,45 @@
 #!/usr/bin/env python3
 """
-cmd_vel_axis_adapter.py -- rotate Nav2's velocity commands out of base_link's
-TF axes and into the axes the wheel kinematics actually expect.
+cmd_vel_axis_adapter.py -- an IDENTITY pass-through since 5 Oct 2026.
 
-WHY THIS NODE EXISTS
-    This robot has TWO different, individually-correct answers to "which way
-    is +X on this robot," and until 14 Aug 2026 nothing reconciled them on
-    the command path (Research_Journal.md §17.19):
+WHAT IT USED TO DO
+    Until 5 Oct 2026 base_link was +X = right, +Y = nose while the wheel
+    kinematics (mecanum_teleop_asymmetric.py, the dashboard, the joy node)
+    read /cmd_vel as standard REP-103 (linear.x = forward, linear.y = left).
+    Nav2 writes velocity in base_link's axes, so this node rotated it:
 
-      * base_link's TF frame (what Nav2, the costmaps, and every planner
-        read) has +X = the robot's RIGHT and +Y = the robot's FORWARD. That
-        is odometry_publisher.py's deliberate constant -90 deg published
-        rotation, adopted in §17.10 to match the LiDAR's already-validated
-        scan calibration. It is settled and correct.
+        out.x = in.y        out.y = -in.x
 
-      * mecanum_teleop_asymmetric.py's wheel kinematics (what actually
-        drives the motors) take standard REP-103: linear.x = FORWARD,
-        linear.y = LEFT. The phone dashboard, the joy node, and the PID
-        calibration all speak this convention, and all of it is validated.
+    The first autonomous goal (Research_Journal.md 17.19) travelled 0.956 m
+    at 88.4 deg to the commanded direction before the E-STOP, which is why
+    it existed.
 
-    §17.10 rotated odometry's PUBLISHED pose and twist -- the output side.
-    The input side, /cmd_vel, was never rotated to match. Manual driving
-    never noticed, because the dashboard and joy_to_aislebot were written
-    against teleop_asym's convention, so producer and consumer agreed.
+WHY IT IS AN IDENTITY NOW
+    base_link, odom and map are standard REP-103 (+X nose, +Y left), the same
+    convention the wheel kinematics always used. Nav2's velocity and the
+    wheel code now agree, so there is nothing to rotate:
 
-    Nav2 broke the tie the first time it drove: it reads the pose in TF
-    axes and writes velocity in TF axes, so asking it to drive forward
-    produced linear.y, which teleop_asym executed as a left strafe. The
-    first-ever autonomous goal (§17.19) travelled 0.956 m at 88.4 deg to
-    the commanded direction before being E-stopped -- a clean 90 deg error,
-    not drift.
+        out.x = in.x        out.y = in.y
 
-    Worse than a one-off wrong turn: with a constant 90 deg rotation inside
-    a closed loop, Nav2 sees the cross-track error and corrects, and the
-    correction is rotated 90 deg as well. That does not converge, it
-    spirals. Hence "moved randomly."
+    It is kept as a pass-through, not deleted, for one reason: the first
+    drive after a frame change must not also change the command topology.
+    Same nodes, same topics, one variable moved. Once the standard frame has
+    driven the regression goals (docs/Axis_Refactor_Plan.md, stage 6) this
+    node, its launch entries and its setup.py entry point are deleted and
+    collision_monitor writes cmd_vel_nav_out directly.
 
-WHY AN ADAPTER, RATHER THAN CHANGING EITHER SIDE
-    Both conventions have strong, independent hardware validation behind
-    them, which is exactly the situation §17.10 laid down a rule for: change
-    the side with the weaker confirmation. Here neither side is weak. The
-    LiDAR/TF convention is confirmed by the mirror calibration, the
-    footprint, the safety cushion, and the tape-measured 7 cm wall gap; the
-    teleop convention is confirmed by every metre the robot has ever driven
-    under manual control, including the dashboard E-STOP path.
+    tools/verify_axis_chain.py fails if the rotation comes back, and fails
+    if the node is deleted but a launch file still starts it.
 
-    So this converts between them explicitly at the one place they meet,
-    instead of quietly editing a validated file. The manual drive path is
-    untouched -- this node is started by nav2_slam.launch.py and exists only
-    while Nav2 is running.
-
-WHERE IT SITS IN THE CHAIN
+WHERE IT SITS IN THE CHAIN (unchanged)
     controller_server -> /cmd_vel_nav
       -> velocity_smoother -> /cmd_vel_smoothed
-        -> collision_monitor -> /cmd_vel_baselink     (TF axes)
-          -> THIS NODE -> /cmd_vel                    (teleop_asym axes)
-            -> teleop_asym -> wheels
+        -> collision_monitor -> /cmd_vel_baselink
+          -> THIS NODE -> /cmd_vel_nav_out
+            -> twist_mux -> /cmd_vel -> teleop_asym -> wheels
 
-    Deliberately LAST, after collision_monitor. That node forward-simulates
-    the footprint polygon along the commanded velocity, and both the
-    polygon and the velocity it reads are in TF axes -- self-consistent, and
-    it must stay that way. Only the final hand-off to the wheel code needs
-    rotating. Putting this adapter earlier would feed collision_monitor a
-    velocity in the wrong frame and make the safety layer forward-simulate
-    the wrong direction, which is the one thing on this robot that must not
-    be subtly wrong.
-
-THE CONVERSION
-    Let F be the desired forward component and L the desired left component
-    of the same physical motion. Then:
-
-        Nav2 (TF axes):     in.x  = -L   (its +X is the robot's right)
-                            in.y  =  F   (its +Y is the robot's forward)
-
-        teleop (REP-103):   out.x =  F
-                            out.y =  L
-
-    Solving:  out.x = in.y      and      out.y = -in.x
-
-    angular.z passes through unchanged: both frames share +Z = counter-
-    clockwise, and rotating a frame about Z does not change a rotation
-    rate about Z.
-
-    Sanity check against the actual §17.19 failure: Nav2 wanted forward, so
-    in.y = +0.15, in.x = 0. Unadapted, teleop read that as L = +0.15 and
-    strafed left -- which is exactly what the robot did. Adapted,
-    out.x = +0.15 = forward. Correct.
+    Still LAST, after collision_monitor, and still publishes one zero Twist on
+    shutdown so a Ctrl-C on Nav2 stops the robot at once, not 500 ms later.
 
 Usage: started automatically by nav2_slam.launch.py. Standalone:
     ros2 run mecanum_navigation cmd_vel_axis_adapter
@@ -121,21 +75,19 @@ class CmdVelAxisAdapter(Node):
         self.create_subscription(Twist, in_topic, self.cb, 1)
 
         self.get_logger().info(
-            'cmd_vel axis adapter: {} (base_link TF axes, +X=right, '
-            '+Y=forward) -> {} (wheel-kinematics axes, +X=forward, '
-            '+Y=left)'.format(in_topic, out_topic))
+            'cmd_vel axis adapter: {} -> {} (identity: base_link and the '
+            'wheel kinematics are both +X=forward, +Y=left)'.format(
+                in_topic, out_topic))
 
     def cb(self, msg):
         out = Twist()
-        out.linear.x = msg.linear.y        # forward
-        out.linear.y = -msg.linear.x       # left = -right
-        # z is passed through rather than dropped: it is always 0.0 on a
-        # planar base, but silently zeroing a field this node does not
-        # understand would be a lie about what it does.
+        out.linear.x = msg.linear.x        # forward, both sides
+        out.linear.y = msg.linear.y        # left, both sides
+        # z and the angular fields pass through untouched.
         out.linear.z = msg.linear.z
         out.angular.x = msg.angular.x
         out.angular.y = msg.angular.y
-        out.angular.z = msg.angular.z      # yaw rate is frame-invariant here
+        out.angular.z = msg.angular.z
         self.pub.publish(out)
 
 

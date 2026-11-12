@@ -61,6 +61,7 @@ Installs ROS2 Jazzy, Nav2, SLAM, the YDLIDAR SDK + ROS2 driver, all Python packa
 
 The full write-up lives in [`docs/`](docs/) — start at [`docs/README.md`](docs/README.md) for an index. Highlights:
 
+- [`robot_kit/`](robot_kit/): the Pi side of this project made hardware-agnostic for other robots (any motors, encoders, microcontroller, drive type), with a setup manual: [`robot_kit/manual/Robot_Setup_Manual.pdf`](robot_kit/manual/Robot_Setup_Manual.pdf).
 - [`docs/Research_Journal.md`](docs/Research_Journal.md) — the living project journal. **Keep this updated as the project progresses; it's the primary record.**
 - [`docs/Master_Reference.md`](docs/Master_Reference.md) — hardware/wiring/firmware deep reference.
 - [`docs/LiDAR_SLAM_Bringup.md`](docs/LiDAR_SLAM_Bringup.md) — YDLIDAR X4 Pro + slam_toolbox bringup.

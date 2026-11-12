@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 470" font-family="Inter, sans-serif" font-size="12">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#3a4152"/></marker></defs>
+  <rect width="980" height="470" fill="#fff"/>
+  <!-- Pi + MCU -->
+  <rect x="20" y="40" width="130" height="60" rx="8" fill="#eef3fd" stroke="#2f6fdf"/><text x="85" y="66" text-anchor="middle" font-weight="700">Raspberry Pi 5</text><text x="85" y="84" text-anchor="middle" font-size="11" fill="#5a6273">5 V 5 A supply</text>
+  <rect x="220" y="30" width="170" height="250" rx="10" fill="#fdf3ec" stroke="#d9783b"/>
+  <text x="305" y="56" text-anchor="middle" font-weight="700">Microcontroller</text>
+  <text x="235" y="84" font-size="11.5">USB (power + serial)</text>
+  <text x="235" y="122" font-size="11.5">PIN_A  (pwm / pwm_fwd)</text>
+  <text x="235" y="146" font-size="11.5">PIN_B  (dir / in1 / pwm_rev)</text>
+  <text x="235" y="170" font-size="11.5">PIN_C  (in2, pwm_in1_in2 only)</text>
+  <text x="235" y="214" font-size="11.5">ENC_A, ENC_B</text>
+  <text x="235" y="262" font-size="11.5">GND</text>
+  <line x1="150" y1="80" x2="218" y2="80" stroke="#3a4152" stroke-width="2" marker-end="url(#a)"/>
+  <!-- drivers -->
+  <g font-size="11.5">
+    <rect x="450" y="30" width="270" height="56" rx="8" fill="#f3f5f9" stroke="#8b93a5"/>
+    <text x="585" y="52" text-anchor="middle" font-weight="700">pwm_dir</text>
+    <text x="585" y="72" text-anchor="middle" fill="#5a6273">Cytron MDD10A / MDD20A: PWM, DIR</text>
+    <rect x="450" y="98" width="270" height="56" rx="8" fill="#f3f5f9" stroke="#8b93a5"/>
+    <text x="585" y="120" text-anchor="middle" font-weight="700">pwm_in1_in2</text>
+    <text x="585" y="140" text-anchor="middle" fill="#5a6273">L298N ENA/IN1/IN2, TB6612 PWMA/AIN1/AIN2</text>
+    <rect x="450" y="166" width="270" height="56" rx="8" fill="#f3f5f9" stroke="#8b93a5"/>
+    <text x="585" y="188" text-anchor="middle" font-weight="700">dual_pwm</text>
+    <text x="585" y="208" text-anchor="middle" fill="#5a6273">BTS7960 RPWM/LPWM (R_EN, L_EN high)</text>
+  </g>
+  <path d="M390,130 L448,58" stroke="#3a4152" fill="none" marker-end="url(#a)"/>
+  <path d="M390,140 L448,126" stroke="#3a4152" fill="none" marker-end="url(#a)"/>
+  <path d="M390,150 L448,194" stroke="#3a4152" fill="none" marker-end="url(#a)"/>
+  <text x="400" y="104" font-size="10.5" fill="#5a6273">one of</text>
+  <!-- motor -->
+  <rect x="780" y="90" width="180" height="80" rx="10" fill="#fdf3ec" stroke="#d9783b"/>
+  <text x="870" y="118" text-anchor="middle" font-weight="700">Gear motor</text>
+  <text x="870" y="138" text-anchor="middle" font-size="11" fill="#5a6273">M+ M- from the driver</text>
+  <text x="870" y="156" text-anchor="middle" font-size="11" fill="#5a6273">encoder on the motor shaft</text>
+  <path d="M720,126 L778,126" stroke="#3a4152" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <!-- battery -->
+  <rect x="485" y="250" width="200" height="50" rx="8" fill="#fff6d6" stroke="#c98a00"/>
+  <text x="585" y="272" text-anchor="middle" font-weight="700">Motor battery</text>
+  <text x="585" y="290" text-anchor="middle" font-size="11" fill="#5a6273">fuse + a cut-off you can reach</text>
+  <path d="M585,250 L585,224" stroke="#c98a00" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <!-- encoder path -->
+  <rect x="560" y="340" width="180" height="56" rx="8" fill="#eaf7ef" stroke="#1f9d55"/>
+  <text x="650" y="362" text-anchor="middle" font-weight="700">Level shifter</text>
+  <text x="650" y="382" text-anchor="middle" font-size="11" fill="#5a6273">5 V encoder → 3.3 V MCU</text>
+  <path d="M870,170 C870,300 820,368 742,368" stroke="#1f9d55" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <text x="876" y="260" font-size="11" fill="#1f9d55">A, B, 5 V, GND</text>
+  <path d="M560,368 C450,368 420,214 392,214" stroke="#1f9d55" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <!-- ground -->
+  <path d="M390,262 C430,262 430,320 470,320 L960,320" stroke="#3a4152" stroke-width="1.5" stroke-dasharray="6 4" fill="none"/>
+  <text x="700" y="314" font-size="11">common ground: MCU, drivers, encoders, battery -</text>
+  <text x="20" y="430" font-size="11.5" fill="#5a6273">The Pi and the MCU logic run from the Pi's own 5 V supply; motors from their own battery. Grounds are joined; the 5 V rails are not.</text>
+  <text x="20" y="450" font-size="11.5" fill="#5a6273">ESP32 inputs are 3.3 V only (GPIO 34 to 39 are input-only, no pull-ups). A 5 V AVR board takes 5 V encoders directly.</text>
+</svg>

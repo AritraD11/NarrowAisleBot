@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 380" font-family="Inter, sans-serif" font-size="12">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+  <rect width="940" height="380" fill="#fff"/>
+  <text x="20" y="24" font-weight="700" font-size="13">Seen from above, nose up the page. base_link: +x forward, +y left, yaw counter-clockwise (REP-103).</text>
+  <!-- axes -->
+  <g transform="translate(70,200)">
+    <line x1="0" y1="0" x2="0" y2="-90" stroke="#d23b2f" stroke-width="3" color="#d23b2f" marker-end="url(#a)"/>
+    <line x1="0" y1="0" x2="-90" y2="0" stroke="#1f9d55" stroke-width="3" color="#1f9d55" marker-end="url(#a)"/>
+    <text x="8" y="-80" fill="#d23b2f" font-weight="700">+x forward</text>
+    <text x="-60" y="18" fill="#1f9d55" font-weight="700">+y left</text>
+    <path d="M30,-10 A32,32 0 0 0 -10,-30" fill="none" stroke="#2f6fdf" stroke-width="2" color="#2f6fdf" marker-end="url(#a)"/>
+    <text x="22" y="-36" fill="#2f6fdf">+yaw</text>
+    <circle r="4" fill="#3a4152"/>
+    <text x="-40" y="60" font-size="11" fill="#5a6273">base_link: the point</text>
+    <text x="-40" y="74" font-size="11" fill="#5a6273">the robot turns about</text>
+  </g>
+  <!-- differential -->
+  <g transform="translate(300,200)">
+    <text x="0" y="-150" text-anchor="middle" font-weight="700">differential</text>
+    <rect x="-60" y="-90" width="120" height="160" rx="10" fill="#eef3fd" stroke="#2f6fdf"/>
+    <rect x="-82" y="-25" width="20" height="50" rx="4" fill="#3a4152"/>
+    <rect x="62" y="-25" width="20" height="50" rx="4" fill="#3a4152"/>
+    <circle r="4" fill="#3a4152"/>
+    <path d="M0,-70 L0,-100" stroke="#d23b2f" stroke-width="2" color="#d23b2f" marker-end="url(#a)"/>
+    <text x="-32" y="5" text-anchor="middle" font-weight="600">0 left</text>
+    <text x="32" y="5" text-anchor="middle" font-weight="600">1 right</text>
+    <text x="0" y="96" text-anchor="middle" fill="#5a6273" font-size="11">left (0, +T/2) · right (0, -T/2)</text>
+    <text x="0" y="112" text-anchor="middle" fill="#5a6273" font-size="11">casters are not wheels here</text>
+  </g>
+  <!-- skid -->
+  <g transform="translate(520,200)">
+    <text x="0" y="-150" text-anchor="middle" font-weight="700">skid_steer</text>
+    <rect x="-60" y="-90" width="120" height="160" rx="10" fill="#eef3fd" stroke="#2f6fdf"/>
+    <rect x="-82" y="-80" width="20" height="44" rx="4" fill="#3a4152"/><rect x="62" y="-80" width="20" height="44" rx="4" fill="#3a4152"/>
+    <rect x="-82" y="16" width="20" height="44" rx="4" fill="#3a4152"/><rect x="62" y="16" width="20" height="44" rx="4" fill="#3a4152"/>
+    <circle r="4" fill="#3a4152"/>
+    <path d="M0,-70 L0,-100" stroke="#d23b2f" stroke-width="2" color="#d23b2f" marker-end="url(#a)"/>
+    <text x="-30" y="-54" text-anchor="middle" font-weight="600">FL</text>
+    <text x="30" y="-54" text-anchor="middle" font-weight="600">FR</text>
+    <text x="-30" y="42" text-anchor="middle" font-weight="600">RL</text>
+    <text x="30" y="42" text-anchor="middle" font-weight="600">RR</text>
+    <text x="0" y="96" text-anchor="middle" fill="#5a6273" font-size="11">front_left ... rear_right at (±B/2, ±T/2)</text>
+    <text x="0" y="112" text-anchor="middle" fill="#5a6273" font-size="11">they scrub in turns: track_width_scale &gt; 1</text>
+  </g>
+  <!-- mecanum -->
+  <g transform="translate(790,200)">
+    <text x="0" y="-150" text-anchor="middle" font-weight="700">mecanum</text>
+    <rect x="-60" y="-90" width="120" height="160" rx="10" fill="#eef3fd" stroke="#2f6fdf"/>
+    <g stroke="#3a4152" stroke-width="2">
+      <rect x="-82" y="-80" width="20" height="44" rx="4" fill="#fff"/><line x1="-80" y1="-44" x2="-64" y2="-72"/><line x1="-80" y1="-56" x2="-70" y2="-74"/>
+      <rect x="62" y="-80" width="20" height="44" rx="4" fill="#fff"/><line x1="80" y1="-44" x2="64" y2="-72"/><line x1="80" y1="-56" x2="70" y2="-74"/>
+      <rect x="-82" y="16" width="20" height="44" rx="4" fill="#fff"/><line x1="-64" y1="52" x2="-80" y2="24"/><line x1="-64" y1="40" x2="-74" y2="22"/>
+      <rect x="62" y="16" width="20" height="44" rx="4" fill="#fff"/><line x1="64" y1="52" x2="80" y2="24"/><line x1="64" y1="40" x2="74" y2="22"/>
+    </g>
+    <circle r="4" fill="#3a4152"/>
+    <path d="M0,-70 L0,-100" stroke="#d23b2f" stroke-width="2" color="#d23b2f" marker-end="url(#a)"/>
+    <text x="-30" y="-58" text-anchor="middle" font-weight="600">FL</text><text x="-30" y="-44" text-anchor="middle" font-size="10.5">s = -1</text>
+    <text x="30" y="-58" text-anchor="middle" font-weight="600">FR</text><text x="30" y="-44" text-anchor="middle" font-size="10.5">s = +1</text>
+    <text x="-30" y="38" text-anchor="middle" font-weight="600">RL</text><text x="-30" y="52" text-anchor="middle" font-size="10.5">s = +1</text>
+    <text x="30" y="38" text-anchor="middle" font-weight="600">RR</text><text x="30" y="52" text-anchor="middle" font-size="10.5">s = -1</text>
+    <text x="0" y="96" text-anchor="middle" fill="#5a6273" font-size="11">w = [(vx - wz·y) + s(vy + wz·x)] / r</text>
+    <text x="0" y="112" text-anchor="middle" fill="#5a6273" font-size="11">roller lines are a hint; verify by driving (10.3)</text>
+  </g>
+  <text x="20" y="360" font-size="11.5" fill="#5a6273">Index = position in the wheels: list of robot_config.yaml = position in every &lt;V,...&gt; and telemetry row. Names are yours; "auto" placement understands the ones shown.</text>
+</svg>

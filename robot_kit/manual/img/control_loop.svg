@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 300" font-family="Inter, sans-serif" font-size="12">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#3a4152"/></marker></defs>
+  <rect width="940" height="300" fill="#fff"/>
+  <text x="20" y="22" font-weight="700" font-size="13">One wheel, one control tick (100 Hz on ESP32, 50 Hz on AVR)</text>
+  <g font-weight="600">
+    <rect x="10" y="100" width="90" height="44" rx="7" fill="#eef3fd" stroke="#2f6fdf"/><text x="55" y="120" text-anchor="middle">target</text><text x="55" y="136" text-anchor="middle" font-size="10.5" font-weight="400">&lt;V&gt; from Pi</text>
+    <rect x="130" y="100" width="100" height="44" rx="7" fill="#f3f5f9" stroke="#8b93a5"/><text x="180" y="120" text-anchor="middle">slew limit</text><text x="180" y="136" text-anchor="middle" font-size="10.5" font-weight="400">max_wheel_accel</text>
+    <rect x="270" y="40" width="200" height="44" rx="7" fill="#eaf7ef" stroke="#1f9d55"/><text x="370" y="60" text-anchor="middle">feedforward</text><text x="370" y="76" text-anchor="middle" font-size="10.5" font-weight="400">Kff·w + Kstat·sgn(w), faded in</text>
+    <circle cx="300" cy="170" r="14" fill="#fff" stroke="#3a4152"/><text x="300" y="175" text-anchor="middle">Σ</text>
+    <rect x="340" y="148" width="130" height="44" rx="7" fill="#f3f5f9" stroke="#8b93a5"/><text x="405" y="168" text-anchor="middle">P + I</text><text x="405" y="184" text-anchor="middle" font-size="10.5" font-weight="400">I clamped to headroom</text>
+    <rect x="340" y="210" width="130" height="44" rx="7" fill="#f3f5f9" stroke="#8b93a5"/><text x="405" y="230" text-anchor="middle">D on measurement</text><text x="405" y="246" text-anchor="middle" font-size="10.5" font-weight="400">no setpoint kick</text>
+    <circle cx="520" cy="120" r="14" fill="#fff" stroke="#3a4152"/><text x="520" y="125" text-anchor="middle">Σ</text>
+    <rect x="560" y="98" width="90" height="44" rx="7" fill="#fdf3ec" stroke="#d9783b"/><text x="605" y="118" text-anchor="middle">PWM clamp</text><text x="605" y="134" text-anchor="middle" font-size="10.5" font-weight="400">±PWM_MAX</text>
+    <rect x="690" y="98" width="110" height="44" rx="7" fill="#fdf3ec" stroke="#d9783b"/><text x="745" y="118" text-anchor="middle">driver + motor</text><text x="745" y="134" text-anchor="middle" font-size="10.5" font-weight="400">plant: K, tau</text>
+    <rect x="690" y="200" width="110" height="44" rx="7" fill="#f3f5f9" stroke="#8b93a5"/><text x="745" y="220" text-anchor="middle">encoder counts</text><text x="745" y="236" text-anchor="middle" font-size="10.5" font-weight="400">PCNT or interrupts</text>
+    <rect x="530" y="200" width="120" height="44" rx="7" fill="#f3f5f9" stroke="#8b93a5"/><text x="590" y="220" text-anchor="middle">velocity</text><text x="590" y="236" text-anchor="middle" font-size="10.5" font-weight="400">window + EMA 0.4</text>
+    <rect x="830" y="98" width="100" height="44" rx="7" fill="#fdecea" stroke="#d23b2f"/><text x="880" y="118" text-anchor="middle">trips</text><text x="880" y="134" text-anchor="middle" font-size="10.5" font-weight="400">runaway, stall</text>
+  </g>
+  <g fill="none" stroke="#3a4152" stroke-width="1.4">
+    <path d="M100,122 L128,122" marker-end="url(#a)"/>
+    <path d="M230,122 L250,122 L250,62 L268,62" marker-end="url(#a)"/>
+    <path d="M250,122 L250,170 L284,170" marker-end="url(#a)"/>
+    <path d="M314,170 L338,170" marker-end="url(#a)"/>
+    <path d="M470,62 L520,62 L520,104" marker-end="url(#a)"/>
+    <path d="M470,170 L520,170 L520,136" marker-end="url(#a)"/>
+    <path d="M470,232 L520,232 L520,172"/>
+    <path d="M534,120 L558,120" marker-end="url(#a)"/>
+    <path d="M650,120 L688,120" marker-end="url(#a)"/>
+    <path d="M745,142 L745,198" marker-end="url(#a)"/>
+    <path d="M690,222 L652,222" marker-end="url(#a)"/>
+    <path d="M530,222 L500,222 L500,270 L300,270 L300,186" marker-end="url(#a)"/>
+    <path d="M500,270 L405,270 L405,256" marker-end="url(#a)"/>
+    <path d="M800,120 L828,120" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  </g>
+  <text x="272" y="196" font-size="11">−</text>
+  <text x="560" y="290" font-size="11" fill="#5a6273">measured w, also sent to the Pi as telemetry</text>
+</svg>

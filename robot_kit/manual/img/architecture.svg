@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 560" font-family="Inter, sans-serif" font-size="13">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3a4152"/></marker>
+  </defs>
+  <rect width="940" height="560" fill="#ffffff"/>
+  <!-- operator -->
+  <rect x="14" y="60" width="150" height="190" rx="10" fill="#f3f5f9" stroke="#b8bfcc"/>
+  <text x="89" y="84" text-anchor="middle" font-weight="700">You</text>
+  <rect x="30" y="98" width="118" height="58" rx="8" fill="#fff" stroke="#b8bfcc"/>
+  <text x="89" y="122" text-anchor="middle" font-weight="600">Phone</text>
+  <text x="89" y="140" text-anchor="middle" font-size="11" fill="#5a6273">browser, dashboard</text>
+  <rect x="30" y="170" width="118" height="64" rx="8" fill="#fff" stroke="#b8bfcc"/>
+  <text x="89" y="193" text-anchor="middle" font-weight="600">Laptop</text>
+  <text x="89" y="210" text-anchor="middle" font-size="11" fill="#5a6273">SSH, scp, Foxglove,</text>
+  <text x="89" y="224" text-anchor="middle" font-size="11" fill="#5a6273">Arduino IDE (flash)</text>
+  <!-- Pi -->
+  <rect x="200" y="20" width="470" height="520" rx="12" fill="#eef3fd" stroke="#2f6fdf" stroke-width="1.5"/>
+  <text x="435" y="44" text-anchor="middle" font-weight="700" font-size="15">Raspberry Pi 5 · Ubuntu 24.04 · ROS 2 Jazzy</text>
+  <rect x="218" y="58" width="434" height="236" rx="10" fill="#fff" stroke="#9db8ee"/>
+  <text x="232" y="78" font-weight="700" fill="#2f6fdf">always on: base.launch.py (systemd: robot.service)</text>
+  <g font-size="12">
+    <rect x="232" y="92" width="130" height="44" rx="7" fill="#f7f9fe" stroke="#9db8ee"/><text x="297" y="112" text-anchor="middle" font-weight="600">dashboard</text><text x="297" y="127" text-anchor="middle" font-size="10.5" fill="#5a6273">:8080 HTTP + WS</text>
+    <rect x="378" y="92" width="130" height="44" rx="7" fill="#f7f9fe" stroke="#9db8ee"/><text x="443" y="112" text-anchor="middle" font-weight="600">twist_mux</text><text x="443" y="127" text-anchor="middle" font-size="10.5" fill="#5a6273">manual beats nav</text>
+    <rect x="378" y="160" width="130" height="44" rx="7" fill="#f7f9fe" stroke="#9db8ee"/><text x="443" y="180" text-anchor="middle" font-weight="600">base_controller</text><text x="443" y="195" text-anchor="middle" font-size="10.5" fill="#5a6273">twist to wheel rad/s</text>
+    <rect x="520" y="160" width="120" height="44" rx="7" fill="#f7f9fe" stroke="#9db8ee"/><text x="580" y="180" text-anchor="middle" font-weight="600">mcu_bridge</text><text x="580" y="195" text-anchor="middle" font-size="10.5" fill="#5a6273">only owner of the port</text>
+    <rect x="520" y="230" width="120" height="44" rx="7" fill="#f7f9fe" stroke="#9db8ee"/><text x="580" y="250" text-anchor="middle" font-weight="600">wheel_odometry</text><text x="580" y="265" text-anchor="middle" font-size="10.5" fill="#5a6273">/odom + TF</text>
+    <rect x="232" y="230" width="270" height="44" rx="7" fill="#f7f9fe" stroke="#9db8ee"/><text x="367" y="250" text-anchor="middle" font-weight="600">robot_state_publisher</text><text x="367" y="265" text-anchor="middle" font-size="10.5" fill="#5a6273">URDF: base_link→laser_frame, wheels</text>
+  </g>
+  <line x1="362" y1="114" x2="376" y2="114" stroke="#3a4152" marker-end="url(#a)"/>
+  <line x1="443" y1="136" x2="443" y2="158" stroke="#3a4152" marker-end="url(#a)"/>
+  <line x1="508" y1="182" x2="518" y2="182" stroke="#3a4152" marker-end="url(#a)"/>
+  <line x1="580" y1="204" x2="580" y2="228" stroke="#3a4152" marker-end="url(#a)"/>
+  <rect x="218" y="308" width="434" height="216" rx="10" fill="#fff" stroke="#c9cfdb" stroke-dasharray="5 4"/>
+  <text x="232" y="328" font-weight="700" fill="#5a6273">on demand (started from the dashboard or by hand)</text>
+  <g font-size="12">
+    <rect x="232" y="342" width="196" height="50" rx="7" fill="#fafbfc" stroke="#c9cfdb"/><text x="330" y="362" text-anchor="middle" font-weight="600">LiDAR driver + scan_filter</text><text x="330" y="379" text-anchor="middle" font-size="10.5" fill="#5a6273">lidar.launch.py · /scan_filtered</text>
+    <rect x="444" y="342" width="196" height="50" rx="7" fill="#fafbfc" stroke="#c9cfdb"/><text x="542" y="362" text-anchor="middle" font-weight="600">slam_toolbox</text><text x="542" y="379" text-anchor="middle" font-size="10.5" fill="#5a6273">mapping.launch.py · /map</text>
+    <rect x="232" y="408" width="408" height="100" rx="7" fill="#fafbfc" stroke="#c9cfdb"/><text x="436" y="430" text-anchor="middle" font-weight="600">Nav2 (nav2.launch.py)</text>
+    <text x="436" y="452" text-anchor="middle" font-size="11" fill="#5a6273">planner_server · controller_server · behavior_server · bt_navigator</text>
+    <text x="436" y="470" text-anchor="middle" font-size="11" fill="#5a6273">velocity_smoother · collision_monitor · lifecycle_manager</text>
+    <text x="436" y="492" text-anchor="middle" font-size="11" fill="#5a6273">output /cmd_vel_nav_out goes to twist_mux at priority 10</text>
+  </g>
+  <!-- MCU -->
+  <rect x="706" y="120" width="220" height="200" rx="12" fill="#fdf3ec" stroke="#d9783b" stroke-width="1.5"/>
+  <text x="816" y="144" text-anchor="middle" font-weight="700" font-size="15">Microcontroller</text>
+  <text x="816" y="166" text-anchor="middle" font-size="11.5" fill="#5a6273">ESP32, Arduino, RP2040, Teensy</text>
+  <text x="722" y="192" font-size="12">• PID + feedforward per wheel</text>
+  <text x="722" y="212" font-size="12">• counts encoder edges</text>
+  <text x="722" y="232" font-size="12">• watchdog: silence → stop</text>
+  <text x="722" y="252" font-size="12">• runaway / stall / overspeed</text>
+  <text x="722" y="272" font-size="12">• E-STOP latch</text>
+  <text x="722" y="300" font-size="11" fill="#5a6273">firmware/robot_mcu</text>
+  <rect x="706" y="350" width="220" height="70" rx="10" fill="#fdf3ec" stroke="#d9783b"/>
+  <text x="816" y="375" text-anchor="middle" font-weight="600">Motor drivers → motors</text>
+  <text x="816" y="395" text-anchor="middle" font-size="11.5" fill="#5a6273">encoders back to the MCU</text>
+  <rect x="706" y="440" width="220" height="56" rx="10" fill="#f3f5f9" stroke="#b8bfcc"/>
+  <text x="816" y="464" text-anchor="middle" font-weight="600">2D LiDAR</text>
+  <text x="816" y="482" text-anchor="middle" font-size="11.5" fill="#5a6273">YDLIDAR, RPLIDAR, other</text>
+  <!-- links -->
+  <path d="M148,127 C180,127 190,114 230,114" fill="none" stroke="#2f6fdf" stroke-width="2" marker-start="url(#a)" marker-end="url(#a)"/>
+  <text x="20" y="280" font-size="11" fill="#2f6fdf">Wi-Fi: the robot's own</text>
+  <text x="20" y="294" font-size="11" fill="#2f6fdf">access point, 10.42.0.1</text>
+  <path d="M148,202 C175,202 175,300 218,300" fill="none" stroke="#2f6fdf" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  <path d="M640,182 L704,182" fill="none" stroke="#d9783b" stroke-width="2.5" marker-start="url(#a)" marker-end="url(#a)"/>
+  <text x="672" y="172" text-anchor="middle" font-size="10.5" fill="#d9783b">USB serial</text>
+  <text x="672" y="200" text-anchor="middle" font-size="10" fill="#d9783b">&lt;V,..&gt; / CSV</text>
+  <line x1="816" y1="320" x2="816" y2="348" stroke="#3a4152" marker-start="url(#a)" marker-end="url(#a)"/>
+  <path d="M706,468 C680,468 680,367 640,367" fill="none" stroke="#3a4152" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="690" y="430" font-size="10.5" fill="#5a6273" text-anchor="end">USB</text>
+</svg>

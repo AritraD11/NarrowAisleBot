@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+tools/firmware_sim/sim
+manual/build/

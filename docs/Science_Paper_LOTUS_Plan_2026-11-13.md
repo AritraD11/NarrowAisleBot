@@ -385,12 +385,27 @@ That changes what the next four months are for. Working backwards:
 Who to write to. Evidence first, then memory.
 
 - Koichi Ozaki, Renato Miyagusuku and Masaaki Hijikata, the authors of the two
-  asymmetric omni-wheel arrangement papers in §1.4. I believe they are at
-  Utsunomiya University but my search could not confirm the affiliation, so
-  check the paper header. This is the group in Japan whose published problem
-  is closest to yours, and "your velocity-moment analysis, extended to mecanum
-  with an effort-space observable" is a one-line pitch they'd understand
-  immediately.
+  asymmetric omni-wheel arrangement papers in §1.4. Confirmed 13 Nov from
+  search summaries of Utsunomiya University's researcher database (the pages
+  themselves are blocked from this session): Ozaki is a professor in the
+  School of Engineering and director of the Robotics, Engineering and
+  Agriculture-technology Laboratory (REAL). Miyagusuku is an associate
+  professor in the Graduate Program in Mechanical and Intelligent Engineering
+  and also sits in REAL. His work is mobile-robot localisation and navigation,
+  and he holds a KAKENHI early-career grant for 2025 to 2027. Hijikata is
+  the one I couldn't place. The 2023 paper gives him two affiliations, which
+  usually means a PhD student who also holds a company or second-institute
+  post. Read the paper header for both.
+  Miyagusuku is the person to write to first. He trained outside Japan, so
+  English is no barrier, and as the mid-career member with a live grant he's
+  the likeliest to host. Copy Ozaki, who runs the lab. This is the group in
+  Japan whose published problem is closest to yours, and "your velocity-moment
+  analysis, extended to mecanum with an effort-space observable" is a
+  one-line pitch they'd understand immediately. One caveat: REAL leans
+  heavily toward agricultural field robots, so be ready to say how the idea
+  carries over to their platforms.
+  I found nothing tying Utsunomiya to LOTUS or to an IIT partnership, so ask
+  them directly whether they have hosted through it.
 - Hiroshi Igarashi's group at Tokyo Denki University published skid
   correction for mecanum robots using a disturbance observer and slip control
   (JSME conference, 2017, retrieved by title only).

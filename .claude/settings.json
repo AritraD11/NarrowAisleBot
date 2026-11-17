@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh nab-pi-ro *)"
+    ],
+    "ask": [
+      "Bash(ssh nab-pi-rw *)"
+    ],
+    "deny": [
+      "Bash(ssh -*)",
+      "Bash(ssh aritra@*)",
+      "Bash(ssh 10.42.0.1*)",
+      "Bash(scp *)",
+      "Bash(sftp *)",
+      "Bash(rsync *)",
+      "Bash(ssh-add *)",
+      "Bash(ssh-agent *)",
+      "Bash(ssh-keygen *)",
+      "Bash(ssh-copy-id *)",
+      "Read(~/.ssh/**)",
+      "Edit(~/.ssh/**)"
+    ]
+  }
+}

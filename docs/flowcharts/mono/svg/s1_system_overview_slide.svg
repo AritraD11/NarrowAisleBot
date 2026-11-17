@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="s1" class="fig big" viewBox="0 0 1760 990" width="1760" height="990" role="img" aria-label="System at a glance: operator interface, drive chain, odometry, arm, mapping and navigation on the Pi, and the ESP32 and Mega that drive the hardware"><title>System at a glance: operator interface, drive chain, odometry, arm, mapping and navigation on the Pi, and the ESP32 and Mega that drive the hardware</title><style>
+svg text{font-family:"IBM Plex Sans","Segoe UI",Arial,Helvetica,sans-serif;fill:#111111}
+.band{stroke-width:1.4}
+.band-op{fill:#F2F2F2;stroke:#8C8C8C}
+.band-pi{fill:#FFFFFF;stroke:#444444}
+.band-od{fill:#FFFFFF;stroke:#444444;stroke-dasharray:8 6}
+.band-hw{fill:#FFFFFF;stroke:#444444}
+.band-pl{fill:#FFFFFF;stroke:#444444}
+.bandlbl{font-weight:600;font-size:10.5px;fill:#444444;letter-spacing:.08em}
+.bandsub{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-weight:500;font-size:11px;letter-spacing:0;fill:#444444}
+.node rect{fill:#FFFFFF;stroke:#111111;stroke-width:1.2}
+.node-ext rect{fill:#F2F2F2;stroke:#444444}
+.node.dashed rect{stroke-dasharray:4 3}
+.node-hwn rect{fill:#E6E6E6;stroke:#111111;stroke-width:1.6}
+.node-warnbox rect{fill:#FFFFFF;stroke:#1A1A1A;stroke-width:1.4}
+.node-callout rect{fill:#FFFFFF;stroke:#8C8C8C;stroke-dasharray:6 4}
+.nt{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-weight:600;font-size:11px}
+.node-grp .nt,.node-callout .nt{font-family:"IBM Plex Sans","Segoe UI",Arial,sans-serif}
+.ns{font-weight:400;font-size:10.5px;fill:#444444}
+.node-grp .ns{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-size:10px}
+.note,.note-s{font-size:12px;fill:#444444}.note-s{font-size:10.5px}
+.e{fill:none;stroke-width:1.6;stroke-linejoin:round}
+.e.thick{stroke-width:2.8}
+.e.dash,.e-tf{stroke-dasharray:5 4}
+.e-manual{stroke:#1A1A1A}.mk-manual{fill:#1A1A1A}
+.e-auto{stroke:#1A1A1A}.mk-auto{fill:#1A1A1A}
+.e-merge{stroke:#111111}.mk-merge{fill:#111111}
+.e-fb{stroke:#1A1A1A}.mk-fb{fill:#1A1A1A}
+.e-scan{stroke:#1A1A1A}.mk-scan{fill:#1A1A1A}
+.e-ctl{stroke:#4D4D4D}.mk-ctl{fill:#4D4D4D}
+.e-tf{stroke:#6E6E6E}.mk-tf{fill:#6E6E6E}
+.e-warn{stroke:#1A1A1A}.mk-warn{fill:#1A1A1A}
+.lb{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-weight:500;font-size:10px;paint-order:stroke;stroke:#FFFFFF;stroke-width:4px;stroke-linejoin:round}
+.lb-manual{fill:#1A1A1A}.lb-auto{fill:#1A1A1A}.lb-merge{fill:#111111}.lb-fb{fill:#1A1A1A}
+.lb-scan{fill:#1A1A1A}.lb-ctl{fill:#4D4D4D}.lb-tf{fill:#555555}.lb-warn{fill:#1A1A1A}
+/* slide scale */
+.big .band{stroke-width:2}
+.big .bandlbl{font-size:21px;letter-spacing:.05em}
+.big .bandsub{font-size:21px}
+.big .node rect{stroke-width:2.2}
+.big .node-hwn rect{stroke-width:2.8}
+.big .nt{font-size:24px}
+.big .node-grp .nt,.big .node-callout .nt{font-size:26px}
+.big .ns{font-size:21px}
+.big .node-grp .ns{font-size:21px}
+.big .note{font-size:21px}
+.big .e{stroke-width:3.2}
+.big .e.thick{stroke-width:5.5}
+.big .lb{font-size:21px;stroke-width:6px}
+.big .legtxt{font-size:21px}
+.legtxt{font-size:12px}
+.leg{display:none}</style><rect width="1760" height="990" fill="#FFFFFF"/><defs><marker id="a-s1-manual" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-manual"/></marker><marker id="a-s1-auto" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-auto"/></marker><marker id="a-s1-merge" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-merge"/></marker><marker id="a-s1-fb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-fb"/></marker><marker id="a-s1-scan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-scan"/></marker><marker id="a-s1-ctl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-ctl"/></marker><marker id="a-s1-tf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-tf"/></marker><marker id="a-s1-warn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-warn"/></marker></defs><rect class="band band-pi" x="305" y="190" width="1070" height="250" rx="6"/><text class="bandlbl" x="319" y="428">RASPBERRY PI 5<tspan class="bandsub" dx="10">at boot</tspan></text><rect class="band band-od" x="605" y="478" width="770" height="255" rx="6"/><text class="bandlbl" x="619" y="721">ON DEMAND</text><path class="e e-ctl" data-c="ctl" d="M855,113 L855,235" marker-end="url(#a-s1-ctl)" marker-start="url(#a-s1-ctl)"/><path class="e e-ctl" data-c="ctl" d="M440,113 L440,175 L775,175 L775,235" marker-end="url(#a-s1-ctl)" marker-start="url(#a-s1-ctl)"/><path class="e e-ctl" data-c="ctl" d="M625,295 L555,295" marker-end="url(#a-s1-ctl)"/><path class="e e-ctl" data-c="ctl" d="M325,295 L255,295" marker-end="url(#a-s1-ctl)" marker-start="url(#a-s1-ctl)"/><path class="e e-manual" data-c="manual" d="M955,290 L1025,290" marker-end="url(#a-s1-manual)"/><path class="e e-merge thick" data-c="merge" d="M1355,290 L1425,290" marker-end="url(#a-s1-merge)"/><path class="e e-fb" data-c="fb" d="M1425,350 L1355,350" marker-end="url(#a-s1-fb)"/><path class="e e-merge thick" data-c="merge" d="M1515,400 L1515,520" marker-end="url(#a-s1-merge)"/><path class="e e-fb" data-c="fb" d="M1635,520 L1635,400" marker-end="url(#a-s1-fb)"/><path class="e e-auto" data-c="auto" d="M1145,520 L1145,400" marker-end="url(#a-s1-auto)"/><path class="e e-fb" data-c="fb" d="M1240,400 L1240,520" marker-end="url(#a-s1-fb)"/><path class="e e-tf dash" data-c="tf" d="M1065,400 L1065,459 L915,459 L915,520" marker-end="url(#a-s1-tf)"/><path class="e e-scan" data-c="scan" d="M685,520 L685,400" marker-end="url(#a-s1-scan)"/><path class="e e-ctl" data-c="ctl" d="M755,400 L755,520" marker-end="url(#a-s1-ctl)"/><path class="e e-scan" data-c="scan" d="M955,640 L1025,640" marker-end="url(#a-s1-scan)"/><path class="e e-scan" data-c="scan" d="M790,805 L790,685" marker-end="url(#a-s1-scan)"/><path class="e e-manual leg" data-c="manual" d="M1035,810 L1105,810" marker-end="url(#a-s1-manual)"/><path class="e e-auto leg" data-c="auto" d="M1035,848 L1105,848" marker-end="url(#a-s1-auto)"/><path class="e e-merge leg" data-c="merge" d="M1035,886 L1105,886" marker-end="url(#a-s1-merge)"/><path class="e e-fb leg" data-c="fb" d="M1035,924 L1105,924" marker-end="url(#a-s1-fb)"/><path class="e e-scan leg" data-c="scan" d="M1435,810 L1505,810" marker-end="url(#a-s1-scan)"/><path class="e e-ctl leg" data-c="ctl" d="M1435,848 L1505,848" marker-end="url(#a-s1-ctl)"/><path class="e e-tf dash leg" data-c="tf" d="M1435,886 L1505,886" marker-end="url(#a-s1-tf)"/><g class="node node-ext"><rect x="625" y="35" width="330" height="78" rx="4"/><text class="nt" x="641" y="69">Phone browser</text><text class="ns" x="641" y="99">Wi-Fi AP, WebSocket</text></g><g class="node node-ext"><rect x="325" y="35" width="230" height="78" rx="4"/><text class="nt" x="341" y="69">Foxglove</text><text class="ns" x="341" y="99">laptop, debug only</text></g><g class="node node-grp"><rect x="625" y="235" width="330" height="165" rx="4"/><text class="nt" x="641" y="269">Operator interface</text><text class="ns" x="641" y="299">phone_dashboard</text><text class="ns" x="641" y="325">foxglove_bridge</text></g><g class="node node-grp"><rect x="1025" y="235" width="330" height="165" rx="4"/><text class="nt" x="1041" y="269">Drive and odometry</text><text class="ns" x="1041" y="299">twist_mux, teleop_asym</text><text class="ns" x="1041" y="325">esp32_bridge</text><text class="ns" x="1041" y="351">odometry_publisher</text></g><g class="node node-grp"><rect x="325" y="235" width="230" height="120" rx="4"/><text class="nt" x="341" y="269">Arm</text><text class="ns" x="341" y="299">arm_bridge</text></g><g class="node node-hwn"><rect x="35" y="235" width="220" height="120" rx="4"/><text class="nt" x="51" y="269">Arduino Mega</text><text class="ns" x="51" y="299">arm, lift, 3 UV</text></g><g class="node node-hwn"><rect x="1425" y="235" width="300" height="165" rx="4"/><text class="nt" x="1441" y="269">ESP32</text><text class="ns" x="1441" y="299">100 Hz PID,</text><text class="ns" x="1441" y="325">latching E-STOP</text></g><g class="node node-grp"><rect x="625" y="520" width="330" height="165" rx="4"/><text class="nt" x="641" y="554">LiDAR and mapping</text><text class="ns" x="641" y="584">ydlidar driver</text><text class="ns" x="641" y="610">scan_relay</text><text class="ns" x="641" y="636">slam_toolbox</text></g><g class="node node-grp"><rect x="1025" y="520" width="330" height="165" rx="4"/><text class="nt" x="1041" y="554">Navigation (Nav2)</text><text class="ns" x="1041" y="584">planner, MPPI controller</text><text class="ns" x="1041" y="610">velocity_smoother</text><text class="ns" x="1041" y="636">collision_monitor</text></g><g class="node node-hwn"><rect x="1425" y="520" width="300" height="120" rx="4"/><text class="nt" x="1441" y="554">4 wheels</text><text class="ns" x="1441" y="584">mecanum, encoders</text></g><g class="node node-hwn"><rect x="625" y="805" width="330" height="78" rx="4"/><text class="nt" x="641" y="839">YDLIDAR X4 Pro</text><text class="ns" x="641" y="869">USB, 128000 baud</text></g><text class="legtxt leg" x="1123" y="817">Manual drive command</text><text class="legtxt leg" x="1123" y="855">Autonomous drive command</text><text class="legtxt leg" x="1123" y="893">Command to the wheels</text><text class="legtxt leg" x="1123" y="931">Feedback, odometry</text><text class="legtxt leg" x="1523" y="817">LiDAR and map</text><text class="legtxt leg" x="1523" y="855">Operator, control</text><text class="legtxt leg" x="1523" y="893">TF</text></svg>

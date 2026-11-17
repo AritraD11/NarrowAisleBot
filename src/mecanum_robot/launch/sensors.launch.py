@@ -56,19 +56,15 @@ from launch_ros.actions import LifecycleNode, Node
 
 
 # base_link's published yaw at a freshly-zeroed odometry, in radians.
-# NOT an arbitrary choice, and it CHANGED on 27 Aug 2026 (§17.38).
 #
-# It used to be -90 deg. odometry_publisher.py rotated its published
-# orientation but not its published translation, which gave odom REP-103's
-# axes while base_link had +X=right/+Y=nose, so a robot standing on the
-# zero mark read [0,0,0] @ -90 deg (confirmed 15 Aug via tf2_echo). The
-# marker carried the same -90 deg so its triad would coincide with
-# base_link's instead of sitting 90 deg away from it.
-#
-# That seam is gone: odom, map and base_link now all use +X=right,
-# +Y=forward, so a freshly-zeroed robot on the mark reads [0,0,0] @ 0 deg
-# and the marker needs no rotation to line up with it. Verify on hardware
-# with `ros2 run tf2_ros tf2_echo odom base_link` before trusting a map.
+# 0.0, and it is 0.0 in both conventions this project has had: a robot on the
+# zero mark reads [0, 0, 0] @ 0 deg, so the marker needs no rotation to line
+# up with base_link. (History: it was -90 deg until 27 Aug 2026, §17.38, when
+# odometry published a rotated orientation over an unrotated translation; the
+# frame has been standard REP-103 since 5 Oct 2026, +X nose, +Y left, so the
+# marker's triad now points X forward, Y left, like base_link's.)
+# Verify on hardware with `ros2 run tf2_ros tf2_echo odom base_link` before
+# trusting a map.
 ZERO_POINT_YAW = 0.0
 
 
@@ -105,7 +101,7 @@ def generate_launch_description():
     # wrong transform is to not run that file.
     #
     # The real mount is now measured and lives in aislebot.urdf's laser_joint
-    # (0, 0.27, 0.275 — §17.12), published by robot_state_publisher from
+    # (0.27, 0, 0.275 — §17.12, standard frame since 5 Oct 2026), published by robot_state_publisher from
     # aislebot_full.launch.py. Exactly one publisher owns this transform, and
     # it is the one carrying the measured value.
     #

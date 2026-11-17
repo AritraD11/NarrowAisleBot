@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="h3" class="fig small" viewBox="0 0 1160 520" width="1160" height="520" role="img" aria-label="Inside the ESP32 firmware: a comms task on core 0 feeds a 100 Hz PID task on core 1, which latches an E-STOP on any safety trip"><title>Inside the ESP32 firmware: a comms task on core 0 feeds a 100 Hz PID task on core 1, which latches an E-STOP on any safety trip</title><style>
+svg text{font-family:"IBM Plex Sans","Segoe UI",Arial,Helvetica,sans-serif;fill:#111111}
+.band{stroke-width:1.4}
+.band-op{fill:#F2F2F2;stroke:#8C8C8C}
+.band-pi{fill:#FFFFFF;stroke:#444444}
+.band-od{fill:#FFFFFF;stroke:#444444;stroke-dasharray:8 6}
+.band-hw{fill:#FFFFFF;stroke:#444444}
+.band-pl{fill:#FFFFFF;stroke:#444444}
+.bandlbl{font-weight:600;font-size:10.5px;fill:#444444;letter-spacing:.08em}
+.bandsub{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-weight:500;font-size:11px;letter-spacing:0;fill:#444444}
+.node rect{fill:#FFFFFF;stroke:#111111;stroke-width:1.2}
+.node-ext rect{fill:#F2F2F2;stroke:#444444}
+.node.dashed rect{stroke-dasharray:4 3}
+.node-hwn rect{fill:#E6E6E6;stroke:#111111;stroke-width:1.6}
+.node-warnbox rect{fill:#FFFFFF;stroke:#1A1A1A;stroke-width:1.4}
+.node-callout rect{fill:#FFFFFF;stroke:#8C8C8C;stroke-dasharray:6 4}
+.nt{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-weight:600;font-size:11px}
+.node-grp .nt,.node-callout .nt{font-family:"IBM Plex Sans","Segoe UI",Arial,sans-serif}
+.ns{font-weight:400;font-size:10.5px;fill:#444444}
+.node-grp .ns{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-size:10px}
+.note,.note-s{font-size:12px;fill:#444444}.note-s{font-size:10.5px}
+.e{fill:none;stroke-width:1.6;stroke-linejoin:round}
+.e.thick{stroke-width:2.8}
+.e.dash,.e-tf{stroke-dasharray:5 4}
+.e-manual{stroke:#1A1A1A}.mk-manual{fill:#1A1A1A}
+.e-auto{stroke:#1A1A1A}.mk-auto{fill:#1A1A1A}
+.e-merge{stroke:#111111}.mk-merge{fill:#111111}
+.e-fb{stroke:#1A1A1A}.mk-fb{fill:#1A1A1A}
+.e-scan{stroke:#1A1A1A}.mk-scan{fill:#1A1A1A}
+.e-ctl{stroke:#4D4D4D}.mk-ctl{fill:#4D4D4D}
+.e-tf{stroke:#6E6E6E}.mk-tf{fill:#6E6E6E}
+.e-warn{stroke:#1A1A1A}.mk-warn{fill:#1A1A1A}
+.lb{font-family:"IBM Plex Mono",Consolas,"Courier New",monospace;font-weight:500;font-size:10px;paint-order:stroke;stroke:#FFFFFF;stroke-width:4px;stroke-linejoin:round}
+.lb-manual{fill:#1A1A1A}.lb-auto{fill:#1A1A1A}.lb-merge{fill:#111111}.lb-fb{fill:#1A1A1A}
+.lb-scan{fill:#1A1A1A}.lb-ctl{fill:#4D4D4D}.lb-tf{fill:#555555}.lb-warn{fill:#1A1A1A}
+/* slide scale */
+.big .band{stroke-width:2}
+.big .bandlbl{font-size:21px;letter-spacing:.05em}
+.big .bandsub{font-size:21px}
+.big .node rect{stroke-width:2.2}
+.big .node-hwn rect{stroke-width:2.8}
+.big .nt{font-size:24px}
+.big .node-grp .nt,.big .node-callout .nt{font-size:26px}
+.big .ns{font-size:21px}
+.big .node-grp .ns{font-size:21px}
+.big .note{font-size:21px}
+.big .e{stroke-width:3.2}
+.big .e.thick{stroke-width:5.5}
+.big .lb{font-size:21px;stroke-width:6px}
+.big .legtxt{font-size:21px}
+.legtxt{font-size:12px}
+.leg{display:none}</style><rect width="1160" height="520" fill="#FFFFFF"/><defs><marker id="a-h3-manual" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-manual"/></marker><marker id="a-h3-auto" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-auto"/></marker><marker id="a-h3-merge" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-merge"/></marker><marker id="a-h3-fb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-fb"/></marker><marker id="a-h3-scan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-scan"/></marker><marker id="a-h3-ctl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-ctl"/></marker><marker id="a-h3-tf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-tf"/></marker><marker id="a-h3-warn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M0,1 L9,5 L0,9 z" class="mk mk-warn"/></marker></defs><rect class="band band-od" x="20" y="30" width="330" height="190" rx="6"/><text class="bandlbl" x="34" y="45">COMMS TASK<tspan class="bandsub" dx="10">core 0, prio 1, 1 ms poll</tspan></text><rect class="band band-pi" x="380" y="30" width="760" height="190" rx="6"/><text class="bandlbl" x="394" y="45">PID TASK<tspan class="bandsub" dx="10">core 1, prio 3, 100 Hz via vTaskDelayUntil</tspan></text><path class="e e-ctl" data-c="ctl" d="M170,94 L200,94" marker-end="url(#a-h3-ctl)" marker-start="url(#a-h3-ctl)"/><path class="e e-fb" data-c="fb" d="M105,150 L105,122" marker-end="url(#a-h3-fb)"/><path class="e e-merge thick" data-c="merge" d="M265,122 L265,301 L640,301" marker-end="url(#a-h3-merge)"/><path class="e e-merge thick" data-c="merge" d="M785,270 L785,122" marker-end="url(#a-h3-merge)"/><path class="e e-fb" data-c="fb" d="M530,94 L560,94" marker-end="url(#a-h3-fb)"/><path class="e e-fb" data-c="fb" d="M690,94 L720,94" marker-end="url(#a-h3-fb)"/><path class="e e-merge thick" data-c="merge" d="M850,94 L880,94" marker-end="url(#a-h3-merge)"/><path class="e e-merge thick" data-c="merge" d="M980,94 L1000,94" marker-end="url(#a-h3-merge)"/><path class="e e-fb dash" data-c="fb" d="M465,150 L465,122" marker-end="url(#a-h3-fb)"/><path class="e e-fb dash" data-c="fb" d="M625,122 L625,150" marker-end="url(#a-h3-fb)"/><path class="e e-warn" data-c="warn" d="M700,178 L830,178" marker-end="url(#a-h3-warn)"/><path class="e e-warn" data-c="warn" d="M950,150 L950,122" marker-end="url(#a-h3-warn)"/><g class="node node-hwn"><rect x="40" y="66" width="130" height="56" rx="4"/><text class="nt" x="49" y="83">USB serial</text><text class="ns" x="49" y="97.0">921600, &lt; &gt; framed</text></g><g class="node node-ros"><rect x="200" y="66" width="130" height="56" rx="4"/><text class="nt" x="209" y="83">Command parser</text><text class="ns" x="209" y="97.0">V B M T S E W Y</text><text class="ns" x="209" y="109.5">G F K A X L ...</text></g><g class="node node-ros"><rect x="40" y="150" width="130" height="56" rx="4"/><text class="nt" x="49" y="167">Telemetry out</text><text class="ns" x="49" y="181.0">every 50 ms default</text><text class="ns" x="49" y="193.5">L1 or L2 columns</text></g><g class="node node-ros"><rect x="400" y="66" width="130" height="56" rx="4"/><text class="nt" x="409" y="83">Read PCNT</text><text class="ns" x="409" y="97.0">4 encoders</text><text class="ns" x="409" y="109.5">front CPR 186264</text></g><g class="node node-ros"><rect x="560" y="66" width="130" height="56" rx="4"/><text class="nt" x="569" y="83">Velocity</text><text class="ns" x="569" y="97.0">EMA alpha 0.4</text><text class="ns" x="569" y="109.5">slew 12 rad/s^2</text></g><g class="node node-ros"><rect x="720" y="66" width="130" height="56" rx="4"/><text class="nt" x="729" y="83">FF + PID</text><text class="ns" x="729" y="97.0">Kff w + Kstat sgn(w)</text><text class="ns" x="729" y="109.5">Kp 45 Ki 250 Kd 0.5</text></g><g class="node node-ros"><rect x="880" y="66" width="100" height="56" rx="4"/><text class="nt" x="889" y="83">PWM + DIR</text><text class="ns" x="889" y="97.0">8 bit, 5 kHz</text></g><g class="node node-hwn"><rect x="1000" y="66" width="120" height="56" rx="4"/><text class="nt" x="1009" y="83">Motor drivers</text><text class="ns" x="1009" y="97.0">Cytron-style, 4x</text></g><g class="node node-warnbox"><rect x="400" y="150" width="300" height="56" rx="4"/><text class="nt" x="409" y="167">Safety checks, every cycle</text><text class="ns" x="409" y="181.0">watchdog 750 ms, overspeed 1.3x 300 ms,</text><text class="ns" x="409" y="193.5">runaway 500 ms, stall PWM &gt;= 250 for 2 s</text></g><g class="node node-warnbox"><rect x="830" y="150" width="290" height="56" rx="4"/><text class="nt" x="839" y="167">Latching E-STOP</text><text class="ns" x="839" y="181.0">trip prints [TRIP,...], motors to zero,</text><text class="ns" x="839" y="193.5">cleared only by &lt;E1&gt;</text></g><g class="node node-ros"><rect x="640" y="270" width="300" height="62" rx="4"/><text class="nt" x="649" y="287">Targets (shared)</text><text class="ns" x="649" y="301.0">V: closed loop rad/s, B: body twist</text><text class="ns" x="649" y="313.5">M: open-loop PWM, T: one motor</text></g><g class="node node-ros"><rect x="40" y="380" width="480" height="62" rx="4"/><text class="nt" x="49" y="397">Runtime tuning, no reflash</text><text class="ns" x="49" y="411.0">&lt;G kp,ki,kd&gt; &lt;F ff&gt; &lt;K stat&gt; &lt;A accel&gt; &lt;X vmax&gt;</text><text class="ns" x="49" y="423.5">&lt;W0&gt; &lt;Y0&gt; turn watchdog or trips off for bench work</text></g><g class="node node-ros"><rect x="560" y="380" width="560" height="62" rx="4"/><text class="nt" x="569" y="397">Wheel order everywhere</text><text class="ns" x="569" y="411.0">[FR, FL, RR, RL], MOTOR_DIR_SIGN and ENC_DIR_SIGN</text><text class="ns" x="569" y="423.5">both {-1, +1, -1, +1}, front CPR is twice the rear</text></g><text class="lb lb-merge" data-c="merge" x="272" y="195" text-anchor="start">parsed targets</text><text class="lb lb-merge" data-c="merge" x="793" y="245" text-anchor="start">setpoints</text><text class="lb lb-warn" data-c="warn" x="745" y="172" text-anchor="middle">trip</text><text class="lb lb-warn" data-c="warn" x="958" y="140" text-anchor="start">zero PWM</text><text class="note" x="20" y="478" text-anchor="start">Telemetry carries the filtered wheel velocity from this loop, so that is what the Pi integrates.</text><text class="note" x="20" y="498" text-anchor="start">position_rad (the exact count integral) ships only in &lt;L2&gt;. The bridge asks for &lt;L1&gt;, so the Pi never sees it.</text></svg>

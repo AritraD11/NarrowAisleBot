@@ -273,7 +273,9 @@ are mutually exclusive**, which is why there are two frames and not one:
 between the two.** On 28 Aug that transform absorbed **11.08 m** across
 21.85 m driven.
 
-### 4.2 This robot's deliberate non-REP-103 convention
+### 4.2 This robot's (former) non-REP-103 convention
+
+> **Superseded 5 Oct 2026, after the APS:** the robot is standard REP-103 now. This section is what was true and examined on 23 Sep 2026.
 
 REP-103 says +X forward, +Y left. **This robot uses +X = right, +Y = forward**
 for `base_link`, `odom` and `map`, fixed in §17.38.
@@ -470,7 +472,7 @@ cost(d) = 252 · exp( −cost_scaling_factor · (d − r_inscribed) )
 
 **`inflation_radius` must exceed the robot's padded circumscribed radius**, or
 a footprint-aware checker can never rule a pose out cheaply and must run a full
-polygon test every time. Here: corner (0.24, 0.56) plus 0.01 padding gives
+polygon test every time. Here: corner (0.24, 0.56) (written (0.56, 0.24) since the 5 Oct 2026 axis change, same corner) plus 0.01 padding gives
 `hypot(0.25, 0.57) = 0.6224 m`, so **`inflation_radius = 0.65`**. That number
 is derived, not chosen — a good thing to be asked about.
 

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Robot Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <div class="title">
+      <span id="conn" class="dot" title="connection"></span>
+      <span id="name">robot</span>
+      <span id="mock" class="chip hidden">MOCK</span>
+    </div>
+    <div class="chips">
+      <span id="chip-mcu" class="chip">MCU</span>
+      <span id="chip-map" class="chip">MAP</span>
+      <span id="chip-nav" class="chip">NAV</span>
+      <span id="chip-rec" class="chip">REC</span>
+    </div>
+    <button id="estop" class="estop">E-STOP</button>
+  </header>
+
+  <main>
+    <section id="map-wrap">
+      <canvas id="map"></canvas>
+      <div class="map-tools">
+        <button id="zoom-in" title="zoom in">+</button>
+        <button id="zoom-out" title="zoom out">&minus;</button>
+        <button id="follow" class="on" title="follow the robot">&#9678;</button>
+        <button id="goal-mode" title="tap the map to set a goal, drag for heading">GOAL</button>
+      </div>
+      <div id="pose" class="pose">pose: waiting</div>
+    </section>
+
+    <section id="drive">
+      <div id="stick" class="stick"><div id="knob" class="knob"></div></div>
+      <div id="turn-wrap" class="turn-wrap">
+        <div class="turn-label">turn</div>
+        <div id="turn" class="turn"><div id="turn-knob" class="turn-knob"></div></div>
+      </div>
+    </section>
+
+    <section id="buttons">
+      <button id="map-toggle">MAP start</button>
+      <button id="map-save">SAVE map</button>
+      <button id="nav-toggle">NAV start</button>
+      <button id="goal-cancel">CANCEL goal</button>
+      <button id="rezero">RE-ZERO</button>
+      <button id="rec-toggle">REC start</button>
+    </section>
+
+    <section id="wheels">
+      <table>
+        <thead><tr><th>wheel</th><th>target</th><th>actual</th><th>pwm</th></tr></thead>
+        <tbody id="wheel-rows"></tbody>
+      </table>
+    </section>
+
+    <section id="console">
+      <form id="mcu-form" autocomplete="off">
+        <input id="mcu-cmd" placeholder="MCU command, e.g. <?> or <G,20,100,0>" spellcheck="false">
+        <button type="submit">send</button>
+      </form>
+      <div id="log" class="log"></div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -76,7 +76,7 @@ Started on demand, never at boot:
 
 ## 3. Node catalogue
 
-Frame and axis convention first, because it explains half the nodes. `base_link`, `odom` and `map` all use +X = right, +Y = forward (fixed at the source on 27 Aug, `docs/Axis_Convention.md`). The wheel kinematics and everything that talks to the motors use REP-103 (+X forward, +Y left). `cmd_vel_axis_adapter` is the one place the two meet on the autonomous path.
+Frame and axis convention first. Since 5 Oct 2026 `base_link`, `odom` and `map` all use standard REP-103 (+X forward, +Y left, yaw CCW from +X), the same as the wheel kinematics and every velocity command (`docs/Axis_Convention.md`). Before that date the frames used +X = right, +Y = forward and `cmd_vel_axis_adapter` converted between the two. The adapter is now an identity and is deleted at stage 6 of `docs/Axis_Refactor_Plan.md`. The one real conversion left is the LiDAR mirror in `scan_relay`.
 
 ### 3.1 Always running (aislebot.service)
 
@@ -84,10 +84,10 @@ Frame and axis convention first, because it explains half the nodes. `base_link`
 |---|---|---|---|---|---|
 | joy_node | `joy` package | | `/joy` | device_id 0, deadzone 0.05, autorepeat 25 Hz | USB gamepad (none fitted on this deployment) |
 | joy_to_aislebot | `joy_to_aislebot.py` (190 lines) | `/joy` | `/cmd_vel_manual` (Twist), `/arm/cmd_vel` (Twist), `/arm/command` (String) | max_linear 0.15, max_angular 0.30, deadzone 0.10, Xbox axis map, Y=HOME, B=ESTOP, START=CLEAR | |
-| phone_dashboard | `phone_dashboard.py` (3998 lines: the first ~2400 are the docstring and the HTML/JS page held in one Python string, the rest is Python) | `/motor_telemetry`, `/map` (transient_local), `/scan_reliable`, `/scan_relay_stats`, TF lookups at 10 Hz | `/cmd_vel_manual`, `/arm/command`, `/esp32/command`, `/goal_pose_click`, `/odom/reset`; client of `/scan_relay/set_parameters` | port 8080, log_dir `~/aislebot_logs`, locations `~/locations.json`, map_name, scan_trust_range 5.0, scan_publish_hz 5 | Serves HTTP + WebSocket. Spawns subprocesses (section 11). |
+| phone_dashboard | `phone_dashboard.py` (3998 lines: the first ~2400 are the docstring and the HTML/JS page held in one Python string, the rest is Python) | `/motor_telemetry`, `/map` (transient_local), `/scan_reliable`, `/navigate_to_pose/_action/status` (transient_local), `/plan`, TF lookups at 10 Hz | `/cmd_vel_manual`, `/arm/command`, `/esp32/command`, `/goal_pose_click`, `/odom/reset`; client of `/lifecycle_manager_navigation/is_active` | port 8080, log_dir `~/aislebot_logs`, locations `~/locations.json`, map_name, scan_trust_range 5.0, scan_publish_hz 5 | Serves HTTP + WebSocket. Spawns subprocesses (section 11). |
 | twist_mux | `twist_mux` 4.5.0 | `/cmd_vel_manual` (priority 100, timeout 0.5 s), `/cmd_vel_nav_out` (priority 10, timeout 0.5 s) | `/cmd_vel` | `use_stamped: false` | |
 | mecanum_teleop_asymmetric | `mecanum_teleop_asymmetric.py` (147) | `/cmd_vel`, `/joy` | `/wheel_speeds` (Float64MultiArray [FR, FL, RR, RL] rad/s) | r 0.0762, l1 0.403, l2 0.333, d 0.15769, max_linear 0.15, max_angular 0.30 (launch overrides the file defaults of 0.48 and 1.0), wheel clamp 6.28 | |
-| esp32_bridge | `esp32_bridge.py` v3.1 (351) | `/wheel_speeds`, `/esp32/command` | `/motor_telemetry_raw` (String), `/motor_telemetry` (12 floats), `/wheel_velocities_actual` (4 floats), `/imu/data_raw` only if enable_imu | port `/dev/esp32`, 921600, max_wheel_speed 5.20, watchdog 0.5 s, telemetry_enabled true, `<L1>` resent every 5 s | ESP32 serial. Sends `<E1>` then `<L1>` on connect, `<S>` then `<E0>` on shutdown. |
+| esp32_bridge | `esp32_bridge.py` v3.2 | `/wheel_speeds`, `/esp32/command` | `/motor_telemetry_raw` (String), `/motor_telemetry` (12 floats), `/wheel_velocities_actual` (4 floats), `/imu/data` (Imu) if enable_imu | port `/dev/esp32`, 921600, max_wheel_speed 5.20, watchdog 0.5 s, telemetry_enabled true, enable_imu true (launch arg), imu_rate_hz 50, `<L1>` and `<N1,50>` resent every 5 s | ESP32 serial. Sends `<E1>`, `<L1>`, then `<N1,50>` (or `<N0>`) on connect, `<S>` then `<E0>` on shutdown. Changed 15 Oct 2026, not yet deployed to the Pi at the time of writing. |
 | odometry_publisher | `odometry_publisher.py` (321) | `/wheel_velocities_actual`, `/odom/reset` (Empty) | `/wheel_odom` (Odometry), TF `odom->base_link` | r, l1, l2, d as above, publish_tf true, lateral_scale 0.92 (live-settable) | |
 | arm_bridge | `arm_bridge.py` (270) | `/arm/cmd_vel`, `/arm/command` | `/arm/status` (String) | `/dev/mega`, 115200, command_timeout 300 ms, auto_enable_on_connect true, disable_joystick_on_connect true | Mega serial. 50 Hz transmit timer, reconnect timer 3 s. |
 | lcd_display | `lcd_display.py` (133) | none | none | | I2C LCD via RPLCD. Line 1 is the wlan0 IP, line 2 is `AP :8080`, `NET :22` or `NO NETWORK`. Refresh 2 s. |
@@ -99,10 +99,10 @@ Frame and axis convention first, because it explains half the nodes. `base_link`
 | Node | Source | Subscribes | Publishes | Parameters that matter |
 |---|---|---|---|---|
 | ydlidar_ros2_driver_node (lifecycle) | vendor, params from `system/ydlidar_params.yaml` | | `/scan` (BEST_EFFORT) | port `/dev/ydlidar`, baud 128000, single channel, angle -180..180, range 0.1..10 m, frame `laser_frame`, auto_reconnect, `invalid_range_is_inf: false`. The file says `frequency: 6.0`; the scan rate measured on the Pi was 11.35 to 11.45 Hz (live). |
-| scan_relay | `src/scan_relay/scan_relay.py` (643, plain script, not a colcon package, run through `ExecuteProcess`) | `/scan` | `/scan_reliable` (RELIABLE), `/scan_relay_stats` (Float64MultiArray, every 3rd sweep) | mirror true, yaw_offset 270 deg, mask -135..-45 deg to NaN (107 beams), range_cap/floor 0 (off), persist_n/k 1/1 (off). All ten parameters are live-settable and validated by a two-pass callback. |
+| scan_relay | `src/scan_relay/scan_relay.py` (643, plain script, not a colcon package, run through `ExecuteProcess`) | `/scan` | `/scan_reliable` (RELIABLE), `/scan_relay_stats` (Float64MultiArray, every 3rd sweep) | mirror true, yaw_offset 180 deg (270 before 5 Oct 2026), mask 135..-135 deg through 180 to NaN (91 beams at 1 deg; -135..-45 before 5 Oct 2026), range_cap 2.5 m (fixed 5 Oct 2026, accuracy over range), floor 0 (off), persist_n/k 1/1 (off). All ten parameters are live-settable and validated by a two-pass callback, but nothing sets them any more: the defaults are the configuration (pinned by `scan_relay_gate.py` section 13). |
 | zero_point_tf | `tf2_ros static_transform_publisher` | | TF `map->zero_point` (identity, yaw 0) | |
 
-What scan_relay does, in order: re-index the sweep to undo the sensor's mirrored bearing (reported = 270 deg - true), blank the rear mast arc to NaN (not 0, not inf, so it neither marks nor clears), apply the optional range window, apply the optional K-of-N persistence gate. It republishes as RELIABLE because slam_toolbox and the costmaps subscribe RELIABLE and the driver publishes BEST_EFFORT.
+What scan_relay does, in order: re-index the sweep to undo the sensor's mirrored bearing (reported = 180 deg - true since 5 Oct 2026; it was 270 deg - true in the old frame), blank the rear mast arc to NaN (not 0, not inf, so it neither marks nor clears), apply the optional range window, apply the optional K-of-N persistence gate. It republishes as RELIABLE because slam_toolbox and the costmaps subscribe RELIABLE and the driver publishes BEST_EFFORT.
 
 ### 3.3 Mapping (on demand)
 
@@ -127,7 +127,7 @@ All are Nav2 1.3.12 nodes. `cmd_vel_axis_adapter` and `goal_pose_adapter` are th
 | map_server | yes (saved-map mode only) | | | `/map` | `yaml_filename` from the launch arg |
 | amcl | yes (saved-map mode only) | | `/scan` (its default, see section 14 item 2), `/map` | TF `map->odom` | `nav2_amcl::OmniMotionModel`, 500 to 2000 particles, max_beams 60, likelihood field |
 | lifecycle_manager_navigation | | | | | Brings the list up in order, all-or-nothing |
-| cmd_vel_axis_adapter | no | rotates TF-axis velocity to wheel axis | `/cmd_vel_baselink` (queue depth 1) | `/cmd_vel_nav_out` | out.x = in.y, out.y = -in.x, yaw unchanged. Publishes one zero Twist on exit. |
+| cmd_vel_axis_adapter | no | identity pass-through since 5 Oct 2026 (was a TF-to-wheel axis rotation) | `/cmd_vel_baselink` (queue depth 1) | `/cmd_vel_nav_out` | out.x = in.x, out.y = in.y, yaw unchanged. Publishes one zero Twist on exit. Deleted at stage 6 of the axis refactor. |
 | goal_pose_adapter | no | dragged yaw + `yaw_offset_deg` (now 0.0) | `/goal_pose_click` | `/goal_pose` | Inert unless something publishes to `/goal_pose_click`. The dashboard does. |
 
 Deliberately not started: `route_server`, `opennav_docking` (no graph, no dock), and `robot_localization` (no IMU).
@@ -156,7 +156,7 @@ Topic table for edges. QoS only where it matters.
 | `/odom/reset` | Empty | phone_dashboard | odometry_publisher |
 | `/scan` | LaserScan, BEST_EFFORT | ydlidar driver | scan_relay, and AMCL in saved-map mode (its default topic, see section 14 item 2) |
 | `/scan_reliable` | LaserScan, RELIABLE | scan_relay | slam_toolbox, AMCL, both costmaps, collision_monitor, phone_dashboard |
-| `/scan_relay_stats` | Float64MultiArray | scan_relay | phone_dashboard |
+| `/scan_relay_stats` | Float64MultiArray | scan_relay | nothing since 5 Oct 2026 (the dashboard tuner was removed) |
 | `/map` | OccupancyGrid, transient_local | slam_toolbox or map_server | global costmap static layer, phone_dashboard |
 | `/goal_pose_click` | PoseStamped | phone_dashboard, tools/nav_goal.py | goal_pose_adapter |
 | `/goal_pose` | PoseStamped | goal_pose_adapter, Foxglove panel | bt_navigator |
@@ -171,7 +171,7 @@ Services and actions in use:
 
 | Name | Kind | Server | Client |
 |---|---|---|---|
-| `/scan_relay/set_parameters` | service | scan_relay | phone_dashboard (LiDAR tuner) |
+| `/scan_relay/set_parameters` | service | scan_relay | none since 5 Oct 2026 (`ros2 param set` for a deliberate experiment) |
 | `/navigate_to_pose` | action | bt_navigator | Foxglove, `tools/nav_goal.py`, `tools/zero_point_scan.py`, dashboard (cancel-all on E-STOP) |
 | `/compute_path_to_pose`, `/follow_path`, `/smooth_path`, `/spin`, `/backup`, `/wait` | actions | planner, controller, smoother, behavior_server | bt_navigator |
 | `/slam_toolbox/*` (save_map, serialize, and so on) | services | slam_toolbox | not used by the dashboard, which saves through `nav2_map_server map_saver_cli` |
@@ -197,7 +197,7 @@ Rules baked into this:
 
 - Manual beats autonomous while it is publishing and stops beating it 0.5 s after the last manual message.
 - Nothing autonomous reaches the wheels without passing the smoother and the collision monitor. The behavior_server remap exists so Spin and BackUp take the same path.
-- The adapter is last on purpose. Everything before it, the collision polygon included, works in the same axes as the footprint.
+- The adapter is last on purpose and is an identity now; everything before it, the collision polygon included, works in the same axes as the footprint and the wheels.
 - Three watchdogs stack: twist_mux timeouts (0.5 s), the bridge (0.5 s, sends zero speeds), the ESP32 (750 ms, ramps to stop). The velocity_smoother also stops after 1 s without input.
 - The dashboard E-STOP order is: zero the drive command, send `<S>` to the ESP32 (latches in the ESP32 firmware), ESTOP the arm, kill calibration, stop mapping.
 
@@ -223,7 +223,7 @@ wheels -> encoders -> ESP32 PCNT (100 Hz PID) -> telemetry line (20 Hz, <L1>)
 | base_link | chassis, safety_cushion, base_footprint, imu_link | robot_state_publisher | Fixed joints |
 | base_link | wheel_fr, wheel_fl, wheel_rr, wheel_rl | not published | The wheel joints are `continuous` and nothing in the repo publishes `/joint_states`, so these four frames do not exist on the TF tree. Harmless for navigation. |
 
-URDF wheel origins in `base_link` (x = strafe axis, y = forward axis): FR (0.15769, 0.403), FL (-0.15769, 0.333), RR (0.15769, -0.333), RL (-0.15769, -0.403).
+URDF wheel origins in `base_link` (x = forward axis, y = left axis): FR (0.403, -0.15769), FL (0.333, 0.15769), RR (-0.333, -0.15769), RL (-0.403, 0.15769). Spin axes are Y.
 
 ---
 
@@ -238,7 +238,7 @@ URDF wheel origins in `base_link` (x = strafe axis, y = forward axis): FR (0.157
    - wz = (r/4)(w_fr/K_out - w_fl/K_in + w_rr/K_in - w_rl/K_out), with K_out 0.56069 and K_in 0.49069
    - This is the exact inverse of the inverse kinematics in `teleop_asym` and in the ESP32, which I checked algebraically: the vx, vy and pure-rotation terms cancel cleanly.
 3. Midpoint integration in the internal REP-103 frame, theta wrapped to [-pi, pi].
-4. Publish rotated by -90 degrees so +X reads right and +Y reads forward: pub_x = -y, pub_y = x, pub_theta = theta. Twist is rotated the same way.
+4. Publish as computed (standard REP-103 since 5 Oct 2026): pub_x = x, pub_y = y, pub_theta = theta, twist unrotated. Before that date the pose and twist were rotated by -90 degrees (pub_x = -y, pub_y = x).
 5. Covariance is fixed: 0.01 on x and y, 0.03 on yaw. No estimator uses it.
 6. `odom/reset` zeroes x, y, theta in place. The dashboard refuses the request while mapping, because slam_toolbox pins `map->odom` to identity at its first scan.
 
@@ -248,11 +248,11 @@ What upstream data looks like: the ESP32 filters each wheel velocity with an EMA
 
 ## 8. Nav2 configuration, the numbers as committed
 
-Source: `src/mecanum_navigation/config/nav2_params.yaml` (874 lines). Every x/y-labelled value is swapped for this robot: element 0 is strafe (right), element 1 is forward.
+Source: `src/mecanum_navigation/config/nav2_params.yaml` (874 lines). Standard axes since 5 Oct 2026: element 0 is forward/reverse, element 1 is strafe (left positive). Before that date every x/y-labelled value was swapped.
 
 | Block | Values |
 |---|---|
-| Footprint (both costmaps) | rectangle x ±0.24, y ±0.56 (tape measured 0.36 x 1.00, plus 6 cm margin) |
+| Footprint (both costmaps) | rectangle x ±0.56, y ±0.24 (tape measured 1.00 long x 0.36 wide, plus 6 cm margin) |
 | Local costmap | rolling 3 x 3 m, 0.05 m, 5 Hz update, obstacle layer on `/scan_reliable` (raytrace 9 m, mark 8 m), inflation radius 0.65, cost scaling 5.0 |
 | Global costmap | `map` frame, 0.05 m, 1 Hz, track_unknown_space true, static + obstacle + inflation (radius 0.65) |
 | MPPI | Omni, vx/vy max 0.12 m/s, wz max 0.30 rad/s, std 0.06 / 0.06 / 0.15, 300 samples, 40 steps, dt 0.05, temperature 0.3, gamma 0.015; critics: Constraint 4.0, Cost 3.81, Goal 5.0, GoalAngle 3.0, PathAlign 14.0, PathFollow 5.0, Twirling 5.0 |
@@ -265,7 +265,7 @@ Source: `src/mecanum_navigation/config/nav2_params.yaml` (874 lines). Every x/y-
 
 The behaviour tree is Nav2's stock `navigate_to_pose_w_replanning_and_recovery.xml`, which includes ClearEntireCostmap, Spin 1.57 and BackUp 0.30 in its recovery branch. Nothing in the repo replaces it.
 
-On this robot `BackUp` is a 0.30 m strafe to the left, not a reverse. Nav2's `DriveOnHeading` commands `linear.x` and checks collisions along the base frame's x axis (source read on 30 Sep 2026, upstream jazzy branch), and base_link +X is the robot's right. The `Collision Ahead - Exiting DriveOnHeading` abort in the 30 Sep run therefore meant something within 0.30 m to the robot's left.
+Until 5 Oct 2026 `BackUp` was a 0.30 m strafe to the left on this robot, not a reverse: Nav2's `DriveOnHeading` commands `linear.x` and checks collisions along the base frame's x axis (source read on 30 Sep 2026, upstream jazzy branch), and base_link +X was the robot's right. In the standard frame it is a real 0.30 m reverse, aimed into the 90 degree rear blind sector of the LiDAR. Whether to keep it is an open decision (docs/Axis_Refactor_Plan.md section 4).
 
 ---
 
@@ -291,6 +291,10 @@ Live file is `~/ros2_ws/slam_nodom.yaml` = `system/slam_nodom_stageB.yaml` (hash
 ## 10. Microcontroller firmware
 
 ### 10.1 ESP32 drive controller: `aislebot_esp32.ino` v3.0 (1154 lines, deployed)
+
+> **15 Oct 2026:** the repo now holds v3.1, which adds the BNO055 IMU task and the `<N>` commands and fixes four v3.0 defects (watchdog fed by any command, telemetry split across writes, no TX buffer, `<R>` race). The control law below is unchanged. v3.1 is not flashed until the boot banner says so; the header of `aislebot_esp32.ino` lists every change.
+>
+> **16 Oct 2026:** v3.1 was never flashed and is superseded by **v3.2**, which keeps the control law, telemetry and every v3.1 command and adds two IMU items, both driven by the bench run of `firmware/nab_imu_function_test_esp32.ino` (sensor at 0x28 on G14/G13, self test 0x0F, 0 of 150 reads failed on core 3.3.12, accelerometer uncalibrated at every boot, magnetometer 17 to 119 µT). First, the BNO055 calibration profile (22 bytes, 0x55..0x6A) is saved to NVS with `<NS>` and written back at every IMU init. `<NS>` needs accel and gyro at calibration 3 and the drive off (`<E0>` or a latched E-STOP) with the wheels stopped, because a flash write pauses both cores; `<NX>` forgets it. Second, the power-on self-test result is reported (`st=` in `[IMUS,UP]` and `[IMUC]`). New lines `[IMUCAL,...]` stay within 8 fields. v3.0 is still the rollback.
 
 Pi is the only command source. WiFi and the web joystick were removed in v3.0.
 
@@ -348,6 +352,8 @@ Telemetry `<L1>` line: `ms, then per motor target, actual, pwm` for FR, FL, RR, 
 | `nab_encoder_handturn_diagnostic_esp32.ino` (413) | ESP32 | Hand-turn each wheel, check counts and direction |
 | `nab_encoder_isolation_test_esp32.ino` (137) | ESP32 | Encoder inputs with no motor drive |
 | `nab_front_encoder_speed_direction_esp32.ino` (223) | ESP32 | Front encoder speed and direction, event gated |
+| `nab_imu_i2c_scan_esp32.ino` (~190) | ESP32 | BNO055 bring-up diagnostic for when the hardware can't be opened. Release-test pull-up check on the planned SDA/SCL and on the free GPIOs (0 2 5 12 13 14 15 27), a full I2C scan on the planned pins with the chip ID read by repeated start and by stop-then-start, a BNO055 probe on every other pair of pulled-up pins, core and IDF version, and a verdict covering open SDA or SCL, crossed wires, ADR high, a wire on the wrong pin, straps, and no power. Never touches a motor or encoder pin. Replaces the drive firmware while flashed. Tested by `tools/tests/esp32_firmware_hostcheck.py`. |
+| `nab_imu_function_test_esp32.ino` (~850) | ESP32 | BNO055 bench test for when the sensor is on a spare ESP32 (SDA G14, SCL G13, 921600 baud). `a` auto checks (four chip IDs, built-in self test, system status, temperature, accelerometer, gyro at rest, quaternion length, fused gravity and linear acceleration, magnetometer in NDOF), `s` live stream, `r` rotation test (integrates the gyro and compares it with the fused quaternion, which checks the gyro scale, the quaternion scale and their handedness together), `f` six-face gravity test (accelerometer sign, gain and offset per axis), `n` noise floor and resolution on a still board (spread of each sensor, smallest tilt and turn rate it can show, gyro offset as heading drift per minute), `p` peak hold while the board is moved (swing of each sensor, peak acceleration and rate, largest tilt, a flag if the accelerometer is clipping near 4 g), `m` NDOF/IMUPLUS, `i` re-init. First run on the real core (arduino-esp32 3.3.12, 16 Oct 2026): 16 PASS, 0 FAIL, 0 of 150 reads failed. Pass/fail limits are the sketch's own, loose on purpose, not Bosch figures. Never touches a motor or encoder pin. Replaces the drive firmware while flashed. Tested by `tools/tests/esp32_firmware_hostcheck.py`. |
 | `nab_mega_4encoder_levelshifter_test.ino` (282) | Mega | All four encoders through the shifter |
 | `nab_mega_front_encoder_levelshifter_test.ino` (114) | Mega | Front encoders through the shifter |
 | `nab_mega_front_encoder_pins4567.ino` (108) | Mega | Same test on relocated pins D4 to D7 |
@@ -373,7 +379,8 @@ Browser to server, dispatched in `_dispatch`:
 | `rezero` | Publishes `/odom/reset`, refused while mapping or calibrating |
 | `goal` | PoseStamped to `/goal_pose_click` (nose yaw) |
 | `save_location`, `goto_location` | Named locations in `~/locations.json`, guarded by `map_name` |
-| `lidar_set`, `lidar_preset`, `lidar_reset`, `lidar_save` | Sets scan_relay parameters over the parameter service, presets in `~/lidar_tune.json` |
+| `nav2_start` | Spawns `ros2 launch mecanum_navigation nav2_slam.launch.py` (own process group, output to `~/aislebot_logs/nav2_*.log`). Refuses unless MAP has run 30 s and no Nav2 is already on the graph. STARTING becomes UP only when `lifecycle_manager_navigation` reports every node active |
+| `nav2_stop` | Cancels all goals, SIGINTs the launch group, SIGKILL after 20 s. `map_stop`, `estop` and shutdown all call it before stopping the map |
 | `calib_start`, `calib_stop` | Runs `tools/zero_point_scan.py`, refuses unless mapping is live and `bt_navigator` is on the graph |
 | `estop`, `estop_clear` | See section 5 |
 
@@ -397,7 +404,7 @@ All in `tools/`, all run on the Pi or on the laptop against pulled files. Not pa
 | Odometry and wheels | `wheel_forensics.py`, `verify_axis_chain.py`, `nab_pid_logger.py`, `analyze_bench_log.py` |
 | LiDAR | `scan_quality.py`, `scan_bearing.py`, `scan_range_envelope.py`, `scan_window_sweep.py` |
 | Geometry (Year 2) | `sensor_coverage.py` |
-| Tests (`tools/tests/`) | `dashboard_html_syntax.py`, `dashboard_goal_roundtrip.py`, `dashboard_lidar.py`, `dashboard_locations.py`, `dashboard_scan_geometry.py`, `scan_relay_gate.py`, `nab_pid_logger_autodetect.py`, `nab_pid_logger_settling.py` |
+| Tests (`tools/tests/`) | `dashboard_html_syntax.py`, `dashboard_goal_roundtrip.py`, `dashboard_nav2.py`, `dashboard_locations.py`, `dashboard_scan_geometry.py`, `scan_relay_gate.py`, `nab_pid_logger_autodetect.py`, `nab_pid_logger_settling.py` |
 
 Also in the repo: `docs/` (research journal, phase plans, handoffs, APS report and study material), `cad/` (SolidWorks chassis, wheels, motor, dimension render), `data/` (bench logs, field runs), `research_articles/`, `past_iterations/`, `ros2/mini_robot.yaml` (parameter file for the small robot), `install.sh` (one-click fresh install), `.claude/skills/` (three project skills).
 
@@ -439,6 +446,8 @@ These are from reading code, not from driving. Most have a live check that would
 ---
 
 ## 15. Flowchart drafts
+
+The checked, presentation-grade versions of these now live in `docs/flowcharts/` (six slide figures, three dense handouts, PNG and SVG, with a QA record). The two Mermaid drafts below are kept as the quick-edit version.
 
 Mermaid, renders on GitHub and in most editors. Runtime data flow first, then launch grouping. Edit labels freely; every edge below is backed by a row in sections 3 to 5.
 

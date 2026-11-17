@@ -31,8 +31,8 @@ WHAT EACH COLUMN MEANS
               slam_toolbox is not processing the scan at all -- check the
               move against minimum_travel_distance in slam_nodom.yaml.
     map_x/y   robot position in the map frame (metres)
-    yaw       robot heading in the map frame (deg). -90 = parked square on
-              the zero mark, per this robot's axis convention (sec 17.10).
+    yaw       robot heading in the map frame (deg), standard REP-103: 0 =
+              parked square on the zero mark, a left turn is positive.
     d_moved   distance travelled since the previous line, from TF. Compare
               against d_cells: movement with no cell change is the exact
               signature of the nudge-below-threshold bug.

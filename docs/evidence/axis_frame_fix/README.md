@@ -1,5 +1,7 @@
 # Evidence — the map-frame rotation, and its fix
 
+> **Superseded 5 Oct 2026:** the axis convention described here (`+X` right, `+Y` forward) was replaced by standard REP-103 (`+X` nose, `+Y` left). See `docs/Axis_Convention.md`. Kept as it was written, because it records what was true on the date.
+
 Two hardware recordings, both side-by-side (physical robot left, live map view
 right), bracketing the fix described in `Research_Journal.md` §17.38–§17.39 and
 `Axis_Convention.md`. Kept for the APS report and because the fault is far

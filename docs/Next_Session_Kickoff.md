@@ -298,7 +298,9 @@ sets, invariant to 2%. Every one of them changed how the matcher *searches*.
 Read against §17.45's flicker, the matcher is handed a **different point cloud
 every scan** — no search parameter fixes a moving objective function.
 
-### Axes: closed (§17.38)
+### Axes: closed (§17.38), then changed again on 5 Oct 2026
+
+> **Superseded 5 Oct 2026:** everything is standard REP-103 now (`+X` nose, `+Y` left). See `docs/Axis_Convention.md`. The paragraph below is what was true on the date it was written.
 
 `base_link`, `odom`, `map` all `+X = right, +Y = forward`. A freshly-zeroed
 robot on the mark reads `[0,0,0] @ 0°`. Guarded by
@@ -318,8 +320,7 @@ and the pose card shows `ODOM` + `DRIFT` (red past 5 cm). Guarded by
 
 ## 9. Standing traps
 
-- **`base_link` is NOT REP-103: `+X` = RIGHT, `+Y` = NOSE.** Any new component
-  with a notion of "forward" needs checking.
+- **`base_link` is standard REP-103 since 5 Oct 2026** (`+X` nose, `+Y` left; it was `+X` right, `+Y` nose before). Saved maps, goals and bags from before that date are in the old frame (`x_new = y_old`, `y_new = -x_old`).
 - **A repo value is not a robot value.** Check the live node.
 - **A build that says `Finished` is not a package that runs.** §17.49.
 - **MAP before Nav2**, always.

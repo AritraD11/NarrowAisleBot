@@ -63,6 +63,14 @@ def generate_launch_description():
         DeclareLaunchArgument('use_foxglove', default_value='true',
                               description='Start foxglove_bridge for live visualization'),
         DeclareLaunchArgument('foxglove_port', default_value='8765'),
+        # BNO055 on the ESP32 (firmware v3.1+). true: the bridge asks for the
+        # [IMU] stream and publishes /imu/data. Harmless on v3.0 firmware,
+        # which answers <N1> with an error and sends nothing.
+        DeclareLaunchArgument('enable_imu',   default_value='true',
+                              description='Publish the ESP32 BNO055 on /imu/data'),
+        DeclareLaunchArgument('imu_rate_hz',  default_value='50.0',
+                              description='IMU stream rate, 1.0-100.0. Keep the decimal '
+                                          'point: the parameter is a double'),
     ]
 
     use_joy      = LaunchConfiguration('use_joystick')
@@ -161,6 +169,8 @@ def generate_launch_description():
             # above) never fires — slam_toolbox then sits at
             # "Activating" forever with no error (docs/LiDAR_SLAM_Bringup.md).
             'telemetry_enabled': True,
+            'enable_imu':        LaunchConfiguration('enable_imu'),
+            'imu_rate_hz':       LaunchConfiguration('imu_rate_hz'),
         }],
         output='screen',
     )

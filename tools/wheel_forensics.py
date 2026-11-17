@@ -87,7 +87,7 @@ def slip_residual(w, g):
 
 
 def body_twist(w, g, lateral_scale=LATERAL_SCALE):
-    """Forward kinematics, odometry_publisher.py:216-231. REP-103 internally."""
+    """Forward kinematics, odometry_publisher.py. REP-103 (vx forward, vy left)."""
     r = g['r']
     vx = (r / 4.0) * (w['FR'] + w['FL'] + w['RR'] + w['RL'])
     vy = (r / 4.0) * (w['FR'] - w['FL'] - w['RR'] + w['RL']) * lateral_scale
@@ -96,11 +96,15 @@ def body_twist(w, g, lateral_scale=LATERAL_SCALE):
     return vx, vy, wz
 
 
-def integrate(samples, g, lateral_scale=LATERAL_SCALE):
+def integrate(samples, g, lateral_scale=LATERAL_SCALE, legacy_frame=False):
     """Re-integrate the recorded wheel velocities exactly as the live node
-    does: midpoint rule, then the published-frame rotation of §17.38
-    (pub_x = -y, pub_y = +x) so the output is directly comparable with the
-    odom_x/odom_y columns in the pose CSV rather than to REP-103."""
+    does: midpoint rule, published as-is (standard REP-103 since 5 Oct 2026,
+    so the output is directly comparable with the odom_x/odom_y columns of a
+    pose CSV recorded on or after that date).
+
+    legacy_frame=True applies the old published-frame rotation of §17.38
+    (pub_x = -y, pub_y = +x) instead, for a run recorded BEFORE 5 Oct 2026,
+    whose odom_x/odom_y columns are +X right, +Y forward."""
     x = y = th = 0.0
     path = 0.0
     out = []
@@ -127,7 +131,8 @@ def integrate(samples, g, lateral_scale=LATERAL_SCALE):
         th = math.atan2(math.sin(th), math.cos(th))
         path += math.hypot(dx, dy)
         out.append({'t': t,
-                    'x': -y, 'y': x,                 # published-frame, §17.38
+                    'x': (-y if legacy_frame else x),
+                    'y': (x if legacy_frame else y),
                     'yaw_deg': math.degrees(th),
                     'path_m': path,
                     'vx': vx, 'vy': vy, 'wz': wz,
@@ -518,28 +523,37 @@ def selftest():
     check(worst < 1e-9, 'forward kinematics inverts teleop exactly',
           f'worst {worst:.2e}')
 
-    # 4. a straight 1 m forward drive must integrate to +1 m on published Y
-    #    (published +Y = forward since §17.38), and 0 on X.
+    # 4. a straight 1 m forward drive must integrate to +1 m on published X
+    #    (standard REP-103 since 5 Oct 2026), and 0 on Y.
     v, dur, hz = 0.2, 5.0, 20.0
     samples = []
     for i in range(int(dur * hz) + 1):
         w = {k: inv_r * v for k in WHEELS}
         samples.append({'t': i / hz, 'w': w})
     rec = integrate(samples, g)[-1]
-    check(abs(rec['y'] - 1.0) < 1e-6 and abs(rec['x']) < 1e-9,
-          'a 1 m forward drive integrates to published (0, +1)',
+    check(abs(rec['x'] - 1.0) < 1e-6 and abs(rec['y']) < 1e-9,
+          'a 1 m forward drive integrates to published (+1, 0)',
           f'({rec["x"]:+.6f}, {rec["y"]:+.6f})')
+    rec_old = integrate(samples, g, legacy_frame=True)[-1]
+    check(abs(rec_old['y'] - 1.0) < 1e-6 and abs(rec_old['x']) < 1e-9,
+          'legacy_frame: the same drive reads (0, +1), as pre-5-Oct CSVs do',
+          f'({rec_old["x"]:+.6f}, {rec_old["y"]:+.6f})')
 
-    # 5. a pure right strafe must land on published +X, scaled by lateral_scale
+    # 5. a pure right strafe must land on published -Y (right = -left),
+    #    scaled by lateral_scale
     samples = []
     for i in range(int(dur * hz) + 1):
         # vy is LEFT in REP-103, so a right strafe is negative vy
         w = {'FR': -inv_r * v, 'FL': inv_r * v, 'RR': inv_r * v, 'RL': -inv_r * v}
         samples.append({'t': i / hz, 'w': w})
     rec = integrate(samples, g)[-1]
-    check(abs(rec['x'] - LATERAL_SCALE) < 1e-6 and abs(rec['y']) < 1e-9,
-          'a 1 m right strafe integrates to published (+lateral_scale, 0)',
+    check(abs(rec['y'] + LATERAL_SCALE) < 1e-6 and abs(rec['x']) < 1e-9,
+          'a 1 m right strafe integrates to published (0, -lateral_scale)',
           f'({rec["x"]:+.6f}, {rec["y"]:+.6f})')
+    rec_old = integrate(samples, g, legacy_frame=True)[-1]
+    check(abs(rec_old['x'] - LATERAL_SCALE) < 1e-6 and abs(rec_old['y']) < 1e-9,
+          'legacy_frame: the same strafe reads (+lateral_scale, 0)',
+          f'({rec_old["x"]:+.6f}, {rec_old["y"]:+.6f})')
 
     # 6. the dt guard must skip a dropout rather than integrating across it
     samples = [{'t': 0.0, 'w': {k: inv_r * v for k in WHEELS}},
@@ -565,6 +579,9 @@ def main():
     ap.add_argument('--geometry', help='r,l1,l2,d  override, comma separated')
     ap.add_argument('--slip-thresh', type=float, default=0.5, dest='slip_thresh',
                     help='slip residual (rad/s) counted as an episode (default 0.5)')
+    ap.add_argument('--legacy-frame', action='store_true', dest='legacy_frame',
+                    help='the run was recorded BEFORE 5 Oct 2026 (odom_x/odom_y '
+                         'are +X right, +Y forward); compare against that frame')
     ap.add_argument('--selftest', action='store_true')
     args = ap.parse_args()
 
@@ -578,7 +595,7 @@ def main():
     stamp, tel, pose = load_any(args.target)
     if len(tel) < 2:
         sys.exit(f'no usable telemetry rows in {args.target}')
-    recon = integrate(tel, g, args.lateral_scale)
+    recon = integrate(tel, g, args.lateral_scale, args.legacy_frame)
     wstats = wheel_stats(tel, g)
     cmp_rows = report(stamp, tel, recon, pose, wstats, g, args)
     if args.csv:

@@ -693,6 +693,7 @@ year.
 Papers, retrieved through Scite:
 
 - Fox, D., Burgard, W., Dellaert, F., & Thrun, S. (1999). Monte Carlo localization for mobile robots. *Proceedings of the IEEE International Conference on Robotics and Automation*, 2, 1322–1328. https://doi.org/10.1109/ROBOT.1999.772544
+- Lin, C. J., & Luo, S. H. (2025). Real-time navigation of mecanum wheel-based autonomous mobile robot for a human-robot collaboration system. *Journal of Physics: Conference Series, 3144*, 012028. https://doi.org/10.1088/1742-6596/3144/1/012028 (supplied by the operator as a PDF on 20 Oct 2026, not through Scite; copy in `docs/Lin_Luo_2025_Mecanum_AMR_Navigation.pdf`, CC BY 4.0; read in §10)
 - Macenski, S., Martín, F., White, R., & Ginés Clavero, J. (2020). The Marathon 2: A navigation system. *arXiv*. https://doi.org/10.48550/arXiv.2003.00368
 - Macenski, S., Booker, M., & Wallace, J. (2024). Open-source, cost-aware kinematically feasible planning for mobile and surface robotics. *arXiv*. https://doi.org/10.48550/arXiv.2401.13078
 - Merrick, C., & Nandikolla, V. K. (2026). Evaluating the impact of extended Kalman filter odometry on the performance of 2D LiDAR SLAM algorithms. *Sensors, 26*(17), 5468. https://doi.org/10.3390/s26175468
@@ -710,3 +711,122 @@ Documentation and datasheets:
 - SLAMTEC RPLIDAR C1 product page and datasheet listings (DFRobot, Evelta); Waveshare LD19 wiki.
 - Nav2 Jazzy release announcement (Docking Server); Nav2 collision monitor docs for Jazzy (source types).
 - `dual_laser_merger` (Humble, Jazzy, Rolling); `m-explore-ros2`; `frontier_exploration_ros2` (Jazzy and Humble).
+
+---
+
+## 10. A paper read on 20 Oct: Lin and Luo (2025)
+
+*Full text read from the PDF the operator supplied. Two grades here.
+**Reported** means the paper says so and nobody has reproduced it. **Checked**
+means I recomputed it from the paper's own tables this session. Nothing in this
+section has run on the robot.*
+
+The paper is a four-mecanum industrial AMR (AUO AMR150m, two Orbbec MS500 dToF
+LiDARs, depth cameras, an IMU) on ROS Noetic. GMapping builds a map once, AMCL
+localises on it, and `robot_localization`'s EKF fuses wheel odometry, IMU and
+depth-camera visual odometry. `move_base` then plans globally with A\* or a
+Voronoi roadmap and locally with TEB. The tests are all in one university
+corridor: A\* against Voronoi at three inflation radii, three localisation
+variants over five trials each, and AR-marker docking.
+
+### 10.1 What I checked in it
+
+The "RMSE" rows in its Tables 2 to 4 are mean absolute errors. Recomputed from
+the printed per-trial values against the single target (6.269, 0.614):
+
+| X error, 5 trials | Printed "RMSE" | MAE (checked) | True RMSE (checked) | Mean signed error (checked) |
+|---|---|---|---|---|
+| EKF fusion | 0.063 m | 0.063 m | 0.073 m | +0.061 m |
+| Visual odometry | 0.0974 m | 0.0974 m | 0.135 m | -0.022 m |
+| Wheel odometry | 0.1296 m | 0.1296 m | 0.148 m | +0.128 m |
+
+Y follows the same pattern. Two things come out of that. The label is wrong, and
+the true RMSE is 14 to 39 % larger for X. More useful for us, the fused and wheel
+errors are almost entirely bias, +6.1 cm and +12.8 cm on a 6.27 m run, which is
+1.0 % and 2.0 %. A consistent overshoot like that looks like a scale error.
+Fusion halving it says little about noise, and visual odometry has the smallest
+bias but one trial 28 cm short. Five trials, one target point. It's also no
+target for us to beat: our own wheel odometry closes at 1.1 to 1.5 % on long
+rotation-heavy routes, with a different robot, floor and route behind that
+number, so the two can't be compared directly.
+
+The Voronoi result is thinner than the abstract makes it sound. Three runs per
+planner, one per inflation radius, and the only number reported is time: 111.7 s
+against 89.3 s for A\*, which is 25 % slower. "Better obstacle avoidance and
+safety" has no minimum-clearance figure behind it. "Not affected by the
+inflation radius" is true by construction, because the medial axis comes from
+the map alone.
+
+Smaller things. The sub-2 cm docking error appears in the conclusion only;
+section 3.1 describes the method and no results table follows. The yaw columns
+say degrees but run 0.14 to 0.95, so the unit is a guess (our phantom yaw was
+3.85 to 4.49°, so this matters). Eq. 2 uses a one-argument arctan where it
+needs `atan2`. References [12] and [17] are the same paper listed twice.
+
+None of that makes it useless. It makes it a description of a working
+architecture, and not evidence for any number in it.
+
+### 10.2 Where it doesn't fit
+
+- **It plans on a known static map.** The authors name dynamic map construction
+  as future work. Navigation in unknown space, which is the Year 2 focus, is
+  the gap they leave open.
+- **It's ROS 1 with `move_base` and TEB.** We run Nav2 with MPPI. By the
+  paper's own account TEB has "a large amount of computation", on a Pi that
+  already runs the controller at 5.5 to 8.9 Hz against 20. Swapping it in would
+  also leave the live fault alone, which is MPPI asking for about 4 mm/s
+  (handoff §7). The paper compares TEB with DWA and never with MPPI.
+- **One wide corridor.** No aisle, no footprint squeeze, and although
+  "mecanum" is in the title, no experiment uses strafing or reversing.
+- **It leans on cameras.** Visual odometry and marker docking need one, and
+  `Firmware_Inventory.md` lists none on this robot. New hardware, plus Pi load.
+
+### 10.3 What we can use
+
+1. **Related work, and the gap it names.** A recent four-mecanum, ROS-based
+   stack built from the same blocks as ours, which assumes a prebuilt map. Cite
+   it for that, and contrast ours: a 1.12 × 0.48 m padded footprint, aisles under
+   1.1 m, unknown space, an asymmetric chassis. Cite the claims as reported, not
+   as established.
+2. **The medial axis, for aisles.** This is the one technical idea worth a test.
+   §1 shows heading is the binding term in a 0.60 m aisle, and a centred robot
+   there has 12 cm each side. A generalised Voronoi path is the centreline by
+   construction, and the paper's pipeline (distance transform, binarise, thin)
+   is three library calls. I wouldn't use it as the global planner in place of
+   NavFn or Smac Lattice. Two better homes: generating the node-and-edge graph
+   for `nav2_route` (§4.8) from a cleaned saved map instead of drawing it by hand,
+   and a centreline reference for the aisle-aligned approach type in §4.5.
+   Caution, from the paper's own Figs 5c and 15: even on its clean map the
+   skeleton throws off spurs, and ours are less clean (the 27 Aug field-run
+   bundle has 4 disconnected free regions and a SUSPECT verdict). The
+   `tools/map_integrity.py` skeleton thins wall cells, not free space, so we
+   have no measurement of this yet.
+3. **Experiment habits, not results.** An inflation-radius sweep (0.2, 0.5, 0.8)
+   with minimum clearance and time logged is a cheap planner A/B once goals
+   drive again. Report true RMSE and signed bias separately, and use more than
+   five trials.
+4. **IMU plus EKF.** Same structure as §6.2, wheel odometry and IMU through
+   `robot_localization`. It agrees with the plan and adds no evidence. Merrick
+   and Nandikolla (2026) stays the number to cite for the size of the gain.
+5. **Marker docking.** The only paper claim that touches G13: under 2 cm from
+   an AR marker and a PID. Unsupported by any table, so it doesn't move the
+   1 cm gate. It does fit the AprilTag-style detector route for the Docking
+   Server (§4.6), if a camera ever goes on.
+
+What I'd leave out: TEB, visual odometry, and UWB (it appears in the paper's
+Fig. 8 and conclusion, with no experiment).
+
+### 10.4 A desk test for the medial axis, with the prediction first
+
+*Judgement grade. Optional, offline, no robot, so it doesn't touch the pause on
+saved-map work.*
+
+Take the best existing map from §4.2. Run a distance transform on its free
+cells, thin with `skimage.morphology.skeletonize`, and count endpoints and
+junctions per 10 m of skeleton length, once raw and once after pruning spurs
+shorter than 0.3 m.
+
+Prediction: raw, more than 10 endpoints per 10 m. Pruned, under 2 per 10 m, and
+the skeleton stays one connected piece across the main free region. If the raw
+count comes in under 3 per 10 m I was too pessimistic about our maps, and the
+idea gets cheaper than I've made it sound.

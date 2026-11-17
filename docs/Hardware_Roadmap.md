@@ -205,6 +205,10 @@ shunt. The same part, wired into the main pack discharge path, gives:
   zero (robot parked, motors idle), voltage *is* meaningful again, and can
   correct any coulomb-counter drift against a coarse LiFePO4 OCV table
   (roughly 13.0 V near empty, 14.6 V near full for this 4-cell pack).
+  **Correction, 17 Oct 2026:** those two numbers are wrong for a resting
+  pack. 14.6 V is the charger's cut-off, only seen while charging; a rested
+  full pack sits near 13.4 V, and 13.0 V at rest is roughly a third full,
+  not empty. See `Battery_Voltage_Sensing.md` §3 for the table.
 - **Charge detection for free** (see §3.4) — the same bidirectional
   measurement sees current reverse sign when a charger is pushing current
   in, with no extra sensor.

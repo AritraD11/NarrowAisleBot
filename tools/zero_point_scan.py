@@ -132,12 +132,12 @@ def normalize_angle(a):
 
 
 def body_to_map(x, y, yaw, right, forward):
-    """Same convention as nav_goal.py: body +X = right, +Y = forward
-    (sec 17.10) -- this is the one place that matters here."""
+    """Same convention as nav_goal.py: standard REP-103 (body +X forward,
+    +Y left; right is -left) -- this is the one place that matters here."""
     cos_y, sin_y = math.cos(yaw), math.sin(yaw)
     return (
-        x + right * cos_y - forward * sin_y,
-        y + right * sin_y + forward * cos_y,
+        x + forward * cos_y + right * sin_y,
+        y + forward * sin_y - right * cos_y,
     )
 
 

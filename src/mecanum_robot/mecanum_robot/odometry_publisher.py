@@ -17,60 +17,40 @@ TOPICS:
   Publishes:  /wheel_odom (Odometry) raw wheel odometry
   Publishes:  /tf (odom → base_link transform)
 
-PUBLISHED-FRAME ROTATION (added 11 Aug 2026 §17.10; COMPLETED 27 Aug 2026
-§17.38 -- read the second half before changing anything here).
-  The kinematics above compute vx/vy/theta in the standard REP-103 sense
-  (vx=forward, vy=left). That internal computation is correct and is left
-  untouched. What gets PUBLISHED is rotated by a constant -90 deg from it,
-  so that base_link's own +X reads as "right" and +Y reads as "forward" --
-  matching the already-validated LiDAR scan calibration (scan_relay.py,
-  mirror=True, yaw_offset=270 deg) rather than requiring it to be redone.
+PUBLISHED FRAME (standard REP-103 since 5 Oct 2026; history below).
+  odom, map and base_link all use +X = NOSE (forward), +Y = LEFT, +Z = UP, and
+  yaw is the angle of the nose from +X, counterclockwise positive. The
+  kinematics above already compute vx/vy/theta in that sense (vx = forward,
+  vy = left), so the published pose, twist and TF are those values as they
+  are: no rotation, no sign flip, no constant.
 
-  THE BUG THAT LIVED HERE UNTIL 27 AUG 2026, and why it was invisible.
-  That relabel was applied to the published ORIENTATION and the published
-  TWIST, but NOT to the published TRANSLATION, which went out as the raw
-  internal (self.x, self.y). The old docstring argued translation "is
-  unaffected by how the frame's local axes are labelled", and for the pose
-  of base_link *relative to odom* that is true -- the algebra is
-  self-consistent and §17.37 re-derived it correctly.
+      drive forward -> map +X     strafe left  -> map +Y
+      drive back    -> map -X     strafe right -> map -Y
 
-  What it misses is that publishing raw internal translation DEFINES the
-  odom frame's own axes to be the internal REP-103 ones. So odom +X ended
-  up pointing along whatever direction the robot faced when odometry was
-  zeroed, while base_link carried +Y=forward. The constant -90 deg yaw was
-  not a free choice -- it was the seam between those two definitions, and
-  map inherited it wholesale (slam_toolbox starts map->odom at identity, so
-  map axes == odom axes). Measured on hardware 27 Aug: driving forward from
-  the ZERO mark increased map X and left map Y at 0.000; strafing right
-  decreased map Y. Two frames, two conventions, one constant offset papering
-  over the join -- and a chain of downstream -90 deg compensations
-  (dashboard canvas rotation, dashboard print-site relabel, goal_pose_adapter
-  yaw offset, ZERO_POINT_YAW) each undoing it again for one consumer.
+  Proven by tools/verify_axis_chain.py, which parses the pub_* expressions
+  out of this file and runs the whole key-to-map chain through them. Do not
+  reintroduce a rotation here to satisfy one consumer: that is how the old
+  convention produced a seam that every other file then had to compensate
+  for (§17.38).
 
-  THE FIX: apply the relabel to all three published quantities, not two.
-  Translation is now rotated the same way orientation and twist already
-  were (pub_x = -self.y, pub_y = +self.x), and pub_theta is therefore just
-  self.theta -- the -90 deg constant disappears because there is no longer
-  a seam for it to bridge. odom, map and base_link now all share
-  +X=right, +Y=forward. Consequences, all verified by tools/verify_axis_chain.py:
+  HISTORY, so the old numbers in logs, CSVs and saved maps can be read.
+  Until 5 Oct 2026 this node published the frame rotated by -90 deg:
+  (pub_x, pub_y) = (-self.y, self.x) and (pub_vx, pub_vy) = (-vy, vx), with
+  pub_theta = self.theta, so base_link's +X read as "right" and +Y as
+  "forward". That was a LiDAR labelling choice from 11 Aug (§17.9, §17.10)
+  and it spread into a dozen files. It was reversed on 5 Oct. To convert an
+  OLD-frame pose to the current frame:
 
-      drive forward -> map +Y     strafe right -> map +X
-      drive back    -> map -Y     strafe left  -> map -X
+      x_new = y_old      y_new = -x_old      yaw_new = yaw_old
 
-  This REMOVES a conversion point rather than adding one: every downstream
-  -90 deg compensation listed above was deleted in the same commit, because
-  each existed only to undo this. Do not reintroduce one in isolation.
+  (yaw is numerically unchanged: a robot on the zero mark reads yaw 0 in
+  both.) Saved maps, ~/aislebot_logs CSVs, bags and ~/locations.json made
+  before 5 Oct are in the OLD frame.
 
-  NOT affected, and deliberately not touched: the internal REP-103
-  integration above; mecanum_teleop_asymmetric.py; cmd_vel_axis_adapter.py
-  (base_link <-> wheel-kinematics axes, a different conversion that is still
-  needed); scan_relay.py's mirror (a sensor-bearing reflection calibrated in
-  base_link, which this does not move); the URDF; nav2's footprint and MPPI
-  velocity limits (all base_link-frame).
-
-  If the LiDAR is ever remounted and scan_relay.py's yaw_offset is
-  re-derived, that affects base_link's relationship to the sensor, not
-  odom's axes -- the two are no longer coupled through this file.
+  NOT affected by that change: the internal integration below,
+  mecanum_teleop_asymmetric.py and the dashboard joystick (both always
+  standard), scan_relay.py's mirror (a reflection of the sensor's own angle
+  indexing, not an axis choice; only its yaw_offset moved, 270 -> 180).
 """
 
 import rclpy
@@ -242,23 +222,17 @@ class OdometryPublisher(Node):
         # Normalize theta to [-pi, pi]
         self.theta = math.atan2(math.sin(self.theta), math.cos(self.theta))
 
-        # ── Published-frame rotation (see module docstring, §17.10/§17.38) ─
-        # Internal self.x/self.y/self.theta above are standard REP-103
-        # (vx=forward, vy=left) and stay that way. The PUBLISHED frame is
-        # that frame rotated -90 deg, so its +X reads "right" and +Y reads
-        # "forward", matching the LiDAR's validated calibration.
-        #
-        # All THREE published quantities carry that rotation. Until 27 Aug
-        # 2026 translation did not, which silently defined odom's own axes
-        # to be the internal REP-103 ones and left a constant -90 deg seam
-        # between odom and base_link that map then inherited. Rotating
-        # position here is what makes odom, map and base_link agree, and is
-        # why pub_theta is now plain self.theta with no constant.
-        pub_x = -self.y   # published +X = "right"
-        pub_y = self.x    # published +Y = "forward"
+        # ── Published frame (see module docstring) ──────────────────────
+        # Standard REP-103: the internal values above ARE the published
+        # ones. The pub_* names are kept (not inlined) because
+        # tools/verify_axis_chain.py parses exactly these five assignments
+        # and runs the key-to-map chain through them, so a rotation sneaking
+        # back in here fails that script instead of reaching the robot.
+        pub_x = self.x
+        pub_y = self.y
         pub_theta = self.theta
-        pub_vx = -vy   # published +X = "right"
-        pub_vy = vx    # published +Y = "forward"
+        pub_vx = vx
+        pub_vy = vy
 
         # Create quaternion from published yaw
         qz = math.sin(pub_theta / 2.0)

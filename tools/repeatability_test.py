@@ -88,12 +88,12 @@ def quat_from_yaw(yaw):
 
 
 def body_to_map(x, y, yaw, right, forward):
-    """Same convention as nav_goal.py / zero_point_scan.py: body +X =
-    right, +Y = forward (sec 17.10)."""
+    """Same convention as nav_goal.py / zero_point_scan.py: standard
+    REP-103 (body +X forward, +Y left; right is -left)."""
     cos_y, sin_y = math.cos(yaw), math.sin(yaw)
     return (
-        x + right * cos_y - forward * sin_y,
-        y + right * sin_y + forward * cos_y,
+        x + forward * cos_y + right * sin_y,
+        y + forward * sin_y - right * cos_y,
     )
 
 

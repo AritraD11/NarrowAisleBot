@@ -1,0 +1,183 @@
+# robot_config.yaml
+#
+# The one file you edit. Everything hardware-specific in this kit is generated
+# from it:
+#
+#     python3 generate.py            (from the robot_kit folder)
+#
+# writes the URDF, the ROS 2 parameter files, the Nav2 and slam_toolbox
+# configs, the udev rule and the microcontroller header (robot_config.h).
+# Never hand-edit a generated file. Change this file and run generate.py again.
+#
+# The values below are EXAMPLE values for a small two-wheel differential robot
+# on an ESP32. Replace every one of them with your own. The manual (chapter 3)
+# says how to measure each.
+#
+# Units: metres, radians, seconds. Degrees only where a key ends in _deg.
+# Axes follow REP-103 everywhere: +x forward, +y left, +z up, and positive yaw
+# is counter-clockwise seen from above. Do not invent your own convention.
+# We did, on NarrowAisleBot, and it cost us weeks (manual section 2.3).
+
+robot:
+  name: myrobot                   # lowercase, no spaces. Used for the URDF and file names.
+  drive_type: differential        # differential | skid_steer | mecanum | omni
+  wheel_radius: 0.0500            # m. Measure it loaded: roll 10 turns, distance / (20 * pi).
+  track_width: 0.300              # m, centre of a left wheel to centre of the matching right wheel
+  wheelbase: 0.000                # m, front axle to rear axle. 0 for a 2-wheel differential.
+
+  # Measured corrections. Leave both at 1.0 until the odometry tests in the
+  # manual (section 10.4) give you a number.
+  track_width_scale: 1.0          # differential / skid_steer: effective track / geometric track
+  lateral_scale: 1.0              # mecanum / omni only: true strafe distance / reported distance
+
+  body:                           # the box that must never touch anything
+    length: 0.40                  # m, along x
+    width: 0.34                   # m, along y, at the widest point (wheels included)
+    height: 0.20                  # m, only used to draw the URDF
+    center_x: 0.00                # m, x of the box centre in base_link. base_link is the
+                                  # point the robot turns about (the axle centre for diff drive).
+    footprint_margin: 0.03        # m of padding Nav2 adds on every side
+
+wheels:
+  # One entry per DRIVEN wheel, in the order the microcontroller numbers its
+  # motors (index 0 first). This order is the order of every <V,...> command
+  # and every telemetry column, so get it right once and never change it.
+  #
+  # x, y       wheel contact point in base_link, metres. "auto" takes them from
+  #            track_width / wheelbase using the wheel name: left, right,
+  #            front_left, front_right, rear_left, rear_right, middle_left,
+  #            middle_right (or fl, fr, rl, rr, ml, mr).
+  # counts_per_rev   encoder counts per WHEEL revolution, as the firmware will
+  #            count them. "auto" = encoder_ppr * encoder_decoding * gear_ratio.
+  #            Measure it anyway (manual 7.6): datasheets lie about PPR vs CPR.
+  # motor_dir  +1, or -1 if a positive PWM turns this wheel backwards.
+  # encoder_dir +1, or -1 if rolling this wheel forward makes its count go down.
+  # mecanum_sign / drive_angle_deg: only for mecanum / omni, see the manual.
+  #
+  # pins: what each pin means depends on driver.type below.
+  #   pwm_dir      pwm, dir
+  #   pwm_in1_in2  pwm, in1, in2
+  #   dual_pwm     pwm_fwd, pwm_rev
+  # plus enc_a and enc_b for the encoder, for every driver type.
+  - name: left
+    x: auto
+    y: auto
+    counts_per_rev: auto
+    encoder_ppr: 11
+    encoder_decoding: 4
+    gear_ratio: 30.0
+    motor_dir: 1
+    encoder_dir: 1
+    pins: {pwm: 25, dir: 26, enc_a: 34, enc_b: 35}
+
+  - name: right
+    x: auto
+    y: auto
+    counts_per_rev: auto
+    encoder_ppr: 11
+    encoder_decoding: 4
+    gear_ratio: 30.0
+    motor_dir: -1                 # the right motor is usually mounted mirrored
+    encoder_dir: -1
+    pins: {pwm: 32, dir: 33, enc_a: 36, enc_b: 39}
+
+driver:
+  type: pwm_dir                   # pwm_dir | pwm_in1_in2 | dual_pwm
+  # pwm_dir      one PWM pin + one direction pin (Cytron MDD10A / MDD20A, most "smart" drivers)
+  # pwm_in1_in2  enable PWM + two direction pins (L298N, TB6612FNG)
+  # dual_pwm     two PWM pins, one per direction (BTS7960 RPWM/LPWM, DRV8833 IN1/IN2)
+
+mcu:
+  board: esp32                    # esp32 | avr | rp2040 | teensy | other
+  encoder_backend: pcnt           # pcnt = ESP32 hardware counters (classic ESP32 only)
+                                  # isr  = pin-change interrupts, any board, lower edge-rate limit
+  baud: 921600                    # 921600 on ESP32. 115200 on AVR (Uno, Mega, Nano).
+  device_name: robot_mcu          # becomes /dev/robot_mcu
+
+  # USB identity, for the udev rule. Run  python3 setup/list_usb_serial.py
+  # with the board plugged in and copy the values it prints.
+  usb_vendor_id: "10c4"
+  usb_product_id: "ea60"
+  usb_serial: ""                  # fill in if the adapter has a unique serial number
+  usb_port_path: ""               # fill in ONLY if two devices share VID, PID and serial.
+                                  # Then the physical USB socket is the only thing that
+                                  # tells them apart, and the cable must never move.
+
+  control_hz: 100                 # PID rate. 100 on ESP32, 50 on AVR.
+  telemetry_hz: 20                # default telemetry rate
+  watchdog_ms: 750                # no command for this long: wheels ramp to stop
+  max_wheel_speed: 10.0           # rad/s. The firmware clamps to this. See manual 9.8 for
+                                  # how to pick it (leave PWM headroom for the PID).
+  max_wheel_accel: 20.0           # rad/s^2 setpoint slew limit, 0 disables it
+  pwm_bits: 8                     # PWM resolution. 8 gives 0..255.
+  pwm_freq_hz: 20000              # above hearing. Ignored on AVR (fixed by the core).
+  min_pwm_out: 0                  # PWM below this is sent as 0 (kills motor hum)
+
+  # Starting gains. These are deliberately soft. Run the plant test (manual
+  # chapter 9) and replace them with numbers you measured.
+  pid: {kp: 10.0, ki: 50.0, kd: 0.0}
+  kff: [0.0, 0.0]                 # PWM per rad/s, one per wheel, from the staircase test
+  kstat: [0.0, 0.0]               # PWM to break static friction, one per wheel
+
+lidar:
+  model: ydlidar                  # ydlidar | rplidar | none | custom
+  device_name: lidar              # becomes /dev/lidar
+  usb_vendor_id: "10c4"
+  usb_product_id: "ea60"
+  usb_serial: ""
+  usb_port_path: ""
+  baud: 128000                    # YDLIDAR X4 / X4 Pro 128000, X2 115200, G4 230400,
+                                  # RPLIDAR A1/A2M8 115200, A2M12/A3/S1 256000
+  frame_id: laser_frame
+  mount: {x: 0.10, y: 0.00, z: 0.18, yaw_deg: 0.0}   # laser centre in base_link
+  mirror: false                   # true if objects on the left show up on the right (manual 12.4)
+  mask_deg: []                    # arcs to blank, e.g. [[-135, -45]] for a mast behind the laser.
+                                  # Degrees in base_link, 0 = forward, +90 = left.
+  range_min: 0.10
+  range_max: 10.0
+  # Extra driver parameters, merged over the defaults for the model.
+  # For ydlidar the defaults are our X4 Pro values (manual 12.2).
+  driver_overrides: {}
+  # Only for model: custom
+  custom: {package: "", executable: "", params_file: ""}
+
+teleop:
+  max_linear: 0.20                # m/s from the dashboard joystick and the keyboard
+  max_angular: 0.80               # rad/s
+
+dashboard:
+  port: 8080
+  log_dir: ~/robot_logs
+  map_dir: ~/maps
+
+slam:
+  resolution: 0.05
+  max_laser_range: 6.0            # what SLAM uses. The driver keeps the full range.
+  use_scan_matching: true         # slam_toolbox default. We run false on NarrowAisleBot
+                                  # because our odometry beat the matcher (manual 13.4).
+  minimum_travel_distance: 0.2
+  minimum_travel_heading: 0.2
+
+nav:
+  controller: auto                # auto | rpp | mppi. auto = rpp for differential and
+                                  # skid_steer, mppi for mecanum and omni.
+  max_vx: 0.15                    # m/s forward
+  min_vx: -0.10                   # m/s reverse (negative)
+  max_vy: 0.15                    # m/s sideways, ignored unless mecanum / omni
+  max_wz: 0.60                    # rad/s
+  accel: [0.3, 0.3, 0.8]          # vx, vy, wz
+  decel: [-0.5, -0.5, -1.0]
+  inflation_radius: auto          # auto = circumscribed radius of the padded footprint + 0.10
+  goal_xy_tolerance: 0.10
+  goal_yaw_tolerance: 0.15
+  controller_hz: 10.0             # what a Pi 5 actually sustains with SLAM running
+
+system:
+  workspace: ~/ros2_ws
+  ros_domain_id: 42
+  autostart: true                 # start the base stack at boot with systemd
+  wifi_ap:
+    enable: false                 # true = the Pi hosts its own Wi-Fi (manual chapter 6)
+    ssid: MyRobot-Pi
+    password: change-me-please    # 8 characters minimum
+    country: IN                   # two-letter Wi-Fi regulatory domain

@@ -1,0 +1,137 @@
+# NarrowAisleBot itself, written in this kit's format. A reference, not a
+# template: it shows how per-wheel overrides express a robot the "auto"
+# layouts cannot (asymmetric mecanum, two different encoders, a LiDAR that
+# shares its USB identity with the MCU).
+#
+# Values are from aislebot_esp32.ino v3.0, docs/PID_Calibration.md and
+# system/ydlidar_params.yaml at commit 2bf14e0.
+#
+# Two things differ from what actually runs on NarrowAisleBot today:
+#   1. Axes. NarrowAisleBot's base_link is +x RIGHT, +y FORWARD. This file is
+#      REP-103 (+x forward, +y left), which is what we would choose again.
+#   2. Its LiDAR mirror and 270 deg yaw offset are expressed here as
+#      mirror: true plus the mount yaw, not inside a relay node.
+
+robot:
+  name: narrowaislebot
+  drive_type: mecanum
+  wheel_radius: 0.0762            # DekuPro 6 inch SR mecanum
+  track_width: 0.31538            # 2 x 0.15769
+  wheelbase: 0.0                  # not used: every wheel has explicit x, y below
+  track_width_scale: 1.0
+  lateral_scale: 0.92             # measured on the zero-mark floor (0.80 on another floor)
+  body: {length: 1.00, width: 0.36, height: 0.30, center_x: 0.0, footprint_margin: 0.06}
+
+wheels:
+  # Wire order FR, FL, RR, RL, exactly as <V,fr,fl,rr,rl>.
+  # Outer pair (FR, RL) sits 0.403 m from centre, inner pair 0.333 m.
+  - name: FR
+    x: 0.403
+    y: -0.15769
+    mecanum_sign: 1
+    counts_per_rev: 186264        # GTK08, 1000 PPR x 4 x 46.566
+    encoder_decoding: 4
+    motor_dir: -1
+    encoder_dir: -1
+    pins: {pwm: 4, dir: 16, enc_a: 36, enc_b: 39}
+  - name: FL
+    x: 0.333
+    y: 0.15769
+    mecanum_sign: -1
+    counts_per_rev: 186264
+    encoder_decoding: 4
+    motor_dir: 1
+    encoder_dir: 1
+    pins: {pwm: 17, dir: 18, enc_a: 34, enc_b: 35}
+  - name: RR
+    x: -0.333
+    y: -0.15769
+    mecanum_sign: -1
+    counts_per_rev: 93132         # RMCS-2086 optical, 500 lines x 4 x 46.566
+    encoder_decoding: 4
+    motor_dir: -1
+    encoder_dir: -1
+    pins: {pwm: 19, dir: 21, enc_a: 32, enc_b: 33}
+  - name: RL
+    x: -0.403
+    y: 0.15769
+    mecanum_sign: 1
+    counts_per_rev: 93132
+    encoder_decoding: 4
+    motor_dir: 1
+    encoder_dir: 1
+    pins: {pwm: 22, dir: 23, enc_a: 25, enc_b: 26}
+
+driver:
+  type: pwm_dir                   # 2 x Cytron MDD20A
+
+mcu:
+  board: esp32
+  encoder_backend: pcnt
+  baud: 921600
+  device_name: esp32
+  usb_vendor_id: "10c4"           # CP2102 ...
+  usb_product_id: "ea60"
+  usb_serial: "0001"              # ... with the same serial as the LiDAR's adapter,
+  usb_port_path: "4-1"            # so only the physical port separates them
+  control_hz: 100
+  telemetry_hz: 20
+  watchdog_ms: 750
+  max_wheel_speed: 5.20           # air value; drop to ~4.2 on the ground
+  max_wheel_accel: 12.0
+  pwm_bits: 8
+  pwm_freq_hz: 5000
+  min_pwm_out: 5
+  pid: {kp: 45.0, ki: 250.0, kd: 0.5}
+  kff: [37.3, 38.4, 38.3, 38.0]
+  kstat: [8.0, 8.0, 8.0, 8.0]
+
+lidar:
+  model: ydlidar
+  device_name: ydlidar
+  usb_vendor_id: "10c4"
+  usb_product_id: "ea60"
+  usb_serial: "0001"
+  usb_port_path: "2-2"
+  baud: 128000
+  frame_id: laser_frame
+  # 0.27 m ahead of base_link, 0.275 m up. scan_relay's rule on the real robot
+  # is true = 270 deg - reported, in its +x-right frame. In REP-103 that is
+  # true = 180 deg - reported: a mirror plus a 180 deg mount yaw. Derived from
+  # the relay's rule, not re-measured in this form.
+  mount: {x: 0.27, y: 0.0, z: 0.275, yaw_deg: 180.0}
+  mirror: true
+  mask_deg: [[135, 225]]          # the mast behind the scanner (107 beams)
+  range_min: 0.1
+  range_max: 10.0
+  driver_overrides: {frequency: 6.0}   # inert on this unit: the head free-runs at ~11.4 Hz
+  custom: {package: "", executable: "", params_file: ""}
+
+teleop: {max_linear: 0.15, max_angular: 0.30}
+dashboard: {port: 8080, log_dir: ~/aislebot_logs}
+
+slam:
+  resolution: 0.05
+  max_laser_range: 5.0
+  use_scan_matching: false        # Stage G: wheel odometry beat the matcher 3x
+  minimum_travel_distance: 0.2
+  minimum_travel_heading: 0.2
+
+nav:
+  controller: mppi
+  max_vx: 0.12
+  min_vx: -0.12
+  max_vy: 0.12
+  max_wz: 0.30
+  accel: [0.3, 0.3, 0.6]
+  decel: [-0.5, -0.5, -1.0]
+  inflation_radius: 0.65
+  goal_xy_tolerance: 0.05
+  goal_yaw_tolerance: 0.05
+  controller_hz: 10.0
+
+system:
+  workspace: ~/ros2_ws
+  ros_domain_id: 42
+  autostart: true
+  wifi_ap: {enable: true, ssid: AisleBot-Pi, password: change-me-please, country: IN}
